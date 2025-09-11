@@ -51,13 +51,13 @@ export default defineConfig(async () => ({
         // Manual chunks for better caching
         manualChunks: {
           'element-plus': ['element-plus'],
-          'three': ['three'],
           'fontawesome': [
             '@fortawesome/fontawesome-svg-core',
             '@fortawesome/free-solid-svg-icons',
             '@fortawesome/vue-fontawesome'
           ],
-          'vue-vendor': ['vue', 'vue-router', 'pinia']
+          'vue-vendor': ['vue', 'vue-router', 'pinia'],
+          'charts': ['echarts']
         }
       }
     },

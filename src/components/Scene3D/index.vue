@@ -1,59 +1,39 @@
 <template>
   <div id="scene3D" class="scene3d-container">
     <div class="scene3d-placeholder">
-      <fa icon="car" class="scene3d-icon" />
-      <div class="scene3d-title">3D 场景</div>
-      <div class="scene3d-description">Three.js 3D 地图场景</div>
+      <fa icon="cube" class="scene3d-icon" />
+      <div class="scene3d-title">3D Scene</div>
+      <div class="scene3d-description">3D visualization will be implemented here</div>
       <div class="scene3d-info">
         <div class="info-item">
-          <span class="info-label">摄像机:</span>
-          <span class="info-value">透视摄像机</span>
+          <span class="info-label">Status:</span>
+          <span class="info-value status-pending">Awaiting Implementation</span>
         </div>
         <div class="info-item">
-          <span class="info-label">渲染器:</span>
-          <span class="info-value">WebGL 渲染器</span>
+          <span class="info-label">Features:</span>
+          <span class="info-value">3D Models, Camera Controls, Lighting</span>
         </div>
         <div class="info-item">
-          <span class="info-label">状态:</span>
-          <span class="info-value status-ready">就绪</span>
+          <span class="info-label">Technology:</span>
+          <span class="info-value">Three.js + WebGL</span>
         </div>
       </div>
-      <div class="scene3d-controls">
-        <button class="scene-btn">
-          <fa icon="play" /> 启动场景
-        </button>
-        <button class="scene-btn">
-          <fa icon="refresh" /> 重置视角
-        </button>
+      <div class="scene3d-message">
+        <fa icon="info-circle" />
+        <span>This component is ready for 3D scene implementation</span>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, onUnmounted } from "vue";
+// Scene3D Component - Placeholder for future 3D implementation
+// This component will house Three.js scene, camera controls, and 3D models
 
-let appCloseHandler = null;
+import { onMounted } from 'vue';
 
 onMounted(() => {
-  // TODO: 实现 Three.js 场景初始化
-  console.log('Scene3D mounted - ready for Three.js implementation');
-  
-  // 监听应用关闭事件
-  appCloseHandler = () => {
-    // TODO: 清理 Three.js 资源
-    console.log('Scene3D cleanup');
-  };
-  window.addEventListener('app-will-close', appCloseHandler);
-});
-
-onUnmounted(() => {
-  // TODO: 清理 Three.js 资源
-  console.log('Scene3D unmounted');
-  
-  if (appCloseHandler) {
-    window.removeEventListener('app-will-close', appCloseHandler);
-  }
+  console.log('Scene3D component mounted - ready for 3D implementation');
 });
 </script>
 
@@ -146,37 +126,23 @@ onUnmounted(() => {
   font-size: 0.9rem;
 }
 
-.status-ready {
-  color: var(--success) !important;
+.status-pending {
+  color: var(--warning) !important;
 }
 
-.scene3d-controls {
-  display: flex;
-  gap: 15px;
-}
-
-.scene-btn {
-  padding: 10px 20px;
-  background: rgba(0, 240, 255, 0.1);
-  color: var(--primary);
-  border: 1px solid rgba(0, 240, 255, 0.3);
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.3s ease;
+.scene3d-message {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 15px;
+  background: rgba(0, 150, 255, 0.1);
+  border: 1px solid rgba(0, 150, 255, 0.3);
+  border-radius: 8px;
+  color: rgba(0, 150, 255, 0.9);
+  font-size: 0.9rem;
 }
 
-.scene-btn:hover {
-  background: rgba(0, 240, 255, 0.2);
-  border-color: var(--primary);
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(0, 240, 255, 0.3);
-}
-
-/* 网格背景效果 */
+/* Grid background effect */
 .scene3d-container::before {
   content: '';
   position: absolute;

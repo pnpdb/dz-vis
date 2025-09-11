@@ -1,0 +1,113 @@
+// SCSS Variables for DZ Car Manager
+// This file contains global SCSS variables used throughout the application
+
+// Color System
+$primary: #00f0ff;
+$primary-dark: #00d2e6;
+$primary-light: #66f5ff;
+
+$secondary: #ff6b6b;
+$success: #51cf66;
+$warning: #ffd43b;
+$error: #ff6b6b;
+$info: #74c0fc;
+
+// Background Colors
+$dark-bg: #0a1625;
+$dark-card: #1a2332;
+$darker-card: #0f1419;
+$dark-bg-opacity: rgba(10, 22, 37, 0.9);
+
+// Border Colors
+$dark-border: rgba(0, 240, 255, 0.2);
+
+// Text Colors
+$text-primary: #ffffff;
+$text-secondary: #a0b3d0;
+$text-muted: #8da9c4;
+
+// Spacing
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 16px;
+$spacing-lg: 24px;
+$spacing-xl: 32px;
+$spacing-xxl: 48px;
+
+// Border Radius
+$border-radius-sm: 4px;
+$border-radius: 8px;
+$border-radius-lg: 12px;
+$border-radius-xl: 16px;
+
+// Shadows
+$shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+$shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+$shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.3);
+$card-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+
+// Transitions
+$transition-fast: 0.2s ease;
+$transition: 0.3s ease;
+$transition-slow: 0.5s ease;
+
+// Typography
+$font-family-primary: 'Roboto', sans-serif;
+$font-family-display: 'Orbitron', sans-serif;
+
+$font-size-xs: 12px;
+$font-size-sm: 14px;
+$font-size-md: 16px;
+$font-size-lg: 18px;
+$font-size-xl: 24px;
+$font-size-xxl: 32px;
+
+$font-weight-light: 300;
+$font-weight-normal: 400;
+$font-weight-medium: 500;
+$font-weight-semibold: 600;
+$font-weight-bold: 700;
+
+// Z-index Scale
+$z-index-dropdown: 1000;
+$z-index-sticky: 1020;
+$z-index-fixed: 1030;
+$z-index-modal-backdrop: 1040;
+$z-index-modal: 1050;
+$z-index-popover: 1060;
+$z-index-tooltip: 1070;
+
+// Breakpoints
+$breakpoint-xs: 480px;
+$breakpoint-sm: 768px;
+$breakpoint-md: 1024px;
+$breakpoint-lg: 1280px;
+$breakpoint-xl: 1536px;
+
+// Layout
+$header-height: 80px;
+$sidebar-width: 280px;
+$sidebar-collapsed-width: 60px;
+
+// Animation Durations
+$duration-fast: 150ms;
+$duration-normal: 300ms;
+$duration-slow: 500ms;
+
+// Form Elements
+$input-height: 44px;
+$input-padding: 12px 16px;
+$input-border-radius: $border-radius;
+
+// Button Sizes
+$btn-padding-sm: 8px 16px;
+$btn-padding: 12px 24px;
+$btn-padding-lg: 16px 32px;
+
+// Grid System
+$grid-columns: 12;
+$grid-gutter: 24px;
+
+// Component Specific
+$dashboard-size: 190px;
+$sensor-card-size: 120px;

@@ -1,0 +1,131 @@
+.el-select {
+    height: 44px !important;
+}
+.el-select__wrapper {
+    height: 100% !important;
+    background-color: rgba(30, 58, 95, 0.5) !important;
+    border: 1px solid var(--dark-border) !important;
+    box-shadow: none !important;
+}
+
+.el-select__wrapper:hover {
+    border-color: rgba(0, 240, 255, 0.3) !important;
+}
+
+.el-select__wrapper.is-focused {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 1px rgba(0, 240, 255, 0.2) !important;
+}
+
+.el-select__placeholder {
+    color: #8da9c4 !important;
+}
+
+.el-input-number {
+    height: 44px !important;
+    width: 100% !important;
+}
+
+.el-input-number .el-input__wrapper {
+    background-color: rgba(30, 58, 95, 0.5) !important;
+    border: 1px solid var(--dark-border) !important;
+    box-shadow: none !important;
+}
+
+.el-input-number .el-input__wrapper:hover {
+    border-color: rgba(0, 240, 255, 0.3) !important;
+}
+
+.el-input-number .el-input__wrapper.is-focus {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 1px rgba(0, 240, 255, 0.2) !important;
+}
+
+/* 数字输入框的加减按钮样式 */
+.el-input-number__decrease,
+.el-input-number__increase {
+    background-color: rgba(30, 58, 95, 0.7) !important;
+    border-color: var(--dark-border) !important;
+    color: var(--text-primary) !important;
+}
+
+.el-input-number__decrease:hover,
+.el-input-number__increase:hover {
+    background-color: rgba(0, 240, 255, 0.2) !important;
+    border-color: rgba(0, 240, 255, 0.3) !important;
+    color: var(--primary) !important;
+}
+
+.el-input-number__decrease:active,
+.el-input-number__increase:active {
+    background-color: rgba(0, 240, 255, 0.3) !important;
+}
+
+/* 禁用状态的加减按钮 */
+.el-input-number__decrease.is-disabled,
+.el-input-number__increase.is-disabled {
+    background-color: rgba(30, 58, 95, 0.3) !important;
+    border-color: rgba(30, 58, 95, 0.3) !important;
+    color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.el-input__inner {
+    color: var(--text-primary) !important;
+    background-color: transparent !important;
+}
+
+.el-input__inner::placeholder {
+    color: #8da9c4 !important;
+}
+
+.el-notification {
+    background-color: var(--dark-bg-opacity) !important;
+}
+
+/* 下拉菜单样式 */
+.el-select-dropdown {
+    background-color: var(--dark-card) !important;
+    border: 1px solid var(--dark-border) !important;
+}
+
+.el-select-dropdown__item {
+    color: var(--text-primary) !important;
+    background-color: transparent !important;
+}
+
+.el-select-dropdown__item:hover {
+    background-color: rgba(0, 240, 255, 0.1) !important;
+}
+
+.el-select-dropdown__item.is-selected {
+    background-color: rgba(0, 240, 255, 0.2) !important;
+    color: var(--primary) !important;
+}
+
+/* 滑块样式 */
+.el-slider__runway {
+    background-color: rgba(30, 58, 95, 0.5) !important;
+}
+
+.el-slider__bar {
+    background-color: var(--primary) !important;
+}
+
+.el-slider__button {
+    border-color: var(--primary) !important;
+    background-color: var(--primary) !important;
+}
+
+.el-slider__button:hover {
+    transform: scale(1.2);
+}
+
+.el-slider__input {
+    width: 80px !important;
+}
+
+.el-slider__input .el-input__wrapper {
+    background-color: rgba(30, 58, 95, 0.5) !important;
+    border: 1px solid var(--dark-border) !important;
+    box-shadow: none !important;
+}

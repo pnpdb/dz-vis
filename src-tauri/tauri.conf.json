@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "DZ Car Manager",
+  "version": "0.1.0",
+  "identifier": "com.dz.carmanager",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "DZ Car Manager",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 1200,
+        "minHeight": 800,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "alwaysOnTop": false,
+        "maximized": false,
+        "visible": true,
+        "transparent": false,
+        "center": true,
+        "label": "main"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; script-src 'self' 'unsafe-eval';",
+      "dangerousDisableAssetCspModification": false
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "publisher": "DZ Technologies",
+    "copyright": "© 2024 DZ Technologies. All rights reserved.",
+    "category": "Utility",
+    "shortDescription": "Car Management System",
+    "longDescription": "A comprehensive car management system for autonomous vehicle monitoring and control.",
+    "externalBin": [],
+    "resources": []
+  }
+}

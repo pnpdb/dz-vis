@@ -1,0 +1,260 @@
+@import './base.css';
+@import './animations.css';
+@import 'normalize.css/normalize.css';
+@import '@fontsource/orbitron/400.css';
+@import '@fontsource/orbitron/500.css';
+@import '@fontsource/orbitron/600.css';
+@import '@fontsource/orbitron/700.css';
+@import '@fontsource/roboto/300.css';
+@import '@fontsource/roboto/400.css';
+@import '@fontsource/roboto/500.css';
+
+/* layout */
+
+#app {
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+}
+.container {
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: 10px;
+    /* min-width: 1600px; */
+    /* font-family: 'Orbitron', 'Roboto', sans-serif; */
+}
+
+/* 地图区域 */
+.map-wrap {
+    /* flex: 7; */
+    flex-grow: 7;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* 右侧菜单 */
+.panel-card {
+    flex-grow: 1;
+    max-width: 450px;
+    min-width: 360px;
+    width: 400px;
+    height: 100%;
+    padding: 10px;
+    gap: 10px;
+    background: rgba(20, 35, 60, 0.6);
+    /* background: rgba(15, 30, 47, 0.8); */
+    /* flex-direction: column; */
+
+    overflow-y: auto;
+    border-radius: 16px;
+    box-shadow: var(--card-shadow);
+    border: 1px solid var(--dark-border);
+    backdrop-filter: blur(5px);
+    
+    /* 炫酷卡片效果 */
+    position: relative;
+    transform-style: preserve-3d;
+    transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+    will-change: transform;
+}
+
+.panel-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 
+        0 15px 35px rgba(0, 0, 0, 0.3), 
+        0 0 20px rgba(0, 240, 255, 0.2),
+        0 5px 15px rgba(0, 240, 255, 0.1);
+}
+
+.panel-header {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 2px solid var(--dark-border);
+}
+
+.panel-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 20px;
+    color: var(--dark-bg);
+    background: linear-gradient(
+        135deg,
+        var(--primary) 0%,
+        var(--primary-dark) 100%
+    );
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+}
+
+.panel-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    background: linear-gradient(
+        90deg,
+        var(--primary),
+        var(--primary-light)
+    );
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* 子模块样式 */
+.form-group {
+    margin-bottom: 15px;
+    padding: 15px 10px;
+    gap: 12px;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--dark-bg-opacity);
+    border-radius: 16px;
+    border: var(--dark-border) solid 1px;
+    /* transform: scale(0.9); */
+    
+    /* 炫酷卡片效果 */
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+    will-change: transform;
+    transform: translateZ(0);
+    overflow: hidden;
+}
+
+.form-group:hover {
+    transform: translateY(-3px);
+    box-shadow: 
+        0 8px 25px rgba(0, 0, 0, 0.15),
+        0 0 15px rgba(0, 240, 255, 0.1);
+    border-color: rgba(0, 240, 255, 0.3);
+}
+
+/* 为form-group添加光流效果 */
+.form-group::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 200%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(0, 240, 255, 0.1) 40%,
+        rgba(0, 240, 255, 0.6) 50%,
+        rgba(0, 240, 255, 0.1) 60%,
+        transparent 100%
+    );
+    border-radius: inherit;
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: -1;
+    pointer-events: none;
+}
+
+.form-group:hover::before {
+    opacity: 1;
+    animation: lightFlow 2s ease-out forwards;
+}
+
+@keyframes lightFlow {
+    0% {
+        
+        left: -100%;
+        opacity: 0;
+    }
+    20% {
+        opacity: 1;
+    }
+    80% {
+        opacity: 1;
+    }
+    100% {
+        left: 100%;
+        opacity: 0;
+    }
+}
+
+.form-label {
+    /* margin-bottom: 10px; */
+    font-weight: 600;
+    /* color: var(--success); */
+    color: var(--primary-dark);
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.form-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.item-label {
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: var(--text-gray);
+}
+
+.form-group:last-child {
+    margin-bottom: 0;
+}
+
+/* 相机预览 */
+.camera-preview {
+    width: 100%;
+    height: 200px;
+    background: linear-gradient(45deg, #1a1f25, #2c3e50);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+
+    .camera-overlay {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        color: white;
+        font-size: 12px;
+        background: rgba(0, 0, 0, 0.5);
+        padding: 4px 8px;
+        border-radius: 4px;
+    }
+}
+
+.camera-preview::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.15),
+        rgba(0, 0, 0, 0.15) 1px,
+        transparent 1px,
+        transparent 4px
+    );
+}
+
+/* 图表 */
+.echrts-container {
+    height: 150px;
+
+    .echarts {
+        width: calc(100% - 150px);
+        /* min-width: 300px; */
+        height: 100%;
+    }
+}

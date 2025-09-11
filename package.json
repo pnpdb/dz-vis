@@ -1,0 +1,49 @@
+{
+  "name": "dz-car-manager",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A comprehensive car management system for autonomous vehicle monitoring and control",
+  "author": "DZ Technologies",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "tauri:build:debug": "tauri build --debug",
+    "clean": "rimraf dist && rimraf src-tauri/target",
+    "lint": "eslint src --ext .vue,.js,.ts --fix",
+    "type-check": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@fontsource/orbitron": "^5.2.6",
+    "@fontsource/roboto": "^5.2.6",
+    "@fortawesome/fontawesome-svg-core": "^6.7.2",
+    "@fortawesome/free-solid-svg-icons": "^6.7.2",
+    "@fortawesome/vue-fontawesome": "^3.0.8",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "axios": "^1.10.0",
+    "echarts": "^5.6.0",
+    "element-plus": "^2.10.3",
+    "normalize.css": "^8.0.1",
+    "pinia": "^3.0.3",
+    "three": "^0.178.0",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.1",
+    "vue3-count-to": "^1.1.2"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "sass": "^1.89.2",
+    "sass-loader": "^16.0.5",
+    "terser": "^5.44.0",
+    "unplugin-auto-import": "^19.3.0",
+    "unplugin-vue-components": "^28.8.0",
+    "vite": "^6.0.3"
+  }
+}

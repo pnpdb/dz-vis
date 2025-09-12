@@ -2,6 +2,16 @@
  * Tauri应用配置常量
  */
 
+// 检测是否在Tauri环境中
+const detectTauriEnvironment = () => {
+    // 官方推荐的检测方法
+    if (typeof window !== 'undefined') {
+        // Tauri v2 新的检测方法
+        return '__TAURI_INTERNALS__' in window;
+    }
+    return false;
+};
+
 // 应用信息
 export const APP_CONFIG = {
     name: 'DZ Car Manager',
@@ -18,7 +28,7 @@ export const APP_CONFIG = {
     // 环境配置
     isDev: import.meta.env.DEV,
     isProd: import.meta.env.PROD,
-    isTauri: typeof window !== 'undefined' && window.__TAURI__ !== undefined,
+    isTauri: detectTauriEnvironment(),
     
     // 默认设置
     defaults: {
@@ -106,11 +116,12 @@ export const NETWORK_CONFIG = {
         timeout: 5000
     },
     
-    // WebSocket配置
-    websocket: {
-        reconnectInterval: 5000, // 5秒
-        maxReconnectAttempts: 10,
-        heartbeatInterval: 30000 // 30秒
+    // Socket服务器配置
+    socket: {
+        defaultPort: 8888,
+        heartbeatInterval: 10000, // 10秒
+        connectionTimeout: 30000, // 30秒
+        maxConnections: 100
     }
 };
 

@@ -9,7 +9,7 @@ export class TauriUtils {
     /**
      * 检查是否在Tauri环境中运行
      */
-    static isTauriApp() {
+    static isTauri() {
         return APP_CONFIG.isTauri;
     }
 
@@ -20,7 +20,7 @@ export class TauriUtils {
      * @returns {Promise<object>} 结果对象
      */
     static async safeInvoke(command, params = {}) {
-        if (!this.isTauriApp()) {
+        if (!TauriUtils.isTauri()) {
             console.warn(`Tauri命令 "${command}" 在非Tauri环境中被调用`);
             return { success: false, error: 'Not in Tauri environment' };
         }
@@ -110,7 +110,7 @@ export class TauriUtils {
      * Listen to window events
      */
     static async listenToWindowEvents(callbacks = {}) {
-        if (!this.isTauri()) return;
+        if (!TauriUtils.isTauri()) return;
 
         const appWindow = getCurrentWindow();
         
@@ -135,27 +135,7 @@ export class TauriUtils {
         }
     }
 
-    /**
-     * Show notification (fallback to browser notification if not in Tauri)
-     */
-    static async showNotification(title, body, icon = null) {
-        if (this.isTauri()) {
-            // TODO: Implement Tauri notification when plugin is available
-            console.log('Tauri notification:', { title, body, icon });
-        } else {
-            // Fallback to browser notification
-            if ('Notification' in window) {
-                if (Notification.permission === 'granted') {
-                    new Notification(title, { body, icon });
-                } else if (Notification.permission !== 'denied') {
-                    const permission = await Notification.requestPermission();
-                    if (permission === 'granted') {
-                        new Notification(title, { body, icon });
-                    }
-                }
-            }
-        }
-    }
+
 }
 
 /**
@@ -164,7 +144,7 @@ export class TauriUtils {
 export const Environment = {
     isDevelopment: () => import.meta.env.DEV,
     isProduction: () => import.meta.env.PROD,
-    isTauri: () => TauriUtils.isTauriApp(),
+    isTauri: () => TauriUtils.isTauri(),
     getMode: () => import.meta.env.MODE,
     getBaseUrl: () => import.meta.env.BASE_URL,
 };

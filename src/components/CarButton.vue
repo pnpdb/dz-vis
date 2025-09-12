@@ -27,7 +27,12 @@
 </template>
 
 <script setup>
+import { ref, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
+import { socketManager } from '@/utils/socketManager.js';
+
+// 当前选中的车辆ID (可以从父组件传入或全局状态获取)
+const currentCarId = ref('car_127.0.0.1'); // 默认值，实际应该动态获取
 
 const showMsg = (result, message) => {
     if (result) {
@@ -37,30 +42,69 @@ const showMsg = (result, message) => {
     }
 };
 
-const startCar = () => {
-    console.log('启动车辆');
-    showMsg(true, '车辆已启动');
+const startCar = async () => {
+    try {
+        await socketManager.startVehicle(currentCarId.value);
+        showMsg(true, '车辆启动命令已发送');
+    } catch (error) {
+        console.error('启动车辆失败:', error);
+        showMsg(false, '启动车辆失败');
+    }
 };
 
-const stopCar = () => {
-    console.log('停止车辆');
-    showMsg(true, '车辆已停止');
+const stopCar = async () => {
+    try {
+        await socketManager.stopVehicle(currentCarId.value);
+        showMsg(true, '车辆停止命令已发送');
+    } catch (error) {
+        console.error('停止车辆失败:', error);
+        showMsg(false, '停止车辆失败');
+    }
 };
 
-const emptyMode = () => {
-    console.log('切换到空载模式');
-    showMsg(true, '已切换到空载模式');
+const emptyMode = async () => {
+    try {
+        // 空载模式可以发送配置更新命令
+        await socketManager.sendToVehicle(
+            currentCarId.value, 
+            0x1008, // CONFIG_UPDATE
+            new TextEncoder().encode('empty_mode')
+        );
+        showMsg(true, '已切换到空载模式');
+    } catch (error) {
+        console.error('切换空载模式失败:', error);
+        showMsg(false, '切换空载模式失败');
+    }
 };
 
-const initPose = () => {
-    console.log('初始化位姿');
-    showMsg(true, '位姿已初始化');
+const initPose = async () => {
+    try {
+        await socketManager.sendToVehicle(
+            currentCarId.value,
+            0x1009, // SYSTEM_RESET
+            new TextEncoder().encode('init_pose')
+        );
+        showMsg(true, '位姿初始化命令已发送');
+    } catch (error) {
+        console.error('初始化位姿失败:', error);
+        showMsg(false, '初始化位姿失败');
+    }
 };
 
-const emergencyBrake = () => {
-    console.log('紧急制动');
-    showMsg(true, '已执行紧急制动');
+const emergencyBrake = async () => {
+    try {
+        await socketManager.emergencyBrake(currentCarId.value);
+        showMsg(true, '紧急制动命令已发送');
+    } catch (error) {
+        console.error('紧急制动失败:', error);
+        showMsg(false, '紧急制动失败');
+    }
 };
+
+onMounted(() => {
+    // 组件挂载时可以检查Socket连接状态
+    console.log('CarButton组件已挂载，当前车辆ID:', currentCarId.value);
+});
 </script>
 
 <style lang="scss" scoped>

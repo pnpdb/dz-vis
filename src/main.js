@@ -16,6 +16,7 @@ import './styles/customer.scss';
 // Import error handling
 import { setupGlobalErrorHandling, ErrorHandler } from '@/utils/errorHandler.js';
 import { Environment } from '@/utils/tauri.js';
+import { socketManager } from '@/utils/socketManager.js';
 
 // Setup global error handling
 setupGlobalErrorHandling();
@@ -53,3 +54,23 @@ app.use(ElementPlus, {
 app.component('fa', FontAwesomeIcon);
 
 app.mount('#app');
+
+// 在Tauri环境中启动Socket服务器
+console.log('🔍 检查Tauri环境:', Environment.isTauri());
+
+if (Environment.isTauri()) {
+    console.log('✅ 在Tauri环境中，准备启动Socket服务器');
+    // 延迟启动Socket服务器，确保应用完全初始化
+    setTimeout(async () => {
+        try {
+            console.log('🚀 开始启动Socket服务器...');
+            const result = await socketManager.startServer(8888);
+            console.log('✅ Socket服务器启动成功:', result);
+        } catch (error) {
+            console.error('❌ Socket服务器启动失败:', error);
+            console.error('错误详情:', error.stack || error);
+        }
+    }, 2000); // 增加延迟时间
+} else {
+    console.log('⚠️ 不在Tauri环境中，跳过Socket服务器启动');
+}

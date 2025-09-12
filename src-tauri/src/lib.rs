@@ -96,12 +96,12 @@ async fn start_socket_server(app: tauri::AppHandle, port: u16) -> Result<String,
 #[tauri::command]
 async fn send_to_vehicle(
     app: tauri::AppHandle,
-    car_id: String,
+    vehicle_id: i32,
     message_type: u16,
     data: Vec<u8>
 ) -> Result<String, String> {
     let connections = app.state::<socket::ConnectionManager>();
-    socket::SocketServer::send_to_vehicle(&connections, &car_id, message_type, &data)
+    socket::SocketServer::send_to_vehicle(&connections, vehicle_id, message_type, &data)
         .map(|_| "消息发送成功".to_string())
 }
 

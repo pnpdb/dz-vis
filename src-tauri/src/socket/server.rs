@@ -1,9 +1,10 @@
 use super::protocol::{ProtocolParser, SocketMessage, build_message};
+use crate::database::VehicleDatabase;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
@@ -11,13 +12,14 @@ use tokio::sync::mpsc;
 // 客户端连接信息
 #[derive(Debug, Clone)]
 pub struct ClientConnection {
-    pub car_id: String,
+    pub vehicle_id: i32,           // 使用整数车辆ID
+    pub vehicle_name: String,      // 车辆名称
     pub addr: SocketAddr,
     pub sender: mpsc::UnboundedSender<Vec<u8>>,
 }
 
-// 全局连接管理器
-pub type ConnectionManager = Arc<RwLock<HashMap<String, ClientConnection>>>;
+// 全局连接管理器 - 使用整数车辆ID作为键
+pub type ConnectionManager = Arc<RwLock<HashMap<i32, ClientConnection>>>;
 
 // Socket服务器
 pub struct SocketServer {
@@ -74,20 +76,50 @@ impl SocketServer {
         let mut parser = ProtocolParser::new();
         let mut buffer = [0u8; 1024];
         
-        // 暂时使用IP地址作为car_id，后续可通过消息协议获取真实ID
-        let car_id = format!("car_{}", addr.ip());
+        // 根据客户端IP地址查询数据库获取车辆信息
+        let vehicle_info = if let Some(db) = app_handle.try_state::<VehicleDatabase>() {
+            // 查询数据库中匹配的车辆连接
+            match db.get_all_vehicle_connections().await {
+                Ok(connections) => {
+                    connections.into_iter()
+                        .find(|conn| conn.ip_address == addr.ip().to_string() && conn.is_active)
+                }
+                Err(e) => {
+                    println!("❌ 查询车辆连接失败: {}", e);
+                    None
+                }
+            }
+        } else {
+            println!("❌ 无法获取数据库实例");
+            None
+        };
+        
+        let (vehicle_id, vehicle_name) = if let Some(info) = vehicle_info {
+            (info.vehicle_id, info.name)
+        } else {
+            println!("⚠️ 未找到IP {}的车辆配置，使用默认值", addr.ip());
+            // 使用IP最后一段作为默认ID
+            let default_id = addr.ip().to_string()
+                .split('.')
+                .last()
+                .unwrap_or("0")
+                .parse::<i32>()
+                .unwrap_or(0);
+            (default_id, format!("未知车辆_{}", addr.ip()))
+        };
         
         // 保存连接
         {
             let mut conns = connections.write();
-            conns.insert(car_id.clone(), ClientConnection {
-                car_id: car_id.clone(),
+            conns.insert(vehicle_id, ClientConnection {
+                vehicle_id,
+                vehicle_name: vehicle_name.clone(),
                 addr,
                 sender: tx,
             });
         }
         
-        println!("✅ 车辆 {} 连接已建立", car_id);
+        println!("✅ 车辆 {} (ID: {}) 连接已建立", vehicle_name, vehicle_id);
         
         loop {
             tokio::select! {
@@ -103,7 +135,7 @@ impl SocketServer {
                             
                             // 尝试解析消息
                             while let Ok(Some(message)) = parser.try_parse_message() {
-                                Self::handle_message(message, &car_id, &app_handle).await;
+                                Self::handle_message(message, vehicle_id, &vehicle_name, &app_handle).await;
                             }
                         }
                         Err(e) => {
@@ -126,22 +158,23 @@ impl SocketServer {
         // 清理连接
         {
             let mut conns = connections.write();
-            conns.remove(&car_id);
+            conns.remove(&vehicle_id);
         }
         
-        println!("🗑️ 车辆 {} 连接已清理", car_id);
+        println!("🗑️ 车辆 {} (ID: {}) 连接已清理", vehicle_name, vehicle_id);
         Ok(())
     }
 
     /// 处理接收到的消息
-    async fn handle_message(message: SocketMessage, car_id: &str, app_handle: &tauri::AppHandle) {
-        println!("📨 收到消息 - 车辆: {}, 类型: 0x{:04X}, 数据长度: {}", 
-                car_id, message.message_type, message.data.len());
+    async fn handle_message(message: SocketMessage, vehicle_id: i32, vehicle_name: &str, app_handle: &tauri::AppHandle) {
+        println!("📨 收到消息 - 车辆: {} (ID: {}), 类型: 0x{:04X}, 数据长度: {}", 
+                vehicle_name, vehicle_id, message.message_type, message.data.len());
         
         // 发送到前端进行数据域解析
         let frontend_message = serde_json::json!({
             "type": "socket_message",
-            "car_id": car_id,
+            "vehicle_id": vehicle_id,
+            "vehicle_name": vehicle_name,
             "message_type": message.message_type,
             "timestamp": message.timestamp,
             "data": message.data
@@ -155,24 +188,24 @@ impl SocketServer {
     /// 发送消息给指定车辆
     pub fn send_to_vehicle(
         connections: &ConnectionManager,
-        car_id: &str,
+        vehicle_id: i32,
         message_type: u16,
         data: &[u8],
     ) -> Result<(), String> {
         let conns = connections.read();
         
-        if let Some(connection) = conns.get(car_id) {
+        if let Some(connection) = conns.get(&vehicle_id) {
             let packet = build_message(message_type, data);
             
             if let Err(e) = connection.sender.send(packet) {
                 return Err(format!("发送失败: {}", e));
             }
             
-            println!("📤 发送消息到车辆 {} - 类型: 0x{:04X}, 数据长度: {}", 
-                    car_id, message_type, data.len());
+            println!("📤 发送消息到车辆 {} (ID: {}) - 类型: 0x{:04X}, 数据长度: {}", 
+                    connection.vehicle_name, vehicle_id, message_type, data.len());
             Ok(())
         } else {
-            Err(format!("车辆 {} 未连接", car_id))
+            Err(format!("车辆 ID {} 未连接", vehicle_id))
         }
     }
 
@@ -186,10 +219,11 @@ impl SocketServer {
         let packet = build_message(message_type, data);
         let mut sent_count = 0;
         
-        for (car_id, connection) in conns.iter() {
+        for (vehicle_id, connection) in conns.iter() {
             if connection.sender.send(packet.clone()).is_ok() {
                 sent_count += 1;
-                println!("📤 广播消息到车辆 {} - 类型: 0x{:04X}", car_id, message_type);
+                println!("📤 广播消息到车辆 {} (ID: {}) - 类型: 0x{:04X}", 
+                        connection.vehicle_name, vehicle_id, message_type);
             }
         }
         
@@ -199,9 +233,10 @@ impl SocketServer {
     /// 获取连接状态
     pub fn get_connection_status(connections: &ConnectionManager) -> Vec<serde_json::Value> {
         let conns = connections.read();
-        conns.iter().map(|(car_id, conn)| {
+        conns.iter().map(|(vehicle_id, conn)| {
             serde_json::json!({
-                "car_id": car_id,
+                "vehicle_id": vehicle_id,
+                "vehicle_name": &conn.vehicle_name,
                 "address": conn.addr.to_string(),
                 "connected": true
             })

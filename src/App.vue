@@ -22,6 +22,16 @@
         
         <!-- HUD状态指示器 -->
         <div class="hud-overlay">
+            <!-- FPS显示 - 右上角时间左侧 -->
+            <div class="status-indicator top-right-fps">
+                <div class="performance-monitor">
+                    <span>FPS: {{ fps.toString().padStart(2, ' ') }}</span>
+                    <div class="fps-bar">
+                        <div class="fps-fill" :style="{ width: fpsPercentage + '%' }"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- 系统时间 - 右上角 -->
             <div class="status-indicator top-right">
                 <div class="timestamp">{{ currentTime }}</div>
             </div>
@@ -29,14 +39,6 @@
                 <div class="network-status">
                     <fa icon="signal" />
                     <span>网络连接正常</span>
-                </div>
-            </div>
-            <div class="status-indicator bottom-right">
-                <div class="performance-monitor">
-                    <span>FPS: {{ fps }}</span>
-                    <div class="fps-bar">
-                        <div class="fps-fill" :style="{ width: fpsPercentage + '%' }"></div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -309,6 +311,7 @@ onBeforeUnmount(() => {
 
 .top-left { top: 120px; left: 20px; }
 .top-right { top: 120px; right: 450px; }
+.top-right-fps { top: 120px; right: 560px; } /* FPS显示在时间左侧 */
 .bottom-left { bottom: 20px; left: 20px; }
 .bottom-right { bottom: 20px; right: 450px; }
 
@@ -376,6 +379,10 @@ onBeforeUnmount(() => {
     .top-right, .bottom-right {
         right: 400px;
     }
+    
+    .top-right-fps {
+        right: 510px;
+    }
 }
 
 @media (max-width: 1200px) {
@@ -387,6 +394,10 @@ onBeforeUnmount(() => {
     
     .top-right, .bottom-right {
         right: 360px;
+    }
+    
+    .top-right-fps {
+        right: 470px;
     }
 }
 

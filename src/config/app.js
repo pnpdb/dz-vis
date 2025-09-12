@@ -4,10 +4,27 @@
 
 // 检测是否在Tauri环境中
 const detectTauriEnvironment = () => {
-    // 官方推荐的检测方法
+    // 官方推荐的检测方法 - 使用多种检测方式确保准确性
     if (typeof window !== 'undefined') {
-        // Tauri v2 新的检测方法
-        return '__TAURI_INTERNALS__' in window;
+        // Tauri v2 主要检测方法
+        if ('__TAURI_INTERNALS__' in window) {
+            return true;
+        }
+        
+        // Tauri v1 兼容性检测
+        if ('__TAURI__' in window) {
+            return true;
+        }
+        
+        // 检测 Tauri API 是否可用
+        try {
+            return Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__);
+        } catch (e) {
+            // 如果在开发环境且有 Tauri 相关的 meta 信息
+            if (import.meta.env.DEV && import.meta.env.TAURI_ENV_PLATFORM) {
+                return true;
+            }
+        }
     }
     return false;
 };

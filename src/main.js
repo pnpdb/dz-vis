@@ -56,10 +56,20 @@ app.component('fa', FontAwesomeIcon);
 app.mount('#app');
 
 // 在Tauri环境中启动Socket服务器
-console.log('🔍 检查Tauri环境:', Environment.isTauri());
+console.log('🔍 调试Tauri环境检测:');
+console.log('  - window.__TAURI_INTERNALS__:', typeof window !== 'undefined' ? '__TAURI_INTERNALS__' in window : 'window未定义');
+console.log('  - window.__TAURI__:', typeof window !== 'undefined' ? '__TAURI__' in window : 'window未定义');
+console.log('  - import.meta.env.DEV:', import.meta.env.DEV);
+console.log('  - import.meta.env.TAURI_ENV_PLATFORM:', import.meta.env.TAURI_ENV_PLATFORM);
+console.log('  - Environment.isTauri():', Environment.isTauri());
 
-if (Environment.isTauri()) {
-    console.log('✅ 在Tauri环境中，准备启动Socket服务器');
+// 强制启动Socket服务器进行调试（临时）
+const shouldStartSocket = Environment.isTauri() || import.meta.env.TAURI_ENV_PLATFORM;
+
+console.log('🔍 检查是否应启动Socket服务器:', shouldStartSocket);
+
+if (shouldStartSocket) {
+    console.log('✅ 准备启动Socket服务器');
     // 延迟启动Socket服务器，确保应用完全初始化
     setTimeout(async () => {
         try {
@@ -72,5 +82,5 @@ if (Environment.isTauri()) {
         }
     }, 2000); // 增加延迟时间
 } else {
-    console.log('⚠️ 不在Tauri环境中，跳过Socket服务器启动');
+    console.log('⚠️ 不启动Socket服务器');
 }

@@ -1,60 +1,52 @@
 <template>
-    <div class="map-wrap">
-        <!-- 地图区域 -->
-        <div class="map-container">
-            <div class="car-list-wrap">
+    <div class="fullscreen-map">
+        <!-- 全屏3D场景 -->
+        <div class="scene-container">
+            <Scene3D />
+        </div>
+
+        <!-- 悬浮控制元素 -->
+        <div class="floating-controls">
+            <!-- 车辆列表 - 左上角 -->
+            <div class="floating-element car-list-floating">
                 <CarList />
             </div>
 
-            <div class="car-btn-wrap">
+            <!-- 车辆控制按钮 - 左下角 -->
+            <div class="floating-element car-button-floating">
                 <CarButton />
-            </div>
-
-            <div class="map-grid center">
-                <Scene3D />
             </div>
         </div>
 
-        <div class="echarts-wrap">
-            <!-- 网络延迟图 -->
-            <!-- <NetworkDelayChart /> -->
-            <div class="temp-chart">
-                <div class="form-group">
-                    <label class="form-label">
-                        <fa icon="chart-line" /> 网络延迟
-                    </label>
-                    <div class="chart-placeholder">
-                        <fa icon="chart-line" />
-                        <span>网络延迟图表</span>
-                    </div>
+        <!-- 小型图表仪表板 - 底部居中 -->
+        <div class="mini-dashboard">
+            <div class="dashboard-item">
+                <div class="dashboard-icon">
+                    <fa icon="chart-line" />
+                </div>
+                <div class="dashboard-info">
+                    <span class="dashboard-label">网络延迟</span>
+                    <span class="dashboard-value">{{ networkDelay }}ms</span>
                 </div>
             </div>
-
-            <!-- 自动驾驶行为统计 -->
-            <!-- <AutoStatisticsChat /> -->
-            <div class="temp-chart">
-                <div class="form-group">
-                    <label class="form-label">
-                        <fa icon="robot" /> 自动驾驶统计
-                    </label>
-                    <div class="chart-placeholder">
-                        <fa icon="robot" />
-                        <span>自动驾驶统计图表</span>
-                    </div>
+            
+            <div class="dashboard-item">
+                <div class="dashboard-icon">
+                    <fa icon="robot" />
+                </div>
+                <div class="dashboard-info">
+                    <span class="dashboard-label">自动驾驶</span>
+                    <span class="dashboard-value">{{ autopilotStatus }}</span>
                 </div>
             </div>
-
-            <!-- 车辆运行时间统计 -->
-            <!-- <TimeStatisticsChart /> -->
-            <div class="temp-chart">
-                <div class="form-group">
-                    <label class="form-label">
-                        <fa icon="clock" /> 运行时间统计
-                    </label>
-                    <div class="chart-placeholder">
-                        <fa icon="clock" />
-                        <span>运行时间统计图表</span>
-                    </div>
+            
+            <div class="dashboard-item">
+                <div class="dashboard-icon">
+                    <fa icon="clock" />
+                </div>
+                <div class="dashboard-info">
+                    <span class="dashboard-label">运行时间</span>
+                    <span class="dashboard-value">{{ runningTime }}</span>
                 </div>
             </div>
         </div>
@@ -62,158 +54,249 @@
 </template>
 
 <script setup>
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import CarList from '@/components/CarList.vue';
 import CarButton from '@/components/CarButton.vue';
 import Scene3D from '@/components/Scene3D/index.vue';
+
+// 实时数据
+const networkDelay = ref(12);
+const autopilotStatus = ref('启用');
+const runningTime = ref('00:45:32');
+
+let dataUpdateInterval = null;
+
+// 模拟数据更新
+const updateData = () => {
+    // 模拟网络延迟波动
+    networkDelay.value = Math.floor(8 + Math.random() * 15);
+    
+    // 模拟自动驾驶状态
+    const statuses = ['启用', '暂停', '学习中'];
+    if (Math.random() > 0.9) {
+        autopilotStatus.value = statuses[Math.floor(Math.random() * statuses.length)];
+    }
+    
+    // 更新运行时间
+    const time = new Date();
+    runningTime.value = time.toLocaleTimeString('zh-CN', { hour12: false });
+};
+
+onMounted(() => {
+    updateData();
+    dataUpdateInterval = setInterval(updateData, 2000);
+});
+
+onBeforeUnmount(() => {
+    if (dataUpdateInterval) {
+        clearInterval(dataUpdateInterval);
+    }
+});
 </script>
 
 <style lang="scss" scoped>
-.map-container {
-    flex: 1;
+.fullscreen-map {
+    width: 100%;
+    height: 100%;
     position: relative;
-    background: var(--darker-card);
-    border-radius: 16px;
-    box-shadow: var(--card-shadow);
     overflow: hidden;
+}
+
+.scene-container {
+    width: 100%;
+    height: 100%;
     position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--dark-border);
-
-    .map-grid {
-        position: absolute;
-        width: 100%;
-        height: 100%;
-        background-image:
-            linear-gradient(rgba(0, 240, 255, 0.08) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(0, 240, 255, 0.08) 1px, transparent 1px);
-        background-size: 31px 31px;
-    }
+    z-index: 1;
 }
 
-/* 临时3D场景样式 */
-.temp-3d-scene {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    color: rgba(255, 255, 255, 0.6);
-    text-align: center;
-    
-    .scene-icon {
-        font-size: 4rem;
-        margin-bottom: 20px;
-        color: var(--primary);
-        opacity: 0.7;
-    }
-    
-    .scene-text {
-        font-size: 1.5rem;
-        font-weight: 600;
-        margin-bottom: 10px;
-        color: var(--text-primary);
-    }
-    
-    .scene-desc {
-        font-size: 1rem;
-        color: var(--text-gray);
-    }
-}
-
-/* 车辆列表 */
-.car-list-wrap {
+.floating-controls {
     position: absolute;
-    z-index: 9;
     top: 0;
     left: 0;
-
-    .form-group {
-        width: 343px;
-        min-height: 93px;
-        margin: 0;
-        background-color: rgba(0, 0, 0, 0.2);
-        background-blend-mode: multiply;
-    }
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 50;
 }
 
-/* 车辆控制按钮 */
-.car-btn-wrap {
+.floating-element {
     position: absolute;
-    top: 0;
-    right: 0;
-    z-index: 9;
-    height: 124px;
-
-    .form-group {
-        min-height: 93px;
+    pointer-events: auto;
+    background: rgba(0, 15, 30, 0.85);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    border-radius: 12px;
+    box-shadow: 
+        0 8px 32px rgba(0, 0, 0, 0.4),
+        0 0 20px rgba(0, 240, 255, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+    
+    &:hover {
+        transform: translateY(-5px);
+        box-shadow: 
+            0 12px 40px rgba(0, 0, 0, 0.5),
+            0 0 25px rgba(0, 240, 255, 0.25),
+            inset 0 1px 0 rgba(255, 255, 255, 0.15);
     }
 }
 
-/* 图表区域 */
-.echarts-wrap {
-    flex-shrink: 0;
-    display: flex;
-    justify-content: space-between;
-    gap: 15px;
+.car-list-floating {
+    top: 140px;
+    left: 20px;
+    width: 280px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 15px;
+}
 
-    .temp-chart {
-        flex-grow: 1;
-        
-        .form-group {
-            width: 100%;
-            margin: 0;
-        }
+.car-button-floating {
+    bottom: 120px;
+    left: 20px;
+    width: 280px;
+    padding: 15px;
+}
+
+/* 悬浮元素内部样式重置 */
+:deep(.floating-element .form-group) {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(0, 240, 255, 0.2);
+    margin-bottom: 12px;
+}
+
+:deep(.floating-element .panel-header) {
+    border-bottom: 1px solid rgba(0, 240, 255, 0.3);
+    margin-bottom: 15px;
+    padding-bottom: 12px;
+}
+
+/* 小型仪表板 */
+.mini-dashboard {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 20px;
+    z-index: 50;
+    pointer-events: auto;
+}
+
+.dashboard-item {
+    background: rgba(0, 15, 30, 0.9);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 240, 255, 0.4);
+    border-radius: 12px;
+    padding: 15px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 140px;
+    box-shadow: 
+        0 4px 16px rgba(0, 0, 0, 0.3),
+        0 0 10px rgba(0, 240, 255, 0.2);
+    transition: all 0.3s ease;
+    
+    &:hover {
+        background: rgba(0, 20, 40, 0.95);
+        border-color: rgba(0, 240, 255, 0.6);
+        transform: translateY(-3px);
+        box-shadow: 
+            0 8px 25px rgba(0, 0, 0, 0.4),
+            0 0 15px rgba(0, 240, 255, 0.3);
+    }
+}
+
+.dashboard-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, 
+        var(--primary) 0%, 
+        var(--primary-dark) 100%
+    );
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--dark-bg);
+    font-size: 16px;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+}
+
+.dashboard-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.dashboard-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.dashboard-value {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--primary);
+    font-family: 'Orbitron', monospace;
+    text-shadow: 0 0 8px rgba(0, 240, 255, 0.3);
+}
+
+/* 响应式调整 */
+@media (max-width: 1400px) {
+    .car-list-floating,
+    .car-button-floating {
+        width: 250px;
     }
     
-    .chart-placeholder {
-        height: 120px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        color: rgba(255, 255, 255, 0.4);
-        
-        .fa {
-            font-size: 2rem;
-        }
+    .mini-dashboard {
+        gap: 15px;
+    }
+    
+    .dashboard-item {
+        min-width: 120px;
+        padding: 12px 16px;
     }
 }
 
-/* 地图控制按钮 */
-.map-overlay {
-    position: absolute;
-    bottom: 20px;
-    left: 20px;
-    background: rgba(15, 30, 47, 0.9);
-    padding: 12px 20px;
-    border-radius: 12px;
-    display: flex;
-    gap: 15px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-    border: 1px solid var(--dark-border);
-    backdrop-filter: blur(5px);
-
-    .map-control-btn {
-        padding: 10px 18px;
-        background: var(--dark-card);
-        color: var(--text-primary);
-        border: 1px solid var(--dark-border);
-        border-radius: 8px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: var(--transition);
-        display: flex;
-        align-items: center;
-        gap: 8px;
+@media (max-width: 1200px) {
+    .car-list-floating,
+    .car-button-floating {
+        width: 220px;
     }
-
-    .map-control-btn:hover {
-        background: var(--primary);
-        border-color: var(--primary);
-        color: var(--dark-bg);
-        transform: translateY(-2px);
+    
+    .mini-dashboard {
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: center;
+        max-width: 90vw;
     }
+    
+    .dashboard-item {
+        min-width: 100px;
+        padding: 10px 14px;
+    }
+}
+
+/* 悬浮控制元素滚动条 */
+.car-list-floating::-webkit-scrollbar {
+    width: 4px;
+}
+
+.car-list-floating::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 2px;
+}
+
+.car-list-floating::-webkit-scrollbar-thumb {
+    background: linear-gradient(to bottom, 
+        var(--primary), 
+        var(--primary-dark)
+    );
+    border-radius: 2px;
+    box-shadow: 0 0 3px rgba(0, 240, 255, 0.3);
 }
 </style>

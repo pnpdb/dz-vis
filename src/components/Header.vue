@@ -402,18 +402,18 @@ onMounted(() => {
 /* 顶部导航栏 */
 
 .header {
-    margin-bottom: 15px;
-    background: rgba(15, 30, 47, 0.8);
-    border-radius: 16px;
-    box-shadow: var(--card-shadow);
+    margin-bottom: 0;
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
     padding: 15px 30px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     position: relative;
     overflow: hidden;
-    border: 1px solid var(--dark-border);
-    backdrop-filter: blur(5px);
+    border: none;
+    backdrop-filter: none;
     flex-shrink: 0;
     
     /* 启用窗口拖动 */

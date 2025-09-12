@@ -75,7 +75,10 @@ import {
     faCrop,
     faImage,
     faCrosshairs,
-    faBan
+    faBan,
+    faUser,
+    faLock,
+    faCube
 } from '@fortawesome/free-solid-svg-icons'
 
 // 将图标添加到库中
@@ -154,5 +157,8 @@ library.add(
     faCrop,
     faImage,
     faCrosshairs,
-    faBan
+    faBan,
+    faUser,
+    faLock,
+    faCube
 )

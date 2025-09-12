@@ -190,6 +190,11 @@ const initSceneCore = async () => {
                 frameCount = 0;
                 lastFPSCheck = currentTime;
                 
+                // 发送FPS更新事件给全局
+                window.dispatchEvent(new CustomEvent('fps-update', { 
+                    detail: { fps: currentFPS } 
+                }));
+                
                 // 自动性能调节
                 if (performanceMode === 'auto') {
                     if (currentFPS < 20) {

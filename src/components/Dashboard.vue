@@ -16,64 +16,20 @@ const props = defineProps({
 const speedElement = ref(null);
 const previousSpeed = ref(0);
 
-// 数字变化时的炫酷动画
+// 数字变化时的动画（已禁用）
 const animateSpeedChange = () => {
-    const element = document.querySelector('.speed-counter');
-    if (element) {
-        // 添加闪光效果
-        element.classList.add('number-flash');
-        setTimeout(() => {
-            element.classList.remove('number-flash');
-        }, 800);
-        
-        // 添加数字跳动效果
-        if (Math.abs(props.speedValue - previousSpeed.value) > 5) {
-            element.classList.add('number-bounce');
-            setTimeout(() => {
-                element.classList.remove('number-bounce');
-            }, 800);
-        } else {
-            element.classList.add('number-roll');
-            setTimeout(() => {
-                element.classList.remove('number-roll');
-            }, 600);
-        }
-    }
+    // 动画效果已移除
 };
 
-// 计数完成回调
+// 计数完成回调（已简化）
 const onCountFinished = () => {
-    const element = document.querySelector('.speed-counter');
-    if (element && props.speedValue > previousSpeed.value) {
-        // 速度增加时添加脉冲效果
-        element.style.textShadow = `
-            0px 1px 0px #17c0ff,
-            0px 2px 0px #17c0ff,
-            0px 3px 0px #17c0ff,
-            0px 4px 0px #17c0ff,
-            0px 5px 10px rgba(23, 192, 255, 0.8),
-            0 0 20px rgba(23, 192, 255, 0.6)
-        `;
-        
-        setTimeout(() => {
-            element.style.textShadow = `
-                0px 1px 0px #17c0ff,
-                0px 2px 0px #17c0ff,
-                0px 3px 0px #17c0ff,
-                0px 4px 0px #17c0ff,
-                0px 5px 10px rgba(23, 192, 255, 0.5)
-            `;
-        }, 300);
-    }
     previousSpeed.value = props.speedValue;
 };
 
-// 监听速度变化
+// 监听速度变化（动画已禁用）
 watch(() => props.speedValue, (newVal, oldVal) => {
     if (newVal !== oldVal) {
-        nextTick(() => {
-            animateSpeedChange();
-        });
+        previousSpeed.value = newVal;
     }
 }, { immediate: false });
 </script>
@@ -91,10 +47,10 @@ watch(() => props.speedValue, (newVal, oldVal) => {
                 :class="['scend', { scend_active: item * 2 <= speedValue }]"
             ></div>
             <div class="inner-circle">
-                <div class="speed number-animate will-change-transform">
+                <div class="speed">
                     <span class="speed-counter">{{ speedValue }}</span>
                 </div>
-                <div class="unit">km/h</div>
+                <div class="unit">m/s</div>
             </div>
         </div>
     </div>
@@ -196,53 +152,5 @@ $font-size: 32px;
     }
 }
 
-/* 数字动画效果 */
-.number-flash {
-    animation: flash 0.8s ease-in-out;
-}
-
-.number-bounce {
-    animation: bounce 0.8s ease-in-out;
-}
-
-.number-roll {
-    animation: roll 0.6s ease-in-out;
-}
-
-@keyframes flash {
-    0%, 100% { 
-        filter: brightness(1); 
-    }
-    50% { 
-        filter: brightness(1.5);
-        text-shadow:
-            0px 1px 0px #17c0ff,
-            0px 2px 0px #17c0ff,
-            0px 3px 0px #17c0ff,
-            0px 4px 0px #17c0ff,
-            0px 5px 10px rgba(23, 192, 255, 0.8),
-            0 0 30px rgba(23, 192, 255, 0.8);
-    }
-}
-
-@keyframes bounce {
-    0%, 100% { 
-        transform: scale(1); 
-    }
-    50% { 
-        transform: scale(1.1); 
-    }
-}
-
-@keyframes roll {
-    0% { 
-        transform: rotateY(0deg); 
-    }
-    50% { 
-        transform: rotateY(180deg); 
-    }
-    100% { 
-        transform: rotateY(360deg); 
-    }
-}
+/* 数字动画效果已移除 */
 </style>

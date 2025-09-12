@@ -65,11 +65,17 @@ const updateTime = () => {
     });
 };
 
-// 模拟FPS监控
-const updateFPS = () => {
-    // 模拟FPS波动
-    fps.value = Math.floor(58 + Math.random() * 4); // 58-62 FPS
-    fpsPercentage.value = Math.min((fps.value / 60) * 100, 100);
+// 真实FPS监控
+const updateFPS = (fpsData) => {
+    if (fpsData && typeof fpsData.fps === 'number') {
+        fps.value = fpsData.fps;
+        fpsPercentage.value = Math.min((fps.value / 60) * 100, 100);
+    }
+};
+
+// 监听3D场景的FPS事件
+const handleFPSUpdate = (event) => {
+    updateFPS(event.detail);
 };
 
 // 窗口 resize 处理
@@ -83,22 +89,23 @@ const handleResize = () => {
 };
 
 let timeInterval = null;
-let fpsInterval = null;
 
 onMounted(() => {
     // 启动实时更新
     updateTime();
     timeInterval = setInterval(updateTime, 1000);
-    fpsInterval = setInterval(updateFPS, 100);
+    
+    // 监听FPS更新事件
+    window.addEventListener('fps-update', handleFPSUpdate);
     
     // 绑定resize事件
-window.addEventListener('resize', handleResize);
+    window.addEventListener('resize', handleResize);
 });
 
 onBeforeUnmount(() => {
     // 清理定时器和事件
     if (timeInterval) clearInterval(timeInterval);
-    if (fpsInterval) clearInterval(fpsInterval);
+    window.removeEventListener('fps-update', handleFPSUpdate);
     window.removeEventListener('resize', handleResize);
 });
 </script>

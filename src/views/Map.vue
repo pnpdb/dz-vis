@@ -61,19 +61,10 @@
     </div>
 </template>
 
-<script>
-// import CarList from '@/components/CarList.vue';
+<script setup>
 import CarList from '@/components/CarList.vue';
 import CarButton from '@/components/CarButton.vue';
 import Scene3D from '@/components/Scene3D/index.vue';
-
-export default {
-    components: {
-        CarList,
-        CarButton,
-        Scene3D,
-    },
-};
 </script>
 
 <style lang="scss" scoped>

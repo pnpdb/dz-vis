@@ -14,6 +14,9 @@ import {
     LOD,
     BufferAttribute,
     LinearFilter,
+    Vector3,
+    Raycaster,
+    Group,
 } from 'three';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 import { performanceMonitor } from '../../utils/performanceMonitor.js';
@@ -27,12 +30,38 @@ let frameCount = 0;
 let lastFPSCheck = 0;
 let currentFPS = 60;
 
+// 性能优化相关
+let rafId = null;
+let shouldRender = true;
+let lastRenderTime = 0;
+const targetFPS = 60;
+const frameInterval = 1000 / targetFPS;
+
+// 场景组织
+let sceneGroup = null;
+let lightsGroup = null;
+let modelsGroup = null;
+
 export const initScene = dom => {
     container = dom;
     clock = new Clock();
 
     // 初始化场景
     scene = new Scene();
+    
+    // 创建场景组织结构
+    sceneGroup = new Group();
+    sceneGroup.name = 'SceneGroup';
+    
+    lightsGroup = new Group();
+    lightsGroup.name = 'LightsGroup';
+    
+    modelsGroup = new Group();
+    modelsGroup.name = 'ModelsGroup';
+    
+    scene.add(sceneGroup);
+    sceneGroup.add(lightsGroup);
+    sceneGroup.add(modelsGroup);
 
     camera = new PerspectiveCamera(
         21,
@@ -110,18 +139,24 @@ export const initScene = dom => {
         performanceMonitor.init(container);
     }
 
-    // 高性能动画循环
-    animate = () => {
-        if (!isVisible) return; // 不可见时跳过渲染
+    // 智能渲染循环
+    animate = (currentTime) => {
+        if (!isVisible || !shouldRender) return;
         
+        // 帧率控制
+        if (currentTime - lastRenderTime < frameInterval) {
+            rafId = requestAnimationFrame(animate);
+            return;
+        }
+        
+        lastRenderTime = currentTime;
         frameCount++;
-        const now = performance.now();
         
         // FPS 监控和自适应
-        if (now - lastFPSCheck > 1000) {
-            currentFPS = Math.round((frameCount * 1000) / (now - lastFPSCheck));
+        if (currentTime - lastFPSCheck > 1000) {
+            currentFPS = Math.round((frameCount * 1000) / (currentTime - lastFPSCheck));
             frameCount = 0;
-            lastFPSCheck = now;
+            lastFPSCheck = currentTime;
             
             // 自动性能调节
             if (performanceMode === 'auto') {
@@ -134,10 +169,16 @@ export const initScene = dom => {
             }
         }
         
+        // 更新时钟
+        const deltaTime = clock.getDelta();
+        
         // 控制器更新（降频）
-        if (controls.enableDamping && frameCount % 2 === 0) {
+        if (controls.enableDamping) {
             controls.update();
         }
+        
+        // 模型动画更新（如果有的话）
+        updateModelAnimations(deltaTime);
         
         // 渲染
         renderer.render(scene, camera);
@@ -145,23 +186,53 @@ export const initScene = dom => {
         if (stats) {
             stats.update();
         }
+        
+        rafId = requestAnimationFrame(animate);
     };
 
-    renderer.setAnimationLoop(animate);
+    rafId = requestAnimationFrame(animate);
 
     // 设置光照
-    const ambientLight = new AmbientLight(0xffffff, 2);
-    scene.add(ambientLight);
-
-    const directionalLight = new DirectionalLight(0xffffff, 2);
-    directionalLight.position.set(10, 10, 10);
-    scene.add(directionalLight);
+    setupLighting();
 
     // 异步加载环境贴图
     loadEnvironment();
     
     // 异步加载模型
     loadModels();
+};
+
+// 设置光照系统
+const setupLighting = () => {
+    // 环境光
+    const ambientLight = new AmbientLight(0xffffff, 1.2);
+    ambientLight.name = 'AmbientLight';
+    lightsGroup.add(ambientLight);
+
+    // 主方向光
+    const directionalLight = new DirectionalLight(0xffffff, 1.5);
+    directionalLight.position.set(10, 10, 10);
+    directionalLight.name = 'MainDirectionalLight';
+    directionalLight.castShadow = false; // 暂时关闭阴影以提升性能
+    lightsGroup.add(directionalLight);
+
+    // 补充光源（更柔和）
+    const fillLight = new DirectionalLight(0x87ceeb, 0.8);
+    fillLight.position.set(-5, 5, -5);
+    fillLight.name = 'FillLight';
+    lightsGroup.add(fillLight);
+};
+
+// 模型动画更新
+const updateModelAnimations = (deltaTime) => {
+    // 这里可以添加模型动画逻辑
+    // 例如：旋转车辆模型、播放动画等
+    
+    // 示例：缓慢旋转主模型
+    if (models.has('cars')) {
+        const carModel = models.get('cars');
+        carModel.rotation.y += deltaTime * 0.1; // 缓慢旋转
+    }
 };
 
 // 环境贴图加载
@@ -242,7 +313,7 @@ const loadModel = (loader, url, key, options = {}) => {
             
             // 缓存模型
             models.set(key, model);
-            scene.add(model);
+            modelsGroup.add(model);
             
             console.log(`模型 ${key} 已添加到场景`);
         },
@@ -474,6 +545,11 @@ if (typeof document !== 'undefined') {
 
 export const destroyScene = () => {
     // 停止动画循环
+    shouldRender = false;
+    if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+    }
     if (renderer) {
         renderer.setAnimationLoop(null);
     }
@@ -490,7 +566,7 @@ export const destroyScene = () => {
     
     // 清理模型和材质
     models.forEach((model) => {
-        if (scene) scene.remove(model);
+        if (modelsGroup) modelsGroup.remove(model);
         model.traverse((child) => {
             // 清理几何体
             if (child.geometry) {
@@ -574,4 +650,7 @@ export const destroyScene = () => {
     
     // 重置变量
     scene = camera = clock = null;
+    sceneGroup = lightsGroup = modelsGroup = null;
+    shouldRender = true;
+    lastRenderTime = 0;
 };

@@ -48,16 +48,31 @@ export default defineConfig(async () => ({
     // Rollup options
     rollupOptions: {
       output: {
-        // Manual chunks for better caching
+        // Manual chunks for better caching and loading
         manualChunks: {
+          // Vue核心库
+          'vue-vendor': ['vue', 'vue-router', 'pinia'],
+          // UI组件库
           'element-plus': ['element-plus'],
+          // 图标库
           'fontawesome': [
             '@fortawesome/fontawesome-svg-core',
             '@fortawesome/free-solid-svg-icons',
             '@fortawesome/vue-fontawesome'
           ],
-          'vue-vendor': ['vue', 'vue-router', 'pinia'],
-          'charts': ['echarts']
+          // 图表库
+          'charts': ['echarts'],
+          // Three.js核心
+          'three-core': ['three'],
+          // Three.js扩展
+          'three-addons': [
+            'three/examples/jsm/Addons.js',
+            'three/examples/jsm/libs/stats.module.js'
+          ],
+          // 网络请求
+          'network': ['axios'],
+          // Tauri API
+          'tauri': ['@tauri-apps/api', '@tauri-apps/plugin-opener']
         }
       }
     },
@@ -93,16 +108,30 @@ export default defineConfig(async () => ({
   // Dependency optimization
   optimizeDeps: {
     include: [
+      // Vue生态系统
       'vue',
       'vue-router',
       'pinia',
+      // UI组件
       'element-plus',
+      // 图标库
       '@fortawesome/vue-fontawesome',
       '@fortawesome/fontawesome-svg-core',
-      '@fortawesome/free-solid-svg-icons'
+      '@fortawesome/free-solid-svg-icons',
+      // Three.js (核心部分预构建)
+      'three/src/Three.js',
+      // 网络请求
+      'axios',
+      // 图表库
+      'echarts'
     ],
     exclude: [
-      '@tauri-apps/api'
+      // Tauri API在运行时动态加载
+      '@tauri-apps/api',
+      '@tauri-apps/plugin-opener',
+      // Three.js示例模块保持原始格式
+      'three/examples/jsm/Addons.js',
+      'three/examples/jsm/libs/stats.module.js'
     ]
   }
 }));

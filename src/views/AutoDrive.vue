@@ -33,7 +33,7 @@
                     v-model="taxi.startPoint"
                 />
 
-                <button class="btn btn-secondary btn-small" id="select-start">
+                <button class="btn btn-secondary btn-small" @click="selectStartPoint">
                     <fa icon="map-marked-alt"></fa> 选择起点
                 </button>
             </div>
@@ -45,12 +45,12 @@
                     readonly
                     v-model="taxi.endPoint"
                 />
-                <button class="btn btn-danger btn-small" id="select-end">
+                <button class="btn btn-danger btn-small" @click="selectEndPoint">
                     <fa icon="flag-checkered"></fa> 选择终点
                 </button>
             </div>
 
-            <button class="btn btn-primary">
+            <button class="btn btn-primary" @click="callTaxi">
                 <fa icon="car-side"></fa> 呼叫出租车
             </button>
         </div>
@@ -86,12 +86,12 @@
                     readonly
                     v-model="parking.point"
                 />
-                <button class="btn btn-secondary btn-small">
+                <button class="btn btn-secondary btn-small" @click="selectParkingSpot">
                     <fa icon="map-marked-alt"></fa>
                     选择车位
                 </button>
             </div>
-            <button class="btn btn-primary">
+            <button class="btn btn-primary" @click="startParking">
                 <fa icon="parking"></fa> 我要泊车
             </button>
         </div>
@@ -117,30 +117,73 @@
                 </el-select>
             </div>
 
-            <button class="btn btn-primary">
+            <button class="btn btn-primary" @click="pickupCar">
                 <fa icon="sign-in-alt"></fa> 我要取车
             </button>
         </div>
     </div>
 </template>
 
-<script>
-export default {
-    name: 'AutoDrive',
-    data() {
-        return {
-            dataRecord: true,
-            taxi: {
-                startPoint: '',
-                endPoint: '',
-            },
-            parking: {
-                car: '',
-                point: '',
-            },
-        };
-    },
-    methods: {},
+<script setup>
+import { ref } from 'vue';
+import { ElMessage } from 'element-plus';
+
+// 数据记录开关
+const dataRecord = ref(true);
+
+// 出租车相关数据
+const taxi = ref({
+    startPoint: '',
+    endPoint: '',
+});
+
+// 停车相关数据
+const parking = ref({
+    car: '',
+    point: '',
+});
+
+// 呼叫出租车
+const callTaxi = () => {
+    if (!taxi.value.startPoint || !taxi.value.endPoint) {
+        ElMessage.warning('请先选择起点和终点位置');
+        return;
+    }
+    ElMessage.success('正在呼叫出租车...');
+    console.log('呼叫出租车:', taxi.value);
+};
+
+// 开始泊车
+const startParking = () => {
+    if (!parking.value.car || !parking.value.point) {
+        ElMessage.warning('请先选择车辆和停车位');
+        return;
+    }
+    ElMessage.success('开始自动泊车...');
+    console.log('开始泊车:', parking.value);
+};
+
+// 取车
+const pickupCar = () => {
+    if (!parking.value.car) {
+        ElMessage.warning('请先选择车辆');
+        return;
+    }
+    ElMessage.success('正在取车...');
+    console.log('取车:', parking.value.car);
+};
+
+// 选择地图位置的函数（占位符）
+const selectStartPoint = () => {
+    ElMessage.info('请在地图上点击选择起点位置');
+};
+
+const selectEndPoint = () => {
+    ElMessage.info('请在地图上点击选择终点位置');
+};
+
+const selectParkingSpot = () => {
+    ElMessage.info('请在地图上点击选择停车位');
 };
 </script>
 

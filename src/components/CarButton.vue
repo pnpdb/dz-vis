@@ -26,40 +26,40 @@
     </div>
 </template>
 
-<script>
-export default {
-    name: 'CarButton',
-    methods: {
-        showMsg(result) {
-            console.log('show message');
-            // TODO: 实现消息提示功能
-            if (result) {
-                console.log('操作成功');
-            } else {
-                console.log('操作失败');
-            }
-        },
-        startCar() {
-            console.log('start car');
-            this.showMsg(true);
-        },
-        stopCar() {
-            console.log('stop car');
-            this.showMsg(false);
-        },
-        emptyMode() {
-            console.log('empty mode');
-            this.showMsg(false);
-        },
-        initPose() {
-            console.log('init pose');
-            this.showMsg(true);
-        },
-        emergencyBrake() {
-            console.log('emergency brake');
-            this.showMsg(true);
-        },
-    },
+<script setup>
+import { ElMessage } from 'element-plus';
+
+const showMsg = (result, message) => {
+    if (result) {
+        ElMessage.success(message || '操作成功');
+    } else {
+        ElMessage.error(message || '操作失败');
+    }
+};
+
+const startCar = () => {
+    console.log('启动车辆');
+    showMsg(true, '车辆已启动');
+};
+
+const stopCar = () => {
+    console.log('停止车辆');
+    showMsg(true, '车辆已停止');
+};
+
+const emptyMode = () => {
+    console.log('切换到空载模式');
+    showMsg(true, '已切换到空载模式');
+};
+
+const initPose = () => {
+    console.log('初始化位姿');
+    showMsg(true, '位姿已初始化');
+};
+
+const emergencyBrake = () => {
+    console.log('紧急制动');
+    showMsg(true, '已执行紧急制动');
 };
 </script>
 

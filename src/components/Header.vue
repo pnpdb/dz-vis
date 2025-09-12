@@ -381,7 +381,7 @@ onMounted(() => {
     selectedTab.value = route.path;
     
     // 初始化 Tauri 事件监听
-    if (TauriUtils.isTauri()) {
+    if (TauriUtils.isTauriApp()) {
         TauriUtils.listenToWindowEvents({
             onResize: (event) => {
                 console.log('Window resized:', event);

@@ -1,74 +1,102 @@
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { APP_CONFIG, LOG_CONFIG } from '@/config/app.js';
 
 /**
- * Tauri utilities for system integration
+ * Tauri工具类 - 提供系统集成功能
  */
 export class TauriUtils {
     /**
-     * Open the current directory in file manager
+     * 检查是否在Tauri环境中运行
      */
-    static async openFolder() {
+    static isTauriApp() {
+        return APP_CONFIG.isTauri;
+    }
+
+    /**
+     * 安全地调用Tauri命令
+     * @param {string} command - 命令名
+     * @param {object} params - 参数
+     * @returns {Promise<object>} 结果对象
+     */
+    static async safeInvoke(command, params = {}) {
+        if (!this.isTauriApp()) {
+            console.warn(`Tauri命令 "${command}" 在非Tauri环境中被调用`);
+            return { success: false, error: 'Not in Tauri environment' };
+        }
+
         try {
-            await invoke('open_folder');
-            return { success: true };
+            const result = await invoke(command, params);
+            return { success: true, data: result };
         } catch (error) {
-            console.error('Failed to open folder:', error);
+            console.error(`Tauri命令 "${command}" 执行失败:`, error);
             return { success: false, error: error.toString() };
         }
     }
 
     /**
-     * Get system information
+     * 打开当前目录
+     */
+    static async openFolder() {
+        return await this.safeInvoke('open_folder');
+    }
+
+    /**
+     * 获取系统信息
      */
     static async getSystemInfo() {
-        try {
-            const info = await invoke('get_system_info');
-            return { success: true, data: info };
-        } catch (error) {
-            console.error('Failed to get system info:', error);
-            return { success: false, error: error.toString() };
-        }
+        return await this.safeInvoke('get_system_info');
     }
 
     /**
      * Window control utilities
      */
     static async minimizeWindow() {
-        try {
-            await invoke('minimize_window');
-            return { success: true };
-        } catch (error) {
-            console.error('Failed to minimize window:', error);
-            return { success: false, error: error.toString() };
-        }
+        return await this.safeInvoke('minimize_window');
     }
 
     static async maximizeWindow() {
-        try {
-            await invoke('maximize_window');
-            return { success: true };
-        } catch (error) {
-            console.error('Failed to maximize window:', error);
-            return { success: false, error: error.toString() };
-        }
+        return await this.safeInvoke('maximize_window');
     }
 
     static async closeWindow() {
-        try {
-            await invoke('close_window');
-            return { success: true };
-        } catch (error) {
-            console.error('Failed to close window:', error);
-            return { success: false, error: error.toString() };
-        }
+        return await this.safeInvoke('close_window');
     }
 
     /**
-     * Check if running in Tauri environment
+     * 发送系统通知 (简化版本 - 仅使用浏览器通知)
+     * @param {string} title - 通知标题
+     * @param {string} body - 通知内容
+     * @param {object} options - 其他选项
      */
-    static isTauri() {
-        return window.__TAURI__ !== undefined;
+    static async showNotification(title, body, options = {}) {
+        // 在开发环境中，只使用console.log来显示通知
+        if (import.meta.env.DEV) {
+            console.info(`🔔 通知: ${title} - ${body}`);
+            return { success: true };
+        }
+
+        // 生产环境尝试使用浏览器通知
+        if ('Notification' in window) {
+            try {
+                if (Notification.permission === 'granted') {
+                    new Notification(title, { body, ...options });
+                    return { success: true };
+                } else if (Notification.permission !== 'denied') {
+                    const permission = await Notification.requestPermission();
+                    if (permission === 'granted') {
+                        new Notification(title, { body, ...options });
+                        return { success: true };
+                    }
+                }
+            } catch (error) {
+                console.warn('浏览器通知失败:', error);
+            }
+        }
+        
+        // 回退到控制台输出
+        console.info(`📢 ${title}: ${body}`);
+        return { success: true };
     }
 
     /**
@@ -136,7 +164,7 @@ export class TauriUtils {
 export const Environment = {
     isDevelopment: () => import.meta.env.DEV,
     isProduction: () => import.meta.env.PROD,
-    isTauri: () => TauriUtils.isTauri(),
+    isTauri: () => TauriUtils.isTauriApp(),
     getMode: () => import.meta.env.MODE,
     getBaseUrl: () => import.meta.env.BASE_URL,
 };

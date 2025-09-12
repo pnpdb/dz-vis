@@ -152,7 +152,7 @@ onBeforeUnmount(() => {
 }
 
 .car-button-floating {
-    bottom: 120px;
+    top: 300px; /* 移动到车辆列表下方，留出间距 */
     left: 20px;
     width: 220px;
     padding: 12px;

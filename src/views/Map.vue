@@ -32,11 +32,21 @@
             
             <div class="dashboard-item">
                 <div class="dashboard-icon">
-                    <fa icon="robot" />
+                    <fa :icon="serverStatus.icon" />
                 </div>
                 <div class="dashboard-info">
-                    <span class="dashboard-label">自动驾驶</span>
-                    <span class="dashboard-value">{{ autopilotStatus }}</span>
+                    <span class="dashboard-label">服务状态</span>
+                    <span class="dashboard-value">{{ serverStatus.text }}</span>
+                </div>
+            </div>
+            
+            <div class="dashboard-item">
+                <div class="dashboard-icon">
+                    <fa icon="car" />
+                </div>
+                <div class="dashboard-info">
+                    <span class="dashboard-label">在线车辆</span>
+                    <span class="dashboard-value">{{ onlineVehicles }}台</span>
                 </div>
             </div>
             
@@ -61,35 +71,86 @@ import Scene3D from '@/components/Scene3D/index.vue';
 
 // 实时数据
 const networkDelay = ref(12);
-const autopilotStatus = ref('启用');
-const runningTime = ref('00:45:32');
+const onlineVehicles = ref(0);
+const runningTime = ref('00:00:00');
+const serverStatus = ref({
+    text: '检测中...',
+    icon: 'server',
+    running: false,
+    vehicleCount: 0
+});
+
+// 应用启动时间
+const appStartTime = Date.now();
 
 let dataUpdateInterval = null;
 
-// 模拟数据更新
+// 计算运行时间
+const formatRunningTime = (startTime) => {
+    const now = Date.now();
+    const diff = Math.floor((now - startTime) / 1000); // 转换为秒
+    
+    const hours = Math.floor(diff / 3600);
+    const minutes = Math.floor((diff % 3600) / 60);
+    const seconds = diff % 60;
+    
+    // 格式化为 HH:MM:SS
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+};
+
+// 数据更新
 const updateData = () => {
     // 模拟网络延迟波动
     networkDelay.value = Math.floor(8 + Math.random() * 15);
     
-    // 模拟自动驾驶状态
-    const statuses = ['启用', '暂停', '学习中'];
-    if (Math.random() > 0.9) {
-        autopilotStatus.value = statuses[Math.floor(Math.random() * statuses.length)];
-    }
-    
-    // 更新运行时间
-    const time = new Date();
-    runningTime.value = time.toLocaleTimeString('zh-CN', { hour12: false });
+    // 更新运行时间（从应用启动开始计算）
+    runningTime.value = formatRunningTime(appStartTime);
 };
+
+// 获取服务状态
+const updateServerStatus = async () => {
+    try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const result = await invoke('get_socket_server_status');
+        
+        serverStatus.value = {
+            text: result.text,
+            icon: result.icon,
+            running: result.running,
+            vehicleCount: result.vehicle_count
+        };
+        
+        // 更新在线车辆数量
+        onlineVehicles.value = result.vehicle_count || 0;
+    } catch (error) {
+        console.error('获取服务状态失败:', error);
+        serverStatus.value = {
+            text: '状态未知',
+            icon: 'question-circle',
+            running: false,
+            vehicleCount: 0
+        };
+        onlineVehicles.value = 0;
+    }
+};
+
+let serverStatusInterval = null;
 
 onMounted(() => {
     updateData();
     dataUpdateInterval = setInterval(updateData, 2000);
+    
+    // 启动服务状态检测
+    updateServerStatus();
+    serverStatusInterval = setInterval(updateServerStatus, 5000); // 每5秒检测一次服务状态
 });
 
 onBeforeUnmount(() => {
     if (dataUpdateInterval) {
         clearInterval(dataUpdateInterval);
+    }
+    if (serverStatusInterval) {
+        clearInterval(serverStatusInterval);
     }
 });
 </script>

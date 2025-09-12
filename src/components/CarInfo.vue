@@ -6,7 +6,7 @@
         <div class="info-grid">
             <Dashboard :speedValue="speedValue" :hasSpeed="hasSpeed" />
             
-            <div class="flex-h">
+            <div class="right-column">
                 <div class="info-card info-card-h">
                     <div class="info-title">
                         <fa icon="compass" />
@@ -39,13 +39,7 @@
                     </div>
                 </div>
             </div>
-            <div class="info-card">
-                <div class="info-title">
-                    <fa icon="car" />
-                    车辆名称
-                </div>
-                <div class="info-value">{{ carInfo || '车辆A' }}</div>
-            </div>
+            
             <div class="info-card">
                 <div class="info-title">
                     <fa icon="wifi" />
@@ -53,14 +47,6 @@
                 </div>
                 <div class="info-value status-normal">在线</div>
             </div>
-            <div class="info-card">
-                <div class="info-title">
-                    <fa icon="refresh" />
-                    循环状态
-                </div>
-                <div class="info-value">75%</div>
-            </div>
-
             <div class="info-card">
                 <div class="info-title">
                     <fa icon="route" />
@@ -111,6 +97,12 @@ onBeforeUnmount(() => {
 .info-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.right-column {
+    display: flex;
+    flex-direction: column;
     gap: 8px;
 }
 

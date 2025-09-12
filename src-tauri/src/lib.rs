@@ -1,5 +1,6 @@
 use tauri::Manager;
 use std::process::Command;
+use local_ip_address::local_ip;
 
 mod socket;
 mod database;
@@ -203,6 +204,90 @@ async fn get_active_vehicle_connections(app: tauri::AppHandle) -> Result<serde_j
     }
 }
 
+/// 获取网络状态信息
+#[tauri::command]
+async fn get_network_status() -> Result<serde_json::Value, String> {
+    match local_ip() {
+        Ok(ip) => {
+            let ip_str = ip.to_string();
+            let is_private = is_private_ip(&ip_str);
+            
+            Ok(serde_json::json!({
+                "connected": true,
+                "ip": ip_str,
+                "is_private": is_private,
+                "text": if is_private { 
+                    format!("局域网已连接 {}", ip_str) 
+                } else { 
+                    format!("公网已连接 {}", ip_str) 
+                },
+                "icon": "signal"
+            }))
+        }
+        Err(_) => {
+            Ok(serde_json::json!({
+                "connected": false,
+                "ip": null,
+                "is_private": false,
+                "text": "未检测到网络",
+                "icon": "wifi-slash"
+            }))
+        }
+    }
+}
+
+/// 获取Socket服务器状态
+#[tauri::command]
+async fn get_socket_server_status(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let connections = app.state::<socket::ConnectionManager>();
+    let connected_vehicles = socket::SocketServer::get_connection_status(&connections);
+    let vehicle_count = connected_vehicles.len();
+    
+    // 检查是否有连接的管理器状态（简单判断服务是否运行）
+    let is_running = true; // 如果能获取到连接管理器，说明服务正在运行
+    
+    Ok(serde_json::json!({
+        "running": is_running,
+        "vehicle_count": vehicle_count,
+        "connected_vehicles": connected_vehicles,
+        "text": if is_running {
+            "运行中".to_string()
+        } else {
+            "未启动".to_string()
+        },
+        "icon": if is_running { "server" } else { "times-circle" }
+    }))
+}
+
+/// 判断是否为私有IP地址
+fn is_private_ip(ip: &str) -> bool {
+    if let Ok(addr) = ip.parse::<std::net::Ipv4Addr>() {
+        let octets = addr.octets();
+        
+        // 10.0.0.0 - 10.255.255.255
+        if octets[0] == 10 {
+            return true;
+        }
+        
+        // 172.16.0.0 - 172.31.255.255
+        if octets[0] == 172 && octets[1] >= 16 && octets[1] <= 31 {
+            return true;
+        }
+        
+        // 192.168.0.0 - 192.168.255.255
+        if octets[0] == 192 && octets[1] == 168 {
+            return true;
+        }
+        
+        // 169.254.0.0 - 169.254.255.255 (APIPA)
+        if octets[0] == 169 && octets[1] == 254 {
+            return true;
+        }
+    }
+    
+    false
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -223,7 +308,9 @@ pub fn run() {
             create_vehicle_connection,
             update_vehicle_connection,
             delete_vehicle_connection,
-            get_active_vehicle_connections
+            get_active_vehicle_connections,
+            get_network_status,
+            get_socket_server_status
         ])
         .setup(|app| {
             // 初始化数据库

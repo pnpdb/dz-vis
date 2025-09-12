@@ -90,10 +90,10 @@ const getClass = (val) => {
 .sensor {
     position: relative;
     width: 100%;
-    height: 200px;
+    height: 180px;
 
     .circle-tit {
-        font-size: 18px;
+        font-size: 15px;
         font-weight: bold;
         font-family: Arial, sans-serif;
         animation: breathing 3s infinite;
@@ -117,8 +117,8 @@ const getClass = (val) => {
 
     .circle1 {
         position: absolute;
-        width: 80px;
-        height: 80px;
+        width: 70px;
+        height: 70px;
         border-radius: 50%;
         border-top: 2px #ffffff40 solid;
         border-bottom: 2px #ffffff40 solid;
@@ -132,17 +132,17 @@ const getClass = (val) => {
 
     .circle2 {
         position: absolute;
-        width: 110px;
-        height: 110px;
+        width: 95px;
+        height: 95px;
         border-radius: 50%;
-        border: 10px #39485be1 solid;
+        border: 8px #39485be1 solid;
         box-shadow: var(--primary) 0px 0px 10px;
     }
 
     .circle3 {
         position: absolute;
-        width: 140px;
-        height: 140px;
+        width: 120px;
+        height: 120px;
         border-radius: 50%;
         border-left: 2px #ffffff40 solid;
         border-right: 2px #ffffff40 solid;
@@ -156,8 +156,8 @@ const getClass = (val) => {
 
     .circle4 {
         position: absolute;
-        width: 180px;
-        height: 160px;
+        width: 155px;
+        height: 140px;
         border-radius: 50%;
         border-top: 1px transparent solid;
         border-bottom: 1px transparent solid;
@@ -255,34 +255,34 @@ const getClass = (val) => {
 
 .sensor-item {
     position: relative;
-    left: -70px;
+    left: -60px;
     top: -5px;
     text-align: center;
 
     .sensor-tit {
-        margin-bottom: 4px;
-        font-size: 14px;
-        width: 80px;
+        margin-bottom: 3px;
+        font-size: 12px;
+        width: 70px;
         color: #a0b3d0;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 4px;
+        gap: 3px;
     }
 
     .sensor-state {
-        font-size: 14px;
+        font-size: 12px;
     }
 }
 
 .sensor-item2 {
     position: relative;
-    left: 70px;
+    left: 60px;
 }
 
 .sensor-item4 {
     position: relative;
-    left: 70px;
+    left: 60px;
 }
 
 @keyframes rotateAn {

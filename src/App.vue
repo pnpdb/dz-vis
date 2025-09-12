@@ -37,8 +37,8 @@
             </div>
             <div class="status-indicator bottom-left">
                 <div class="network-status">
-                    <fa icon="signal" />
-                    <span>网络连接正常</span>
+                    <fa :icon="networkStatus.icon" />
+                    <span>{{ networkStatus.text }}</span>
                 </div>
             </div>
         </div>
@@ -55,6 +55,11 @@ import Map from '@/views/Map.vue';
 const currentTime = ref('');
 const fps = ref(60);
 const fpsPercentage = ref(100);
+const networkStatus = ref({
+    text: '检测网络中...',
+    icon: 'signal',
+    connected: false
+});
 
 // 更新时间
 const updateTime = () => {
@@ -90,12 +95,55 @@ const handleResize = () => {
     }));
 };
 
+// 检测网络连接状态（使用Rust后端）
+const checkNetworkStatus = async () => {
+    try {
+        // 首先检查浏览器的在线状态
+        if (!navigator.onLine) {
+            networkStatus.value = {
+                text: '网络断开',
+                icon: 'wifi-slash',
+                connected: false
+            };
+            return;
+        }
+
+        // 调用Rust后端获取网络状态
+        const { invoke } = await import('@tauri-apps/api/core');
+        const result = await invoke('get_network_status');
+        
+        networkStatus.value = {
+            text: result.text,
+            icon: result.icon,
+            connected: result.connected
+        };
+        
+    } catch (error) {
+        console.error('网络状态检测失败:', error);
+        networkStatus.value = {
+            text: '网络状态未知',
+            icon: 'question-circle',
+            connected: false
+        };
+    }
+};
+
+
 let timeInterval = null;
+let networkInterval = null;
 
 onMounted(() => {
     // 启动实时更新
     updateTime();
     timeInterval = setInterval(updateTime, 1000);
+    
+    // 启动网络状态检测
+    checkNetworkStatus();
+    networkInterval = setInterval(checkNetworkStatus, 30000); // 每30秒检测一次
+    
+    // 监听网络状态变化
+    window.addEventListener('online', checkNetworkStatus);
+    window.addEventListener('offline', checkNetworkStatus);
     
     // 监听FPS更新事件
     window.addEventListener('fps-update', handleFPSUpdate);
@@ -107,8 +155,12 @@ onMounted(() => {
 onBeforeUnmount(() => {
     // 清理定时器和事件
     if (timeInterval) clearInterval(timeInterval);
+    if (networkInterval) clearInterval(networkInterval);
+    
     window.removeEventListener('fps-update', handleFPSUpdate);
     window.removeEventListener('resize', handleResize);
+    window.removeEventListener('online', checkNetworkStatus);
+    window.removeEventListener('offline', checkNetworkStatus);
 });
 </script>
 
@@ -344,6 +396,13 @@ onBeforeUnmount(() => {
     align-items: center;
     gap: 8px;
     color: var(--success);
+    transition: color 0.3s ease;
+    
+    &:has(.fa-wifi-slash),
+    &:has(.fa-exclamation-triangle),
+    &:has(.fa-question-circle) {
+        color: var(--danger, #ff4444);
+    }
 }
 
 .performance-monitor {

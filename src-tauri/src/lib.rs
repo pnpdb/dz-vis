@@ -2,6 +2,9 @@ use tauri::Manager;
 use std::process::Command;
 
 mod socket;
+mod database;
+
+use database::{VehicleDatabase, CreateVehicleConnectionRequest, UpdateVehicleConnectionRequest};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -120,6 +123,86 @@ async fn get_connected_vehicles(app: tauri::AppHandle) -> Result<serde_json::Val
     Ok(serde_json::json!(status))
 }
 
+// ============ 车辆连接管理相关命令 ============
+
+/// 获取所有车辆连接
+#[tauri::command]
+async fn get_vehicle_connections(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let db = app.state::<VehicleDatabase>();
+    match db.get_all_vehicle_connections().await {
+        Ok(connections) => Ok(serde_json::to_value(connections).unwrap()),
+        Err(e) => Err(format!("获取车辆连接失败: {}", e))
+    }
+}
+
+/// 创建车辆连接
+#[tauri::command]
+async fn create_vehicle_connection(
+    app: tauri::AppHandle,
+    request: CreateVehicleConnectionRequest
+) -> Result<serde_json::Value, String> {
+    // 验证请求参数
+    if let Err(e) = request.validate() {
+        return Err(e);
+    }
+    
+    let db = app.state::<VehicleDatabase>();
+    match db.create_vehicle_connection(request).await {
+        Ok(connection) => Ok(serde_json::to_value(connection).unwrap()),
+        Err(e) => {
+            let error_msg = if e.to_string().contains("UNIQUE constraint failed") {
+                "车辆ID已存在，请使用不同的车辆ID".to_string()
+            } else {
+                format!("创建车辆连接失败: {}", e)
+            };
+            Err(error_msg)
+        }
+    }
+}
+
+/// 更新车辆连接
+#[tauri::command]
+async fn update_vehicle_connection(
+    app: tauri::AppHandle,
+    id: i64,
+    request: UpdateVehicleConnectionRequest
+) -> Result<serde_json::Value, String> {
+    let db = app.state::<VehicleDatabase>();
+    match db.update_vehicle_connection(id, request).await {
+        Ok(Some(connection)) => Ok(serde_json::to_value(connection).unwrap()),
+        Ok(None) => Err("车辆连接不存在".to_string()),
+        Err(e) => {
+            let error_msg = if e.to_string().contains("UNIQUE constraint failed") {
+                "车辆ID已存在，请使用不同的车辆ID".to_string()
+            } else {
+                format!("更新车辆连接失败: {}", e)
+            };
+            Err(error_msg)
+        }
+    }
+}
+
+/// 删除车辆连接
+#[tauri::command]
+async fn delete_vehicle_connection(app: tauri::AppHandle, id: i64) -> Result<String, String> {
+    let db = app.state::<VehicleDatabase>();
+    match db.delete_vehicle_connection(id).await {
+        Ok(true) => Ok("删除成功".to_string()),
+        Ok(false) => Err("车辆连接不存在".to_string()),
+        Err(e) => Err(format!("删除车辆连接失败: {}", e))
+    }
+}
+
+/// 获取活跃的车辆连接
+#[tauri::command]
+async fn get_active_vehicle_connections(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let db = app.state::<VehicleDatabase>();
+    match db.get_active_vehicle_connections().await {
+        Ok(connections) => Ok(serde_json::to_value(connections).unwrap()),
+        Err(e) => Err(format!("获取活跃车辆连接失败: {}", e))
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -135,9 +218,28 @@ pub fn run() {
             start_socket_server,
             send_to_vehicle,
             broadcast_message,
-            get_connected_vehicles
+            get_connected_vehicles,
+            get_vehicle_connections,
+            create_vehicle_connection,
+            update_vehicle_connection,
+            delete_vehicle_connection,
+            get_active_vehicle_connections
         ])
         .setup(|app| {
+            // 初始化数据库
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                match VehicleDatabase::new().await {
+                    Ok(db) => {
+                        app_handle.manage(db);
+                        println!("✅ 车辆数据库初始化成功");
+                    }
+                    Err(e) => {
+                        eprintln!("❌ 车辆数据库初始化失败: {}", e);
+                    }
+                }
+            });
+            
             #[cfg(debug_assertions)]
             {
                 let window = app.get_webview_window("main").unwrap();

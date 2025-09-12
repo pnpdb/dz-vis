@@ -28,4 +28,7 @@ tokio = { version = "1.0", features = ["full"] }
 bytes = "1.0"
 crc = "3.0"
 parking_lot = "0.12"
+sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "sqlite", "macros", "chrono", "uuid"] }
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "5.0"
 

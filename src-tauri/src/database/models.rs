@@ -1,0 +1,65 @@
+use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
+
+/// 车辆连接配置模型
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct VehicleConnection {
+    pub id: i64,
+    pub vehicle_id: i32,    // 车辆编号（整数）
+    pub ip_address: String, // IP地址
+    pub name: String,       // 车辆显示名称
+    pub description: Option<String>, // 描述信息
+    pub is_active: bool,    // 是否启用
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// 创建车辆连接的请求参数
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateVehicleConnectionRequest {
+    pub vehicle_id: i32,
+    pub ip_address: String,
+    pub name: String,
+    pub description: Option<String>,
+}
+
+/// 更新车辆连接的请求参数
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateVehicleConnectionRequest {
+    pub vehicle_id: Option<i32>,
+    pub ip_address: Option<String>,
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub is_active: Option<bool>,
+}
+
+impl VehicleConnection {
+    /// 获取IP地址
+    pub fn get_address(&self) -> String {
+        self.ip_address.clone()
+    }
+    
+    /// 检查IP地址格式是否有效
+    pub fn is_valid_ip(&self) -> bool {
+        self.ip_address.parse::<std::net::IpAddr>().is_ok()
+    }
+}
+
+impl CreateVehicleConnectionRequest {
+    /// 验证请求参数
+    pub fn validate(&self) -> Result<(), String> {
+        if self.vehicle_id <= 0 {
+            return Err("车辆编号必须大于0".to_string());
+        }
+        
+        if self.ip_address.parse::<std::net::IpAddr>().is_err() {
+            return Err("IP地址格式无效".to_string());
+        }
+        
+        if self.name.trim().is_empty() {
+            return Err("车辆名称不能为空".to_string());
+        }
+        
+        Ok(())
+    }
+}

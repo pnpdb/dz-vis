@@ -78,6 +78,64 @@
     margin: 0 !important;
     max-height: 90vh !important;
     overflow: visible !important;
+    background: rgba(15, 30, 47, 0.95) !important;
+    backdrop-filter: blur(20px) !important;
+    border: 1px solid rgba(0, 240, 255, 0.2) !important;
+    border-radius: 24px !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 240, 255, 0.1) !important;
+}
+
+/* 更强的样式覆盖 */
+.el-dialog.custom-login-dialog,
+.custom-login-dialog,
+div[class*="el-dialog"] {
+    background: rgba(15, 30, 47, 0.95) !important;
+    backdrop-filter: blur(20px) !important;
+    border: 1px solid rgba(0, 240, 255, 0.2) !important;
+    border-radius: 24px !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 240, 255, 0.1) !important;
+}
+
+/* 强制移除所有Element Plus对话框的内部边框和阴影 */
+.el-dialog * {
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+/* 特别针对登录容器和表单元素 */
+.el-dialog .login-container,
+.el-dialog .login-form,
+.el-dialog .el-form,
+.el-dialog .el-form-item,
+.el-dialog div {
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+    background: transparent !important;
+}
+
+.el-dialog__wrapper {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.el-dialog__header {
+    display: none !important;
+}
+
+.el-dialog__body {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+}
+
+.el-dialog__footer {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
 }
 
 .el-overlay {

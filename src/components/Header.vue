@@ -361,6 +361,113 @@ const onDialogOpened = () => {
             dialog.style.height = 'auto';
             dialog.style.maxHeight = '90vh';
             
+            // 强制应用主题背景样式
+            dialog.style.background = 'rgba(15, 30, 47, 0.95)';
+            dialog.style.backdropFilter = 'blur(20px)';
+            dialog.style.border = '1px solid rgba(0, 240, 255, 0.2)';
+            dialog.style.borderRadius = '24px';
+            dialog.style.boxShadow = '0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 240, 255, 0.1)';
+            
+            // 详细检查DOM结构并移除多余边框
+            console.log('🔍 对话框DOM结构:', dialog);
+            console.log('🔍 对话框所有子元素:', dialog.children);
+            
+            // 移除对话框本身可能的多余样式
+            dialog.style.boxShadow = 'none'; // 先移除可能的双重阴影
+            dialog.style.border = 'none';    // 移除可能的内层边框
+            
+            // 检查并移除所有子元素的边框
+            Array.from(dialog.children).forEach((child, index) => {
+                console.log(`🔍 子元素 ${index}:`, child.className, child);
+                child.style.border = 'none';
+                child.style.background = 'transparent';
+                child.style.boxShadow = 'none';
+            });
+            
+            // 移除Element Plus的默认样式
+            const dialogBody = dialog.querySelector('.el-dialog__body');
+            if (dialogBody) {
+                dialogBody.style.background = 'transparent';
+                dialogBody.style.border = 'none';
+                dialogBody.style.padding = '0';
+                dialogBody.style.boxShadow = 'none';
+                console.log('🧹 移除dialog__body边框完成');
+            }
+            
+            const dialogHeader = dialog.querySelector('.el-dialog__header');
+            if (dialogHeader) {
+                dialogHeader.style.display = 'none';
+                console.log('🧹 隐藏dialog__header完成');
+            }
+            
+            // 检查是否有el-dialog__wrapper等包装元素
+            const wrapper = dialog.closest('.el-dialog__wrapper');
+            if (wrapper) {
+                wrapper.style.border = 'none';
+                wrapper.style.background = 'transparent';
+                wrapper.style.boxShadow = 'none';
+                console.log('🧹 移除wrapper边框完成');
+            }
+            
+            // 最后重新应用外层样式
+            dialog.style.background = 'rgba(15, 30, 47, 0.95)';
+            dialog.style.backdropFilter = 'blur(20px)';
+            dialog.style.border = '1px solid rgba(0, 240, 255, 0.2)';
+            dialog.style.borderRadius = '24px';
+            dialog.style.boxShadow = '0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 240, 255, 0.1)';
+            
+            // 特别检查关闭按钮的父容器
+            const closeBtn = dialog.querySelector('.manual-close-btn');
+            if (closeBtn) {
+                const closeBtnParent = closeBtn.parentElement;
+                console.log('🔍 关闭按钮的父容器:', closeBtnParent.className, closeBtnParent);
+                // 移除关闭按钮父容器的边框
+                closeBtnParent.style.border = 'none';
+                closeBtnParent.style.background = 'transparent';
+                closeBtnParent.style.boxShadow = 'none';
+                console.log('🧹 移除关闭按钮父容器边框完成');
+            }
+            
+            // 特别检查login-container
+            const loginContainer = dialog.querySelector('.login-container');
+            if (loginContainer) {
+                console.log('🔍 login-container样式:', getComputedStyle(loginContainer));
+                loginContainer.style.border = 'none';
+                loginContainer.style.background = 'transparent';
+                loginContainer.style.boxShadow = 'none';
+                loginContainer.style.outline = 'none';
+                console.log('🧹 强制移除login-container边框完成');
+            }
+            
+            // 检查表单和其他可能的边框元素
+            const form = dialog.querySelector('.login-form');
+            if (form) {
+                form.style.border = 'none';
+                form.style.background = 'transparent';
+                form.style.boxShadow = 'none';
+                console.log('🧹 移除表单边框完成');
+            }
+            
+            // 检查所有可能有边框的元素
+            const possibleBorderElements = dialog.querySelectorAll('div, form, .el-form, .el-form-item');
+            possibleBorderElements.forEach((element, index) => {
+                element.style.border = 'none';
+                element.style.background = 'transparent';
+                element.style.boxShadow = 'none';
+                element.style.outline = 'none';
+                console.log(`🧹 移除元素${index}边框: ${element.className}`);
+            });
+            
+            console.log('🧹 所有边框清理完成');
+            
+            console.log('🎨 强制应用主题样式完成');
+            
+            // 验证样式是否正确应用
+            const finalStyles = getComputedStyle(dialog);
+            console.log('🎨 最终背景色:', finalStyles.backgroundColor);
+            console.log('🎨 最终边框:', finalStyles.border);
+            console.log('🎨 最终圆角:', finalStyles.borderRadius);
+            
             console.log('🔧 强制修复后的位置:', dialog.getBoundingClientRect());
         }
         
@@ -738,6 +845,11 @@ onMounted(() => {
 .login-container {
     padding: 40px;
     text-align: center;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+    position: relative;
 }
 
 .login-icon {
@@ -1137,7 +1249,7 @@ onMounted(() => {
 }
 
 /* 自定义登录对话框样式 */
-.custom-login-dialog {
+:deep(.custom-login-dialog) {
     background: rgba(15, 30, 47, 0.95) !important;
     backdrop-filter: blur(20px) !important;
     border: 1px solid rgba(0, 240, 255, 0.2) !important;
@@ -1145,6 +1257,26 @@ onMounted(() => {
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 240, 255, 0.1) !important;
     z-index: 99999 !important;
     position: fixed !important;
+}
+
+/* 强制覆盖Element Plus默认样式 */
+:deep(.el-dialog.custom-login-dialog) {
+    background: rgba(15, 30, 47, 0.95) !important;
+    backdrop-filter: blur(20px) !important;
+    border: 1px solid rgba(0, 240, 255, 0.2) !important;
+    border-radius: 24px !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 240, 255, 0.1) !important;
+}
+
+/* 移除内部元素的边框和背景 */
+:deep(.el-dialog__body) {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+}
+
+:deep(.el-dialog__header) {
+    display: none !important;
 }
 
 /* 手动关闭按钮 */

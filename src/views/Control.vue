@@ -24,10 +24,7 @@
                 </el-select>
             </div>
             <div class="camera-preview">
-                <i
-                    class="fas fa-video fa-3x"
-                    style="color: rgba(255, 255, 255, 0.2)"
-                ></i>
+                <fa icon="camera" class="camera-icon" />
                 <div class="camera-desc">暂无视频</div>
                 <div class="camera-overlay">监控相机 • 720P • 30FPS</div>
             </div>
@@ -235,48 +232,55 @@ const updateLightDuration = () => {
 
 /* 相机预览增强 */
 .camera-preview {
-    background: linear-gradient(145deg, 
-        rgba(0, 15, 30, 0.8) 0%, 
-        rgba(0, 25, 50, 0.9) 50%, 
-        rgba(0, 15, 30, 0.8) 100%
-    );
-    border: 1px solid rgba(0, 240, 255, 0.3);
+    width: 100%;
+    background: linear-gradient(45deg, #1a1f25, #2c3e50);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     position: relative;
     overflow: hidden;
+    margin-bottom: 10px;
+    border: 1px solid rgba(0, 240, 255, 0.3);
 }
 
 .camera-preview::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: 
-        repeating-linear-gradient(
-            0deg,
-            transparent,
-            transparent 2px,
-            rgba(0, 240, 255, 0.05) 2px,
-            rgba(0, 240, 255, 0.05) 4px
-        );
-    animation: scanLine 3s linear infinite;
+    width: 100%;
+    height: 100%;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.15),
+        rgba(0, 0, 0, 0.15) 1px,
+        transparent 1px,
+        transparent 4px
+    );
 }
 
-@keyframes scanLine {
-    0% { transform: translateY(-100%); }
-    100% { transform: translateY(100vh); }
-}
 
 .camera-overlay {
-    background: rgba(0, 240, 255, 0.1);
-    border: 1px solid rgba(0, 240, 255, 0.3);
-    color: var(--primary);
-    font-family: 'Orbitron', monospace;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1px;
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    color: white;
+    font-size: 12px;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.camera-icon {
+    font-size: 3rem;
+    color: rgba(255, 255, 255, 0.2);
+    margin-bottom: 10px;
+}
+
+.camera-desc {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 16px;
+    margin-bottom: 10px;
 }
 
 /* 确保Element Plus输入框组件占满宽度 */
@@ -314,16 +318,16 @@ const updateLightDuration = () => {
 .light-controls {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 15px;
+    gap: 8px;
 
     .light-item {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 12px;
+        padding: 8px;
         background: rgba(255, 255, 255, 0.03);
         border: 1px solid rgba(0, 240, 255, 0.2);
-        border-radius: 10px;
+        border-radius: 8px;
         transition: all 0.3s ease;
         position: relative;
         overflow: hidden;
@@ -360,11 +364,12 @@ const updateLightDuration = () => {
             align-items: center;
             color: var(--text-primary);
             font-weight: 500;
+            font-size: 11px;
         }
         
         .light-icon {
-            font-size: 18px;
-            margin-right: 8px;
+            font-size: 14px;
+            margin-right: 6px;
             color: var(--primary);
         }
     }

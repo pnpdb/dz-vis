@@ -237,8 +237,8 @@ onBeforeUnmount(() => {
     right: 20px;
     z-index: 100;
     pointer-events: none;
-    max-width: 350px;
-    width: 350px;
+    max-width: 450px;
+    width: 450px;
 }
 
 .floating-panels > * {
@@ -253,14 +253,8 @@ onBeforeUnmount(() => {
         inset 0 1px 0 rgba(255, 255, 255, 0.1);
     position: relative;
     overflow: hidden;
-    animation: panelFloat 8s ease-in-out infinite;
 }
 
-@keyframes panelFloat {
-    0%, 100% { transform: translateX(0px) translateY(0px); }
-    25% { transform: translateX(5px) translateY(-5px); }
-    75% { transform: translateX(-5px) translateY(5px); }
-}
 
 /* HUD状态指示器 */
 .hud-overlay {
@@ -307,9 +301,9 @@ onBeforeUnmount(() => {
 }
 
 .top-left { top: 120px; left: 20px; }
-.top-right { top: 120px; right: 380px; }
+.top-right { top: 120px; right: 480px; }
 .bottom-left { bottom: 20px; left: 20px; }
-.bottom-right { bottom: 20px; right: 380px; }
+.bottom-right { bottom: 20px; right: 480px; }
 
 .indicator-dot {
     width: 8px;
@@ -368,24 +362,24 @@ onBeforeUnmount(() => {
 @media (max-width: 1400px) {
     .floating-panels {
         right: 10px;
-        max-width: 320px;
-        width: 320px;
+        max-width: 400px;
+        width: 400px;
     }
     
     .top-right, .bottom-right {
-        right: 340px;
+        right: 420px;
     }
 }
 
 @media (max-width: 1200px) {
     .floating-panels {
         right: 10px;
-        max-width: 280px;
-        width: 280px;
+        max-width: 360px;
+        width: 360px;
     }
     
     .top-right, .bottom-right {
-        right: 300px;
+        right: 380px;
     }
 }
 
@@ -415,8 +409,8 @@ onBeforeUnmount(() => {
 
 /* 右侧面板紧凑化 */
 :deep(.floating-panels .form-label) {
-    font-size: 14px !important;
-    margin-bottom: 8px;
+    font-size: 13px !important;
+    margin-bottom: 4px;
     gap: 6px;
 }
 
@@ -431,43 +425,91 @@ onBeforeUnmount(() => {
 }
 
 :deep(.floating-panels .el-input__wrapper) {
-    min-height: 32px !important;
+    min-height: 30px !important;
 }
 
 :deep(.floating-panels .el-input__inner) {
-    font-size: 12px !important;
-    padding: 6px 12px !important;
+    font-size: 11px !important;
+    padding: 4px 8px !important;
 }
 
 :deep(.floating-panels .el-input-number) {
-    font-size: 12px !important;
+    font-size: 11px !important;
+}
+
+:deep(.floating-panels .el-input-number .el-input__inner) {
+    font-size: 11px !important;
+    padding: 4px 8px !important;
 }
 
 :deep(.floating-panels .el-select .el-input__inner) {
-    font-size: 12px !important;
+    font-size: 11px !important;
 }
 
 :deep(.floating-panels .btn) {
-    padding: 8px 12px !important;
-    font-size: 12px !important;
-    min-height: 32px !important;
+    padding: 6px 8px !important;
+    font-size: 11px !important;
+    min-height: 28px !important;
 }
 
 :deep(.floating-panels .camera-preview) {
-    height: 150px !important;
+    height: 160px !important;
+    margin-top: 6px !important;
 }
 
 :deep(.floating-panels .light-item) {
-    padding: 8px !important;
+    padding: 6px !important;
+    font-size: 11px !important;
 }
 
 :deep(.floating-panels .light-icon) {
-    font-size: 14px !important;
+    font-size: 12px !important;
 }
 
 :deep(.floating-panels .indicator-pulse) {
-    width: 10px !important;
-    height: 10px !important;
+    width: 8px !important;
+    height: 8px !important;
+}
+
+/* 优化设备控制网格布局 */
+:deep(.floating-panels .light-controls) {
+    gap: 8px !important;
+}
+
+/* 速度仪表盘等图表组件优化 */
+:deep(.floating-panels .echarts) {
+    height: 80px !important;
+}
+
+:deep(.floating-panels .echrts-container) {
+    height: 80px !important;
+}
+
+/* 特别优化车辆信息页面的仪表盘 */
+:deep(.floating-panels .speed-gauge) {
+    height: 70px !important;
+    max-height: 70px !important;
+}
+
+:deep(.floating-panels .gauge-container) {
+    height: 70px !important;
+    max-height: 70px !important;
+}
+
+/* 车辆信息卡片优化 */
+:deep(.floating-panels .vehicle-card) {
+    padding: 8px !important;
+}
+
+/* 传感器数据优化 */
+:deep(.floating-panels .sensor-item) {
+    padding: 4px 6px !important;
+    font-size: 10px !important;
+}
+
+/* 按钮组优化 */
+:deep(.floating-panels .control-buttons) {
+    gap: 4px !important;
 }
 
 /* 车辆选择下拉框样式 */

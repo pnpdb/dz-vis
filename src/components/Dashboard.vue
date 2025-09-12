@@ -101,9 +101,9 @@ watch(() => props.speedValue, (newVal, oldVal) => {
 </template>
 
 <style lang="scss" scoped>
-$width: 190px;
-$height: 190px;
-$font-size: 50px;
+$width: 120px;
+$height: 120px;
+$font-size: 32px;
 
 .dashboard-wrap {
     flex-grow: 1;

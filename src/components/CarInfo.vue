@@ -111,31 +111,32 @@ onBeforeUnmount(() => {
 .info-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
+    gap: 8px;
 }
 
 .info-card {
-    min-width: 150px;
-    height: 84px;
+    min-width: 120px;
+    height: 60px;
     background: rgba(10, 25, 47, 0.5);
-    border-radius: 8px;
-    padding: 15px;
+    border-radius: 6px;
+    padding: 8px;
     border: 1px solid rgba(0, 240, 255, 0.1);
 
     .info-title {
-        font-size: 14px;
+        font-size: 10px;
         color: #a0b3d0;
-        margin-bottom: 8px;
+        margin-bottom: 4px;
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 4px;
     }
 
     .info-value {
-        font-size: 18px;
+        font-size: 14px;
         font-weight: 600;
         color: #00f0ff;
         font-family: 'Orbitron', sans-serif;
+        line-height: 1.2;
     }
 
     .info-value_low {
@@ -145,20 +146,20 @@ onBeforeUnmount(() => {
 
 .info-card-h {
     width: 100%;
-    height: 100px;
+    height: 70px;
 }
 
 .battery-container {
-    margin-top: 8px;
-    height: 10px;
+    margin-top: 4px;
+    height: 6px;
     background: rgba(255, 255, 255, 0.1);
-    border-radius: 5px;
+    border-radius: 3px;
     overflow: hidden;
 
     .battery-level {
         height: 100%;
         background: linear-gradient(90deg, #00d2ff 0%, #00ff9d 100%);
-        border-radius: 5px;
+        border-radius: 3px;
         width: var(--battery-level, 0%);
         transition: width 0.3s ease;
     }

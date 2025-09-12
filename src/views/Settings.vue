@@ -1,6 +1,6 @@
 <template>
     <!-- 显示设置面板 -->
-    <div class="panel-card" id="display-settings-panel">
+    <div class="floating-settings-panel" id="display-settings-panel">
         <div class="panel-header">
             <div class="panel-icon">
                 <fa icon="cog" />
@@ -62,4 +62,69 @@ const selectedCar = ref('B');
 const showAllPaths = ref(true);
 </script>
 
-<style lang="scss" scoped></style>
+<style lang="scss" scoped>
+.floating-settings-panel {
+    padding: 25px;
+    height: 100%;
+    overflow-y: auto;
+    position: relative;
+}
+
+.panel-header {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 2px solid rgba(0, 240, 255, 0.3);
+    position: relative;
+}
+
+.panel-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 20px;
+    color: var(--dark-bg);
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+}
+
+.panel-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    background: linear-gradient(90deg, var(--primary), var(--primary-light));
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    flex: 1;
+}
+
+/* 滚动条样式 */
+.floating-settings-panel::-webkit-scrollbar {
+    width: 6px;
+}
+
+.floating-settings-panel::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+}
+
+.floating-settings-panel::-webkit-scrollbar-thumb {
+    background: linear-gradient(to bottom, 
+        var(--primary), 
+        var(--primary-dark)
+    );
+    border-radius: 3px;
+    box-shadow: 0 0 5px rgba(0, 240, 255, 0.3);
+}
+
+.floating-settings-panel::-webkit-scrollbar-thumb:hover {
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+}
+</style>

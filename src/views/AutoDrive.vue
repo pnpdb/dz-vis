@@ -1,5 +1,5 @@
 <template>
-    <div class="panel-card">
+    <div class="floating-autodrive-panel">
         <div class="panel-header">
             <div class="panel-icon">
                 <fa icon="robot"></fa>
@@ -188,6 +188,48 @@ const selectParkingSpot = () => {
 </script>
 
 <style lang="scss" scoped>
+.floating-autodrive-panel {
+    padding: 25px;
+    height: 100%;
+    overflow-y: auto;
+    position: relative;
+}
+
+.panel-header {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 2px solid rgba(0, 240, 255, 0.3);
+    position: relative;
+}
+
+.panel-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 20px;
+    color: var(--dark-bg);
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+}
+
+.panel-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    background: linear-gradient(90deg, var(--primary), var(--primary-light));
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    flex: 1;
+}
+
 .flex-item {
     display: flex;
     align-items: center;
@@ -199,18 +241,42 @@ const selectParkingSpot = () => {
 }
 .input-label {
     min-width: 70px;
-    color: #a0b3d0;
+    color: var(--text-secondary);
     margin-bottom: 8px;
+    font-size: 12px;
 }
 .map-point-value {
     flex-grow: 1;
-    height: 44px;
-    padding: 12px 15px;
-    background: rgba(30, 58, 95, 0.5);
-    border: 1px solid var(--dark-border);
-    border-radius: 8px;
+    height: 32px;
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(0, 240, 255, 0.3);
+    border-radius: 6px;
     color: var(--text-primary);
-    font-size: 16px;
-    margin-right: 10px;
+    font-size: 12px;
+    margin-right: 8px;
+}
+
+/* 滚动条样式 */
+.floating-autodrive-panel::-webkit-scrollbar {
+    width: 6px;
+}
+
+.floating-autodrive-panel::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+}
+
+.floating-autodrive-panel::-webkit-scrollbar-thumb {
+    background: linear-gradient(to bottom, 
+        var(--primary), 
+        var(--primary-dark)
+    );
+    border-radius: 3px;
+    box-shadow: 0 0 5px rgba(0, 240, 255, 0.3);
+}
+
+.floating-autodrive-panel::-webkit-scrollbar-thumb:hover {
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
 }
 </style>

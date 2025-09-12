@@ -44,7 +44,7 @@ const startParallelDriving = () => {
 <style lang="scss" scoped>
 .camera-preview {
     width: 100%;
-    height: 200px;
+    height: 140px;
     background: linear-gradient(45deg, #1a1f25, #2c3e50);
     border-radius: 8px;
     display: flex;
@@ -53,7 +53,7 @@ const startParallelDriving = () => {
     justify-content: center;
     position: relative;
     overflow: hidden;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
 }
 
 .camera-icon {
@@ -100,6 +100,6 @@ const startParallelDriving = () => {
 }
 
 .flex {
-    margin-bottom: 15px;
+    margin-bottom: 8px;
 }
 </style>

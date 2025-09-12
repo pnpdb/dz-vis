@@ -144,30 +144,121 @@ onBeforeUnmount(() => {
 .car-list-floating {
     top: 140px;
     left: 20px;
-    width: 280px;
-    max-height: 300px;
+    width: 220px;
+    max-height: 200px;
     overflow-y: auto;
-    padding: 15px;
+    padding: 12px;
+    z-index: 1000; /* 提高层级确保下拉列表显示在最上层 */
 }
 
 .car-button-floating {
     bottom: 120px;
     left: 20px;
-    width: 280px;
-    padding: 15px;
+    width: 220px;
+    padding: 12px;
 }
 
 /* 悬浮元素内部样式重置 */
 :deep(.floating-element .form-group) {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(0, 240, 255, 0.2);
-    margin-bottom: 12px;
+    margin-bottom: 8px;
+    padding: 10px;
 }
 
 :deep(.floating-element .panel-header) {
     border-bottom: 1px solid rgba(0, 240, 255, 0.3);
-    margin-bottom: 15px;
-    padding-bottom: 12px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+}
+
+/* 紧凑化悬浮元素内的文字和控件 */
+:deep(.floating-element .form-label) {
+    font-size: 14px !important;
+    margin-bottom: 6px;
+    gap: 4px;
+    font-weight: 500;
+}
+
+:deep(.floating-element .el-select) {
+    font-size: 12px;
+}
+
+:deep(.car-list-floating .el-select .el-input__wrapper) {
+    min-height: 26px !important;
+    height: 26px !important;
+}
+
+:deep(.car-list-floating .el-select .el-input) {
+    height: 26px !important;
+}
+
+:deep(.car-list-floating .el-select .el-input__inner) {
+    font-size: 12px !important;
+    padding: 2px 12px !important;
+    line-height: 22px !important;
+    height: 22px !important;
+}
+
+/* 更强制的高度控制 */
+.car-list-floating :deep(.el-select .el-input__wrapper) {
+    min-height: 26px !important;
+    height: 26px !important;
+    box-sizing: border-box !important;
+}
+
+.car-list-floating :deep(.el-input) {
+    height: 26px !important;
+}
+
+.car-list-floating :deep(.el-input__inner) {
+    height: 22px !important;
+    line-height: 22px !important;
+    padding: 2px 12px !important;
+}
+
+:deep(.floating-element .control-buttons) {
+    gap: 6px !important;
+    flex-direction: column !important;
+}
+
+:deep(.floating-element .control-btn) {
+    padding: 6px 12px !important;
+    font-size: 11px !important;
+    border-radius: 6px !important;
+    min-height: 28px !important;
+    width: 100% !important;
+}
+
+:deep(.floating-element .control-btn .fa) {
+    font-size: 10px !important;
+    margin-right: 3px !important;
+}
+
+/* 下拉选择框选项 */
+:deep(.el-select-dropdown .el-select-dropdown__item) {
+    font-size: 12px !important;
+    padding: 6px 12px !important;
+    min-height: auto !important;
+}
+
+/* 确保车辆选择下拉列表宽度与下拉框一致 */
+:deep(.car-list-floating .el-select) {
+    width: 100% !important;
+}
+
+:deep(.car-list-floating .el-select .el-select__popper.el-popper) {
+    width: 196px !important; /* 220px container - 24px padding */
+    min-width: 196px !important;
+}
+
+:deep(.car-list-floating .el-select .el-select-dropdown) {
+    width: 196px !important;
+    min-width: 196px !important;
+}
+
+:deep(.car-list-floating .el-select .el-select-dropdown .el-select-dropdown__wrap) {
+    max-height: 150px !important;
 }
 
 /* 小型仪表板 */
@@ -249,7 +340,7 @@ onBeforeUnmount(() => {
 @media (max-width: 1400px) {
     .car-list-floating,
     .car-button-floating {
-        width: 250px;
+        width: 200px;
     }
     
     .mini-dashboard {
@@ -265,7 +356,7 @@ onBeforeUnmount(() => {
 @media (max-width: 1200px) {
     .car-list-floating,
     .car-button-floating {
-        width: 220px;
+        width: 180px;
     }
     
     .mini-dashboard {

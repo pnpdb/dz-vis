@@ -22,10 +22,6 @@
         
         <!-- HUD状态指示器 -->
         <div class="hud-overlay">
-            <div class="status-indicator top-left">
-                <div class="indicator-dot active"></div>
-                <span>系统在线</span>
-            </div>
             <div class="status-indicator top-right">
                 <div class="timestamp">{{ currentTime }}</div>
             </div>
@@ -241,8 +237,8 @@ onBeforeUnmount(() => {
     right: 20px;
     z-index: 100;
     pointer-events: none;
-    max-width: 420px;
-    width: 420px;
+    max-width: 350px;
+    width: 350px;
 }
 
 .floating-panels > * {
@@ -311,9 +307,9 @@ onBeforeUnmount(() => {
 }
 
 .top-left { top: 120px; left: 20px; }
-.top-right { top: 120px; right: 440px; }
+.top-right { top: 120px; right: 380px; }
 .bottom-left { bottom: 20px; left: 20px; }
-.bottom-right { bottom: 20px; right: 440px; }
+.bottom-right { bottom: 20px; right: 380px; }
 
 .indicator-dot {
     width: 8px;
@@ -372,24 +368,24 @@ onBeforeUnmount(() => {
 @media (max-width: 1400px) {
     .floating-panels {
         right: 10px;
-        max-width: 380px;
-        width: 380px;
+        max-width: 320px;
+        width: 320px;
     }
     
     .top-right, .bottom-right {
-        right: 400px;
+        right: 340px;
     }
 }
 
 @media (max-width: 1200px) {
     .floating-panels {
         right: 10px;
-        max-width: 350px;
-        width: 350px;
+        max-width: 280px;
+        width: 280px;
     }
     
     .top-right, .bottom-right {
-        right: 370px;
+        right: 300px;
     }
 }
 
@@ -407,12 +403,76 @@ onBeforeUnmount(() => {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(0, 240, 255, 0.2);
     transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+    padding: 12px;
+    margin-bottom: 10px;
 }
 
 :deep(.floating-panels .form-group:hover) {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(0, 240, 255, 0.4);
     box-shadow: 0 0 20px rgba(0, 240, 255, 0.15);
+}
+
+/* 右侧面板紧凑化 */
+:deep(.floating-panels .form-label) {
+    font-size: 14px !important;
+    margin-bottom: 8px;
+    gap: 6px;
+}
+
+:deep(.floating-panels .panel-header .panel-title) {
+    font-size: 18px !important;
+}
+
+:deep(.floating-panels .panel-icon) {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 16px !important;
+}
+
+:deep(.floating-panels .el-input__wrapper) {
+    min-height: 32px !important;
+}
+
+:deep(.floating-panels .el-input__inner) {
+    font-size: 12px !important;
+    padding: 6px 12px !important;
+}
+
+:deep(.floating-panels .el-input-number) {
+    font-size: 12px !important;
+}
+
+:deep(.floating-panels .el-select .el-input__inner) {
+    font-size: 12px !important;
+}
+
+:deep(.floating-panels .btn) {
+    padding: 8px 12px !important;
+    font-size: 12px !important;
+    min-height: 32px !important;
+}
+
+:deep(.floating-panels .camera-preview) {
+    height: 150px !important;
+}
+
+:deep(.floating-panels .light-item) {
+    padding: 8px !important;
+}
+
+:deep(.floating-panels .light-icon) {
+    font-size: 14px !important;
+}
+
+:deep(.floating-panels .indicator-pulse) {
+    width: 10px !important;
+    height: 10px !important;
+}
+
+/* 车辆选择下拉框样式 */
+.car-list-floating :deep(.compact-select-dropdown) {
+    z-index: 9999 !important;
 }
 
 /* 页面切换动画 */

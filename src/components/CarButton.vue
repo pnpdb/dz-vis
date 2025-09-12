@@ -110,24 +110,24 @@ onMounted(() => {
 <style lang="scss" scoped>
 .control-buttons {
     display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
+    flex-direction: column;
+    gap: 8px;
 }
 
 .control-btn {
-    width: 130px;
+    width: auto;
     flex: 1;
-    padding: 10px;
-    font-size: 16px;
+    padding: 8px;
+    font-size: 13px;
     font-weight: 600;
-    border-radius: 8px;
+    border-radius: 6px;
     cursor: pointer;
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 10px;
+    gap: 6px;
     transition: all 0.3s ease;
-    min-height: 44px;
+    min-height: 32px;
 }
 
 .start-btn {

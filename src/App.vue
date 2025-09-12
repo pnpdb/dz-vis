@@ -108,7 +108,7 @@ onBeforeUnmount(() => {
     width: 100vw;
     height: 100vh;
     position: relative;
-    overflow: hidden;
+    overflow: visible; /* 允许对话框显示在容器外 */
     background: radial-gradient(circle at center, 
         rgba(0, 20, 40, 0.95) 0%, 
         rgba(0, 10, 25, 0.98) 50%, 

@@ -1,6 +1,6 @@
 <template>
     <!-- 顶部导航栏 -->
-    <header class="header">
+    <header class="header" style="overflow: visible !important;">
         <el-popover
             class="center"
             title="关于"
@@ -68,7 +68,15 @@
             width="420px"
             :show-close="false"
             center
-            class="login-modal"
+            :close-on-click-modal="false"
+            :close-on-press-escape="false"
+            class="custom-login-dialog"
+            append-to-body
+            :teleported="true"
+            @open="onDialogOpen"
+            @opened="onDialogOpened"
+            @close="onDialogClose"
+            @closed="onDialogClosed"
         >
             <div class="login-container">
                 <div class="login-icon">
@@ -125,13 +133,18 @@
                         
                         <el-button 
                             size="large"
-                            @click="loginDialogVisible = false"
+                            @click="closeLogin"
                             class="cancel-btn"
                         >
                             Cancel
                         </el-button>
                     </div>
                 </el-form>
+                
+                <!-- 手动关闭按钮 -->
+                <button class="manual-close-btn" @click="closeLogin" title="关闭">
+                    <fa icon="times" />
+                </button>
             </div>
         </el-dialog>
         
@@ -142,6 +155,8 @@
             width="600px"
             :show-close="true"
             center
+            :z-index="3002"
+            append-to-body
         >
             <el-tabs v-model="activeSettingsTab" type="border-card">
                 <el-tab-pane label="基本设置" name="basic">
@@ -221,7 +236,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { TauriUtils } from '@/utils/tauri.js';
 import { ElMessage } from 'element-plus';
@@ -295,14 +310,100 @@ const selected = (item) => {
     router.push(item.path);
 };
 
-// 显示登录框
+// 关闭登录框
+const closeLogin = () => {
+    console.log('关闭登录框');
+    loginDialogVisible.value = false;
+};
+
+// Element Plus对话框事件监听器
+const onDialogOpen = () => {
+    console.log('🟢 对话框开始打开');
+};
+
+const onDialogOpened = () => {
+    console.log('✅ 对话框完全打开');
+    
+    // 立即检查对话框的实际渲染状态
+    setTimeout(() => {
+        const dialog = document.querySelector('.el-dialog');
+        const overlay = document.querySelector('.el-overlay');
+        
+        if (dialog) {
+            const dialogRect = dialog.getBoundingClientRect();
+            const dialogStyles = getComputedStyle(dialog);
+            
+            console.log('🔍 对话框实际状态检查:');
+            console.log('位置:', dialogRect);
+            console.log('z-index:', dialogStyles.zIndex);
+            console.log('display:', dialogStyles.display);
+            console.log('visibility:', dialogStyles.visibility);
+            console.log('opacity:', dialogStyles.opacity);
+            console.log('position:', dialogStyles.position);
+            
+            // 强制将对话框挂载到body，脱离父容器限制
+            const dialogWrapper = dialog.closest('.el-overlay');
+            if (dialogWrapper && dialogWrapper.parentNode !== document.body) {
+                console.log('🔧 将对话框移动到body');
+                document.body.appendChild(dialogWrapper);
+            }
+            
+            // 强制设置最高z-index和正确位置
+            dialog.style.zIndex = '99999';
+            dialog.style.position = 'fixed';
+            dialog.style.top = '50%';
+            dialog.style.left = '50%';
+            dialog.style.transform = 'translate(-50%, -50%)';
+            dialog.style.display = 'block';
+            dialog.style.visibility = 'visible';
+            dialog.style.opacity = '1';
+            dialog.style.width = '420px';
+            dialog.style.height = 'auto';
+            dialog.style.maxHeight = '90vh';
+            
+            console.log('🔧 强制修复后的位置:', dialog.getBoundingClientRect());
+        }
+        
+        if (overlay) {
+            // 确保遮罩层也在body下
+            if (overlay.parentNode !== document.body) {
+                console.log('🔧 将遮罩层移动到body');
+                document.body.appendChild(overlay);
+            }
+            overlay.style.zIndex = '99998';
+            overlay.style.position = 'fixed';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100vw';
+            overlay.style.height = '100vh';
+            console.log('🔍 遮罩层z-index:', getComputedStyle(overlay).zIndex);
+        }
+    }, 100);
+};
+
+const onDialogClose = () => {
+    console.log('🔴 对话框开始关闭');
+    // 防止意外关闭 - 只有明确调用closeLogin才应该关闭
+    console.trace('对话框关闭调用栈');
+};
+
+const onDialogClosed = () => {
+    console.log('❌ 对话框完全关闭');
+};
+
+// 显示登录框 - 简化版本
 const showLogin = () => {
-    loginDialogVisible.value = true;
+    console.log('设置按钮被点击，显示登录框');
+    
     // 清空表单
     loginForm.value = {
         username: '',
         password: ''
     };
+    
+    // 简单设置状态，不进行复杂的DOM操作
+    loginDialogVisible.value = true;
+    console.log('登录框显示状态:', loginDialogVisible.value);
 };
 
 // 处理登录
@@ -407,11 +508,11 @@ onMounted(() => {
     border-radius: 0;
     box-shadow: none;
     padding: 15px 30px;
+    overflow: visible !important; /* 确保对话框不被裁剪 */
     display: flex;
     align-items: center;
     justify-content: space-between;
     position: relative;
-    overflow: hidden;
     border: none;
     backdrop-filter: none;
     flex-shrink: 0;
@@ -577,29 +678,61 @@ onMounted(() => {
 
 /* 模态框样式 */
 :deep(.el-dialog) {
-    background: var(--darker-card);
-    border: 1px solid var(--dark-border);
-    border-radius: 16px;
+    background: rgba(15, 30, 47, 0.95) !important;
+    backdrop-filter: blur(20px) !important;
+    border: 1px solid rgba(0, 240, 255, 0.3) !important;
+    border-radius: 16px !important;
+    z-index: 3000 !important; /* 确保在HUD层之上 */
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 240, 255, 0.1) !important;
+}
+
+:deep(.el-overlay) {
+    z-index: 2999 !important; /* 遮罩层也需要设置高z-index */
+    background: rgba(0, 10, 20, 0.8) !important; /* 深色科技感遮罩 */
+    backdrop-filter: blur(8px) !important;
 }
 
 /* 登录模态框特定样式 */
-:deep(.login-modal) {
-    .el-dialog {
-        background: rgba(15, 30, 47, 0.95);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(0, 240, 255, 0.2);
-        border-radius: 24px;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 240, 255, 0.1);
-    }
-    
-    .el-dialog__header {
-        display: none !important;
-    }
-    
-    .el-dialog__body {
-        padding: 0;
-        background: transparent;
-    }
+.login-modal {
+    z-index: 3001 !important;
+}
+
+:deep(.login-modal .el-dialog) {
+    background: rgba(15, 30, 47, 0.95) !important;
+    backdrop-filter: blur(20px) !important;
+    border: 1px solid rgba(0, 240, 255, 0.2) !important;
+    border-radius: 24px !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 240, 255, 0.1) !important;
+    z-index: 3001 !important;
+    display: block !important;
+    visibility: visible !important;
+}
+
+/* 更强的样式覆盖 */
+:deep(.el-dialog.login-modal) {
+    background: rgba(15, 30, 47, 0.95) !important;
+    backdrop-filter: blur(20px) !important;
+    border: 1px solid rgba(0, 240, 255, 0.2) !important;
+    border-radius: 24px !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 240, 255, 0.1) !important;
+}
+
+/* 通过custom-class强制覆盖 */
+:deep(.login-modal-dialog) {
+    background: rgba(15, 30, 47, 0.95) !important;
+    backdrop-filter: blur(20px) !important;
+    border: 1px solid rgba(0, 240, 255, 0.2) !important;
+    border-radius: 24px !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 240, 255, 0.1) !important;
+}
+
+:deep(.login-modal .el-dialog__header) {
+    display: none !important;
+}
+
+:deep(.login-modal .el-dialog__body) {
+    padding: 0 !important;
+    background: transparent !important;
 }
 
 .login-container {
@@ -704,13 +837,28 @@ onMounted(() => {
     background: rgba(0, 240, 255, 0.05) !important;
 }
 
+/* 设置对话框标题样式 */
 :deep(.el-dialog__header) {
+    background: transparent !important;
+    border-bottom: 1px solid rgba(0, 240, 255, 0.2) !important;
+    padding: 20px 30px !important;
+}
+
+:deep(.el-dialog__title) {
+    color: var(--text-primary) !important;
+    font-family: 'Orbitron', sans-serif !important;
+    font-weight: 600 !important;
+    font-size: 18px !important;
+}
+
+/* 登录对话框隐藏标题 */
+:deep(.login-modal .el-dialog__header) {
     display: none !important;
 }
 
 :deep(.el-dialog__body) {
-    padding: 30px;
-    background: var(--darker-card);
+    padding: 30px !important;
+    background: transparent !important;
 }
 
 :deep(.el-dialog__footer) {
@@ -787,11 +935,112 @@ onMounted(() => {
 
 :deep(.el-input__inner) {
     color: var(--text-primary) !important;
-    background: transparent !important;
+}
+
+/* 设置对话框Tab样式 */
+:deep(.el-tabs) {
+    .el-tabs__header {
+        background: rgba(0, 15, 30, 0.5) !important;
+        border-radius: 8px !important;
+        padding: 5px !important;
+        border: 1px solid rgba(0, 240, 255, 0.2) !important;
+    }
+    
+    .el-tabs__nav-wrap {
+        background: transparent !important;
+    }
+    
+    .el-tabs__nav {
+        border: none !important;
+    }
+    
+    .el-tabs__item {
+        color: var(--text-secondary) !important;
+        border: none !important;
+        padding: 8px 16px !important;
+        border-radius: 6px !important;
+        margin-right: 4px !important;
+        transition: all 0.3s ease !important;
+        font-family: 'Orbitron', sans-serif !important;
+        font-weight: 500 !important;
+    }
+    
+    .el-tabs__item:hover {
+        color: var(--primary) !important;
+        background: rgba(0, 240, 255, 0.1) !important;
+    }
+    
+    .el-tabs__item.is-active {
+        color: var(--dark-bg) !important;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%) !important;
+        border: none !important;
+        box-shadow: 0 4px 15px rgba(0, 240, 255, 0.3) !important;
+    }
+    
+    .el-tabs__active-bar {
+        display: none !important;
+    }
+    
+    .el-tabs__content {
+        padding: 20px 0 !important;
+    }
 }
 
 :deep(.el-input__inner::placeholder) {
     color: var(--text-secondary) !important;
+}
+
+/* 设置对话框表单控件样式 */
+:deep(.el-radio-group) {
+    .el-radio {
+        margin-right: 20px !important;
+        
+        .el-radio__input {
+            .el-radio__inner {
+                background: rgba(0, 15, 30, 0.8) !important;
+                border: 1px solid rgba(0, 240, 255, 0.3) !important;
+            }
+            
+            &.is-checked .el-radio__inner {
+                background: var(--primary) !important;
+                border-color: var(--primary) !important;
+            }
+        }
+        
+        .el-radio__label {
+            color: var(--text-primary) !important;
+            font-weight: 500 !important;
+        }
+    }
+}
+
+:deep(.el-select) {
+    .el-input__wrapper {
+        background: rgba(0, 15, 30, 0.8) !important;
+        border: 1px solid rgba(0, 240, 255, 0.3) !important;
+        border-radius: 8px !important;
+    }
+    
+    .el-input__wrapper:hover {
+        border-color: var(--primary) !important;
+    }
+    
+    .el-input__wrapper.is-focus {
+        border-color: var(--primary) !important;
+        box-shadow: 0 0 0 2px rgba(0, 240, 255, 0.2) !important;
+    }
+}
+
+:deep(.el-switch) {
+    .el-switch__core {
+        background: rgba(255, 255, 255, 0.2) !important;
+        border: 1px solid rgba(0, 240, 255, 0.3) !important;
+    }
+    
+    &.is-checked .el-switch__core {
+        background: var(--primary) !important;
+        border-color: var(--primary) !important;
+    }
 }
 
 /* Tabs 样式 */
@@ -885,5 +1134,42 @@ onMounted(() => {
     display: flex;
     justify-content: flex-end;
     gap: 12px;
+}
+
+/* 自定义登录对话框样式 */
+.custom-login-dialog {
+    background: rgba(15, 30, 47, 0.95) !important;
+    backdrop-filter: blur(20px) !important;
+    border: 1px solid rgba(0, 240, 255, 0.2) !important;
+    border-radius: 24px !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 240, 255, 0.1) !important;
+    z-index: 99999 !important;
+    position: fixed !important;
+}
+
+/* 手动关闭按钮 */
+.manual-close-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(0, 240, 255, 0.8);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    z-index: 10;
+}
+
+.manual-close-btn:hover {
+    background: rgba(255, 0, 0, 0.2);
+    color: #ff4d6d;
+    transform: scale(1.1);
 }
 </style>

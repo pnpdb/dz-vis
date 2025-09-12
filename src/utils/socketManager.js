@@ -41,7 +41,7 @@ class SocketManager {
             this.isServerRunning = true;
             
             logger.info(`Socket服务器启动成功: ${result}`);
-            ElMessage.success(`Socket服务器启动在端口 ${port}`);
+            // ElMessage.success(`Socket服务器启动在端口 ${port}`); // 移除toast提示
             
             // 开始监听消息
             this.startListening();

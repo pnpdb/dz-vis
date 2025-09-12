@@ -46,160 +46,207 @@ export const initScene = dom => {
     container = dom;
     clock = new Clock();
 
-    // 初始化场景
-    scene = new Scene();
-    
-    // 创建场景组织结构
-    sceneGroup = new Group();
-    sceneGroup.name = 'SceneGroup';
-    
-    lightsGroup = new Group();
-    lightsGroup.name = 'LightsGroup';
-    
-    modelsGroup = new Group();
-    modelsGroup.name = 'ModelsGroup';
-    
-    scene.add(sceneGroup);
-    sceneGroup.add(lightsGroup);
-    sceneGroup.add(modelsGroup);
+    // 发送初始化开始事件
+    window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 0 }));
 
-    camera = new PerspectiveCamera(
-        21,
-        container.clientWidth / container.clientHeight,
-        1,
-        1000
-    );
-    camera.position.set(0, 40, 50);
-    camera.lookAt(0, 0, 0);
+    // 异步初始化场景以避免阻塞主线程
+    setTimeout(() => {
+        initSceneCore();
+    }, 0);
+};
 
-    // 创建控制器
-    controls = new OrbitControls(camera, container);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.enablePan = false;
-    controls.minPolarAngle = 0;
-    controls.maxPolarAngle = Math.PI / 2;
-    controls.minDistance = 20;
-    controls.maxDistance = 200;
-
-    // 高性能渲染器设置
-    renderer = new WebGLRenderer({
-        antialias: false, // 初始关闭抗锯齿
-        alpha: false, // 禁用透明度以提高性能
-        powerPreference: "high-performance",
-        stencil: false,
-        depth: true,
-        logarithmicDepthBuffer: false,
-        preserveDrawingBuffer: false,
-        failIfMajorPerformanceCaveat: false // 允许软件渲染
-    });
-    
-    // 渲染器性能优化
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // 限制像素比
-    renderer.shadowMap.enabled = false;
-    renderer.sortObjects = false; // 禁用对象排序以提升性能
-    renderer.outputColorSpace = 'srgb';
-    
-    // WebGL状态同步
-    const gl = renderer.getContext();
-    if (gl) {
-        gl.flush();
-        gl.finish();
-    }
-    
-    // 设置渲染器尺寸
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    container.appendChild(renderer.domElement);
-
-    // 性能自适应
-    adaptPerformance();
-
-    // 优化的 resize 处理
-    resizeHandler = () => {
-        const width = container.clientWidth;
-        const height = container.clientHeight;
-
-        if (width === 0 || height === 0) return; // 防止无效尺寸
-
-        renderer.setSize(width, height);
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-    };
-
-    // 监听resize事件
-    window.addEventListener('resize', resizeHandler);
-    resizeHandler();
-
-    // 性能监控（开发环境）
-    if (import.meta.env.DEV) {
-        stats = new Stats();
-        container.appendChild(stats.dom);
-
-        // 初始化性能监控器
-        performanceMonitor.init(container);
-    }
-
-    // 智能渲染循环
-    animate = (currentTime) => {
-        if (!isVisible || !shouldRender) return;
+const initSceneCore = async () => {
+    try {
+        // 步骤1：创建基础场景 (10%)
+        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 10 }));
+        await new Promise(resolve => setTimeout(resolve, 0));
         
-        // 帧率控制
-        if (currentTime - lastRenderTime < frameInterval) {
-            rafId = requestAnimationFrame(animate);
-            return;
+        scene = new Scene();
+        
+        // 创建场景组织结构
+        sceneGroup = new Group();
+        sceneGroup.name = 'SceneGroup';
+        
+        lightsGroup = new Group();
+        lightsGroup.name = 'LightsGroup';
+        
+        modelsGroup = new Group();
+        modelsGroup.name = 'ModelsGroup';
+        
+        scene.add(sceneGroup);
+        sceneGroup.add(lightsGroup);
+        sceneGroup.add(modelsGroup);
+
+        // 步骤2：创建相机 (20%)
+        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 20 }));
+        await new Promise(resolve => setTimeout(resolve, 0));
+        
+        camera = new PerspectiveCamera(
+            21,
+            container.clientWidth / container.clientHeight,
+            1,
+            1000
+        );
+        camera.position.set(0, 40, 50);
+        camera.lookAt(0, 0, 0);
+
+        // 步骤3：创建控制器 (30%)
+        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 30 }));
+        await new Promise(resolve => setTimeout(resolve, 0));
+        
+        controls = new OrbitControls(camera, container);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.enablePan = false;
+        controls.minPolarAngle = 0;
+        controls.maxPolarAngle = Math.PI / 2;
+        controls.minDistance = 20;
+        controls.maxDistance = 200;
+
+        // 步骤4：创建渲染器 (50%)
+        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 50 }));
+        await new Promise(resolve => setTimeout(resolve, 0));
+        
+        renderer = new WebGLRenderer({
+            antialias: false, // 初始关闭抗锯齿
+            alpha: false, // 禁用透明度以提高性能
+            powerPreference: "high-performance",
+            stencil: false,
+            depth: true,
+            logarithmicDepthBuffer: false,
+            preserveDrawingBuffer: false,
+            failIfMajorPerformanceCaveat: false // 允许软件渲染
+        });
+        
+        // 渲染器性能优化
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // 限制像素比
+        renderer.shadowMap.enabled = false;
+        renderer.sortObjects = false; // 禁用对象排序以提升性能
+        renderer.outputColorSpace = 'srgb';
+        
+        // WebGL状态同步
+        const gl = renderer.getContext();
+        if (gl) {
+            gl.flush();
+            gl.finish();
         }
         
-        lastRenderTime = currentTime;
-        frameCount++;
+        // 设置渲染器尺寸
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        container.appendChild(renderer.domElement);
+
+        // 步骤5：性能自适应和事件处理 (60%)
+        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 60 }));
+        await new Promise(resolve => setTimeout(resolve, 0));
         
-        // FPS 监控和自适应
-        if (currentTime - lastFPSCheck > 1000) {
-            currentFPS = Math.round((frameCount * 1000) / (currentTime - lastFPSCheck));
-            frameCount = 0;
-            lastFPSCheck = currentTime;
+        // 性能自适应
+        adaptPerformance();
+
+        // 优化的 resize 处理
+        resizeHandler = () => {
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            if (width === 0 || height === 0) return; // 防止无效尺寸
+
+            renderer.setSize(width, height);
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+        };
+
+        // 监听resize事件
+        window.addEventListener('resize', resizeHandler);
+        resizeHandler();
+
+        // 性能监控（开发环境）
+        if (import.meta.env.DEV) {
+            stats = new Stats();
+            container.appendChild(stats.dom);
+
+            // 初始化性能监控器
+            performanceMonitor.init(container);
+        }
+
+        // 步骤6：启动渲染循环 (70%)
+        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 70 }));
+        await new Promise(resolve => setTimeout(resolve, 0));
+        
+        // 智能渲染循环
+        animate = (currentTime) => {
+            if (!isVisible || !shouldRender) return;
             
-            // 自动性能调节
-            if (performanceMode === 'auto') {
-                if (currentFPS < 20) {
-                    switchToLowPerformance();
-                    performanceMonitor.logFPS(currentFPS, 1000/currentFPS);
-                } else if (currentFPS > 50) {
-                    switchToHighPerformance();
+            // 帧率控制
+            if (currentTime - lastRenderTime < frameInterval) {
+                rafId = requestAnimationFrame(animate);
+                return;
+            }
+            
+            lastRenderTime = currentTime;
+            frameCount++;
+            
+            // FPS 监控和自适应
+            if (currentTime - lastFPSCheck > 1000) {
+                currentFPS = Math.round((frameCount * 1000) / (currentTime - lastFPSCheck));
+                frameCount = 0;
+                lastFPSCheck = currentTime;
+                
+                // 自动性能调节
+                if (performanceMode === 'auto') {
+                    if (currentFPS < 20) {
+                        switchToLowPerformance();
+                        performanceMonitor.logFPS(currentFPS, 1000/currentFPS);
+                    } else if (currentFPS > 50) {
+                        switchToHighPerformance();
+                    }
                 }
             }
-        }
-        
-        // 更新时钟
-        const deltaTime = clock.getDelta();
-        
-        // 控制器更新（降频）
-        if (controls.enableDamping) {
-            controls.update();
-        }
-        
-        // 模型动画更新（如果有的话）
-        updateModelAnimations(deltaTime);
-        
-        // 渲染
-        renderer.render(scene, camera);
-        
-        if (stats) {
-            stats.update();
-        }
-        
+            
+            // 更新时钟
+            const deltaTime = clock.getDelta();
+            
+            // 控制器更新（降频）
+            if (controls.enableDamping) {
+                controls.update();
+            }
+            
+            // 模型动画更新（如果有的话）
+            updateModelAnimations(deltaTime);
+            
+            // 渲染
+            renderer.render(scene, camera);
+            
+            if (stats) {
+                stats.update();
+            }
+            
+            rafId = requestAnimationFrame(animate);
+        };
+
         rafId = requestAnimationFrame(animate);
-    };
 
-    rafId = requestAnimationFrame(animate);
+        // 步骤7：设置光照 (80%)
+        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 80 }));
+        await new Promise(resolve => setTimeout(resolve, 0));
+        
+        setupLighting();
 
-    // 设置光照
-    setupLighting();
-
-    // 异步加载环境贴图
-    loadEnvironment();
-    
-    // 异步加载模型
-    loadModels();
+        // 步骤8：基础场景完成，开始异步加载资源 (70%)
+        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 70 }));
+        
+        // 异步加载环境贴图（不阻塞）
+        loadEnvironment();
+        
+        // 异步加载模型（不阻塞，带进度反馈）
+        loadModelsWithProgress();
+        
+        // 基础场景已完成，可以开始交互（即使模型未加载完）
+        console.log('基础3D场景初始化完成，界面可交互');
+        window.dispatchEvent(new CustomEvent('scene3d-complete'));
+        
+    } catch (error) {
+        console.error('Scene3D 初始化失败:', error);
+        window.dispatchEvent(new CustomEvent('scene3d-complete'));
+    }
 };
 
 // 设置光照系统
@@ -252,7 +299,95 @@ const loadEnvironment = () => {
     );
 };
 
-// 模型加载管理
+// 模型加载管理（带进度反馈）
+const loadModelsWithProgress = async () => {
+    const loader = new GLTFLoader();
+    
+    // 配置 DRACO 压缩（如果需要）
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
+    loader.setDRACOLoader(dracoLoader);
+
+    console.log('开始异步模型加载...');
+    
+    // 模型加载进度追踪
+    let carsProgress = 0;
+    let finalProgress = 0;
+    
+    // 更新总进度的函数
+    const updateTotalProgress = () => {
+        // 70% 基础场景 + 15% 小车模型 + 15% 沙盘模型 = 100%
+        const totalProgress = 70 + (carsProgress * 0.15) + (finalProgress * 0.15);
+        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: Math.round(totalProgress) }));
+    };
+
+    // 异步加载小车模型
+    const loadCarsModel = async () => {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                console.log('开始加载小车模型...');
+                loadModelAsync(loader, '/model/cars.glb', 'cars', {
+                    scale: 8,
+                    position: [0, 0.5, 0],
+                    priority: 'high'
+                }, (progress) => {
+                    carsProgress = progress;
+                    updateTotalProgress();
+                    console.log(`小车模型加载进度: ${progress}%`);
+                }).then(() => {
+                    console.log('小车模型加载完成');
+                    resolve();
+                }).catch((error) => {
+                    console.error('小车模型加载失败:', error);
+                    resolve(); // 即使失败也继续
+                });
+            }, 100);
+        });
+    };
+
+    // 异步加载沙盘模型
+    const loadFinalModel = async () => {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                console.log('开始加载沙盘模型...');
+                loadModelAsync(loader, '/model/final.glb', 'final', {
+                    scale: 0.01,
+                    position: [0, 1.4, 0],
+                    processMaterial: true,
+                    priority: 'low',
+                    enableLOD: false
+                }, (progress) => {
+                    finalProgress = progress;
+                    updateTotalProgress();
+                    console.log(`沙盘模型加载进度: ${progress}%`);
+                }).then(() => {
+                    console.log('沙盘模型加载完成');
+                    resolve();
+                }).catch((error) => {
+                    console.error('沙盘模型加载失败:', error);
+                    resolve(); // 即使失败也继续
+                });
+            }, 500);
+        });
+    };
+
+    // 并行异步加载两个模型
+    try {
+        await Promise.all([
+            loadCarsModel(),
+            loadFinalModel()
+        ]);
+        
+        console.log('所有模型加载完成');
+        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 100 }));
+        
+    } catch (error) {
+        console.error('模型加载过程中出现错误:', error);
+        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 100 }));
+    }
+};
+
+// 保留原来的loadModels函数作为备用
 const loadModels = () => {
     const loader = new GLTFLoader();
     
@@ -261,14 +396,19 @@ const loadModels = () => {
     dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
     loader.setDRACOLoader(dracoLoader);
 
-    // 渐进式加载：先加载小模型，再加载大模型
-    loadModel(loader, '/model/cars.glb', 'cars', {
-        scale: 8,
-        position: [0, 0.5, 0],
-        priority: 'high'
-    });
+    console.log('开始渐进式模型加载...');
 
-    // 延迟加载大模型
+    // 渐进式加载：先加载小模型，再加载大模型
+    // 小模型加载不会阻塞界面交互
+    setTimeout(() => {
+        loadModel(loader, '/model/cars.glb', 'cars', {
+            scale: 8,
+            position: [0, 0.5, 0],
+            priority: 'high'
+        });
+    }, 100);
+
+    // 延迟加载大模型，给界面更多响应时间
     setTimeout(() => {
         loadModel(loader, '/model/final.glb', 'final', {
             scale: 0.01,
@@ -277,10 +417,226 @@ const loadModels = () => {
             priority: 'low',
             enableLOD: false // 暂时禁用LOD避免顶点缓冲区错误
         });
-    }, 1000);
+    }, 2000); // 增加延迟到2秒
 };
 
-// 通用模型加载函数
+// 异步模型加载函数（不阻塞主线程）
+const loadModelAsync = (loader, url, key, options = {}, progressCallback = null) => {
+    return new Promise((resolve, reject) => {
+        if (models.has(key)) {
+            progressCallback?.(100);
+            resolve(models.get(key));
+            return;
+        }
+
+        console.log(`开始异步加载模型: ${key}`);
+        
+        loader.load(
+            url,
+            (gltf) => {
+                // 使用setTimeout分片处理，避免阻塞主线程
+                setTimeout(() => {
+                    processModelAsync(gltf, key, options, resolve, reject);
+                }, 0);
+            },
+            (progress) => {
+                const percentage = Math.round((progress.loaded / progress.total) * 100);
+                console.log(`模型 ${key} 加载进度: ${percentage}%`);
+                progressCallback?.(percentage);
+            },
+            (error) => {
+                console.error(`模型 ${key} 加载失败:`, error);
+                reject(error);
+            }
+        );
+    });
+};
+
+// 分片处理模型，避免阻塞主线程
+const processModelAsync = async (gltf, key, options, resolve, reject) => {
+    try {
+        console.log(`开始处理模型: ${key}`);
+        let model = gltf.scene;
+        
+        // 步骤1：应用变换（非阻塞）
+        await new Promise(resolveStep => {
+            setTimeout(() => {
+                if (options.scale) model.scale.setScalar(options.scale);
+                if (options.position) model.position.set(...options.position);
+                resolveStep();
+            }, 0);
+        });
+        
+        // 步骤2：材质优化（非阻塞）
+        if (options.processMaterial) {
+            await optimizeMaterialsAsync(model);
+        }
+        
+        // 步骤3：几何体优化（分批处理，更小的批次）
+        await optimizeGeometryAsyncNonBlocking(model);
+        
+        // 步骤4：LOD处理（如果启用）
+        if (options.enableLOD) {
+            await new Promise(resolveStep => {
+                setTimeout(() => {
+                    model = createLODModel(model, key);
+                    resolveStep();
+                }, 0);
+            });
+        }
+        
+        // 步骤5：添加到场景（非阻塞）
+        await new Promise(resolveStep => {
+            setTimeout(() => {
+                models.set(key, model);
+                modelsGroup.add(model);
+                console.log(`模型 ${key} 已添加到场景`);
+                resolveStep();
+            }, 0);
+        });
+        
+        resolve(model);
+        
+    } catch (error) {
+        console.error(`模型 ${key} 处理失败:`, error);
+        reject(error);
+    }
+};
+
+// 完全非阻塞的几何体优化
+const optimizeGeometryAsyncNonBlocking = async (model) => {
+    return new Promise((resolve) => {
+        const meshes = [];
+        model.traverse((child) => {
+            if (child.geometry) {
+                meshes.push(child);
+            }
+        });
+        
+        console.log(`开始优化 ${meshes.length} 个网格，使用非阻塞模式`);
+        
+        // 每批只处理1个网格，并且给更多时间给主线程
+        const processBatch = async (startIndex) => {
+            const batchSize = 1; // 减少到每次只处理1个
+            const endIndex = Math.min(startIndex + batchSize, meshes.length);
+            
+            for (let i = startIndex; i < endIndex; i++) {
+                const child = meshes[i];
+                
+                // 轻量级优化，跳过耗时操作
+                try {
+                    // 只做基础计算
+                    if (child.geometry.attributes.position) {
+                        child.geometry.attributes.position.needsUpdate = false;
+                    }
+                    
+                    // 简化的材质优化
+                    if (child.material) {
+                        child.material.precision = 'mediump';
+                        child.material.dithering = false;
+                        
+                        // 只优化主纹理，跳过复杂纹理处理
+                        if (child.material.map) {
+                            child.material.map.generateMipmaps = false;
+                            child.material.map.minFilter = LinearFilter;
+                            child.material.map.magFilter = LinearFilter;
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`网格优化跳过:`, error);
+                }
+            }
+            
+            // 处理下一批，给更多时间给主线程
+            if (endIndex < meshes.length) {
+                setTimeout(() => {
+                    processBatch(endIndex);
+                }, 16); // 增加到16ms，确保60fps
+            } else {
+                console.log('几何体优化完成');
+                resolve();
+            }
+        };
+        
+        if (meshes.length > 0) {
+            processBatch(0);
+        } else {
+            resolve();
+        }
+    });
+};
+
+// 保留原来的异步几何体优化函数
+const optimizeGeometryAsync = async (model) => {
+    return new Promise((resolve) => {
+        const meshes = [];
+        model.traverse((child) => {
+            if (child.geometry) {
+                meshes.push(child);
+            }
+        });
+        
+        // 分批处理网格，每批5个
+        const processBatch = async (startIndex) => {
+            const batchSize = 5;
+            const endIndex = Math.min(startIndex + batchSize, meshes.length);
+            
+            for (let i = startIndex; i < endIndex; i++) {
+                const child = meshes[i];
+                
+                // 合并顶点
+                child.geometry.mergeVertices?.();
+                
+                // 计算法线
+                child.geometry.computeVertexNormals();
+                
+                // 减少精度以节省内存
+                if (child.geometry.attributes.position) {
+                    child.geometry.attributes.position.needsUpdate = false;
+                }
+                
+                // 材质和纹理优化
+                if (child.material) {
+                    child.material.precision = 'mediump';
+                    child.material.dithering = false;
+                    
+                    // 优化纹理设置
+                    if (child.material.map) {
+                        child.material.map.generateMipmaps = false;
+                        child.material.map.minFilter = LinearFilter;
+                        child.material.map.magFilter = LinearFilter;
+                    }
+                    
+                    // 处理其他纹理类型
+                    ['normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap'].forEach(mapType => {
+                        if (child.material[mapType]) {
+                            child.material[mapType].generateMipmaps = false;
+                            child.material[mapType].minFilter = LinearFilter;
+                            child.material[mapType].magFilter = LinearFilter;
+                        }
+                    });
+                }
+            }
+            
+            // 处理下一批
+            if (endIndex < meshes.length) {
+                setTimeout(() => {
+                    processBatch(endIndex);
+                }, 0);
+            } else {
+                resolve();
+            }
+        };
+        
+        if (meshes.length > 0) {
+            processBatch(0);
+        } else {
+            resolve();
+        }
+    });
+};
+
+// 通用模型加载函数（保留同步版本）
 const loadModel = (loader, url, key, options = {}) => {
     if (models.has(key)) {
         return models.get(key);
@@ -327,7 +683,65 @@ const loadModel = (loader, url, key, options = {}) => {
     );
 };
 
-// 材质优化
+// 异步材质优化
+const optimizeMaterialsAsync = async (model) => {
+    return new Promise((resolve) => {
+        const materialMap = new Map();
+        const materialsToProcess = [];
+        
+        // 收集需要处理的材质
+        model.traverse((child) => {
+            if (child.material) {
+                const uuid = child.material.uuid;
+                if (!materialMap.has(uuid)) {
+                    materialMap.set(uuid, child.material);
+                    materialsToProcess.push(child.material);
+                }
+            }
+        });
+        
+        console.log(`开始异步优化 ${materialsToProcess.length} 个材质`);
+        
+        // 分批处理材质
+        const processMaterialBatch = (index) => {
+            if (index >= materialsToProcess.length) {
+                console.log('材质优化完成');
+                resolve();
+                return;
+            }
+            
+            const material = materialsToProcess[index];
+            
+            try {
+                // 材质名称匹配
+                const materialNames = [
+                    '材质.003', 'pasted__材质.003', '材质.002', 
+                    '材贪', '材质', '材贫', 'pasted__材质'
+                ];
+                
+                if (materialNames.includes(material.name)) {
+                    material.color.set('gray');
+                    material.needsUpdate = true;
+                }
+            } catch (error) {
+                console.warn(`材质优化跳过:`, error);
+            }
+            
+            // 处理下一个材质
+            setTimeout(() => {
+                processMaterialBatch(index + 1);
+            }, 1); // 很短的延迟，但足以让出控制权
+        };
+        
+        if (materialsToProcess.length > 0) {
+            processMaterialBatch(0);
+        } else {
+            resolve();
+        }
+    });
+};
+
+// 保留同步材质优化函数
 const optimizeMaterials = (model) => {
     const materialMap = new Map();
     

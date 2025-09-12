@@ -92,7 +92,7 @@ onMounted(() => {
     fpsInterval = setInterval(updateFPS, 100);
     
     // 绑定resize事件
-    window.addEventListener('resize', handleResize);
+window.addEventListener('resize', handleResize);
 });
 
 onBeforeUnmount(() => {
@@ -237,8 +237,8 @@ onBeforeUnmount(() => {
     right: 20px;
     z-index: 100;
     pointer-events: none;
-    max-width: 450px;
-    width: 450px;
+    max-width: 420px;
+    width: 420px;
 }
 
 .floating-panels > * {
@@ -301,9 +301,9 @@ onBeforeUnmount(() => {
 }
 
 .top-left { top: 120px; left: 20px; }
-.top-right { top: 120px; right: 480px; }
+.top-right { top: 120px; right: 450px; }
 .bottom-left { bottom: 20px; left: 20px; }
-.bottom-right { bottom: 20px; right: 480px; }
+.bottom-right { bottom: 20px; right: 450px; }
 
 .indicator-dot {
     width: 8px;
@@ -362,24 +362,24 @@ onBeforeUnmount(() => {
 @media (max-width: 1400px) {
     .floating-panels {
         right: 10px;
-        max-width: 400px;
-        width: 400px;
+        max-width: 380px;
+        width: 380px;
     }
     
     .top-right, .bottom-right {
-        right: 420px;
+        right: 400px;
     }
 }
 
 @media (max-width: 1200px) {
     .floating-panels {
         right: 10px;
-        max-width: 360px;
-        width: 360px;
+        max-width: 340px;
+        width: 340px;
     }
     
     .top-right, .bottom-right {
-        right: 380px;
+        right: 360px;
     }
 }
 
@@ -409,13 +409,219 @@ onBeforeUnmount(() => {
 
 /* 右侧面板紧凑化 */
 :deep(.floating-panels .form-label) {
-    font-size: 13px !important;
     margin-bottom: 4px;
     gap: 6px;
 }
 
+/* 优化按钮样式，恢复占满宽度 */
+:deep(.floating-panels .btn) {
+    width: 100% !important;
+    min-height: 36px !important;
+    padding: 8px 16px !important;
+    font-size: 12px !important;
+    border-radius: 4px !important;
+}
+
+:deep(.floating-panels .el-button) {
+    width: 100% !important;
+    min-height: 36px !important;
+    padding: 8px 16px !important;
+    font-size: 12px !important;
+    border-radius: 4px !important;
+}
+
+:deep(.floating-panels .el-select) {
+    max-width: 100% !important;
+}
+
+:deep(.floating-panels .el-input-number) {
+    max-width: 100% !important;
+}
+
+/* 优化表单组布局 */
+:deep(.floating-panels .form-group) {
+    margin-bottom: 12px !important;
+    padding: 8px !important;
+}
+
+:deep(.floating-panels .flex) {
+    margin-bottom: 6px !important;
+}
+
+
+/* 优化网格布局 */
+:deep(.floating-panels .light-controls) {
+    gap: 6px !important;
+}
+
+:deep(.floating-panels .control-buttons) {
+    gap: 6px !important;
+}
+
+/* 优化地图点选择和其他特殊布局 */
+:deep(.floating-panels .map-points) {
+    gap: 6px !important;
+}
+
+:deep(.floating-panels .map-point-item) {
+    padding: 6px !important;
+    margin-bottom: 4px !important;
+}
+
+:deep(.floating-panels .map-point-value) {
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+    min-height: 32px !important;
+}
+
+/* 优化摄像头控制按钮 */
+:deep(.floating-panels .camera-controls) {
+    gap: 6px !important;
+}
+
+:deep(.floating-panels .camera-controls .btn) {
+    width: 100% !important;
+    font-size: 12px !important;
+    padding: 8px 16px !important;
+    min-height: 36px !important;
+    border-radius: 4px !important;
+}
+
+/* 统一字号规范 */
 :deep(.floating-panels .panel-header .panel-title) {
     font-size: 18px !important;
+}
+
+/* 一级标题 - 面板标题 */
+:deep(.floating-panels .panel-title) {
+    font-size: 18px !important;
+}
+
+/* 二级标题 - 表单组标题 */
+:deep(.floating-panels .form-label) {
+    font-size: 13px !important;
+}
+
+/* 三级标题 - 输入标签 */
+:deep(.floating-panels .input-label) {
+    font-size: 12px !important;
+    margin-bottom: 4px !important;
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* 内容文字 - 普通文本 */
+:deep(.floating-panels .info-title) {
+    font-size: 11px !important;
+}
+
+:deep(.floating-panels .info-value) {
+    font-size: 14px !important;
+}
+
+:deep(.floating-panels .camera-desc) {
+    font-size: 12px !important;
+}
+
+:deep(.floating-panels .camera-overlay) {
+    font-size: 11px !important;
+}
+
+/* 按钮文字和圆角 */
+:deep(.floating-panels .btn) {
+    font-size: 12px !important;
+    border-radius: 4px !important;
+}
+
+:deep(.floating-panels .el-button) {
+    font-size: 12px !important;
+    border-radius: 4px !important;
+}
+
+/* 确保所有控制按钮都使用小圆角 */
+:deep(.floating-panels .control-btn) {
+    border-radius: 4px !important;
+}
+
+:deep(.floating-panels .start-btn) {
+    border-radius: 4px !important;
+}
+
+:deep(.floating-panels .stop-btn) {
+    border-radius: 4px !important;
+}
+
+:deep(.floating-panels .emergency-btn) {
+    border-radius: 4px !important;
+}
+
+:deep(.floating-panels .btn-outline) {
+    border-radius: 4px !important;
+}
+
+:deep(.floating-panels .btn-secondary) {
+    border-radius: 4px !important;
+}
+
+:deep(.floating-panels .btn-primary) {
+    border-radius: 4px !important;
+}
+
+/* 确保小按钮也有合适的高度 */
+:deep(.floating-panels .btn-small) {
+    min-height: 32px !important;
+    padding: 6px 12px !important;
+    font-size: 11px !important;
+    border-radius: 4px !important;
+}
+
+:deep(.floating-panels .btn-secondary) {
+    min-height: 36px !important;
+}
+
+:deep(.floating-panels .btn-danger) {
+    min-height: 36px !important;
+}
+
+/* 确保左侧控制按钮也有合适的高度 */
+:deep(.floating-element .control-btn) {
+    min-height: 34px !important;
+    padding: 8px 12px !important;
+}
+
+/* 调整其他可能较小的按钮 */
+:deep(.floating-panels button) {
+    min-height: 34px !important;
+}
+
+:deep(.floating-panels input[type="button"]) {
+    min-height: 34px !important;
+}
+
+/* 输入框文字 */
+:deep(.floating-panels .el-input__inner) {
+    font-size: 12px !important;
+}
+
+:deep(.floating-panels .el-select .el-input__inner) {
+    font-size: 12px !important;
+}
+
+/* 传感器和其他状态文字 */
+:deep(.floating-panels .sensor-tit) {
+    font-size: 11px !important;
+}
+
+:deep(.floating-panels .light-label) {
+    font-size: 11px !important;
+}
+
+/* 地图点和数值 */
+:deep(.floating-panels .map-point-label) {
+    font-size: 11px !important;
+}
+
+:deep(.floating-panels .map-point-value) {
+    font-size: 11px !important;
 }
 
 :deep(.floating-panels .panel-icon) {
@@ -447,9 +653,9 @@ onBeforeUnmount(() => {
 }
 
 :deep(.floating-panels .btn) {
-    padding: 6px 8px !important;
-    font-size: 11px !important;
-    min-height: 28px !important;
+    padding: 8px 12px !important;
+    font-size: 12px !important;
+    min-height: 36px !important;
 }
 
 :deep(.floating-panels .camera-preview) {

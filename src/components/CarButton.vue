@@ -54,10 +54,9 @@ const showMsg = (isSuccess, message) => {
     }
 };
 
-// 检查车辆是否在线
+// 检查车辆是否在线 - 统一的在线检查逻辑
 const checkVehicleOnline = (vehicleId) => {
     const isOnline = socketManager.isVehicleConnected(vehicleId);
-    console.log(`🔍 检查车辆${vehicleId}在线状态: ${isOnline}`);
     if (!isOnline) {
         ElMessage({
             message: `当前车辆${vehicleId}离线，请检查连接状态`,

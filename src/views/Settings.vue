@@ -59,7 +59,7 @@ import { ref } from 'vue';
 import CarSettings from '@/components/CarSettings.vue';
 
 const selectedCar = ref('B');
-const showAllPaths = ref(true);
+const showAllPaths = ref(false);
 </script>
 
 <style lang="scss" scoped>

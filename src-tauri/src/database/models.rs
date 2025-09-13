@@ -63,3 +63,39 @@ impl CreateVehicleConnectionRequest {
         Ok(())
     }
 }
+
+/// 交通灯设置模型
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct TrafficLightSettings {
+    pub id: i64,
+    pub red_light_duration: i32,    // 红灯时长（秒）
+    pub green_light_duration: i32,  // 绿灯时长（秒）
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// 更新交通灯设置的请求参数
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateTrafficLightSettingsRequest {
+    pub red_light_duration: Option<i32>,
+    pub green_light_duration: Option<i32>,
+}
+
+impl UpdateTrafficLightSettingsRequest {
+    /// 验证请求参数
+    pub fn validate(&self) -> Result<(), String> {
+        if let Some(red) = self.red_light_duration {
+            if red <= 0 || red > 300 {
+                return Err("红灯时长必须在1-300秒之间".to_string());
+            }
+        }
+        
+        if let Some(green) = self.green_light_duration {
+            if green <= 0 || green > 300 {
+                return Err("绿灯时长必须在1-300秒之间".to_string());
+            }
+        }
+        
+        Ok(())
+    }
+}

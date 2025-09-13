@@ -16,6 +16,7 @@
                     v-model="dataRecord"
                     active-color="#13ce66"
                     inactive-color="#ff4949"
+                    @change="handleDataRecordChange"
                 ></el-switch>
             </div>
         </div>
@@ -125,11 +126,95 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
+import { useCarStore } from '@/stores/car.js';
+import { socketManager } from '@/utils/socketManager.js';
+
+const carStore = useCarStore();
+
+// 组件挂载时的调试信息
+onMounted(() => {
+    console.log(`🔧 AutoDrive挂载 - 当前选中车辆: ${carStore.selectedCarId}`);
+    console.log(`🔧 车辆列表:`, carStore.carList);
+    
+    // 如果没有选中车辆，尝试选择第一个
+    if (!carStore.selectedCarId && carStore.carList.length > 0) {
+        carStore.changeCarId(carStore.carList[0].id);
+        console.log(`🔧 自动选择第一个车辆: ${carStore.carList[0].id}`);
+    }
+});
 
 // 数据记录开关
-const dataRecord = ref(true);
+const dataRecord = ref(false);
+
+// 处理数据记录开关变化
+const handleDataRecordChange = async (newValue) => {
+    console.log(`🔧 数据记录开关被点击 - 新值: ${newValue}`);
+    
+    // 1. 获取当前选中的车辆
+    const currentCarId = carStore.selectedCarId;
+    console.log(`🔧 当前选中车辆ID: ${currentCarId}`);
+    
+    // 2. 检查是否选择了车辆
+    if (!currentCarId) {
+        console.log(`🔧 没有选中车辆，显示警告并回滚`);
+        ElMessage({
+            message: '请先选择车辆',
+            type: 'warning',
+            duration: 3000
+        });
+        // 回滚开关状态
+        dataRecord.value = !newValue;
+        return;
+    }
+    
+    // 3. 检查该车辆是否在线
+    const isOnline = socketManager.isVehicleConnected(currentCarId);
+    console.log(`🔧 车辆${currentCarId}在线状态: ${isOnline}`);
+    
+    if (!isOnline) {
+        console.log(`🔧 车辆${currentCarId}离线，显示离线提示并回滚`);
+        ElMessage({
+            message: `当前车辆${currentCarId}离线，请检查连接状态`,
+            type: 'warning',
+            duration: 3000
+        });
+        // 回滚开关状态
+        dataRecord.value = !newValue;
+        return;
+    }
+    
+    // 4. 车辆在线，发送数据记录协议
+    try {
+        console.log(`🔧 车辆${currentCarId}在线，发送数据记录指令: ${newValue}`);
+        const result = await socketManager.sendDataRecording(currentCarId, newValue);
+        
+        // 5. 发送成功，显示成功Toast
+        const statusText = newValue ? '开启' : '关闭';
+        ElMessage({
+            message: `数据记录${statusText}指令发送成功`,
+            type: 'success',
+            duration: 3000
+        });
+        
+        console.log(`🔧 数据记录指令发送成功:`, result);
+        
+    } catch (error) {
+        console.log(`🔧 发送数据记录指令失败，回滚开关状态`, error);
+        
+        // 6. 发送失败，显示失败Toast并回滚
+        const statusText = newValue ? '开启' : '关闭';
+        ElMessage({
+            message: `数据记录${statusText}指令发送失败: ${error.message || error}`,
+            type: 'error',
+            duration: 3000
+        });
+        
+        // 回滚开关状态
+        dataRecord.value = !newValue;
+    }
+};
 
 // 出租车相关数据
 const taxi = ref({

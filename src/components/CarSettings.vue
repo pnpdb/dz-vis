@@ -49,7 +49,7 @@ const toggleList = ref([
         id: 1,
         name: '传感器',
         icon: 'microchip',
-        status: true,
+        status: false,
     },
     {
         id: 2,
@@ -85,13 +85,13 @@ const toggleList = ref([
         id: 7,
         name: '打靶功能',
         icon: 'crosshairs',
-        status: true,
+        status: false,
     },
     {
         id: 8,
         name: '所有程序',
         icon: 'ban',
-        status: true,
+        status: false,
     },
 ]);
 

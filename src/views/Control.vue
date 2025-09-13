@@ -55,8 +55,8 @@
                     :step="1"
                 />
             </div>
-            <button class="btn btn-primary">
-                <fa icon="refresh"></fa> 更新时长
+            <button class="btn btn-primary" @click="updateTrafficLightSettings" :disabled="updating">
+                <fa icon="refresh"></fa> {{ updating ? '更新中...' : '更新时长' }}
             </button>
         </div>
         <div class="form-group">
@@ -107,7 +107,9 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import { ElMessage } from 'element-plus';
+import { TrafficLightAPI } from '@/utils/vehicleAPI.js';
 
 const cameras = ref([
     { id: '1', name: '沙盘监控相机1' },
@@ -119,6 +121,7 @@ const cameras = ref([
 ]);
 
 const cameraId = ref('');
+const updating = ref(false);
 
 const trafficSettings = ref({
     redLight: 45,
@@ -130,6 +133,71 @@ const lightSettings = ref({
     ambient: true, // 环境灯
     building: false, // 建筑灯
     street: true, // 路灯
+});
+
+// 从数据库加载交通灯设置
+const loadTrafficLightSettings = async () => {
+    try {
+        const result = await TrafficLightAPI.getSettings();
+        if (result.success) {
+            trafficSettings.value.redLight = result.data.red_light_duration;
+            trafficSettings.value.greenLight = result.data.green_light_duration;
+            console.log('✅ 交通灯设置加载成功:', result.data);
+        } else {
+            console.error('❌ 交通灯设置加载失败:', result.error);
+            ElMessage.error('加载交通灯设置失败: ' + result.error);
+        }
+    } catch (error) {
+        console.error('❌ 交通灯设置加载异常:', error);
+        ElMessage.error('加载交通灯设置异常');
+    }
+};
+
+// 更新交通灯设置
+const updateTrafficLightSettings = async () => {
+    // 验证输入
+    if (trafficSettings.value.redLight < 1 || trafficSettings.value.redLight > 300) {
+        ElMessage.warning('红灯时长必须在1-300秒之间');
+        return;
+    }
+    
+    if (trafficSettings.value.greenLight < 1 || trafficSettings.value.greenLight > 300) {
+        ElMessage.warning('绿灯时长必须在1-300秒之间');
+        return;
+    }
+
+    updating.value = true;
+    
+    try {
+        const updateData = {
+            red_light_duration: trafficSettings.value.redLight,
+            green_light_duration: trafficSettings.value.greenLight
+        };
+        
+        const result = await TrafficLightAPI.updateSettings(updateData);
+        
+        if (result.success) {
+            ElMessage.success('交通灯时长更新成功！');
+            console.log('✅ 交通灯设置更新成功:', result.data);
+            
+            // 更新本地数据以确保一致性
+            trafficSettings.value.redLight = result.data.red_light_duration;
+            trafficSettings.value.greenLight = result.data.green_light_duration;
+        } else {
+            ElMessage.error('更新失败: ' + result.error);
+            console.error('❌ 交通灯设置更新失败:', result.error);
+        }
+    } catch (error) {
+        ElMessage.error('更新异常: ' + error.message);
+        console.error('❌ 交通灯设置更新异常:', error);
+    } finally {
+        updating.value = false;
+    }
+};
+
+// 组件挂载时加载设置
+onMounted(() => {
+    loadTrafficLightSettings();
 });
 
 const updateLightDuration = () => {

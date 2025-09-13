@@ -68,6 +68,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue';
 import CarList from '@/components/CarList.vue';
 import CarButton from '@/components/CarButton.vue';
 import Scene3D from '@/components/Scene3D/index.vue';
+import { socketManager } from '@/utils/socketManager.js';
 
 // 实时数据
 const networkDelay = ref(12);
@@ -120,8 +121,7 @@ const updateServerStatus = async () => {
             vehicleCount: result.vehicle_count
         };
         
-        // 更新在线车辆数量
-        onlineVehicles.value = result.vehicle_count || 0;
+        // 不再从服务端获取车辆数量，改为使用SocketManager的实时数据
     } catch (error) {
         console.error('获取服务状态失败:', error);
         serverStatus.value = {
@@ -130,11 +130,18 @@ const updateServerStatus = async () => {
             running: false,
             vehicleCount: 0
         };
-        onlineVehicles.value = 0;
+        // 不修改onlineVehicles，保持SocketManager的实时数据
     }
 };
 
 let serverStatusInterval = null;
+
+// 处理在线车辆数量变化事件
+const handleOnlineVehiclesCountChanged = (event) => {
+    const { count, vehicleIds } = event.detail;
+    onlineVehicles.value = count;
+    console.log(`📊 主界面在线车辆数量更新: ${count}台, 车辆ID: [${vehicleIds.join(', ')}]`);
+};
 
 onMounted(() => {
     updateData();
@@ -143,6 +150,13 @@ onMounted(() => {
     // 启动服务状态检测
     updateServerStatus();
     serverStatusInterval = setInterval(updateServerStatus, 5000); // 每5秒检测一次服务状态
+    
+    // 监听在线车辆数量变化事件
+    window.addEventListener('online-vehicles-count-changed', handleOnlineVehiclesCountChanged);
+    
+    // 初始获取当前在线车辆数量
+    onlineVehicles.value = socketManager.getOnlineVehicleCount();
+    console.log(`🚗 初始在线车辆数量: ${onlineVehicles.value}台`);
 });
 
 onBeforeUnmount(() => {
@@ -152,6 +166,9 @@ onBeforeUnmount(() => {
     if (serverStatusInterval) {
         clearInterval(serverStatusInterval);
     }
+    
+    // 移除事件监听器
+    window.removeEventListener('online-vehicles-count-changed', handleOnlineVehiclesCountChanged);
 });
 </script>
 

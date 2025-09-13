@@ -125,4 +125,39 @@ export class VehicleConnectionAPI {
     }
 }
 
+/**
+ * 交通灯设置管理API工具类
+ * 封装与Rust后端的交通灯设置操作
+ */
+export class TrafficLightAPI {
+    /**
+     * 获取交通灯设置
+     */
+    static async getSettings() {
+        try {
+            const result = await invoke('get_traffic_light_settings');
+            console.log('✅ 获取交通灯设置:', result);
+            return { success: true, data: result };
+        } catch (error) {
+            console.error('❌ 获取交通灯设置失败:', error);
+            return { success: false, error: error.toString() };
+        }
+    }
+
+    /**
+     * 更新交通灯设置
+     * @param {Object} settings - 交通灯设置 { red_light_duration?: number, green_light_duration?: number }
+     */
+    static async updateSettings(settings) {
+        try {
+            const result = await invoke('update_traffic_light_settings', { request: settings });
+            console.log('✅ 更新交通灯设置成功:', result);
+            return { success: true, data: result };
+        } catch (error) {
+            console.error('❌ 更新交通灯设置失败:', error);
+            return { success: false, error: error.toString() };
+        }
+    }
+}
+
 export default VehicleConnectionAPI;

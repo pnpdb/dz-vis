@@ -16,10 +16,25 @@ HEADER = b'\xEF\xEF\xEF\xEF'
 FOOTER = b'\xFE\xFE\xFE\xFE'
 VERSION = 0x10
 
-# 消息类型
-MESSAGE_TYPES = {
+# 接收消息类型 (从客户端接收)
+RECEIVE_MESSAGE_TYPES = {
     'HEARTBEAT': 0x0001,        # 心跳包
     'VEHICLE_INFO': 0x0002,     # 车辆信息协议（新协议）
+}
+
+# 发送消息类型 (发送给客户端)
+SEND_MESSAGE_TYPES = {
+    'VEHICLE_CONTROL': 0x1001,  # 车辆控制指令
+    'DATA_RECORDING': 0x1002,   # 数据记录控制
+}
+
+# 车辆控制指令类型
+CONTROL_COMMANDS = {
+    1: '启动',
+    2: '停止',
+    3: '紧急制动',
+    4: '空载模式',
+    5: '初始化位姿'
 }
 
 def crc16_ibm_sdlc(data):
@@ -58,6 +73,136 @@ def build_message(message_type, data):
     packet.extend(FOOTER)  # 帧尾
     
     return bytes(packet)
+
+def parse_vehicle_control_message(data):
+    """解析车辆控制指令"""
+    if len(data) < 2:
+        print("❌ 车辆控制数据长度不足")
+        return None
+    
+    try:
+        # 解析车辆编号 (1字节)
+        vehicle_id = struct.unpack('<B', data[0:1])[0]
+        
+        # 解析控制指令 (1字节)
+        control_command = struct.unpack('<B', data[1:2])[0]
+        
+        result = {
+            'vehicle_id': vehicle_id,
+            'control_command': control_command,
+            'command_name': CONTROL_COMMANDS.get(control_command, f'未知指令({control_command})')
+        }
+        
+        # 如果是初始化位姿指令(5)，解析位置数据
+        if control_command == 5:
+            if len(data) < 26:  # 2 + 8 + 8 + 8 = 26字节
+                print("❌ 初始化位姿指令数据长度不足")
+                return None
+                
+            # 解析位置X (DOUBLE, 小端序)
+            position_x = struct.unpack('<d', data[2:10])[0]
+            
+            # 解析位置Y (DOUBLE, 小端序)
+            position_y = struct.unpack('<d', data[10:18])[0]
+            
+            # 解析朝向 (DOUBLE, 小端序)
+            orientation = struct.unpack('<d', data[18:26])[0]
+            
+            result.update({
+                'position_x': position_x,
+                'position_y': position_y,
+                'orientation': orientation
+            })
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ 解析车辆控制指令失败: {e}")
+        return None
+
+
+def parse_data_recording_message(data):
+    """解析数据记录控制指令"""
+    if len(data) < 2:
+        print("❌ 数据记录控制数据长度不足")
+        return None
+    
+    try:
+        # 解析车辆编号 (1字节)
+        vehicle_id = struct.unpack('<B', data[0:1])[0]
+        
+        # 解析记录状态 (1字节)
+        recording_status = struct.unpack('<B', data[1:2])[0]
+        
+        status_names = {0: '关闭', 1: '开启'}
+        status_name = status_names.get(recording_status, f'未知状态({recording_status})')
+        
+        return {
+            'vehicle_id': vehicle_id,
+            'recording_status': recording_status,
+            'status_name': status_name
+        }
+        
+    except Exception as e:
+        print(f"❌ 解析数据记录指令失败: {e}")
+        return None
+
+
+def parse_received_message(data):
+    """解析接收到的完整协议消息"""
+    if len(data) < 25:  # 最小协议长度
+        print("❌ 接收数据长度不足")
+        return None
+    
+    try:
+        # 检查帧头
+        if data[:4] != HEADER:
+            print("❌ 帧头不正确")
+            return None
+        
+        # 检查帧尾
+        if data[-4:] != FOOTER:
+            print("❌ 帧尾不正确")
+            return None
+        
+        # 解析协议头
+        offset = 4  # 跳过帧头
+        
+        # 版本 (1字节)
+        version = struct.unpack('<B', data[offset:offset+1])[0]
+        offset += 1
+        
+        # 时间戳 (8字节)
+        timestamp = struct.unpack('<Q', data[offset:offset+8])[0]
+        offset += 8
+        
+        # 消息类型 (2字节)
+        message_type = struct.unpack('<H', data[offset:offset+2])[0]
+        offset += 2
+        
+        # 数据长度 (4字节)
+        data_length = struct.unpack('<I', data[offset:offset+4])[0]
+        offset += 4
+        
+        # 提取数据域
+        data_domain = data[offset:offset+data_length]
+        offset += data_length
+        
+        # CRC校验 (2字节) - 暂时跳过验证
+        crc = struct.unpack('<H', data[offset:offset+2])[0]
+        
+        return {
+            'version': version,
+            'timestamp': timestamp,
+            'message_type': message_type,
+            'data_length': data_length,
+            'data_domain': data_domain,
+            'crc': crc
+        }
+        
+    except Exception as e:
+        print(f"❌ 解析协议消息失败: {e}")
+        return None
 
 def create_vehicle_info_data(vehicle_id=1):
     """
@@ -149,7 +294,19 @@ class TestClient:
             packet = build_message(message_type, data)
             self.socket.send(packet)
             
-            type_name = next((k for k, v in MESSAGE_TYPES.items() if v == message_type), f"0x{message_type:04X}")
+            # 查找消息类型名称
+            type_name = None
+            for k, v in RECEIVE_MESSAGE_TYPES.items():
+                if v == message_type:
+                    type_name = k
+                    break
+            if not type_name:
+                for k, v in SEND_MESSAGE_TYPES.items():
+                    if v == message_type:
+                        type_name = k
+                        break
+            if not type_name:
+                type_name = f"0x{message_type:04X}"
             print(f"📤 发送消息: {type_name}, 数据长度: {len(data)} 字节")
             return True
         except Exception as e:
@@ -160,7 +317,7 @@ class TestClient:
         """启动心跳发送"""
         def heartbeat_loop():
             while self.running:
-                if not self.send_message(MESSAGE_TYPES['HEARTBEAT'], b''):
+                if not self.send_message(RECEIVE_MESSAGE_TYPES['HEARTBEAT'], b''):
                     break
                 time.sleep(interval)
         
@@ -178,7 +335,7 @@ class TestClient:
                 
                 # 发送车辆信息协议
                 data = create_vehicle_info_data(self.vehicle_id)
-                self.send_message(MESSAGE_TYPES['VEHICLE_INFO'], data)
+                self.send_message(RECEIVE_MESSAGE_TYPES['VEHICLE_INFO'], data)
         
         thread = threading.Thread(target=data_simulation_loop, daemon=True)
         thread.start()
@@ -198,8 +355,39 @@ class TestClient:
                     buffer.extend(data)
                     print(f"📥 收到服务器数据: {len(data)} 字节")
                     
-                    # TODO: 这里可以添加对服务器命令的解析
-                    # 目前只是简单打印接收到的数据
+                    # 尝试解析完整的协议消息
+                    while len(buffer) >= 25:  # 最小协议长度
+                        # 查找帧头
+                        header_pos = buffer.find(HEADER)
+                        if header_pos == -1:
+                            # 没有找到帧头，清空缓冲区
+                            buffer.clear()
+                            break
+                        
+                        # 移除帧头之前的数据
+                        if header_pos > 0:
+                            buffer = buffer[header_pos:]
+                        
+                        # 检查是否有足够的数据来解析数据长度
+                        if len(buffer) < 19:  # 帧头(4) + 版本(1) + 时间戳(8) + 消息类型(2) + 数据长度(4) = 19
+                            break
+                        
+                        # 解析数据长度
+                        data_length = struct.unpack('<I', buffer[15:19])[0]
+                        total_length = 25 + data_length  # 完整协议长度
+                        
+                        # 检查是否有完整的数据包
+                        if len(buffer) < total_length:
+                            break
+                        
+                        # 提取完整数据包
+                        packet = bytes(buffer[:total_length])
+                        buffer = buffer[total_length:]
+                        
+                        # 解析协议消息
+                        message = parse_received_message(packet)
+                        if message:
+                            self.handle_received_message(message)
                     
                 except Exception as e:
                     if self.running:
@@ -209,6 +397,50 @@ class TestClient:
         thread = threading.Thread(target=listen_loop, daemon=True)
         thread.start()
         print("👂 开始监听服务器命令")
+    
+    def handle_received_message(self, message):
+        """处理接收到的协议消息"""
+        message_type = message['message_type']
+        data_domain = message['data_domain']
+        timestamp_dt = datetime.fromtimestamp(message['timestamp'] / 1000)
+        
+        print(f"\n📨 收到协议消息:")
+        print(f"   消息类型: 0x{message_type:04X}")
+        print(f"   时间戳: {timestamp_dt}")
+        print(f"   数据长度: {message['data_length']} 字节")
+        
+        # 根据消息类型处理
+        if message_type == SEND_MESSAGE_TYPES['VEHICLE_CONTROL']:
+            # 解析车辆控制指令
+            control_info = parse_vehicle_control_message(data_domain)
+            if control_info:
+                print(f"🚗 车辆控制指令:")
+                print(f"   目标车辆: {control_info['vehicle_id']}")
+                print(f"   控制指令: {control_info['command_name']} ({control_info['control_command']})")
+                
+                if control_info['control_command'] == 5:  # 初始化位姿
+                    print(f"   位置X: {control_info['position_x']:.3f}")
+                    print(f"   位置Y: {control_info['position_y']:.3f}")
+                    print(f"   朝向: {control_info['orientation']:.3f}")
+                
+                # 模拟执行指令
+                print(f"✅ 车辆{control_info['vehicle_id']}执行{control_info['command_name']}指令")
+                
+        elif message_type == SEND_MESSAGE_TYPES['DATA_RECORDING']:
+            # 解析数据记录控制指令
+            recording_info = parse_data_recording_message(data_domain)
+            if recording_info:
+                print(f"📊 数据记录控制指令:")
+                print(f"   目标车辆: {recording_info['vehicle_id']}")
+                print(f"   记录状态: {recording_info['status_name']} ({recording_info['recording_status']})")
+                
+                # 模拟执行指令
+                print(f"✅ 车辆{recording_info['vehicle_id']}数据记录{recording_info['status_name']}")
+        else:
+            print(f"❓ 未知消息类型: 0x{message_type:04X}")
+            print(f"   数据: {data_domain.hex()}")
+        
+        print()  # 添加空行便于阅读
 
 def main():
     import sys

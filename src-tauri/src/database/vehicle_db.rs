@@ -69,6 +69,22 @@ impl VehicleDatabase {
             .execute(&self.pool).await?;
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_is_active ON vehicle_connections(is_active)")
             .execute(&self.pool).await?;
+
+        // 创建交通灯设置表
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS traffic_light_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                red_light_duration INTEGER NOT NULL DEFAULT 45,
+                green_light_duration INTEGER NOT NULL DEFAULT 60,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            "#
+        ).execute(&self.pool).await?;
+
+        // 初始化默认交通灯设置
+        self.init_default_traffic_light_settings().await?;
         
         println!("✅ 数据库表结构检查完成");
         Ok(())
@@ -236,5 +252,90 @@ impl VehicleDatabase {
         }
         
         Ok(connections)
+    }
+
+    /// 初始化默认交通灯设置（如果不存在）
+    async fn init_default_traffic_light_settings(&self) -> Result<(), sqlx::Error> {
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM traffic_light_settings")
+            .fetch_one(&self.pool)
+            .await?;
+
+        if count == 0 {
+            let now = Utc::now().to_rfc3339();
+            sqlx::query(
+                r#"
+                INSERT INTO traffic_light_settings (red_light_duration, green_light_duration, created_at, updated_at)
+                VALUES (45, 60, ?, ?)
+                "#
+            )
+            .bind(&now)
+            .bind(&now)
+            .execute(&self.pool)
+            .await?;
+            
+            println!("✅ 初始化默认交通灯设置: 红灯45秒, 绿灯60秒");
+        }
+        
+        Ok(())
+    }
+
+    /// 获取交通灯设置
+    pub async fn get_traffic_light_settings(&self) -> Result<TrafficLightSettings, sqlx::Error> {
+        let row = sqlx::query("SELECT * FROM traffic_light_settings ORDER BY id LIMIT 1")
+            .fetch_one(&self.pool)
+            .await?;
+
+        Ok(TrafficLightSettings {
+            id: row.get("id"),
+            red_light_duration: row.get("red_light_duration"),
+            green_light_duration: row.get("green_light_duration"),
+            created_at: row.get::<String, _>("created_at").parse().unwrap_or_default(),
+            updated_at: row.get::<String, _>("updated_at").parse().unwrap_or_default(),
+        })
+    }
+
+    /// 更新交通灯设置
+    pub async fn update_traffic_light_settings(
+        &self,
+        request: UpdateTrafficLightSettingsRequest,
+    ) -> Result<TrafficLightSettings, sqlx::Error> {
+        request.validate().map_err(|e| sqlx::Error::Protocol(e))?;
+
+        let now = Utc::now().to_rfc3339();
+        
+        // 构建动态更新语句
+        let mut update_fields = Vec::new();
+        let mut bind_values = Vec::new();
+        
+        if let Some(red_duration) = request.red_light_duration {
+            update_fields.push("red_light_duration = ?");
+            bind_values.push(red_duration.to_string());
+        }
+        
+        if let Some(green_duration) = request.green_light_duration {
+            update_fields.push("green_light_duration = ?");
+            bind_values.push(green_duration.to_string());
+        }
+
+        if update_fields.is_empty() {
+            return self.get_traffic_light_settings().await;
+        }
+
+        update_fields.push("updated_at = ?");
+        bind_values.push(now.clone());
+
+        let sql = format!(
+            "UPDATE traffic_light_settings SET {} WHERE id = (SELECT id FROM traffic_light_settings ORDER BY id LIMIT 1)",
+            update_fields.join(", ")
+        );
+
+        let mut query = sqlx::query(&sql);
+        for value in &bind_values {
+            query = query.bind(value);
+        }
+
+        query.execute(&self.pool).await?;
+        
+        self.get_traffic_light_settings().await
     }
 }

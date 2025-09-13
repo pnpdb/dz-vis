@@ -28,7 +28,7 @@
 <script setup>
 import { ref } from 'vue';
 
-const cameraOn = ref(true);
+const cameraOn = ref(false);
 
 const toggleCamera = () => {
     cameraOn.value = !cameraOn.value;

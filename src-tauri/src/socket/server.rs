@@ -36,6 +36,14 @@ impl SocketServer {
             app_handle,
         }
     }
+    
+    pub fn new_with_connections(port: u16, app_handle: tauri::AppHandle, connections: ConnectionManager) -> Self {
+        Self {
+            port,
+            connections,
+            app_handle,
+        }
+    }
 
     /// 启动Socket服务器
     pub async fn start(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -73,16 +81,26 @@ impl SocketServer {
         app_handle: tauri::AppHandle,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
-        let mut parser = ProtocolParser::new();
-        let mut buffer = [0u8; 1024];
         
         // 根据客户端IP地址查询数据库获取车辆信息
+        println!("🔍 客户端连接来自: {}", addr.ip());
         let vehicle_info = if let Some(db) = app_handle.try_state::<VehicleDatabase>() {
             // 查询数据库中匹配的车辆连接
             match db.get_all_vehicle_connections().await {
                 Ok(connections) => {
-                    connections.into_iter()
-                        .find(|conn| conn.ip_address == addr.ip().to_string() && conn.is_active)
+                    println!("📋 数据库中的车辆连接:");
+                    for conn in &connections {
+                        println!("  - 车辆ID: {}, IP: {}, 名称: {}, 激活: {}", 
+                               conn.vehicle_id, conn.ip_address, conn.name, conn.is_active);
+                    }
+                    let found = connections.into_iter()
+                        .find(|conn| conn.ip_address == addr.ip().to_string() && conn.is_active);
+                    if let Some(ref info) = found {
+                        println!("✅ 找到匹配的车辆: ID={}, 名称={}", info.vehicle_id, info.name);
+                    } else {
+                        println!("❌ 未找到IP {}的匹配车辆", addr.ip());
+                    }
+                    found
                 }
                 Err(e) => {
                     println!("❌ 查询车辆连接失败: {}", e);
@@ -117,9 +135,11 @@ impl SocketServer {
                 addr,
                 sender: tx,
             });
+            println!("✅ 车辆 {} (ID: {}) 连接已建立，当前连接数: {}", vehicle_name, vehicle_id, conns.len());
         }
         
-        println!("✅ 车辆 {} (ID: {}) 连接已建立", vehicle_name, vehicle_id);
+        let mut parser = ProtocolParser::new();
+        let mut buffer = [0u8; 1024];
         
         loop {
             tokio::select! {
@@ -127,21 +147,34 @@ impl SocketServer {
                 result = stream.read(&mut buffer) => {
                     match result {
                         Ok(0) => {
-                            println!("🔌 客户端 {} 断开连接", addr);
+                            println!("🔌 客户端 {} (车辆ID: {}) 正常断开连接 (read返回0)", addr, vehicle_id);
                             // 发送断开连接事件到前端
                             Self::send_disconnect_event(vehicle_id, &vehicle_name, &app_handle).await;
                             break;
                         }
                         Ok(n) => {
+                            // println!("📥 接收到 {} 字节数据", n);
                             parser.feed_data(&buffer[..n]);
                             
                             // 尝试解析消息
                             while let Ok(Some(message)) = parser.try_parse_message() {
+                                println!("🔧 处理消息前，检查连接状态...");
+                                {
+                                    let conns = connections.read();
+                                    println!("🔍 当前连接数: {}, 包含车辆{}: {}", 
+                                            conns.len(), vehicle_id, conns.contains_key(&vehicle_id));
+                                }
                                 Self::handle_message(message, vehicle_id, &vehicle_name, &app_handle).await;
+                                println!("🔧 处理消息后，检查连接状态...");
+                                {
+                                    let conns = connections.read();
+                                    println!("🔍 当前连接数: {}, 包含车辆{}: {}", 
+                                            conns.len(), vehicle_id, conns.contains_key(&vehicle_id));
+                                }
                             }
                         }
                         Err(e) => {
-                            println!("❌ 读取数据错误 {}: {}", addr, e);
+                            println!("❌ 读取数据错误 {} (车辆ID: {}): {}", addr, vehicle_id, e);
                             // 发送断开连接事件到前端
                             Self::send_disconnect_event(vehicle_id, &vehicle_name, &app_handle).await;
                             break;
@@ -151,11 +184,25 @@ impl SocketServer {
                 
                 // 发送数据
                 Some(data) = rx.recv() => {
-                    if let Err(e) = stream.write_all(&data).await {
-                        println!("❌ 发送数据错误 {}: {}", addr, e);
-                        // 发送断开连接事件到前端
-                        Self::send_disconnect_event(vehicle_id, &vehicle_name, &app_handle).await;
-                        break;
+                    println!("📤 准备发送 {} 字节数据到车辆 {} (ID: {})", data.len(), vehicle_name, vehicle_id);
+                    println!("🔍 发送前连接状态检查:");
+                    {
+                        let conns = connections.read();
+                        println!("    - 当前连接数: {}", conns.len());
+                        println!("    - 包含当前车辆: {}", conns.contains_key(&vehicle_id));
+                    }
+                    
+                    match stream.write_all(&data).await {
+                        Err(e) => {
+                            println!("❌ 发送数据错误 {} (车辆ID: {}): {}", addr, vehicle_id, e);
+                            // 发送断开连接事件到前端
+                            Self::send_disconnect_event(vehicle_id, &vehicle_name, &app_handle).await;
+                            println!("💀 连接因发送错误而退出");
+                            break;
+                        }
+                        Ok(_) => {
+                            println!("✅ 数据发送成功到车辆 {} (ID: {})", vehicle_name, vehicle_id);
+                        }
                     }
                 }
             }
@@ -165,9 +212,9 @@ impl SocketServer {
         {
             let mut conns = connections.write();
             conns.remove(&vehicle_id);
+            println!("🗑️ 车辆 {} (ID: {}) 连接已清理，剩余连接数: {}", vehicle_name, vehicle_id, conns.len());
         }
         
-        println!("🗑️ 车辆 {} (ID: {}) 连接已清理", vehicle_name, vehicle_id);
         Ok(())
     }
 
@@ -175,6 +222,8 @@ impl SocketServer {
     async fn handle_message(message: SocketMessage, vehicle_id: i32, vehicle_name: &str, app_handle: &tauri::AppHandle) {
         println!("📨 收到消息 - 车辆: {} (ID: {}), 类型: 0x{:04X}, 数据长度: {}",
                 vehicle_name, vehicle_id, message.message_type, message.data.len());
+        
+        println!("🔧 handle_message 开始处理...");
         
         // 发送到前端进行数据域解析
         let frontend_message = serde_json::json!({
@@ -186,9 +235,16 @@ impl SocketServer {
             "data": message.data
         });
         
-        if let Err(e) = app_handle.emit("socket-message", frontend_message) {
-            println!("❌ 发送消息到前端失败: {}", e);
+        println!("🔧 准备发送到前端...");
+        match app_handle.emit("socket-message", frontend_message) {
+            Ok(_) => {
+                println!("✅ 消息成功发送到前端");
+            }
+            Err(e) => {
+                println!("❌ 发送消息到前端失败: {}", e);
+            }
         }
+        println!("🔧 handle_message 完成处理");
     }
 
     /// 发送车辆断开连接事件到前端
@@ -240,18 +296,42 @@ impl SocketServer {
         message_type: u16,
         data: &[u8],
     ) -> usize {
+        println!("📡 准备广播消息 - 类型: 0x{:04X}, 数据长度: {} 字节", message_type, data.len());
+        
+        // 先检查连接数量而不持有锁
+        {
+            let conns = connections.read();
+            println!("🔍 锁定前连接数量: {}", conns.len());
+        }
+        
+        println!("🔒 尝试获取连接管理器读锁...");
         let conns = connections.read();
+        println!("✅ 成功获取读锁");
+        println!("🔍 锁定后连接数量: {}", conns.len());
+        
+        for (vehicle_id, connection) in conns.iter() {
+            println!("  - 车辆ID: {}, 名称: {}, 地址: {}", 
+                   vehicle_id, connection.vehicle_name, connection.addr);
+        }
+        
         let packet = build_message(message_type, data);
         let mut sent_count = 0;
         
         for (vehicle_id, connection) in conns.iter() {
-            if connection.sender.send(packet.clone()).is_ok() {
-                sent_count += 1;
-                println!("📤 广播消息到车辆 {} (ID: {}) - 类型: 0x{:04X}", 
-                        connection.vehicle_name, vehicle_id, message_type);
+            match connection.sender.send(packet.clone()) {
+                Ok(_) => {
+                    sent_count += 1;
+                    println!("✅ 广播消息到车辆 {} (ID: {}) - 类型: 0x{:04X}", 
+                            connection.vehicle_name, vehicle_id, message_type);
+                }
+                Err(e) => {
+                    println!("❌ 发送消息到车辆 {} (ID: {}) 失败: {}", 
+                            connection.vehicle_name, vehicle_id, e);
+                }
             }
         }
         
+        println!("📊 广播完成 - 成功发送给 {} 个车辆", sent_count);
         sent_count
     }
 

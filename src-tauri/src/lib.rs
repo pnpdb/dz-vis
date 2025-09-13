@@ -5,7 +5,7 @@ use local_ip_address::local_ip;
 mod socket;
 mod database;
 
-use database::{VehicleDatabase, CreateVehicleConnectionRequest, UpdateVehicleConnectionRequest};
+use database::{VehicleDatabase, CreateVehicleConnectionRequest, UpdateVehicleConnectionRequest, UpdateTrafficLightSettingsRequest};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -76,7 +76,9 @@ async fn close_window(window: tauri::Window) -> Result<(), String> {
 async fn start_socket_server(app: tauri::AppHandle, port: u16) -> Result<String, String> {
     println!("🚀 开始启动Socket服务器，端口: {}", port);
     
-    let server = socket::SocketServer::new(port, app.clone());
+    // 使用Tauri状态中的ConnectionManager
+    let connections = app.state::<socket::ConnectionManager>();
+    let server = socket::SocketServer::new_with_connections(port, app.clone(), connections.inner().clone());
     
     // 在后台启动服务器
     tokio::spawn(async move {
@@ -288,6 +290,29 @@ fn is_private_ip(ip: &str) -> bool {
     false
 }
 
+// 获取交通灯设置
+#[tauri::command]
+async fn get_traffic_light_settings(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let db = app.state::<VehicleDatabase>();
+    match db.get_traffic_light_settings().await {
+        Ok(settings) => Ok(serde_json::to_value(settings).unwrap()),
+        Err(e) => Err(format!("获取交通灯设置失败: {}", e))
+    }
+}
+
+// 更新交通灯设置
+#[tauri::command]
+async fn update_traffic_light_settings(
+    app: tauri::AppHandle, 
+    request: UpdateTrafficLightSettingsRequest
+) -> Result<serde_json::Value, String> {
+    let db = app.state::<VehicleDatabase>();
+    match db.update_traffic_light_settings(request).await {
+        Ok(settings) => Ok(serde_json::to_value(settings).unwrap()),
+        Err(e) => Err(format!("更新交通灯设置失败: {}", e))
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -310,7 +335,9 @@ pub fn run() {
             delete_vehicle_connection,
             get_active_vehicle_connections,
             get_network_status,
-            get_socket_server_status
+            get_socket_server_status,
+            get_traffic_light_settings,
+            update_traffic_light_settings
         ])
         .setup(|app| {
             // 初始化数据库

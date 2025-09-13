@@ -27,77 +27,147 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { socketManager } from '@/utils/socketManager.js';
+import { useCarStore } from '@/stores/car.js';
 
-// 当前选中的车辆ID (可以从父组件传入或全局状态获取)
-const currentCarId = ref('car_127.0.0.1'); // 默认值，实际应该动态获取
+const carStore = useCarStore();
 
-const showMsg = (result, message) => {
-    if (result) {
-        ElMessage.success(message || '操作成功');
+// 当前选中的车辆ID
+const currentCarId = computed(() => carStore.selectedCarId);
+
+// 显示成功或失败消息，持续时间3秒
+const showMsg = (isSuccess, message) => {
+    if (isSuccess) {
+        ElMessage({
+            message: message || '操作成功',
+            type: 'success',
+            duration: 3000
+        });
     } else {
-        ElMessage.error(message || '操作失败');
+        ElMessage({
+            message: message || '操作失败',
+            type: 'error',
+            duration: 3000
+        });
     }
 };
 
+// 检查车辆是否在线
+const checkVehicleOnline = (vehicleId) => {
+    const isOnline = socketManager.isVehicleConnected(vehicleId);
+    console.log(`🔍 检查车辆${vehicleId}在线状态: ${isOnline}`);
+    if (!isOnline) {
+        ElMessage({
+            message: `当前车辆${vehicleId}离线，请检查连接状态`,
+            type: 'warning',
+            duration: 3000
+        });
+    }
+    return isOnline;
+};
+
 const startCar = async () => {
+    const vehicleId = currentCarId.value;
+    if (!vehicleId) {
+        showMsg(false, '请先选择车辆');
+        return;
+    }
+
+    if (!checkVehicleOnline(vehicleId)) {
+        return;
+    }
+
     try {
-        await socketManager.startVehicle(currentCarId.value);
-        showMsg(true, '车辆启动命令已发送');
+        console.log(`🚗 开始发送启动指令给车辆${vehicleId}`);
+        const result = await socketManager.startVehicle(vehicleId);
+        console.log(`✅ 启动指令发送结果:`, result);
+        showMsg(true, `车辆${vehicleId}启动指令发送成功`);
     } catch (error) {
         console.error('启动车辆失败:', error);
-        showMsg(false, '启动车辆失败');
+        showMsg(false, '启动车辆失败: ' + error.message);
     }
 };
 
 const stopCar = async () => {
+    const vehicleId = currentCarId.value;
+    if (!vehicleId) {
+        showMsg(false, '请先选择车辆');
+        return;
+    }
+
+    if (!checkVehicleOnline(vehicleId)) {
+        return;
+    }
+
     try {
-        await socketManager.stopVehicle(currentCarId.value);
-        showMsg(true, '车辆停止命令已发送');
+        await socketManager.stopVehicle(vehicleId);
+        showMsg(true, `车辆${vehicleId}停止指令发送成功`);
     } catch (error) {
         console.error('停止车辆失败:', error);
-        showMsg(false, '停止车辆失败');
+        showMsg(false, '停止车辆失败: ' + error.message);
     }
 };
 
 const emptyMode = async () => {
+    const vehicleId = currentCarId.value;
+    if (!vehicleId) {
+        showMsg(false, '请先选择车辆');
+        return;
+    }
+
+    if (!checkVehicleOnline(vehicleId)) {
+        return;
+    }
+
     try {
-        // 空载模式可以发送配置更新命令
-        await socketManager.sendToVehicle(
-            currentCarId.value, 
-            0x1008, // CONFIG_UPDATE
-            new TextEncoder().encode('empty_mode')
-        );
-        showMsg(true, '已切换到空载模式');
+        await socketManager.setEmptyMode(vehicleId);
+        showMsg(true, `车辆${vehicleId}空载模式指令发送成功`);
     } catch (error) {
         console.error('切换空载模式失败:', error);
-        showMsg(false, '切换空载模式失败');
+        showMsg(false, '切换空载模式失败: ' + error.message);
     }
 };
 
 const initPose = async () => {
+    const vehicleId = currentCarId.value;
+    if (!vehicleId) {
+        showMsg(false, '请先选择车辆');
+        return;
+    }
+
+    if (!checkVehicleOnline(vehicleId)) {
+        return;
+    }
+
     try {
-        await socketManager.sendToVehicle(
-            currentCarId.value,
-            0x1009, // SYSTEM_RESET
-            new TextEncoder().encode('init_pose')
-        );
-        showMsg(true, '位姿初始化命令已发送');
+        // 使用默认的初始位置 (0, 0, 0)
+        await socketManager.initializePose(vehicleId, 0.0, 0.0, 0.0);
+        showMsg(true, `车辆${vehicleId}位姿初始化指令发送成功`);
     } catch (error) {
         console.error('初始化位姿失败:', error);
-        showMsg(false, '初始化位姿失败');
+        showMsg(false, '初始化位姿失败: ' + error.message);
     }
 };
 
 const emergencyBrake = async () => {
+    const vehicleId = currentCarId.value;
+    if (!vehicleId) {
+        showMsg(false, '请先选择车辆');
+        return;
+    }
+
+    if (!checkVehicleOnline(vehicleId)) {
+        return;
+    }
+
     try {
-        await socketManager.emergencyBrake(currentCarId.value);
-        showMsg(true, '紧急制动命令已发送');
+        await socketManager.emergencyBrake(vehicleId);
+        showMsg(true, `车辆${vehicleId}紧急制动指令发送成功`);
     } catch (error) {
         console.error('紧急制动失败:', error);
-        showMsg(false, '紧急制动失败');
+        showMsg(false, '紧急制动失败: ' + error.message);
     }
 };
 

@@ -5,7 +5,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { SEND_MESSAGE_TYPES, RECEIVE_MESSAGE_TYPES, VEHICLE_INFO_PROTOCOL, MessageTypeUtils } from '@/constants/messageTypes.js';
+import { SEND_MESSAGE_TYPES, RECEIVE_MESSAGE_TYPES, VEHICLE_INFO_PROTOCOL, VEHICLE_CONTROL_PROTOCOL, DATA_RECORDING_PROTOCOL, MessageTypeUtils } from '@/constants/messageTypes.js';
 import { ElMessage } from 'element-plus';
 import { createLogger } from '@/utils/logger.js';
 
@@ -230,8 +230,17 @@ class SocketManager {
                 timestamp: Date.now()
             }
         }));
+
+        // 触发在线车辆数量变化事件
+        window.dispatchEvent(new CustomEvent('online-vehicles-count-changed', {
+            detail: {
+                count: this.getOnlineVehicleCount(),
+                vehicleIds: this.getOnlineVehicleIds(),
+                timestamp: Date.now()
+            }
+        }));
         
-        console.log(`📡 SocketManager状态更新: 车辆${carId}, 连接:${isConnected}`);
+        console.log(`📡 SocketManager状态更新: 车辆${carId}, 连接:${isConnected}, 总在线数量:${this.getOnlineVehicleCount()}`);
         logger.info(`车辆连接状态更新 - 车辆: ${carId}, 状态: ${isConnected ? '连接' : '断开'}`);
     }
 
@@ -247,6 +256,20 @@ class SocketManager {
      */
     getVehicleConnection(vehicleId) {
         return this.connectedVehicles.get(vehicleId) || null;
+    }
+
+    /**
+     * 获取当前在线车辆数量
+     */
+    getOnlineVehicleCount() {
+        return this.connectedVehicles.size;
+    }
+
+    /**
+     * 获取所有在线车辆ID列表
+     */
+    getOnlineVehicleIds() {
+        return Array.from(this.connectedVehicles.keys());
     }
 
     /**
@@ -378,6 +401,169 @@ class SocketManager {
             
         } catch (error) {
             logger.error(`解析车辆信息失败 - 车辆: ${carId}:`, error);
+        }
+    }
+
+    /**
+     * 发送车辆控制指令
+     * @param {number} vehicleId - 车辆ID
+     * @param {number} command - 控制指令 (1:启动，2:停止，3:紧急制动，4:空载模式，5:初始化位姿)
+     * @param {Object} positionData - 位置数据 (仅当指令为5时需要) {x: number, y: number, orientation: number}
+     */
+    async sendVehicleControl(vehicleId, command, positionData = null) {
+        try {
+            console.log(`🔧 sendVehicleControl - 车辆: ${vehicleId}, 指令: ${command}`);
+            console.log(`🔧 VEHICLE_CONTROL_PROTOCOL:`, VEHICLE_CONTROL_PROTOCOL);
+            console.log(`🔧 SEND_MESSAGE_TYPES:`, SEND_MESSAGE_TYPES);
+            
+            // 验证指令
+            if (command < 1 || command > 5) {
+                throw new Error(`无效的控制指令: ${command}`);
+            }
+
+            // 确定数据域大小
+            const needsPosition = command === VEHICLE_CONTROL_PROTOCOL.COMMAND_INIT_POSE;
+            const dataSize = needsPosition ? 
+                VEHICLE_CONTROL_PROTOCOL.TOTAL_SIZE_WITH_POSITION : 
+                VEHICLE_CONTROL_PROTOCOL.TOTAL_SIZE_WITHOUT_POSITION;
+            
+            console.log(`🔧 needsPosition: ${needsPosition}, dataSize: ${dataSize}`);
+
+            // 创建数据域
+            const dataBuffer = new ArrayBuffer(dataSize);
+            const dataView = new DataView(dataBuffer);
+
+            // 写入车辆编号
+            dataView.setUint8(VEHICLE_CONTROL_PROTOCOL.VEHICLE_ID_OFFSET, vehicleId);
+            
+            // 写入控制指令
+            dataView.setUint8(VEHICLE_CONTROL_PROTOCOL.CONTROL_COMMAND_OFFSET, command);
+
+            // 如果是初始化位姿指令，写入位置数据
+            if (needsPosition) {
+                if (!positionData) {
+                    throw new Error('初始化位姿指令需要提供位置数据');
+                }
+                
+                // 写入位置X (DOUBLE, 小端序)
+                dataView.setFloat64(VEHICLE_CONTROL_PROTOCOL.POSITION_X_OFFSET, positionData.x, true);
+                
+                // 写入位置Y (DOUBLE, 小端序)
+                dataView.setFloat64(VEHICLE_CONTROL_PROTOCOL.POSITION_Y_OFFSET, positionData.y, true);
+                
+                // 写入朝向 (DOUBLE, 小端序)
+                dataView.setFloat64(VEHICLE_CONTROL_PROTOCOL.ORIENTATION_OFFSET, positionData.orientation, true);
+            }
+
+            // 转换为字节数组
+            const dataArray = new Uint8Array(dataBuffer);
+
+            // 通过Rust发送消息给指定车辆
+            console.log(`🔧 准备调用invoke - vehicleId: ${vehicleId}, messageType: ${SEND_MESSAGE_TYPES.VEHICLE_CONTROL}, data长度: ${dataArray.length}`);
+            const result = await invoke('send_to_vehicle', {
+                vehicleId: vehicleId,
+                messageType: SEND_MESSAGE_TYPES.VEHICLE_CONTROL,
+                data: Array.from(dataArray)
+            });
+            console.log(`🔧 invoke调用成功, 结果:`, result);
+
+            const commandName = VEHICLE_CONTROL_PROTOCOL.COMMAND_NAMES[command];
+            logger.info(`车辆控制指令发送成功 - 车辆: ${vehicleId}, 指令: ${commandName}, 数据大小: ${dataSize}字节`);
+            
+            if (needsPosition) {
+                logger.debug(`位置数据 - X: ${positionData.x}, Y: ${positionData.y}, 朝向: ${positionData.orientation}`);
+            }
+
+            return result;
+        } catch (error) {
+            const commandName = VEHICLE_CONTROL_PROTOCOL.COMMAND_NAMES[command] || `未知指令(${command})`;
+            logger.error(`发送车辆控制指令失败 - 车辆: ${vehicleId}, 指令: ${commandName}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * 便捷方法：启动车辆
+     */
+    async startVehicle(vehicleId) {
+        return await this.sendVehicleControl(vehicleId, VEHICLE_CONTROL_PROTOCOL.COMMAND_START);
+    }
+
+    /**
+     * 便捷方法：停止车辆
+     */
+    async stopVehicle(vehicleId) {
+        return await this.sendVehicleControl(vehicleId, VEHICLE_CONTROL_PROTOCOL.COMMAND_STOP);
+    }
+
+    /**
+     * 便捷方法：紧急制动
+     */
+    async emergencyBrake(vehicleId) {
+        return await this.sendVehicleControl(vehicleId, VEHICLE_CONTROL_PROTOCOL.COMMAND_EMERGENCY_BRAKE);
+    }
+
+    /**
+     * 便捷方法：切换空载模式
+     */
+    async setEmptyMode(vehicleId) {
+        return await this.sendVehicleControl(vehicleId, VEHICLE_CONTROL_PROTOCOL.COMMAND_EMPTY_MODE);
+    }
+
+    /**
+     * 便捷方法：初始化位姿
+     */
+    async initializePose(vehicleId, x = 0.0, y = 0.0, orientation = 0.0) {
+        return await this.sendVehicleControl(vehicleId, VEHICLE_CONTROL_PROTOCOL.COMMAND_INIT_POSE, {
+            x, y, orientation
+        });
+    }
+
+    /**
+     * 发送数据记录控制指令
+     * @param {number} vehicleId 车辆ID
+     * @param {boolean} enabled 记录状态（true：开启，false：关闭）
+     * @returns {Promise<string>} 发送结果
+     */
+    async sendDataRecording(vehicleId, enabled) {
+        try {
+            if (vehicleId == null) {
+                throw new Error('车辆ID不能为空');
+            }
+
+            console.log(`🔧 SocketManager.sendDataRecording - 车辆ID: ${vehicleId}, 启用: ${enabled}`);
+
+            // 构建数据域 (2字节)
+            const dataBuffer = new ArrayBuffer(DATA_RECORDING_PROTOCOL.TOTAL_SIZE);
+            const dataView = new DataView(dataBuffer);
+
+            // 写入车辆编号 (UINT8)
+            dataView.setUint8(DATA_RECORDING_PROTOCOL.VEHICLE_ID_OFFSET, vehicleId);
+            
+            // 写入记录状态 (UINT8)
+            const recordingStatus = enabled ? DATA_RECORDING_PROTOCOL.RECORDING_ON : DATA_RECORDING_PROTOCOL.RECORDING_OFF;
+            dataView.setUint8(DATA_RECORDING_PROTOCOL.RECORDING_STATUS_OFFSET, recordingStatus);
+
+            // 转换为字节数组
+            const dataArray = new Uint8Array(dataBuffer);
+
+            // 通过Rust发送消息给指定车辆
+            console.log(`🔧 准备发送数据记录指令 - vehicleId: ${vehicleId}, enabled: ${enabled}, messageType: ${SEND_MESSAGE_TYPES.DATA_RECORDING}, data长度: ${dataArray.length}`);
+            const result = await invoke('send_to_vehicle', {
+                vehicleId: vehicleId,
+                messageType: SEND_MESSAGE_TYPES.DATA_RECORDING,
+                data: Array.from(dataArray)
+            });
+            console.log(`🔧 数据记录指令发送成功, 结果:`, result);
+
+            const statusName = DATA_RECORDING_PROTOCOL.STATUS_NAMES[recordingStatus];
+            logger.info(`数据记录指令发送成功 - 车辆: ${vehicleId}, 状态: ${statusName}`);
+
+            return result;
+        } catch (error) {
+            const statusName = enabled ? '开启' : '关闭';
+            logger.error(`发送数据记录指令失败 - 车辆: ${vehicleId}, 状态: ${statusName}:`, error);
+            throw error;
         }
     }
 

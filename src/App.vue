@@ -102,7 +102,7 @@ const checkNetworkStatus = async () => {
         if (!navigator.onLine) {
             networkStatus.value = {
                 text: '网络断开',
-                icon: 'wifi-slash',
+                icon: 'times-circle',
                 connected: false
             };
             return;
@@ -398,7 +398,7 @@ onBeforeUnmount(() => {
     color: var(--success);
     transition: color 0.3s ease;
     
-    &:has(.fa-wifi-slash),
+    &:has(.fa-times-circle),
     &:has(.fa-exclamation-triangle),
     &:has(.fa-question-circle) {
         color: var(--danger, #ff4444);

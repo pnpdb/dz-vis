@@ -230,7 +230,7 @@ async fn get_network_status() -> Result<serde_json::Value, String> {
                 "ip": null,
                 "is_private": false,
                 "text": "未检测到网络",
-                "icon": "wifi-slash"
+                "icon": "times-circle"
             }))
         }
     }

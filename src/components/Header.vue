@@ -1,22 +1,13 @@
 <template>
     <!-- 顶部导航栏 -->
     <header class="header" style="overflow: visible !important;">
-        <el-popover
-            class="center"
-            title="关于"
-            content=""
-            placement="bottom-end"
-        >
-            <template #reference>
-                <div class="logo">
-                    <div class="logo-icon">
-                        <i class="fas fa-car"></i>
-                        <fa icon="car" />
-                    </div>
-                    <div class="logo-text">DZ CAR MANAGER</div>
-                </div>
-            </template>
-        </el-popover>
+        <div class="logo">
+            <div class="logo-icon">
+                <i class="fas fa-car"></i>
+                <fa icon="car" />
+            </div>
+            <div class="logo-text">DZ CAR MANAGER</div>
+        </div>
 
         <div class="nav-tabs">
             <TransitionGroup name="fade">
@@ -57,6 +48,19 @@
                 <template #reference>
                     <button class="notification-btn btn-ripple" @click="showLogin">
                         <fa icon="cog" />
+                    </button>
+                </template>
+            </el-popover>
+            
+            <el-popover
+                class="center"
+                title="关于软件"
+                content="点击查看软件信息"
+                placement="bottom-end"
+            >
+                <template #reference>
+                    <button class="notification-btn btn-ripple" @click="showAbout">
+                        <fa icon="info-circle" />
                     </button>
                 </template>
             </el-popover>
@@ -238,6 +242,60 @@
                 </div>
             </template>
         </el-dialog>
+        
+        <!-- 关于软件模态框 -->
+        <el-dialog
+            v-model="aboutDialogVisible"
+            title="关于软件"
+            width="500px"
+            :show-close="true"
+            center
+            :z-index="3003"
+            class="about-dialog"
+            top="15vh"
+            :modal="true"
+            :close-on-click-modal="true"
+            :close-on-press-escape="true"
+            destroy-on-close
+            append-to-body
+        >
+            <div class="about-content">
+                <div class="software-info">
+                    <div class="logo-section">
+                        <div class="about-logo">
+                            <fa icon="car" class="about-icon" />
+                        </div>
+                        <h2 class="software-title">DZ CAR MANAGER</h2>
+                        <p class="software-subtitle">智能车辆管理系统</p>
+                    </div>
+                    
+                    <div class="info-section">
+                        <div class="info-item">
+                            <span class="info-label">软件版本：</span>
+                            <span class="info-value">1.0.0</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">开发公司：</span>
+                            <span class="info-value">北京渡众机器人科技有限公司</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">联系邮箱：</span>
+                            <span class="info-value">support@dzrobot.com</span>
+                        </div>
+                    </div>
+                    
+                    <div class="copyright-section">
+                        <p class="copyright">© 2025 北京渡众机器人科技有限公司</p>
+                        <p class="rights">保留所有权利</p>
+                    </div>
+                </div>
+            </div>
+            <template #footer>
+                <div class="dialog-footer">
+                    <el-button type="primary" @click="aboutDialogVisible = false">确定</el-button>
+                </div>
+            </template>
+        </el-dialog>
     </header>
 </template>
 
@@ -301,6 +359,9 @@ const loginRules = {
 // 设置相关
 const settingsDialogVisible = ref(false);
 const activeSettingsTab = ref('basic');
+
+// 关于弹窗相关
+const aboutDialogVisible = ref(false);
 const settings = ref({
     theme: 'dark',
     language: 'zh-CN',
@@ -519,6 +580,12 @@ const showLogin = () => {
     // 简单设置状态，不进行复杂的DOM操作
     loginDialogVisible.value = true;
     console.log('登录框显示状态:', loginDialogVisible.value);
+};
+
+// 显示关于弹窗
+const showAbout = () => {
+    console.log('关于按钮被点击，显示关于弹窗');
+    aboutDialogVisible.value = true;
 };
 
 // 处理登录
@@ -1311,5 +1378,151 @@ onMounted(() => {
     background: rgba(255, 0, 0, 0.2);
     color: #ff4d6d;
     transform: scale(1.1);
+}
+
+/* 关于弹窗样式 */
+:deep(.about-dialog) {
+    .el-dialog {
+        background: rgba(15, 30, 47, 0.95) !important;
+        backdrop-filter: blur(20px) !important;
+        border: 1px solid rgba(0, 240, 255, 0.3) !important;
+        border-radius: 16px !important;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 240, 255, 0.1) !important;
+    }
+    
+    .el-dialog__header {
+        background: rgba(0, 240, 255, 0.1) !important;
+        border-bottom: 1px solid rgba(0, 240, 255, 0.2) !important;
+        border-radius: 16px 16px 0 0 !important;
+        padding: 20px !important;
+        
+        .el-dialog__title {
+            color: var(--primary) !important;
+            font-weight: 600 !important;
+            font-size: 18px !important;
+        }
+    }
+    
+    .el-dialog__body {
+        padding: 30px !important;
+        background: transparent !important;
+    }
+    
+    .el-dialog__footer {
+        background: rgba(0, 15, 30, 0.3) !important;
+        border-top: 1px solid rgba(0, 240, 255, 0.2) !important;
+        border-radius: 0 0 16px 16px !important;
+        padding: 20px !important;
+        text-align: center !important;
+    }
+}
+
+.about-content {
+    color: var(--text-primary);
+    text-align: center;
+}
+
+.software-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 25px;
+}
+
+.logo-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 0;
+    border-bottom: 1px solid rgba(0, 240, 255, 0.2);
+    margin-bottom: 10px;
+}
+
+.about-logo {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, var(--primary), rgba(0, 240, 255, 0.6));
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 30px rgba(0, 240, 255, 0.3);
+}
+
+.about-icon {
+    font-size: 36px;
+    color: var(--dark-bg);
+}
+
+.software-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--primary);
+    margin: 0;
+    letter-spacing: 2px;
+}
+
+.software-subtitle {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0;
+    font-weight: 300;
+}
+
+.info-section {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    width: 100%;
+    max-width: 350px;
+}
+
+.info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background: rgba(0, 15, 30, 0.4);
+    border: 1px solid rgba(0, 240, 255, 0.1);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.info-item:hover {
+    background: rgba(0, 240, 255, 0.05);
+    border-color: rgba(0, 240, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.info-label {
+    font-weight: 500;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.info-value {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.copyright-section {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(0, 240, 255, 0.2);
+    text-align: center;
+}
+
+.copyright,
+.rights {
+    margin: 5px 0;
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 300;
+}
+
+.copyright {
+    font-weight: 400;
 }
 </style>

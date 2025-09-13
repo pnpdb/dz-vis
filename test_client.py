@@ -26,6 +26,7 @@ RECEIVE_MESSAGE_TYPES = {
 SEND_MESSAGE_TYPES = {
     'VEHICLE_CONTROL': 0x1001,  # 车辆控制指令
     'DATA_RECORDING': 0x1002,   # 数据记录控制
+    'TAXI_ORDER': 0x1003,       # 出租车订单
 }
 
 # 车辆控制指令类型
@@ -145,6 +146,43 @@ def parse_data_recording_message(data):
         
     except Exception as e:
         print(f"❌ 解析数据记录指令失败: {e}")
+        return None
+
+
+def parse_taxi_order_message(data):
+    """解析出租车订单协议"""
+    if len(data) < 48:
+        print("❌ 出租车订单数据长度不足")
+        return None
+    
+    try:
+        # 解析订单号 (16字节)
+        order_bytes = data[0:16]
+        # 去除空字节并转换为字符串
+        order_id = order_bytes.rstrip(b'\x00').decode('utf-8', errors='ignore')
+        
+        # 解析起点X (DOUBLE, 小端序)
+        start_x = struct.unpack('<d', data[16:24])[0]
+        
+        # 解析起点Y (DOUBLE, 小端序)
+        start_y = struct.unpack('<d', data[24:32])[0]
+        
+        # 解析终点X (DOUBLE, 小端序)
+        end_x = struct.unpack('<d', data[32:40])[0]
+        
+        # 解析终点Y (DOUBLE, 小端序)
+        end_y = struct.unpack('<d', data[40:48])[0]
+        
+        return {
+            'order_id': order_id,
+            'start_x': start_x,
+            'start_y': start_y,
+            'end_x': end_x,
+            'end_y': end_y
+        }
+        
+    except Exception as e:
+        print(f"❌ 解析出租车订单失败: {e}")
         return None
 
 
@@ -436,6 +474,18 @@ class TestClient:
                 
                 # 模拟执行指令
                 print(f"✅ 车辆{recording_info['vehicle_id']}数据记录{recording_info['status_name']}")
+                
+        elif message_type == SEND_MESSAGE_TYPES['TAXI_ORDER']:
+            # 解析出租车订单指令
+            taxi_info = parse_taxi_order_message(data_domain)
+            if taxi_info:
+                print(f"🚕 出租车订单:")
+                print(f"   订单号: {taxi_info['order_id']}")
+                print(f"   起点: ({taxi_info['start_x']:.3f}, {taxi_info['start_y']:.3f})")
+                print(f"   终点: ({taxi_info['end_x']:.3f}, {taxi_info['end_y']:.3f})")
+                
+                # 模拟接单处理
+                print(f"✅ 车辆{self.vehicle_id}收到出租车订单: {taxi_info['order_id']}")
         else:
             print(f"❓ 未知消息类型: 0x{message_type:04X}")
             print(f"   数据: {data_domain.hex()}")

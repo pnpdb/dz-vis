@@ -5,7 +5,7 @@ use local_ip_address::local_ip;
 mod socket;
 mod database;
 
-use database::{VehicleDatabase, CreateVehicleConnectionRequest, UpdateVehicleConnectionRequest, UpdateTrafficLightSettingsRequest};
+use database::{VehicleDatabase, CreateVehicleConnectionRequest, UpdateVehicleConnectionRequest, UpdateTrafficLightSettingsRequest, CreateTaxiOrderRequest};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -313,6 +313,74 @@ async fn update_traffic_light_settings(
     }
 }
 
+#[tauri::command]
+async fn broadcast_taxi_order(
+    app: tauri::AppHandle,
+    order_id: String,
+    start_x: f64,
+    start_y: f64,
+    end_x: f64,
+    end_y: f64,
+) -> Result<String, String> {
+    // 1. 检查是否有在线车辆
+    let connections = app.state::<socket::ConnectionManager>();
+    let online_count = socket::SocketServer::get_connection_status(&connections).len();
+    
+    if online_count == 0 {
+        return Err("当前没有可用车辆".to_string());
+    }
+
+    // 2. 构建出租车订单协议数据域 (48字节)
+    let mut data = Vec::with_capacity(48);
+    
+    // 订单号 (16字节) - 如果不足16字节则用空字节填充
+    let mut order_bytes = order_id.as_bytes().to_vec();
+    order_bytes.resize(16, 0);
+    data.extend_from_slice(&order_bytes);
+    
+    // 起点X (8字节, DOUBLE, 小端序)
+    data.extend_from_slice(&start_x.to_le_bytes());
+    
+    // 起点Y (8字节, DOUBLE, 小端序)  
+    data.extend_from_slice(&start_y.to_le_bytes());
+    
+    // 终点X (8字节, DOUBLE, 小端序)
+    data.extend_from_slice(&end_x.to_le_bytes());
+    
+    // 终点Y (8字节, DOUBLE, 小端序)
+    data.extend_from_slice(&end_y.to_le_bytes());
+
+    // 3. 广播消息给所有在线车辆
+    let sent_count = socket::SocketServer::broadcast_message(&connections, 0x1003, &data);
+    
+    if sent_count > 0 {
+        // 4. 发送成功，保存到数据库
+        if let Some(db) = app.try_state::<VehicleDatabase>() {
+            let taxi_order_request = CreateTaxiOrderRequest {
+                order_id: order_id.clone(),
+                start_x,
+                start_y,
+                end_x,
+                end_y,
+            };
+            
+            match db.create_taxi_order(taxi_order_request).await {
+                Ok(_) => {
+                    println!("✅ 出租车订单已保存到数据库: {}", order_id);
+                }
+                Err(e) => {
+                    println!("❌ 保存出租车订单到数据库失败: {}", e);
+                    // 虽然数据库保存失败，但消息已发送，所以不返回错误
+                }
+            }
+        }
+        
+        Ok(format!("出租车订单已发送给 {} 个车辆", sent_count))
+    } else {
+        Err("发送出租车订单失败".to_string())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -337,7 +405,8 @@ pub fn run() {
             get_network_status,
             get_socket_server_status,
             get_traffic_light_settings,
-            update_traffic_light_settings
+            update_traffic_light_settings,
+            broadcast_taxi_order
         ])
         .setup(|app| {
             // 初始化数据库

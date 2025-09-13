@@ -12,6 +12,7 @@ export const RECEIVE_MESSAGE_TYPES = {
 export const SEND_MESSAGE_TYPES = {
     VEHICLE_CONTROL: 0x1001,         // 车辆控制指令
     DATA_RECORDING: 0x1002,          // 数据记录控制
+    TAXI_ORDER: 0x1003,              // 出租车订单
 };
 
 // 车辆信息协议数据域定义 (37字节)
@@ -85,6 +86,22 @@ export const DATA_RECORDING_PROTOCOL = {
     }
 };
 
+// 出租车订单协议数据域定义 (48字节)
+export const TAXI_ORDER_PROTOCOL = {
+    ORDER_ID_OFFSET: 0,              // 订单号偏移 (16字节, CHAR16)
+    START_X_OFFSET: 16,              // 起点X偏移 (8字节, DOUBLE)
+    START_Y_OFFSET: 24,              // 起点Y偏移 (8字节, DOUBLE)
+    END_X_OFFSET: 32,                // 终点X偏移 (8字节, DOUBLE)
+    END_Y_OFFSET: 40,                // 终点Y偏移 (8字节, DOUBLE)
+    TOTAL_SIZE: 48,                  // 总大小 48字节
+    
+    // 默认坐标常量（暂时写死）
+    DEFAULT_START_X: 116.4,          // 默认起点X坐标
+    DEFAULT_START_Y: 39.9,           // 默认起点Y坐标
+    DEFAULT_END_X: 118.5,            // 默认终点X坐标
+    DEFAULT_END_Y: 41.2,             // 默认终点Y坐标
+};
+
 // 协议常量
 export const PROTOCOL_CONSTANTS = {
     HEADER: [0xEF, 0xEF, 0xEF, 0xEF],        // 帧头
@@ -139,6 +156,7 @@ export default {
     VEHICLE_INFO_PROTOCOL,
     VEHICLE_CONTROL_PROTOCOL,
     DATA_RECORDING_PROTOCOL,
+    TAXI_ORDER_PROTOCOL,
     PROTOCOL_CONSTANTS,
     MessageTypeUtils
 };

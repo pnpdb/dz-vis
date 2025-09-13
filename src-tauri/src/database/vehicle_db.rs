@@ -85,6 +85,29 @@ impl VehicleDatabase {
 
         // 初始化默认交通灯设置
         self.init_default_traffic_light_settings().await?;
+
+        // 创建出租车订单表
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS taxi_orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_id TEXT NOT NULL UNIQUE,
+                start_x REAL NOT NULL,
+                start_y REAL NOT NULL,
+                end_x REAL NOT NULL,
+                end_y REAL NOT NULL,
+                assigned_vehicle_id INTEGER,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            "#
+        ).execute(&self.pool).await?;
+
+        // 创建索引（如果不存在）
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_order_id ON taxi_orders(order_id)")
+            .execute(&self.pool).await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_assigned_vehicle ON taxi_orders(assigned_vehicle_id)")
+            .execute(&self.pool).await?;
         
         println!("✅ 数据库表结构检查完成");
         Ok(())
@@ -337,5 +360,65 @@ impl VehicleDatabase {
         query.execute(&self.pool).await?;
         
         self.get_traffic_light_settings().await
+    }
+
+    /// 创建出租车订单
+    pub async fn create_taxi_order(&self, request: CreateTaxiOrderRequest) -> Result<TaxiOrder, sqlx::Error> {
+        let now = Utc::now().to_rfc3339();
+        
+        let row = sqlx::query(
+            r#"
+            INSERT INTO taxi_orders (order_id, start_x, start_y, end_x, end_y, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            RETURNING id, order_id, start_x, start_y, end_x, end_y, assigned_vehicle_id, created_at, updated_at
+            "#
+        )
+        .bind(&request.order_id)
+        .bind(request.start_x)
+        .bind(request.start_y)
+        .bind(request.end_x)
+        .bind(request.end_y)
+        .bind(&now)
+        .bind(&now)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(TaxiOrder {
+            id: row.get("id"),
+            order_id: row.get("order_id"),
+            start_x: row.get("start_x"),
+            start_y: row.get("start_y"),
+            end_x: row.get("end_x"),
+            end_y: row.get("end_y"),
+            assigned_vehicle_id: row.get("assigned_vehicle_id"),
+            created_at: row.get("created_at"),
+            updated_at: row.get("updated_at"),
+        })
+    }
+
+    /// 获取所有出租车订单
+    pub async fn get_all_taxi_orders(&self) -> Result<Vec<TaxiOrder>, sqlx::Error> {
+        let rows = sqlx::query(
+            "SELECT id, order_id, start_x, start_y, end_x, end_y, assigned_vehicle_id, created_at, updated_at FROM taxi_orders ORDER BY created_at DESC"
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut orders = Vec::new();
+        for row in rows {
+            orders.push(TaxiOrder {
+                id: row.get("id"),
+                order_id: row.get("order_id"),
+                start_x: row.get("start_x"),
+                start_y: row.get("start_y"),
+                end_x: row.get("end_x"),
+                end_y: row.get("end_y"),
+                assigned_vehicle_id: row.get("assigned_vehicle_id"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            });
+        }
+
+        Ok(orders)
     }
 }

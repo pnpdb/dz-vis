@@ -5,7 +5,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { SEND_MESSAGE_TYPES, RECEIVE_MESSAGE_TYPES, VEHICLE_INFO_PROTOCOL, VEHICLE_CONTROL_PROTOCOL, DATA_RECORDING_PROTOCOL, MessageTypeUtils } from '@/constants/messageTypes.js';
+import { SEND_MESSAGE_TYPES, RECEIVE_MESSAGE_TYPES, VEHICLE_INFO_PROTOCOL, VEHICLE_CONTROL_PROTOCOL, DATA_RECORDING_PROTOCOL, TAXI_ORDER_PROTOCOL, MessageTypeUtils } from '@/constants/messageTypes.js';
 import { ElMessage } from 'element-plus';
 import { createLogger } from '@/utils/logger.js';
 
@@ -565,6 +565,56 @@ class SocketManager {
             logger.error(`发送数据记录指令失败 - 车辆: ${vehicleId}, 状态: ${statusName}:`, error);
             throw error;
         }
+    }
+
+    /**
+     * 发送出租车订单广播
+     * @param {string} orderId 订单ID (16字节UUID)
+     * @param {number} startX 起点X坐标
+     * @param {number} startY 起点Y坐标
+     * @param {number} endX 终点X坐标
+     * @param {number} endY 终点Y坐标
+     * @returns {Promise<string>} 发送结果
+     */
+    async sendTaxiOrder(orderId, startX = null, startY = null, endX = null, endY = null) {
+        try {
+            // 使用默认坐标（如果没有提供）
+            const actualStartX = startX ?? TAXI_ORDER_PROTOCOL.DEFAULT_START_X;
+            const actualStartY = startY ?? TAXI_ORDER_PROTOCOL.DEFAULT_START_Y;
+            const actualEndX = endX ?? TAXI_ORDER_PROTOCOL.DEFAULT_END_X;
+            const actualEndY = endY ?? TAXI_ORDER_PROTOCOL.DEFAULT_END_Y;
+
+            console.log(`🚕 发送出租车订单 - 订单: ${orderId}, 起点: (${actualStartX}, ${actualStartY}), 终点: (${actualEndX}, ${actualEndY})`);
+
+            // 调用Rust后端进行广播和数据库保存
+            const result = await invoke('broadcast_taxi_order', {
+                orderId: orderId,
+                startX: actualStartX,
+                startY: actualStartY,
+                endX: actualEndX,
+                endY: actualEndY
+            });
+
+            logger.info(`出租车订单发送成功 - 订单: ${orderId}`);
+            return result;
+        } catch (error) {
+            logger.error(`发送出租车订单失败 - 订单: ${orderId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * 生成出租车订单UUID
+     * @returns {string} 16字符的UUID字符串
+     */
+    generateOrderId() {
+        // 生成简单的16字符UUID（实际应用中可以使用更复杂的UUID库）
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let result = '';
+        for (let i = 0; i < 16; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
     }
 
     /**

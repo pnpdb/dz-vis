@@ -214,13 +214,44 @@ const parking = ref({
 });
 
 // 呼叫出租车
-const callTaxi = () => {
-    if (!taxi.value.startPoint || !taxi.value.endPoint) {
-        ElMessage.warning('请先选择起点和终点位置');
-        return;
+const callTaxi = async () => {
+    try {
+        // 1. 检查是否有在线车辆
+        const onlineVehicleCount = socketManager.getOnlineVehicleCount();
+        if (onlineVehicleCount === 0) {
+            ElMessage({
+                message: '当前没有可用车辆',
+                type: 'warning',
+                duration: 3000
+            });
+            return;
+        }
+
+        // 2. 生成订单ID
+        const orderId = socketManager.generateOrderId();
+        
+        // 3. 发送出租车订单广播（使用默认坐标）
+        const result = await socketManager.sendTaxiOrder(orderId);
+        
+        // 4. 发送成功，显示成功Toast
+        ElMessage({
+            message: '🚕 出租车订单发送成功，请等待车辆响应',
+            type: 'success',
+            duration: 3000
+        });
+        
+        console.log(`🚕 出租车订单发送成功 - 订单: ${orderId}, 结果: ${result}`);
+        
+    } catch (error) {
+        // 5. 发送失败，显示失败Toast
+        ElMessage({
+            message: `呼叫出租车失败: ${error.message || error}`,
+            type: 'error',
+            duration: 3000
+        });
+        
+        console.error('呼叫出租车失败:', error);
     }
-    ElMessage.success('正在呼叫出租车...');
-    console.log('呼叫出租车:', taxi.value);
 };
 
 // 开始泊车

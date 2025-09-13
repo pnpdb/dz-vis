@@ -81,6 +81,28 @@ pub struct UpdateTrafficLightSettingsRequest {
     pub green_light_duration: Option<i32>,
 }
 
+#[derive(Debug, sqlx::FromRow, serde::Serialize, serde::Deserialize)]
+pub struct TaxiOrder {
+    pub id: i64,
+    pub order_id: String,           // 16字节UUID字符串
+    pub start_x: f64,               // 起点X坐标
+    pub start_y: f64,               // 起点Y坐标
+    pub end_x: f64,                 // 终点X坐标
+    pub end_y: f64,                 // 终点Y坐标
+    pub assigned_vehicle_id: Option<i32>, // 接单的车辆ID（可选）
+    pub created_at: String,         // 创建时间
+    pub updated_at: String,         // 更新时间
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateTaxiOrderRequest {
+    pub order_id: String,
+    pub start_x: f64,
+    pub start_y: f64,
+    pub end_x: f64,
+    pub end_y: f64,
+}
+
 impl UpdateTrafficLightSettingsRequest {
     /// 验证请求参数
     pub fn validate(&self) -> Result<(), String> {

@@ -5,7 +5,7 @@ use local_ip_address::local_ip;
 mod socket;
 mod database;
 
-use database::{VehicleDatabase, CreateVehicleConnectionRequest, UpdateVehicleConnectionRequest, UpdateTrafficLightSettingsRequest, CreateTaxiOrderRequest, CreateAvpParkingRequest};
+use database::{VehicleDatabase, CreateVehicleConnectionRequest, UpdateVehicleConnectionRequest, UpdateTrafficLightSettingsRequest, CreateTaxiOrderRequest, CreateAvpParkingRequest, CreateAvpPickupRequest};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -427,6 +427,48 @@ async fn send_avp_parking(
     }
 }
 
+#[tauri::command]
+async fn send_avp_pickup(
+    app: tauri::AppHandle,
+    vehicle_id: i32,
+) -> Result<String, String> {
+    // 1. 构建AVP取车协议数据域 (1字节)
+    let mut data = Vec::with_capacity(1);
+    
+    // 车辆编号 (1字节, UINT8)
+    data.push(vehicle_id as u8);
+
+    // 2. 发送消息给指定车辆
+    let connections = app.state::<socket::ConnectionManager>();
+    let sent_result = socket::SocketServer::send_to_vehicle(&connections, vehicle_id, 0x1005, &data);
+    
+    match sent_result {
+        Ok(_) => {
+            // 3. 发送成功，保存到数据库
+            if let Some(db) = app.try_state::<VehicleDatabase>() {
+                let avp_pickup_request = CreateAvpPickupRequest {
+                    vehicle_id,
+                };
+                
+                match db.create_avp_pickup(avp_pickup_request).await {
+                    Ok(_) => {
+                        println!("✅ AVP取车记录已保存到数据库: 车辆{}", vehicle_id);
+                    }
+                    Err(e) => {
+                        println!("❌ 保存AVP取车记录到数据库失败: {}", e);
+                        // 虽然数据库保存失败，但消息已发送，所以不返回错误
+                    }
+                }
+            }
+            
+            Ok("AVP取车指令发送成功".to_string())
+        }
+        Err(e) => {
+            Err(format!("发送AVP取车指令失败: {}", e))
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -453,7 +495,8 @@ pub fn run() {
             get_traffic_light_settings,
             update_traffic_light_settings,
             broadcast_taxi_order,
-            send_avp_parking
+            send_avp_parking,
+            send_avp_pickup
         ])
         .setup(|app| {
             // 初始化数据库

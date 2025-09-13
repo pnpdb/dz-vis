@@ -126,6 +126,21 @@ impl VehicleDatabase {
             .execute(&self.pool).await?;
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_avp_parking_spot ON avp_parking(parking_spot)")
             .execute(&self.pool).await?;
+
+        // 创建AVP取车表
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS avp_pickup (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                vehicle_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            "#
+        ).execute(&self.pool).await?;
+
+        // 创建索引（如果不存在）
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_avp_pickup_vehicle_id ON avp_pickup(vehicle_id)")
+            .execute(&self.pool).await?;
         
         println!("✅ 数据库表结构检查完成");
         Ok(())
@@ -484,5 +499,48 @@ impl VehicleDatabase {
         }
 
         Ok(parking_records)
+    }
+
+    /// 创建AVP取车记录
+    pub async fn create_avp_pickup(&self, request: CreateAvpPickupRequest) -> Result<AvpPickup, sqlx::Error> {
+        let now = Utc::now().to_rfc3339();
+        
+        let row = sqlx::query(
+            r#"
+            INSERT INTO avp_pickup (vehicle_id, created_at)
+            VALUES (?, ?)
+            RETURNING id, vehicle_id, created_at
+            "#
+        )
+        .bind(request.vehicle_id)
+        .bind(&now)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(AvpPickup {
+            id: row.get("id"),
+            vehicle_id: row.get("vehicle_id"),
+            created_at: row.get("created_at"),
+        })
+    }
+
+    /// 获取所有AVP取车记录
+    pub async fn get_all_avp_pickup(&self) -> Result<Vec<AvpPickup>, sqlx::Error> {
+        let rows = sqlx::query(
+            "SELECT id, vehicle_id, created_at FROM avp_pickup ORDER BY created_at DESC"
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut pickup_records = Vec::new();
+        for row in rows {
+            pickup_records.push(AvpPickup {
+                id: row.get("id"),
+                vehicle_id: row.get("vehicle_id"),
+                created_at: row.get("created_at"),
+            });
+        }
+
+        Ok(pickup_records)
     }
 }

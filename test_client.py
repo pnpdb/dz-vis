@@ -28,6 +28,7 @@ SEND_MESSAGE_TYPES = {
     'DATA_RECORDING': 0x1002,   # 数据记录控制
     'TAXI_ORDER': 0x1003,       # 出租车订单
     'AVP_PARKING': 0x1004,      # AVP自主代客泊车
+    'AVP_PICKUP': 0x1005,       # AVP取车
 }
 
 # 车辆控制指令类型
@@ -207,6 +208,25 @@ def parse_avp_parking_message(data):
         
     except Exception as e:
         print(f"❌ 解析AVP泊车指令失败: {e}")
+        return None
+
+
+def parse_avp_pickup_message(data):
+    """解析AVP取车协议"""
+    if len(data) < 1:
+        print("❌ AVP取车数据长度不足")
+        return None
+    
+    try:
+        # 解析车辆编号 (1字节, UINT8)
+        vehicle_id = data[0]
+        
+        return {
+            'vehicle_id': vehicle_id
+        }
+        
+    except Exception as e:
+        print(f"❌ 解析AVP取车指令失败: {e}")
         return None
 
 
@@ -524,6 +544,19 @@ class TestClient:
                     print(f"✅ 车辆{self.vehicle_id}开始执行AVP泊车，目标车位: {parking_info['parking_spot']}号")
                 else:
                     print(f"⚠️ 泊车指令目标车辆({parking_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
+                    
+        elif message_type == SEND_MESSAGE_TYPES['AVP_PICKUP']:
+            # 解析AVP取车指令
+            pickup_info = parse_avp_pickup_message(data_domain)
+            if pickup_info:
+                print(f"🚗 AVP取车指令:")
+                print(f"   目标车辆: {pickup_info['vehicle_id']}")
+                
+                # 模拟执行取车
+                if pickup_info['vehicle_id'] == self.vehicle_id:
+                    print(f"✅ 车辆{self.vehicle_id}开始执行AVP取车操作")
+                else:
+                    print(f"⚠️ 取车指令目标车辆({pickup_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
         else:
             print(f"❓ 未知消息类型: 0x{message_type:04X}")
             print(f"   数据: {data_domain.hex()}")

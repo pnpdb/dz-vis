@@ -96,18 +96,12 @@
             <label class="form-label"> <fa icon="key" /> AVP取车</label>
             <div class="input-label">选择车辆:</div>
             <div class="flex">
-                <el-select v-model="parking.car" placeholder="请选择车辆">
+                <el-select v-model="pickup.car" placeholder="请选择车辆">
                     <el-option
-                        label="京A·12345 (在线)"
-                        value="car-001"
-                    ></el-option>
-                    <el-option
-                        label="京B·67890 (在线)"
-                        value="car-002"
-                    ></el-option>
-                    <el-option
-                        label="京C·24680 (离线)"
-                        value="car-003"
+                        v-for="vehicle in carStore.carList"
+                        :key="vehicle.id"
+                        :label="vehicle.name"
+                        :value="vehicle.id"
                     ></el-option>
                 </el-select>
             </div>
@@ -207,6 +201,11 @@ const parking = ref({
     point: '',
 });
 
+// 取车相关数据
+const pickup = ref({
+    car: '',
+});
+
 // 呼叫出租车
 const callTaxi = async () => {
     try {
@@ -297,13 +296,51 @@ const startParking = async () => {
 };
 
 // 取车
-const pickupCar = () => {
-    if (!parking.value.car) {
-        ElMessage.warning('请先选择车辆');
-        return;
+const pickupCar = async () => {
+    try {
+        // 1. 检查是否选择了车辆
+        if (!pickup.value.car) {
+            ElMessage({
+                message: '请先选择车辆',
+                type: 'warning',
+                duration: 3000
+            });
+            return;
+        }
+
+        // 2. 检查该车辆是否在线
+        const isOnline = socketManager.isVehicleConnected(pickup.value.car);
+        if (!isOnline) {
+            ElMessage({
+                message: '选中的车辆当前离线，无法执行取车操作',
+                type: 'warning',
+                duration: 3000
+            });
+            return;
+        }
+
+        // 3. 车辆在线，发送AVP取车指令
+        const result = await socketManager.sendAvpPickup(pickup.value.car);
+        
+        // 4. 发送成功，显示成功Toast
+        ElMessage({
+            message: 'AVP取车指令发送成功，车辆正在执行取车',
+            type: 'success',
+            duration: 3000
+        });
+        
+        console.log(`AVP取车指令发送成功 - 车辆: ${pickup.value.car}, 结果: ${result}`);
+        
+    } catch (error) {
+        // 5. 发送失败，显示失败Toast
+        ElMessage({
+            message: `AVP取车指令发送失败: ${error.message || error}`,
+            type: 'error',
+            duration: 3000
+        });
+        
+        console.error('AVP取车指令发送失败:', error);
     }
-    ElMessage.success('正在取车...');
-    console.log('取车:', parking.value.car);
 };
 
 // 选择地图位置的函数（占位符）

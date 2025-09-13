@@ -117,6 +117,18 @@ pub struct CreateAvpParkingRequest {
     pub parking_spot: i32,
 }
 
+#[derive(Debug, sqlx::FromRow, serde::Serialize, serde::Deserialize)]
+pub struct AvpPickup {
+    pub id: i64,
+    pub vehicle_id: i32,            // 车辆编号
+    pub created_at: String,         // 创建时间
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateAvpPickupRequest {
+    pub vehicle_id: i32,
+}
+
 impl UpdateTrafficLightSettingsRequest {
     /// 验证请求参数
     pub fn validate(&self) -> Result<(), String> {

@@ -5,7 +5,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { SEND_MESSAGE_TYPES, RECEIVE_MESSAGE_TYPES, VEHICLE_INFO_PROTOCOL, VEHICLE_CONTROL_PROTOCOL, DATA_RECORDING_PROTOCOL, TAXI_ORDER_PROTOCOL, AVP_PARKING_PROTOCOL, MessageTypeUtils } from '@/constants/messageTypes.js';
+import { SEND_MESSAGE_TYPES, RECEIVE_MESSAGE_TYPES, VEHICLE_INFO_PROTOCOL, VEHICLE_CONTROL_PROTOCOL, DATA_RECORDING_PROTOCOL, TAXI_ORDER_PROTOCOL, AVP_PARKING_PROTOCOL, AVP_PICKUP_PROTOCOL, MessageTypeUtils } from '@/constants/messageTypes.js';
 import { ElMessage } from 'element-plus';
 import { createLogger } from '@/utils/logger.js';
 
@@ -643,6 +643,32 @@ class SocketManager {
             return result;
         } catch (error) {
             logger.error(`发送AVP泊车指令失败 - 车辆: ${vehicleId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * 发送AVP取车指令
+     * @param {number} vehicleId 车辆ID
+     * @returns {Promise<string>} 发送结果
+     */
+    async sendAvpPickup(vehicleId) {
+        try {
+            if (vehicleId == null) {
+                throw new Error('车辆ID不能为空');
+            }
+
+            console.log(`🚗 发送AVP取车指令 - 车辆: ${vehicleId}`);
+
+            // 调用Rust后端进行发送和数据库保存
+            const result = await invoke('send_avp_pickup', {
+                vehicleId: vehicleId
+            });
+
+            logger.info(`AVP取车指令发送成功 - 车辆: ${vehicleId}`);
+            return result;
+        } catch (error) {
+            logger.error(`发送AVP取车指令失败 - 车辆: ${vehicleId}:`, error);
             throw error;
         }
     }

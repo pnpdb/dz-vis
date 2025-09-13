@@ -108,6 +108,24 @@ impl VehicleDatabase {
             .execute(&self.pool).await?;
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_assigned_vehicle ON taxi_orders(assigned_vehicle_id)")
             .execute(&self.pool).await?;
+
+        // 创建AVP泊车表
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS avp_parking (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                vehicle_id INTEGER NOT NULL,
+                parking_spot INTEGER NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            "#
+        ).execute(&self.pool).await?;
+
+        // 创建索引（如果不存在）
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_avp_vehicle_id ON avp_parking(vehicle_id)")
+            .execute(&self.pool).await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_avp_parking_spot ON avp_parking(parking_spot)")
+            .execute(&self.pool).await?;
         
         println!("✅ 数据库表结构检查完成");
         Ok(())
@@ -420,5 +438,51 @@ impl VehicleDatabase {
         }
 
         Ok(orders)
+    }
+
+    /// 创建AVP泊车记录
+    pub async fn create_avp_parking(&self, request: CreateAvpParkingRequest) -> Result<AvpParking, sqlx::Error> {
+        let now = Utc::now().to_rfc3339();
+        
+        let row = sqlx::query(
+            r#"
+            INSERT INTO avp_parking (vehicle_id, parking_spot, created_at)
+            VALUES (?, ?, ?)
+            RETURNING id, vehicle_id, parking_spot, created_at
+            "#
+        )
+        .bind(request.vehicle_id)
+        .bind(request.parking_spot)
+        .bind(&now)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(AvpParking {
+            id: row.get("id"),
+            vehicle_id: row.get("vehicle_id"),
+            parking_spot: row.get("parking_spot"),
+            created_at: row.get("created_at"),
+        })
+    }
+
+    /// 获取所有AVP泊车记录
+    pub async fn get_all_avp_parking(&self) -> Result<Vec<AvpParking>, sqlx::Error> {
+        let rows = sqlx::query(
+            "SELECT id, vehicle_id, parking_spot, created_at FROM avp_parking ORDER BY created_at DESC"
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut parking_records = Vec::new();
+        for row in rows {
+            parking_records.push(AvpParking {
+                id: row.get("id"),
+                vehicle_id: row.get("vehicle_id"),
+                parking_spot: row.get("parking_spot"),
+                created_at: row.get("created_at"),
+            });
+        }
+
+        Ok(parking_records)
     }
 }

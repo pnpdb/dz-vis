@@ -65,16 +65,10 @@
             <div class="flex">
                 <el-select v-model="parking.car" placeholder="请选择车辆">
                     <el-option
-                        label="京A·12345 (在线)"
-                        value="car-001"
-                    ></el-option>
-                    <el-option
-                        label="京B·67890 (在线)"
-                        value="car-002"
-                    ></el-option>
-                    <el-option
-                        label="京C·24680 (离线)"
-                        value="car-003"
+                        v-for="vehicle in carStore.carList"
+                        :key="vehicle.id"
+                        :label="vehicle.name"
+                        :value="vehicle.id"
                     ></el-option>
                 </el-select>
             </div>
@@ -255,13 +249,51 @@ const callTaxi = async () => {
 };
 
 // 开始泊车
-const startParking = () => {
-    if (!parking.value.car || !parking.value.point) {
-        ElMessage.warning('请先选择车辆和停车位');
-        return;
+const startParking = async () => {
+    try {
+        // 1. 检查是否选择了车辆
+        if (!parking.value.car) {
+            ElMessage({
+                message: '请先选择车辆',
+                type: 'warning',
+                duration: 3000
+            });
+            return;
+        }
+
+        // 2. 检查该车辆是否在线
+        const isOnline = socketManager.isVehicleConnected(parking.value.car);
+        if (!isOnline) {
+            ElMessage({
+                message: '选中的车辆当前离线，无法执行泊车操作',
+                type: 'warning',
+                duration: 3000
+            });
+            return;
+        }
+
+        // 3. 车辆在线，发送AVP泊车指令
+        const result = await socketManager.sendAvpParking(parking.value.car);
+        
+        // 4. 发送成功，显示成功Toast
+        ElMessage({
+            message: '🅿️ AVP泊车指令发送成功，车辆正在执行泊车',
+            type: 'success',
+            duration: 3000
+        });
+        
+        console.log(`🅿️ AVP泊车指令发送成功 - 车辆: ${parking.value.car}, 结果: ${result}`);
+        
+    } catch (error) {
+        // 5. 发送失败，显示失败Toast
+        ElMessage({
+            message: `AVP泊车指令发送失败: ${error.message || error}`,
+            type: 'error',
+            duration: 3000
+        });
+        
+        console.error('AVP泊车指令发送失败:', error);
     }
-    ElMessage.success('开始自动泊车...');
-    console.log('开始泊车:', parking.value);
 };
 
 // 取车

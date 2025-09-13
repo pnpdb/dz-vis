@@ -5,7 +5,7 @@ use local_ip_address::local_ip;
 mod socket;
 mod database;
 
-use database::{VehicleDatabase, CreateVehicleConnectionRequest, UpdateVehicleConnectionRequest, UpdateTrafficLightSettingsRequest, CreateTaxiOrderRequest};
+use database::{VehicleDatabase, CreateVehicleConnectionRequest, UpdateVehicleConnectionRequest, UpdateTrafficLightSettingsRequest, CreateTaxiOrderRequest, CreateAvpParkingRequest};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -381,6 +381,52 @@ async fn broadcast_taxi_order(
     }
 }
 
+#[tauri::command]
+async fn send_avp_parking(
+    app: tauri::AppHandle,
+    vehicle_id: i32,
+) -> Result<String, String> {
+    // 1. 构建AVP泊车协议数据域 (2字节)
+    let mut data = Vec::with_capacity(2);
+    
+    // 车辆编号 (1字节, UINT8)
+    data.push(vehicle_id as u8);
+    
+    // 停车位编号 (1字节, UINT8) - 写死为1号车位
+    data.push(1);
+
+    // 2. 发送消息给指定车辆
+    let connections = app.state::<socket::ConnectionManager>();
+    let sent_result = socket::SocketServer::send_to_vehicle(&connections, vehicle_id, 0x1004, &data);
+    
+    match sent_result {
+        Ok(_) => {
+            // 3. 发送成功，保存到数据库
+            if let Some(db) = app.try_state::<VehicleDatabase>() {
+                let avp_parking_request = CreateAvpParkingRequest {
+                    vehicle_id,
+                    parking_spot: 1, // 写死为1号车位
+                };
+                
+                match db.create_avp_parking(avp_parking_request).await {
+                    Ok(_) => {
+                        println!("✅ AVP泊车记录已保存到数据库: 车辆{}, 车位{}", vehicle_id, 1);
+                    }
+                    Err(e) => {
+                        println!("❌ 保存AVP泊车记录到数据库失败: {}", e);
+                        // 虽然数据库保存失败，但消息已发送，所以不返回错误
+                    }
+                }
+            }
+            
+            Ok("AVP泊车指令发送成功".to_string())
+        }
+        Err(e) => {
+            Err(format!("发送AVP泊车指令失败: {}", e))
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -406,7 +452,8 @@ pub fn run() {
             get_socket_server_status,
             get_traffic_light_settings,
             update_traffic_light_settings,
-            broadcast_taxi_order
+            broadcast_taxi_order,
+            send_avp_parking
         ])
         .setup(|app| {
             // 初始化数据库

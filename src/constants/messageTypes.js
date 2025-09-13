@@ -13,6 +13,7 @@ export const SEND_MESSAGE_TYPES = {
     VEHICLE_CONTROL: 0x1001,         // 车辆控制指令
     DATA_RECORDING: 0x1002,          // 数据记录控制
     TAXI_ORDER: 0x1003,              // 出租车订单
+    AVP_PARKING: 0x1004,             // AVP自主代客泊车
 };
 
 // 车辆信息协议数据域定义 (37字节)
@@ -102,6 +103,16 @@ export const TAXI_ORDER_PROTOCOL = {
     DEFAULT_END_Y: 41.2,             // 默认终点Y坐标
 };
 
+// AVP自主代客泊车协议数据域定义 (2字节)
+export const AVP_PARKING_PROTOCOL = {
+    VEHICLE_ID_OFFSET: 0,            // 车辆编号偏移 (1字节, UINT8)
+    PARKING_SPOT_OFFSET: 1,          // 停车位编号偏移 (1字节, UINT8)
+    TOTAL_SIZE: 2,                   // 总大小 2字节
+    
+    // 默认停车位编号常量（暂时写死）
+    DEFAULT_PARKING_SPOT: 1,         // 默认停车位编号
+};
+
 // 协议常量
 export const PROTOCOL_CONSTANTS = {
     HEADER: [0xEF, 0xEF, 0xEF, 0xEF],        // 帧头
@@ -157,6 +168,7 @@ export default {
     VEHICLE_CONTROL_PROTOCOL,
     DATA_RECORDING_PROTOCOL,
     TAXI_ORDER_PROTOCOL,
+    AVP_PARKING_PROTOCOL,
     PROTOCOL_CONSTANTS,
     MessageTypeUtils
 };

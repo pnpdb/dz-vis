@@ -182,6 +182,11 @@ export default {
     position: relative;
 }
 
+/* 标题字号调整 */
+.form-label {
+    font-size: 13px !important;
+}
+
 .vehicle-cards {
     display: flex;
     flex-wrap: wrap;

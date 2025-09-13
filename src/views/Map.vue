@@ -7,14 +7,20 @@
 
         <!-- 悬浮控制元素 -->
         <div class="floating-controls">
-            <!-- 车辆列表 - 左上角 -->
-            <div class="floating-element car-list-floating">
+            <!-- 车辆选择和控制 - 左上角 -->
+            <div class="car-control-floating">
                 <CarList />
+                <CarButton />
             </div>
 
-            <!-- 车辆控制按钮 - 左下角 -->
-            <div class="floating-element car-button-floating">
-                <CarButton />
+            <!-- 车辆运行时间统计图表 - 左中 -->
+            <div class="floating-element vehicle-time-chart-floating">
+                <VehicleTimeChart />
+            </div>
+
+            <!-- 自动驾驶行为统计图表 - 左中下 -->
+            <div class="floating-element driving-behavior-chart-floating">
+                <DrivingBehaviorChart />
             </div>
         </div>
 
@@ -68,6 +74,8 @@ import { ref, onMounted, onBeforeUnmount } from 'vue';
 import CarList from '@/components/CarList.vue';
 import CarButton from '@/components/CarButton.vue';
 import Scene3D from '@/components/Scene3D/index.vue';
+import VehicleTimeChart from '@/components/VehicleTimeChart.vue';
+import DrivingBehaviorChart from '@/components/DrivingBehaviorChart.vue';
 import { socketManager } from '@/utils/socketManager.js';
 
 // 实时数据
@@ -219,21 +227,59 @@ onBeforeUnmount(() => {
     }
 }
 
-.car-list-floating {
+.car-control-floating {
+    position: absolute;
+    pointer-events: auto;
     top: 140px;
     left: 20px;
     width: 220px;
-    max-height: 200px;
-    overflow-y: auto;
-    padding: 12px;
     z-index: 1000; /* 提高层级确保下拉列表显示在最上层 */
+    
+    /* 移除外框，让子组件自己处理样式 */
+    background: transparent;
+    border: none;
+    padding: 0;
 }
 
-.car-button-floating {
-    top: 300px; /* 移动到车辆列表下方，留出间距 */
+/* 车辆选择和控制区域的表单组样式 */
+.car-control-floating .form-group {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(0, 240, 255, 0.2);
+    margin-bottom: 16px; /* 增加间距 */
+    padding: 10px;
+    border-radius: 8px;
+}
+
+/* 车辆控制区域标题字号调整 */
+.car-control-floating .form-group .form-label {
+    font-size: 11px !important;
+    margin-bottom: 4px;
+    gap: 4px;
+}
+
+/* 使用更高优先级确保生效 */
+.floating-controls .car-control-floating .form-label {
+    font-size: 11px !important;
+}
+
+/* 额外的强制样式覆盖 */
+div.car-control-floating .form-group .form-label,
+div.car-control-floating .form-label {
+    font-size: 11px !important;
+}
+
+.vehicle-time-chart-floating {
+    top: 555px; /* 大幅向下移动避免重叠 */
     left: 20px;
-    width: 220px;
-    padding: 12px;
+    width: 220px; /* 与上面元素宽度一致 */
+    padding: 0; /* 图表组件自己有padding */
+}
+
+.driving-behavior-chart-floating {
+    top: 735px; /* 大幅向下移动避免重叠 */
+    left: 20px;
+    width: 220px; /* 与上面元素宽度一致 */
+    padding: 0; /* 图表组件自己有padding */
 }
 
 /* 悬浮元素内部样式重置 */
@@ -262,16 +308,16 @@ onBeforeUnmount(() => {
     font-size: 12px;
 }
 
-:deep(.car-list-floating .el-select .el-input__wrapper) {
+:deep(.car-control-floating .el-select .el-input__wrapper) {
     min-height: 26px !important;
     height: 26px !important;
 }
 
-:deep(.car-list-floating .el-select .el-input) {
+:deep(.car-control-floating .el-select .el-input) {
     height: 26px !important;
 }
 
-:deep(.car-list-floating .el-select .el-input__inner) {
+:deep(.car-control-floating .el-select .el-input__inner) {
     font-size: 12px !important;
     padding: 2px 12px !important;
     line-height: 22px !important;
@@ -279,28 +325,30 @@ onBeforeUnmount(() => {
 }
 
 /* 更强制的高度控制 */
-.car-list-floating :deep(.el-select .el-input__wrapper) {
+.car-control-floating :deep(.el-select .el-input__wrapper) {
     min-height: 26px !important;
     height: 26px !important;
     box-sizing: border-box !important;
 }
 
-.car-list-floating :deep(.el-input) {
+.car-control-floating :deep(.el-input) {
     height: 26px !important;
 }
 
-.car-list-floating :deep(.el-input__inner) {
+.car-control-floating :deep(.el-input__inner) {
     height: 22px !important;
     line-height: 22px !important;
     padding: 2px 12px !important;
 }
 
-:deep(.floating-element .control-buttons) {
+:deep(.floating-element .control-buttons),
+.car-control-floating .control-buttons {
     gap: 6px !important;
     flex-direction: column !important;
 }
 
-:deep(.floating-element .control-btn) {
+:deep(.floating-element .control-btn),
+.car-control-floating .control-btn {
     padding: 6px 12px !important;
     font-size: 11px !important;
     border-radius: 6px !important;
@@ -308,7 +356,8 @@ onBeforeUnmount(() => {
     width: 100% !important;
 }
 
-:deep(.floating-element .control-btn .fa) {
+:deep(.floating-element .control-btn .fa),
+.car-control-floating .control-btn .fa {
     font-size: 10px !important;
     margin-right: 3px !important;
 }
@@ -321,21 +370,21 @@ onBeforeUnmount(() => {
 }
 
 /* 确保车辆选择下拉列表宽度与下拉框一致 */
-:deep(.car-list-floating .el-select) {
+:deep(.car-control-floating .el-select) {
     width: 100% !important;
 }
 
-:deep(.car-list-floating .el-select .el-select__popper.el-popper) {
+:deep(.car-control-floating .el-select .el-select__popper.el-popper) {
     width: 196px !important; /* 220px container - 24px padding */
     min-width: 196px !important;
 }
 
-:deep(.car-list-floating .el-select .el-select-dropdown) {
+:deep(.car-control-floating .el-select .el-select-dropdown) {
     width: 196px !important;
     min-width: 196px !important;
 }
 
-:deep(.car-list-floating .el-select .el-select-dropdown .el-select-dropdown__wrap) {
+:deep(.car-control-floating .el-select .el-select-dropdown .el-select-dropdown__wrap) {
     max-height: 150px !important;
 }
 
@@ -416,8 +465,7 @@ onBeforeUnmount(() => {
 
 /* 响应式调整 */
 @media (max-width: 1400px) {
-    .car-list-floating,
-    .car-button-floating {
+    .car-control-floating {
         width: 200px;
     }
     
@@ -432,8 +480,7 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1200px) {
-    .car-list-floating,
-    .car-button-floating {
+    .car-control-floating {
         width: 180px;
     }
     
@@ -451,16 +498,16 @@ onBeforeUnmount(() => {
 }
 
 /* 悬浮控制元素滚动条 */
-.car-list-floating::-webkit-scrollbar {
+.car-control-floating::-webkit-scrollbar {
     width: 4px;
 }
 
-.car-list-floating::-webkit-scrollbar-track {
+.car-control-floating::-webkit-scrollbar-track {
     background: rgba(255, 255, 255, 0.05);
     border-radius: 2px;
 }
 
-.car-list-floating::-webkit-scrollbar-thumb {
+.car-control-floating::-webkit-scrollbar-thumb {
     background: linear-gradient(to bottom, 
         var(--primary), 
         var(--primary-dark)

@@ -469,6 +469,24 @@ async fn send_avp_pickup(
     }
 }
 
+#[tauri::command]
+async fn get_vehicle_online_stats(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let db = app.state::<VehicleDatabase>();
+    match db.get_recent_vehicle_online_time(7).await {
+        Ok(records) => Ok(serde_json::to_value(records).unwrap()),
+        Err(e) => Err(format!("获取车辆在线统计失败: {}", e))
+    }
+}
+
+#[tauri::command]
+async fn get_driving_behavior_stats(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let db = app.state::<VehicleDatabase>();
+    match db.get_driving_behavior_stats().await {
+        Ok(stats) => Ok(stats),
+        Err(e) => Err(format!("获取自动驾驶行为统计失败: {}", e))
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -496,7 +514,9 @@ pub fn run() {
             update_traffic_light_settings,
             broadcast_taxi_order,
             send_avp_parking,
-            send_avp_pickup
+            send_avp_pickup,
+            get_vehicle_online_stats,
+            get_driving_behavior_stats
         ])
         .setup(|app| {
             // 初始化数据库

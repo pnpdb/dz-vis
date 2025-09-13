@@ -198,7 +198,7 @@
                         </el-form-item>
                     </el-form>
                 </el-tab-pane>
-                <el-tab-pane label="连接设置" name="connection">
+                <el-tab-pane label="车辆设置" name="connection">
                     <VehicleConnectionManager />
                 </el-tab-pane>
                 <el-tab-pane label="高级设置" name="advanced">

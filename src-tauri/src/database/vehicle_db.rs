@@ -141,6 +141,26 @@ impl VehicleDatabase {
         // 创建索引（如果不存在）
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_avp_pickup_vehicle_id ON avp_pickup(vehicle_id)")
             .execute(&self.pool).await?;
+
+        // 创建车辆在线时长统计表
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS vehicle_online_time (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                vehicle_id INTEGER NOT NULL,
+                date TEXT NOT NULL,
+                online_minutes INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL,
+                UNIQUE(vehicle_id, date)
+            )
+            "#
+        ).execute(&self.pool).await?;
+
+        // 创建索引（如果不存在）
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_vehicle_online_time_date ON vehicle_online_time(date)")
+            .execute(&self.pool).await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_vehicle_online_time_vehicle_id ON vehicle_online_time(vehicle_id)")
+            .execute(&self.pool).await?;
         
         println!("✅ 数据库表结构检查完成");
         Ok(())
@@ -542,5 +562,98 @@ impl VehicleDatabase {
         }
 
         Ok(pickup_records)
+    }
+
+    /// 更新车辆在线时长
+    pub async fn update_vehicle_online_time(&self, vehicle_id: i32, minutes: i32) -> Result<(), sqlx::Error> {
+        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        let now = Utc::now().to_rfc3339();
+
+        // 使用 INSERT OR IGNORE + UPDATE 的方式确保记录存在并更新
+        sqlx::query(
+            r#"
+            INSERT OR IGNORE INTO vehicle_online_time (vehicle_id, date, online_minutes, updated_at)
+            VALUES (?, ?, 0, ?)
+            "#
+        )
+        .bind(vehicle_id)
+        .bind(&today)
+        .bind(&now)
+        .execute(&self.pool)
+        .await?;
+
+        // 更新在线时长
+        sqlx::query(
+            r#"
+            UPDATE vehicle_online_time 
+            SET online_minutes = online_minutes + ?, updated_at = ?
+            WHERE vehicle_id = ? AND date = ?
+            "#
+        )
+        .bind(minutes)
+        .bind(&now)
+        .bind(vehicle_id)
+        .bind(&today)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// 获取最近7天的车辆在线时长统计
+    pub async fn get_recent_vehicle_online_time(&self, days: i32) -> Result<Vec<VehicleOnlineTime>, sqlx::Error> {
+        let start_date = chrono::Utc::now() - chrono::Duration::days(days as i64);
+        let start_date_str = start_date.format("%Y-%m-%d").to_string();
+
+        let rows = sqlx::query(
+            r#"
+            SELECT id, vehicle_id, date, online_minutes, updated_at 
+            FROM vehicle_online_time 
+            WHERE date >= ? 
+            ORDER BY date DESC, vehicle_id
+            "#
+        )
+        .bind(&start_date_str)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut records = Vec::new();
+        for row in rows {
+            records.push(VehicleOnlineTime {
+                id: row.get("id"),
+                vehicle_id: row.get("vehicle_id"),
+                date: row.get("date"),
+                online_minutes: row.get("online_minutes"),
+                updated_at: row.get("updated_at"),
+            });
+        }
+
+        Ok(records)
+    }
+
+    /// 获取自动驾驶行为统计
+    pub async fn get_driving_behavior_stats(&self) -> Result<serde_json::Value, sqlx::Error> {
+        // 统计出租车订单数量
+        let taxi_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM taxi_orders")
+            .fetch_one(&self.pool)
+            .await?;
+
+        // 统计AVP取车数量
+        let pickup_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM avp_pickup")
+            .fetch_one(&self.pool)
+            .await?;
+
+        // 统计AVP泊车数量
+        let parking_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM avp_parking")
+            .fetch_one(&self.pool)
+            .await?;
+
+        let stats = serde_json::json!({
+            "taxi_orders": taxi_count,
+            "avp_pickup": pickup_count,
+            "avp_parking": parking_count
+        });
+
+        Ok(stats)
     }
 }

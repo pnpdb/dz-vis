@@ -129,6 +129,22 @@ pub struct CreateAvpPickupRequest {
     pub vehicle_id: i32,
 }
 
+#[derive(Debug, sqlx::FromRow, serde::Serialize, serde::Deserialize)]
+pub struct VehicleOnlineTime {
+    pub id: i64,
+    pub vehicle_id: i32,            // 车辆编号
+    pub date: String,               // 日期 (YYYY-MM-DD)
+    pub online_minutes: i32,        // 累计在线时长（分钟）
+    pub updated_at: String,         // 最后更新时间
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateVehicleOnlineTimeRequest {
+    pub vehicle_id: i32,
+    pub date: String,
+    pub online_minutes: i32,
+}
+
 impl UpdateTrafficLightSettingsRequest {
     /// 验证请求参数
     pub fn validate(&self) -> Result<(), String> {

@@ -177,6 +177,11 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
+/* 标题字号调整 */
+.form-label {
+    font-size: 13px !important;
+}
+
 .control-buttons {
     display: flex;
     flex-direction: column;

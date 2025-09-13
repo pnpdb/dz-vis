@@ -160,4 +160,38 @@ export class TrafficLightAPI {
     }
 }
 
+/**
+ * 统计数据API工具类
+ * 封装与Rust后端的统计数据操作
+ */
+export class StatisticsAPI {
+    /**
+     * 获取车辆在线时长统计
+     */
+    static async getVehicleOnlineStats() {
+        try {
+            const result = await invoke('get_vehicle_online_stats');
+            console.log('✅ 获取车辆在线统计:', result);
+            return { success: true, data: result };
+        } catch (error) {
+            console.error('❌ 获取车辆在线统计失败:', error);
+            return { success: false, error: error.toString() };
+        }
+    }
+
+    /**
+     * 获取自动驾驶行为统计
+     */
+    static async getDrivingBehaviorStats() {
+        try {
+            const result = await invoke('get_driving_behavior_stats');
+            console.log('✅ 获取自动驾驶行为统计:', result);
+            return { success: true, data: result };
+        } catch (error) {
+            console.error('❌ 获取自动驾驶行为统计失败:', error);
+            return { success: false, error: error.toString() };
+        }
+    }
+}
+
 export default VehicleConnectionAPI;

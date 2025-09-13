@@ -137,6 +137,40 @@ impl SocketServer {
             });
             println!("✅ 车辆 {} (ID: {}) 连接已建立，当前连接数: {}", vehicle_name, vehicle_id, conns.len());
         }
+
+        // 启动在线时长统计任务
+        let app_handle_for_timer = app_handle.clone();
+        let timer_vehicle_id = vehicle_id;
+        let connections_for_timer = connections.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60)); // 每分钟更新一次
+            loop {
+                interval.tick().await;
+                
+                // 检查车辆是否还在线
+                {
+                    let conns = connections_for_timer.read();
+                    if !conns.contains_key(&timer_vehicle_id) {
+                        println!("⏰ 车辆 {} 已断开，停止在线时长统计", timer_vehicle_id);
+                        break;
+                    }
+                }
+
+                // 更新在线时长（+1分钟）
+                if let Some(db) = app_handle_for_timer.try_state::<VehicleDatabase>() {
+                    match db.update_vehicle_online_time(timer_vehicle_id, 1).await {
+                        Ok(_) => {
+                            println!("📊 车辆 {} 在线时长已更新 (+1分钟)", timer_vehicle_id);
+                        }
+                        Err(e) => {
+                            println!("❌ 更新车辆 {} 在线时长失败: {}", timer_vehicle_id, e);
+                        }
+                    }
+                } else {
+                    println!("❌ 无法获取数据库实例，无法更新在线时长");
+                }
+            }
+        });
         
         let mut parser = ProtocolParser::new();
         let mut buffer = [0u8; 1024];

@@ -1,6 +1,6 @@
 <template>
-    <div class="form-group">
-        <div class="flex">
+        <div class="form-group camera-container-group">
+            <div class="flex">
             <label class="form-label"><fa icon="camera" /> 车载摄像头</label>
             <el-switch
                 v-model="cameraOn"
@@ -12,7 +12,6 @@
         <div class="camera-preview">
             <fa icon="camera" class="camera-icon" />
             <div class="camera-desc">暂无视频</div>
-            <div class="camera-overlay">监控相机 • 720P • 30FPS</div>
         </div>
         <div class="camera-controls">
             <button class="btn btn-secondary">
@@ -53,19 +52,19 @@ const startParallelDriving = () => {
     justify-content: center;
     position: relative;
     overflow: hidden;
-    margin-bottom: 10px;
+    margin-bottom: 5px;
 }
 
 .camera-icon {
     font-size: 3rem;
     color: rgba(255, 255, 255, 0.2);
-    margin-bottom: 10px;
+    margin-bottom: 5px;
 }
 
 .camera-desc {
     color: rgba(255, 255, 255, 0.6);
-    font-size: 16px;
-    margin-bottom: 10px;
+    font-size: 14px;
+    margin: 5px 0;
 }
 
 .camera-overlay {
@@ -101,5 +100,19 @@ const startParallelDriving = () => {
 
 .flex {
     margin-bottom: 8px;
+}
+
+/* 调整车载摄像头区域的间距 */
+.camera-container-group {
+    gap: 5px !important;
+}
+
+.camera-container-group > .flex {
+    margin-bottom: 5px !important;
+}
+
+.camera-container-group > .camera-preview {
+    margin-top: 0px !important;
+    margin-bottom: 5px !important;
 }
 </style>

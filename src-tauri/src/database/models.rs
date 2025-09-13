@@ -163,3 +163,105 @@ impl UpdateTrafficLightSettingsRequest {
         Ok(())
     }
 }
+
+/// 沙盘服务设置模型
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct SandboxServiceSettings {
+    pub id: i64,
+    pub ip_address: String,     // 沙盘服务IP地址
+    pub port: i32,              // 沙盘服务端口
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// 创建/更新沙盘服务设置的请求参数
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateOrUpdateSandboxServiceRequest {
+    pub ip_address: String,
+    pub port: i32,
+}
+
+/// 沙盘摄像头设置模型
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct SandboxCamera {
+    pub id: i64,
+    pub name: String,           // 摄像头名称
+    pub camera_type: String,    // 摄像头类型：'RJ45' 或 'USB'
+    pub rtsp_url: Option<String>,    // RTSP地址（RJ45类型使用）
+    pub device_index: Option<i32>,   // 设备文件索引（USB类型使用）
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// 创建沙盘摄像头的请求参数
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateSandboxCameraRequest {
+    pub name: String,
+    pub camera_type: String,    // 'RJ45' 或 'USB'
+    pub rtsp_url: Option<String>,
+    pub device_index: Option<i32>,
+}
+
+/// 更新沙盘摄像头的请求参数
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateSandboxCameraRequest {
+    pub name: Option<String>,
+    pub camera_type: Option<String>,
+    pub rtsp_url: Option<String>,
+    pub device_index: Option<i32>,
+}
+
+impl CreateOrUpdateSandboxServiceRequest {
+    /// 验证请求参数
+    pub fn validate(&self) -> Result<(), String> {
+        if self.ip_address.parse::<std::net::IpAddr>().is_err() {
+            return Err("IP地址格式无效".to_string());
+        }
+        
+        if self.port <= 0 || self.port > 65535 {
+            return Err("端口号必须在1-65535之间".to_string());
+        }
+        
+        Ok(())
+    }
+}
+
+impl CreateSandboxCameraRequest {
+    /// 验证请求参数
+    pub fn validate(&self) -> Result<(), String> {
+        if self.name.trim().is_empty() {
+            return Err("摄像头名称不能为空".to_string());
+        }
+        
+        if self.camera_type != "RJ45" && self.camera_type != "USB" {
+            return Err("摄像头类型必须是RJ45或USB".to_string());
+        }
+        
+        match self.camera_type.as_str() {
+            "RJ45" => {
+                if self.rtsp_url.is_none() || self.rtsp_url.as_ref().unwrap().trim().is_empty() {
+                    return Err("RJ45摄像头必须提供RTSP地址".to_string());
+                }
+                // 简单的RTSP URL验证
+                if let Some(url) = &self.rtsp_url {
+                    if !url.starts_with("rtsp://") {
+                        return Err("RTSP地址格式无效，必须以rtsp://开头".to_string());
+                    }
+                }
+            }
+            "USB" => {
+                if self.device_index.is_none() {
+                    return Err("USB摄像头必须提供设备索引".to_string());
+                }
+                if let Some(index) = self.device_index {
+                    if index < 0 {
+                        return Err("设备索引必须为非负整数".to_string());
+                    }
+                }
+            }
+            _ => unreachable!()
+        }
+        
+        Ok(())
+    }
+}

@@ -194,4 +194,144 @@ export class StatisticsAPI {
     }
 }
 
+/**
+ * 沙盘设置管理API工具类
+ * 封装与Rust后端的沙盘设置操作
+ */
+export class SandboxAPI {
+    /**
+     * 获取沙盘服务设置
+     */
+    static async getServiceSettings() {
+        try {
+            const result = await invoke('get_sandbox_service_settings');
+            console.log('✅ 获取沙盘服务设置:', result);
+            return { success: true, data: result };
+        } catch (error) {
+            console.error('❌ 获取沙盘服务设置失败:', error);
+            return { success: false, error: error.toString() };
+        }
+    }
+
+    /**
+     * 创建或更新沙盘服务设置
+     */
+    static async createOrUpdateServiceSettings(settingsData) {
+        try {
+            const result = await invoke('create_or_update_sandbox_service_settings', {
+                request: settingsData
+            });
+            console.log('✅ 保存沙盘服务设置成功:', result);
+            return { success: true, data: result };
+        } catch (error) {
+            console.error('❌ 保存沙盘服务设置失败:', error);
+            return { success: false, error: error.toString() };
+        }
+    }
+
+    /**
+     * 删除沙盘服务设置
+     */
+    static async deleteServiceSettings() {
+        try {
+            const result = await invoke('delete_sandbox_service_settings');
+            console.log('✅ 删除沙盘服务设置成功:', result);
+            return { success: true, data: result };
+        } catch (error) {
+            console.error('❌ 删除沙盘服务设置失败:', error);
+            return { success: false, error: error.toString() };
+        }
+    }
+
+    /**
+     * 获取所有沙盘摄像头
+     */
+    static async getAllCameras() {
+        try {
+            const result = await invoke('get_all_sandbox_cameras');
+            console.log('✅ 获取沙盘摄像头列表:', result);
+            return { success: true, data: result };
+        } catch (error) {
+            console.error('❌ 获取沙盘摄像头列表失败:', error);
+            return { success: false, error: error.toString() };
+        }
+    }
+
+    /**
+     * 创建沙盘摄像头
+     */
+    static async createCamera(cameraData) {
+        try {
+            const result = await invoke('create_sandbox_camera', {
+                request: cameraData
+            });
+            console.log('✅ 创建沙盘摄像头成功:', result);
+            return { success: true, data: result };
+        } catch (error) {
+            console.error('❌ 创建沙盘摄像头失败:', error);
+            return { success: false, error: error.toString() };
+        }
+    }
+
+    /**
+     * 更新沙盘摄像头
+     */
+    static async updateCamera(id, updateData) {
+        try {
+            const result = await invoke('update_sandbox_camera', {
+                id: id,
+                request: updateData
+            });
+            console.log('✅ 更新沙盘摄像头成功:', result);
+            return { success: true, data: result };
+        } catch (error) {
+            console.error('❌ 更新沙盘摄像头失败:', error);
+            return { success: false, error: error.toString() };
+        }
+    }
+
+    /**
+     * 删除沙盘摄像头
+     */
+    static async deleteCamera(id) {
+        try {
+            const result = await invoke('delete_sandbox_camera', { id });
+            console.log('✅ 删除沙盘摄像头成功:', result);
+            return { success: true, data: result };
+        } catch (error) {
+            console.error('❌ 删除沙盘摄像头失败:', error);
+            return { success: false, error: error.toString() };
+        }
+    }
+
+    /**
+     * 验证IP地址格式（复用VehicleConnectionAPI的方法）
+     */
+    static validateIPAddress(ip) {
+        return VehicleConnectionAPI.validateIPAddress(ip);
+    }
+
+    /**
+     * 验证端口号（复用VehicleConnectionAPI的方法）
+     */
+    static validatePort(port) {
+        return VehicleConnectionAPI.validatePort(port);
+    }
+
+    /**
+     * 验证RTSP URL格式
+     */
+    static validateRTSPUrl(url) {
+        const rtspRegex = /^rtsp:\/\/.+/;
+        return rtspRegex.test(url);
+    }
+
+    /**
+     * 格式化创建时间（复用VehicleConnectionAPI的方法）
+     */
+    static formatCreatedAt(isoString) {
+        return VehicleConnectionAPI.formatCreatedAt(isoString);
+    }
+}
+
 export default VehicleConnectionAPI;

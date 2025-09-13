@@ -201,6 +201,9 @@
                 <el-tab-pane label="车辆设置" name="connection">
                     <VehicleConnectionManager />
                 </el-tab-pane>
+                <el-tab-pane label="沙盘设置" name="sandbox">
+                    <SandboxSettingsManager />
+                </el-tab-pane>
                 <el-tab-pane label="高级设置" name="advanced">
                     <el-form label-width="120px">
                         <el-form-item label="调试模式">
@@ -244,6 +247,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { TauriUtils } from '@/utils/tauri.js';
 import { ElMessage } from 'element-plus';
 import VehicleConnectionManager from '@/components/VehicleConnectionManager.vue';
+import SandboxSettingsManager from '@/components/SandboxSettingsManager.vue';
 
 const router = useRouter();
 const route = useRoute();

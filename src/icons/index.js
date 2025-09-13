@@ -81,7 +81,8 @@ import {
     faCube,
     faServer,
     faTimesCircle,
-    faQuestionCircle
+    faQuestionCircle,
+    faSpinner
 } from '@fortawesome/free-solid-svg-icons'
 
 // 将图标添加到库中
@@ -166,5 +167,6 @@ library.add(
     faCube,
     faServer,
     faTimesCircle,
-    faQuestionCircle
+    faQuestionCircle,
+    faSpinner
 )

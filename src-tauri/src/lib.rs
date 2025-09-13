@@ -4,8 +4,9 @@ use local_ip_address::local_ip;
 
 mod socket;
 mod database;
+mod video_stream;
 
-use database::{VehicleDatabase, CreateVehicleConnectionRequest, UpdateVehicleConnectionRequest, UpdateTrafficLightSettingsRequest, CreateTaxiOrderRequest, CreateAvpParkingRequest, CreateAvpPickupRequest};
+use database::{VehicleDatabase, CreateVehicleConnectionRequest, UpdateVehicleConnectionRequest, UpdateTrafficLightSettingsRequest, CreateTaxiOrderRequest, CreateAvpParkingRequest, CreateAvpPickupRequest, CreateOrUpdateSandboxServiceRequest, CreateSandboxCameraRequest, UpdateSandboxCameraRequest};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -487,6 +488,152 @@ async fn get_driving_behavior_stats(app: tauri::AppHandle) -> Result<serde_json:
     }
 }
 
+// ============ 沙盘设置相关命令 ============
+
+/// 获取沙盘服务设置
+#[tauri::command]
+async fn get_sandbox_service_settings(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let db = app.state::<VehicleDatabase>();
+    match db.get_sandbox_service_settings().await {
+        Ok(settings) => Ok(serde_json::to_value(settings).unwrap()),
+        Err(e) => Err(format!("获取沙盘服务设置失败: {}", e))
+    }
+}
+
+/// 创建或更新沙盘服务设置
+#[tauri::command]
+async fn create_or_update_sandbox_service_settings(
+    app: tauri::AppHandle,
+    request: CreateOrUpdateSandboxServiceRequest
+) -> Result<serde_json::Value, String> {
+    // 验证请求参数
+    if let Err(e) = request.validate() {
+        return Err(e);
+    }
+    
+    let db = app.state::<VehicleDatabase>();
+    match db.create_or_update_sandbox_service_settings(request).await {
+        Ok(settings) => Ok(serde_json::to_value(settings).unwrap()),
+        Err(e) => Err(format!("创建或更新沙盘服务设置失败: {}", e))
+    }
+}
+
+/// 删除沙盘服务设置
+#[tauri::command]
+async fn delete_sandbox_service_settings(app: tauri::AppHandle) -> Result<String, String> {
+    let db = app.state::<VehicleDatabase>();
+    match db.delete_sandbox_service_settings().await {
+        Ok(true) => Ok("删除成功".to_string()),
+        Ok(false) => Err("没有找到要删除的设置".to_string()),
+        Err(e) => Err(format!("删除沙盘服务设置失败: {}", e))
+    }
+}
+
+/// 获取所有沙盘摄像头
+#[tauri::command]
+async fn get_all_sandbox_cameras(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let db = app.state::<VehicleDatabase>();
+    match db.get_all_sandbox_cameras().await {
+        Ok(cameras) => Ok(serde_json::to_value(cameras).unwrap()),
+        Err(e) => Err(format!("获取沙盘摄像头列表失败: {}", e))
+    }
+}
+
+/// 创建沙盘摄像头
+#[tauri::command]
+async fn create_sandbox_camera(
+    app: tauri::AppHandle,
+    request: CreateSandboxCameraRequest
+) -> Result<serde_json::Value, String> {
+    // 验证请求参数
+    if let Err(e) = request.validate() {
+        return Err(e);
+    }
+    
+    let db = app.state::<VehicleDatabase>();
+    match db.create_sandbox_camera(request).await {
+        Ok(camera) => Ok(serde_json::to_value(camera).unwrap()),
+        Err(e) => Err(format!("创建沙盘摄像头失败: {}", e))
+    }
+}
+
+/// 更新沙盘摄像头
+#[tauri::command]
+async fn update_sandbox_camera(
+    app: tauri::AppHandle,
+    id: i64,
+    request: UpdateSandboxCameraRequest
+) -> Result<serde_json::Value, String> {
+    let db = app.state::<VehicleDatabase>();
+    match db.update_sandbox_camera(id, request).await {
+        Ok(Some(camera)) => Ok(serde_json::to_value(camera).unwrap()),
+        Ok(None) => Err("摄像头不存在".to_string()),
+        Err(e) => Err(format!("更新沙盘摄像头失败: {}", e))
+    }
+}
+
+/// 删除沙盘摄像头
+#[tauri::command]
+async fn delete_sandbox_camera(app: tauri::AppHandle, id: i64) -> Result<String, String> {
+    let db = app.state::<VehicleDatabase>();
+    match db.delete_sandbox_camera(id).await {
+        Ok(true) => Ok("删除成功".to_string()),
+        Ok(false) => Err("摄像头不存在".to_string()),
+        Err(e) => Err(format!("删除沙盘摄像头失败: {}", e))
+    }
+}
+
+// ============ 视频流相关命令 ============
+
+/// 启动视频流服务器
+#[tauri::command]
+async fn start_video_stream_server(app: tauri::AppHandle, port: u16) -> Result<String, String> {
+    println!("🎥 启动视频流服务器，端口: {}", port);
+    
+    let db = app.state::<VehicleDatabase>();
+    let db_clone = {
+        let db_ref: &VehicleDatabase = db.inner();
+        db_ref.clone()
+    };
+    let server = video_stream::VideoStreamServer::new(port, std::sync::Arc::new(db_clone));
+    
+    // 在后台启动视频流服务器
+    tokio::spawn(async move {
+        println!("📺 视频流服务器开始监听...");
+        if let Err(e) = server.start().await {
+            let error_msg = e.to_string();
+            if error_msg.contains("Address already in use") {
+                println!("ℹ️ 视频流服务器端口{}已被占用，可能已有实例在运行", port);
+            } else {
+                eprintln!("❌ 视频流服务器错误: {}", e);
+            }
+        }
+    });
+    
+    // 给服务器一点时间启动
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    
+    let result = format!("视频流服务器启动在端口: {}", port);
+    println!("✅ {}", result);
+    Ok(result)
+}
+
+/// 获取摄像头流URL
+#[tauri::command]
+async fn get_camera_stream_url(camera_id: i64, server_port: Option<u16>) -> Result<String, String> {
+    let port = server_port.unwrap_or(9001);
+    let url = format!("http://127.0.0.1:{}/stream/{}", port, camera_id);
+    Ok(url)
+}
+
+/// 获取摄像头WebSocket URL
+#[tauri::command]
+async fn get_camera_websocket_url(camera_id: i64, server_port: Option<u16>) -> Result<String, String> {
+    let port = server_port.unwrap_or(9001);
+    let url = format!("ws://127.0.0.1:{}/ws/camera/{}", port, camera_id);
+    Ok(url)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -516,7 +663,17 @@ pub fn run() {
             send_avp_parking,
             send_avp_pickup,
             get_vehicle_online_stats,
-            get_driving_behavior_stats
+            get_driving_behavior_stats,
+            get_sandbox_service_settings,
+            create_or_update_sandbox_service_settings,
+            delete_sandbox_service_settings,
+            get_all_sandbox_cameras,
+            create_sandbox_camera,
+            update_sandbox_camera,
+            delete_sandbox_camera,
+            start_video_stream_server,
+            get_camera_stream_url,
+            get_camera_websocket_url
         ])
         .setup(|app| {
             // 初始化数据库

@@ -3,6 +3,7 @@ use chrono::Utc;
 use crate::database::models::*;
 
 /// 车辆连接数据库管理器
+#[derive(Clone)]
 pub struct VehicleDatabase {
     pool: Pool<Sqlite>,
 }
@@ -160,6 +161,38 @@ impl VehicleDatabase {
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_vehicle_online_time_date ON vehicle_online_time(date)")
             .execute(&self.pool).await?;
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_vehicle_online_time_vehicle_id ON vehicle_online_time(vehicle_id)")
+            .execute(&self.pool).await?;
+
+        // 创建沙盘服务设置表
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS sandbox_service_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ip_address TEXT NOT NULL,
+                port INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            "#
+        ).execute(&self.pool).await?;
+
+        // 创建沙盘摄像头设置表
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS sandbox_cameras (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                camera_type TEXT NOT NULL CHECK (camera_type IN ('RJ45', 'USB')),
+                rtsp_url TEXT,
+                device_index INTEGER,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            "#
+        ).execute(&self.pool).await?;
+
+        // 创建索引（如果不存在）
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_sandbox_camera_type ON sandbox_cameras(camera_type)")
             .execute(&self.pool).await?;
         
         println!("✅ 数据库表结构检查完成");
@@ -655,5 +688,219 @@ impl VehicleDatabase {
         });
 
         Ok(stats)
+    }
+
+    // ============ 沙盘设置相关方法 ============
+
+    /// 获取沙盘服务设置
+    pub async fn get_sandbox_service_settings(&self) -> Result<Option<SandboxServiceSettings>, sqlx::Error> {
+        let row = sqlx::query("SELECT * FROM sandbox_service_settings ORDER BY id DESC LIMIT 1")
+            .fetch_optional(&self.pool)
+            .await?;
+
+        if let Some(row) = row {
+            Ok(Some(SandboxServiceSettings {
+                id: row.get("id"),
+                ip_address: row.get("ip_address"),
+                port: row.get("port"),
+                created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))
+                    .unwrap_or_default()
+                    .with_timezone(&chrono::Utc),
+                updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))
+                    .unwrap_or_default()
+                    .with_timezone(&chrono::Utc),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// 创建或更新沙盘服务设置（仅保存一条数据）
+    pub async fn create_or_update_sandbox_service_settings(
+        &self,
+        request: CreateOrUpdateSandboxServiceRequest,
+    ) -> Result<SandboxServiceSettings, sqlx::Error> {
+        let now = Utc::now();
+
+        // 检查是否已存在记录
+        let existing = self.get_sandbox_service_settings().await?;
+
+        if let Some(existing_settings) = existing {
+            // 更新现有记录
+            sqlx::query(
+                r#"
+                UPDATE sandbox_service_settings 
+                SET ip_address = ?, port = ?, updated_at = ?
+                WHERE id = ?
+                "#
+            )
+            .bind(&request.ip_address)
+            .bind(request.port)
+            .bind(now.to_rfc3339())
+            .bind(existing_settings.id)
+            .execute(&self.pool)
+            .await?;
+
+            // 返回更新后的记录
+            Ok(SandboxServiceSettings {
+                id: existing_settings.id,
+                ip_address: request.ip_address,
+                port: request.port,
+                created_at: existing_settings.created_at,
+                updated_at: now,
+            })
+        } else {
+            // 创建新记录
+            let result = sqlx::query(
+                r#"
+                INSERT INTO sandbox_service_settings (ip_address, port, created_at, updated_at)
+                VALUES (?, ?, ?, ?)
+                "#
+            )
+            .bind(&request.ip_address)
+            .bind(request.port)
+            .bind(now.to_rfc3339())
+            .bind(now.to_rfc3339())
+            .execute(&self.pool)
+            .await?;
+
+            Ok(SandboxServiceSettings {
+                id: result.last_insert_rowid(),
+                ip_address: request.ip_address,
+                port: request.port,
+                created_at: now,
+                updated_at: now,
+            })
+        }
+    }
+
+    /// 删除沙盘服务设置
+    pub async fn delete_sandbox_service_settings(&self) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query("DELETE FROM sandbox_service_settings")
+            .execute(&self.pool)
+            .await?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// 获取所有沙盘摄像头
+    pub async fn get_all_sandbox_cameras(&self) -> Result<Vec<SandboxCamera>, sqlx::Error> {
+        let rows = sqlx::query("SELECT * FROM sandbox_cameras ORDER BY created_at DESC")
+            .fetch_all(&self.pool)
+            .await?;
+
+        let mut cameras = Vec::new();
+        for row in rows {
+            cameras.push(SandboxCamera {
+                id: row.get("id"),
+                name: row.get("name"),
+                camera_type: row.get("camera_type"),
+                rtsp_url: row.get("rtsp_url"),
+                device_index: row.get("device_index"),
+                created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))
+                    .unwrap_or_default()
+                    .with_timezone(&chrono::Utc),
+                updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))
+                    .unwrap_or_default()
+                    .with_timezone(&chrono::Utc),
+            });
+        }
+
+        Ok(cameras)
+    }
+
+    /// 创建沙盘摄像头
+    pub async fn create_sandbox_camera(
+        &self,
+        request: CreateSandboxCameraRequest,
+    ) -> Result<SandboxCamera, sqlx::Error> {
+        let now = Utc::now();
+
+        let result = sqlx::query(
+            r#"
+            INSERT INTO sandbox_cameras (name, camera_type, rtsp_url, device_index, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            "#
+        )
+        .bind(&request.name)
+        .bind(&request.camera_type)
+        .bind(&request.rtsp_url)
+        .bind(request.device_index)
+        .bind(now.to_rfc3339())
+        .bind(now.to_rfc3339())
+        .execute(&self.pool)
+        .await?;
+
+        Ok(SandboxCamera {
+            id: result.last_insert_rowid(),
+            name: request.name,
+            camera_type: request.camera_type,
+            rtsp_url: request.rtsp_url,
+            device_index: request.device_index,
+            created_at: now,
+            updated_at: now,
+        })
+    }
+
+    /// 更新沙盘摄像头
+    pub async fn update_sandbox_camera(
+        &self,
+        id: i64,
+        request: UpdateSandboxCameraRequest,
+    ) -> Result<Option<SandboxCamera>, sqlx::Error> {
+        let now = Utc::now();
+
+        // 获取现有记录
+        let existing_row = sqlx::query("SELECT * FROM sandbox_cameras WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        if let Some(existing) = existing_row {
+            let name = request.name.unwrap_or_else(|| existing.get("name"));
+            let camera_type = request.camera_type.unwrap_or_else(|| existing.get("camera_type"));
+            let rtsp_url = request.rtsp_url.or_else(|| existing.get("rtsp_url"));
+            let device_index = request.device_index.or_else(|| existing.get("device_index"));
+
+            sqlx::query(
+                r#"
+                UPDATE sandbox_cameras 
+                SET name = ?, camera_type = ?, rtsp_url = ?, device_index = ?, updated_at = ?
+                WHERE id = ?
+                "#
+            )
+            .bind(&name)
+            .bind(&camera_type)
+            .bind(&rtsp_url)
+            .bind(device_index)
+            .bind(now.to_rfc3339())
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+
+            Ok(Some(SandboxCamera {
+                id,
+                name,
+                camera_type,
+                rtsp_url,
+                device_index,
+                created_at: chrono::DateTime::parse_from_rfc3339(&existing.get::<String, _>("created_at"))
+                    .unwrap_or_default()
+                    .with_timezone(&chrono::Utc),
+                updated_at: now,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// 删除沙盘摄像头
+    pub async fn delete_sandbox_camera(&self, id: i64) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query("DELETE FROM sandbox_cameras WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(result.rows_affected() > 0)
     }
 }

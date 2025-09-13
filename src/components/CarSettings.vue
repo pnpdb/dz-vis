@@ -59,7 +59,7 @@ const toggleList = ref([
     },
     {
         id: 3,
-        name: '录制路径',
+        name: '录制',
         icon: 'video',
         status: false,
     },

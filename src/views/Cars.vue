@@ -27,51 +27,80 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import CarCamera from '@/components/CarCamera.vue';
 import Sensor from '@/components/Sensor.vue';
 import CarInfo from '@/components/CarInfo.vue';
 import StatusIndicator from '@/components/StatusIndicator.vue';
+import { useCarStore } from '@/stores/car.js';
 
-const selectedCar = ref('B');
-const vehicleStatus = ref('online'); // 车辆状态：online, offline, busy, error, warning
-let vehicleStatusTimer = null;
+const carStore = useCarStore();
+
+// 使用store中的选中车辆ID
+const selectedCar = computed(() => carStore.selectedCarId || 1);
+const vehicleStatus = ref('offline'); // 车辆状态：online, offline，默认离线
 
 const vehicleStatusText = computed(() => {
     const statusMap = {
         online: '在线',
-        offline: '离线',
-        busy: '忙碌',
-        error: '错误',
-        warning: '警告'
+        offline: '离线'
     };
-    return statusMap[vehicleStatus.value] || '未知';
+    return statusMap[vehicleStatus.value] || '离线';
 });
 
-// 开始车辆状态监控
-const startVehicleStatusMonitoring = () => {
-    vehicleStatusTimer = setInterval(() => {
-        // 模拟车辆状态变化
-        const states = ['online', 'busy', 'warning'];
-        const randomIndex = Math.floor(Math.random() * states.length);
-        vehicleStatus.value = states[randomIndex];
-        
-        // 偶尔模拟离线状态
-        if (Math.random() > 0.95) {
-            vehicleStatus.value = 'offline';
-        }
-    }, 8000); // 每8秒检查一次车辆状态
+// 处理车辆连接状态变化事件
+const handleVehicleConnectionStatus = (event) => {
+    console.log('📥 Cars页面收到vehicle-connection-status事件:', event.detail);
+    const { carId, isConnected } = event.detail;
+    
+    // 根据当前选择的车辆信息来匹配
+    const isCurrentVehicle = carId === selectedCar.value || 
+                           carId == selectedCar.value;   // 松散比较
+    
+    console.log(`🔍 Cars页面车辆匹配: 事件车辆${carId} vs 当前选中${selectedCar.value} = ${isCurrentVehicle}`);
+    
+    if (isCurrentVehicle) {
+        const oldStatus = vehicleStatus.value;
+        vehicleStatus.value = isConnected ? 'online' : 'offline';
+        console.log(`🚗 Cars页面状态更新: 车辆${carId}, 连接:${isConnected} → ${oldStatus} → ${vehicleStatus.value}`);
+        console.log(`🎨 StatusIndicator应该显示: ${vehicleStatus.value}`);
+    }
 };
 
+// 移除模拟状态监控，使用真实的连接状态
+const startVehicleStatusMonitoring = () => {
+    // 不再需要模拟状态变化，状态由实际连接事件驱动
+    console.log('🎯 车辆状态监控已启动（基于真实连接状态）');
+    console.log('🔍 当前vehicleStatus:', vehicleStatus.value);
+};
+
+// 监听选中车辆变化
+watch(selectedCar, (newVehicleId, oldVehicleId) => {
+    if (newVehicleId !== oldVehicleId) {
+        console.log(`🔄 Cars页面车辆切换: ${oldVehicleId} → ${newVehicleId}`);
+        // 重置为离线状态，等待实际连接状态确认
+        vehicleStatus.value = 'offline';
+        
+        // 请求新车辆的连接状态
+        console.log(`📤 Cars页面请求车辆状态: ${newVehicleId}`);
+        window.dispatchEvent(new CustomEvent('request-vehicle-status', {
+            detail: {
+                vehicleId: newVehicleId
+            }
+        }));
+    }
+}, { immediate: true });
+
 onMounted(() => {
-    // 模拟车辆状态监控
+    // 监听车辆连接状态变化事件
+    window.addEventListener('vehicle-connection-status', handleVehicleConnectionStatus);
+    // 启动状态监控（现在只是日志输出）
     startVehicleStatusMonitoring();
 });
 
 onBeforeUnmount(() => {
-    if (vehicleStatusTimer) {
-        clearInterval(vehicleStatusTimer);
-    }
+    // 清理事件监听器
+    window.removeEventListener('vehicle-connection-status', handleVehicleConnectionStatus);
 });
 </script>
 

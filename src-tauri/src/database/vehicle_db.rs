@@ -48,12 +48,10 @@ impl VehicleDatabase {
     
     /// 初始化数据库表结构
     async fn init_tables(&self) -> Result<(), sqlx::Error> {
-        // 先检查是否存在旧表结构，如果存在则删除重建
-        sqlx::query("DROP TABLE IF EXISTS vehicle_connections").execute(&self.pool).await?;
-        
+        // 只有在表不存在时才创建，保留现有数据
         sqlx::query(
             r#"
-            CREATE TABLE vehicle_connections (
+            CREATE TABLE IF NOT EXISTS vehicle_connections (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 vehicle_id INTEGER NOT NULL UNIQUE,
                 ip_address TEXT NOT NULL,
@@ -66,13 +64,13 @@ impl VehicleDatabase {
             "#
         ).execute(&self.pool).await?;
         
-        // 创建索引
-        sqlx::query("CREATE INDEX idx_vehicle_id ON vehicle_connections(vehicle_id)")
+        // 创建索引（如果不存在）
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_vehicle_id ON vehicle_connections(vehicle_id)")
             .execute(&self.pool).await?;
-        sqlx::query("CREATE INDEX idx_is_active ON vehicle_connections(is_active)")
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_is_active ON vehicle_connections(is_active)")
             .execute(&self.pool).await?;
         
-        println!("✅ 数据库表结构初始化完成");
+        println!("✅ 数据库表结构检查完成");
         Ok(())
     }
     

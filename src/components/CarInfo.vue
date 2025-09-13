@@ -12,8 +12,8 @@
                         <fa icon="compass" />
                         位置
                     </div>
-                    <div class="info-value">X: 116.40</div>
-                    <div class="info-value">Y: 39.90</div>
+                    <div class="info-value">X: {{ positionX.toFixed(2) }}</div>
+                    <div class="info-value">Y: {{ positionY.toFixed(2) }}</div>
                 </div>
                 <div class="info-card info-card-h">
                     <div class="info-title">
@@ -45,21 +45,21 @@
                     <fa icon="wifi" />
                     在线状态
                 </div>
-                <div class="info-value status-normal">在线</div>
+                <div :class="['info-value', getOnlineStatusClass()]">{{ getOnlineStatusText() }}</div>
             </div>
             <div class="info-card">
                 <div class="info-title">
                     <fa icon="route" />
                     导航状态
                 </div>
-                <div class="info-value">导航中</div>
+                <div :class="['info-value', navStatus.status ? 'status-normal' : 'status-warning']">{{ navStatus.text }}</div>
             </div>
         </div>
     </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import Dashboard from '@/components/Dashboard.vue';
 
 const props = defineProps({
@@ -69,27 +69,140 @@ const props = defineProps({
     }
 });
 
+// 车辆信息响应式数据
 const batteryValue = ref(82);
 const speedValue = ref(0);
 const hasSpeed = ref(false);
-let speedTimer = null;
+const positionX = ref(116.40);
+const positionY = ref(39.90);
+const isOnline = ref(false); // 简单的在线/离线状态
+const navStatus = ref({
+    status: false,
+    text: '未导航'
+});
+
+// 用于确定是否显示该车辆的信息
+const currentVehicleId = ref(null);
+
+// 重置车辆信息为默认状态
+const resetToDefaultState = () => {
+    speedValue.value = 0;
+    hasSpeed.value = false;
+    batteryValue.value = 0;
+    positionX.value = 0;
+    positionY.value = 0;
+    isOnline.value = false;
+    navStatus.value = {
+        status: false,
+        text: '未导航'
+    };
+    console.log(`🔄 重置车辆${props.carInfo}信息为默认状态`);
+};
+
+// 获取在线状态文本
+const getOnlineStatusText = () => {
+    return isOnline.value ? '在线' : '离线';
+};
+
+// 获取在线状态样式类
+const getOnlineStatusClass = () => {
+    return isOnline.value ? 'status-normal' : 'status-error';
+};
+
+// 检查车辆连接状态并更新UI
+const checkAndUpdateVehicleStatus = () => {
+    // 通过全局事件请求当前车辆的连接状态
+    console.log(`📤 CarInfo请求车辆状态: ${props.carInfo}`);
+    window.dispatchEvent(new CustomEvent('request-vehicle-status', {
+        detail: {
+            vehicleId: props.carInfo
+        }
+    }));
+};
 
 const handleSpeedValue = (value) => {
     speedValue.value = value;
 };
 
-onMounted(() => {
-    speedTimer = setInterval(() => {
-        // 速度随机在20-30之间
-        speedValue.value = Math.floor(Math.random() * 10) + 20;
+// 处理车辆信息更新事件
+const handleVehicleInfoUpdate = (event) => {
+    const vehicleInfo = event.detail;
+    
+    // 根据当前选择的车辆信息来匹配
+    // 支持多种匹配方式：数字、字符串、字母映射
+    const isCurrentVehicle = vehicleInfo.carId === props.carInfo || 
+                           vehicleInfo.vehicleId === props.carInfo ||
+                           vehicleInfo.carId == props.carInfo ||   // 松散比较
+                           vehicleInfo.vehicleId == props.carInfo || // 松散比较
+                           // 向后兼容：如果carInfo是字母，转换为数字ID
+                           (typeof props.carInfo === 'string' && 
+                            vehicleInfo.vehicleId === getVehicleIdFromLetter(props.carInfo));
+    
+    console.log(`🎯 CarInfo匹配: 车辆${vehicleInfo.vehicleId} vs 当前${props.carInfo} = ${isCurrentVehicle}`);
+    
+    if (isCurrentVehicle) {
+        // 更新车辆信息
+        speedValue.value = Number(vehicleInfo.speed.toFixed(3)); // 转换为数字类型
+        batteryValue.value = Math.round(vehicleInfo.battery);
+        positionX.value = vehicleInfo.position.x;
+        positionY.value = vehicleInfo.position.y;
+        navStatus.value = vehicleInfo.navigation;
         hasSpeed.value = true;
-    }, 1000);
+        isOnline.value = true;
+        
+        console.log(`更新车辆${props.carInfo}信息:`, vehicleInfo);
+    }
+};
+
+// 向后兼容：字母ID转数字ID的映射
+const getVehicleIdFromLetter = (letter) => {
+    const letterMap = { 'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 5 };
+    return letterMap[letter.toUpperCase()] || null;
+};
+
+// 处理车辆连接状态变化事件
+const handleVehicleConnectionStatus = (event) => {
+    console.log('📥 CarInfo收到vehicle-connection-status事件:', event.detail);
+    const { carId, isConnected } = event.detail;
+    
+    // 根据当前选择的车辆信息来匹配
+    const isCurrentVehicle = carId === props.carInfo || 
+                           carId == props.carInfo ||   // 松散比较
+                           // 向后兼容：如果carInfo是字母，转换为数字ID
+                           (typeof props.carInfo === 'string' && 
+                            carId === getVehicleIdFromLetter(props.carInfo));
+    
+    console.log(`🔍 CarInfo车辆匹配: 事件车辆${carId} vs 当前${props.carInfo} = ${isCurrentVehicle}`);
+    
+    if (isCurrentVehicle) {
+        const oldStatus = isOnline.value;
+        isOnline.value = isConnected;
+        console.log(`🔗 CarInfo状态更新: 车辆${carId}, 连接:${isConnected} → ${oldStatus} → ${isOnline.value}`);
+    }
+};
+
+// 监听车辆切换
+watch(() => props.carInfo, (newVehicleId, oldVehicleId) => {
+    if (newVehicleId !== oldVehicleId) {
+        console.log(`🔄 车辆切换: ${oldVehicleId} → ${newVehicleId}`);
+        resetToDefaultState();
+        checkAndUpdateVehicleStatus();
+    }
+}, { immediate: true });
+
+onMounted(() => {
+    // 监听车辆信息更新事件
+    window.addEventListener('vehicle-info-update', handleVehicleInfoUpdate);
+    // 监听车辆连接状态变化事件
+    window.addEventListener('vehicle-connection-status', handleVehicleConnectionStatus);
+    
+    // 初始检查车辆状态
+    checkAndUpdateVehicleStatus();
 });
 
 onBeforeUnmount(() => {
-    if (speedTimer) {
-        clearInterval(speedTimer);
-    }
+    window.removeEventListener('vehicle-info-update', handleVehicleInfoUpdate);
+    window.removeEventListener('vehicle-connection-status', handleVehicleConnectionStatus);
 });
 </script>
 
@@ -159,5 +272,18 @@ onBeforeUnmount(() => {
     .battery-level_low {
         background: linear-gradient(90deg, #fff 0%, #ff0080 100%);
     }
+}
+
+/* 状态颜色样式 */
+.status-normal {
+    color: var(--success, #00ff00);
+}
+
+/* .status-warning {
+    color: var(--warning, #ffaa00);
+} */
+
+.status-error {
+    color: var(--danger, #ff4444);
 }
 </style>

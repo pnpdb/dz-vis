@@ -128,6 +128,8 @@ impl SocketServer {
                     match result {
                         Ok(0) => {
                             println!("🔌 客户端 {} 断开连接", addr);
+                            // 发送断开连接事件到前端
+                            Self::send_disconnect_event(vehicle_id, &vehicle_name, &app_handle).await;
                             break;
                         }
                         Ok(n) => {
@@ -140,6 +142,8 @@ impl SocketServer {
                         }
                         Err(e) => {
                             println!("❌ 读取数据错误 {}: {}", addr, e);
+                            // 发送断开连接事件到前端
+                            Self::send_disconnect_event(vehicle_id, &vehicle_name, &app_handle).await;
                             break;
                         }
                     }
@@ -149,6 +153,8 @@ impl SocketServer {
                 Some(data) = rx.recv() => {
                     if let Err(e) = stream.write_all(&data).await {
                         println!("❌ 发送数据错误 {}: {}", addr, e);
+                        // 发送断开连接事件到前端
+                        Self::send_disconnect_event(vehicle_id, &vehicle_name, &app_handle).await;
                         break;
                     }
                 }
@@ -167,7 +173,7 @@ impl SocketServer {
 
     /// 处理接收到的消息
     async fn handle_message(message: SocketMessage, vehicle_id: i32, vehicle_name: &str, app_handle: &tauri::AppHandle) {
-        println!("📨 收到消息 - 车辆: {} (ID: {}), 类型: 0x{:04X}, 数据长度: {}", 
+        println!("📨 收到消息 - 车辆: {} (ID: {}), 类型: 0x{:04X}, 数据长度: {}",
                 vehicle_name, vehicle_id, message.message_type, message.data.len());
         
         // 发送到前端进行数据域解析
@@ -182,6 +188,25 @@ impl SocketServer {
         
         if let Err(e) = app_handle.emit("socket-message", frontend_message) {
             println!("❌ 发送消息到前端失败: {}", e);
+        }
+    }
+
+    /// 发送车辆断开连接事件到前端
+    async fn send_disconnect_event(vehicle_id: i32, vehicle_name: &str, app_handle: &tauri::AppHandle) {
+        let disconnect_message = serde_json::json!({
+            "type": "vehicle_disconnect",
+            "vehicle_id": vehicle_id,
+            "vehicle_name": vehicle_name,
+            "timestamp": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64
+        });
+        
+        if let Err(e) = app_handle.emit("vehicle-disconnect", disconnect_message) {
+            println!("❌ 发送车辆断开事件到前端失败: {}", e);
+        } else {
+            println!("📤 已通知前端车辆 {} (ID: {}) 断开连接", vehicle_name, vehicle_id);
         }
     }
 

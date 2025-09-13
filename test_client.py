@@ -18,15 +18,8 @@ VERSION = 0x10
 
 # 消息类型
 MESSAGE_TYPES = {
-    'HEARTBEAT': 0x0001,
-    'VEHICLE_STATUS': 0x0002,
-    'SENSOR_DATA': 0x0003,
-    'GPS_LOCATION': 0x0004,
-    'ERROR_REPORT': 0x0006,
-    'SYSTEM_INFO': 0x0007,
-    'BATTERY_STATUS': 0x0008,
-    'SPEED_DATA': 0x0009,
-    'TEMPERATURE': 0x000A,
+    'HEARTBEAT': 0x0001,        # 心跳包
+    'VEHICLE_INFO': 0x0002,     # 车辆信息协议（新协议）
 }
 
 def crc16_ibm_sdlc(data):
@@ -66,48 +59,64 @@ def build_message(message_type, data):
     
     return bytes(packet)
 
-def create_vehicle_status_data():
-    """创建车辆状态数据"""
+def create_vehicle_info_data(vehicle_id=1):
+    """
+    创建车辆信息协议数据域 (38字节)
+    格式：车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 电量(8) + 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1) + 北斗状态(1)
+    """
+    import random
+    
     data = bytearray()
-    data.extend(struct.pack('<f', 25.5))  # 速度 (km/h)
-    data.extend(struct.pack('<B', 85))    # 电池电量 (%)
-    data.extend(struct.pack('<B', 1))     # 状态 (1=运行)
-    data.extend(struct.pack('<B', 0))     # 保留字段
-    data.extend(struct.pack('<B', 0))     # 保留字段
+    
+    # 车辆编号 (1字节, UINT8)
+    data.extend(struct.pack('<B', vehicle_id))
+    
+    # 车速 (8字节, DOUBLE) - 范围 0-1 m/s
+    speed = random.uniform(0.0, 1.0)
+    data.extend(struct.pack('<d', speed))
+    
+    # 位置X (8字节, DOUBLE)
+    position_x = random.uniform(-100.0, 100.0)
+    data.extend(struct.pack('<d', position_x))
+    
+    # 位置Y (8字节, DOUBLE)  
+    position_y = random.uniform(-100.0, 100.0)
+    data.extend(struct.pack('<d', position_y))
+    
+    # 电池电量 (8字节, DOUBLE) - 范围 0-100%
+    battery = random.uniform(20.0, 100.0)
+    data.extend(struct.pack('<d', battery))
+    
+    # 导航状态 (1字节, UINT8) - 0:未导航, 1:导航中
+    nav_status = random.choice([0, 1])
+    data.extend(struct.pack('<B', nav_status))
+    
+    # 相机状态 (1字节, UINT8) - 0:异常, 1:正常
+    camera_status = random.choice([0, 1])
+    data.extend(struct.pack('<B', camera_status))
+    
+    # 激光雷达状态 (1字节, UINT8) - 0:异常, 1:正常
+    lidar_status = random.choice([0, 1])
+    data.extend(struct.pack('<B', lidar_status))
+    
+    # 陀螺仪状态 (1字节, UINT8) - 0:异常, 1:正常
+    gyro_status = random.choice([0, 1])
+    data.extend(struct.pack('<B', gyro_status))
+    
+    # 北斗状态 (1字节, UINT8) - 0:异常, 1:正常
+    beidou_status = random.choice([0, 1])
+    data.extend(struct.pack('<B', beidou_status))
+    
+    print(f"🚗 车辆信息 - ID: {vehicle_id}, 速度: {speed:.3f}m/s, 位置: ({position_x:.2f}, {position_y:.2f}), 电量: {battery:.1f}%, 导航: {'导航中' if nav_status else '未导航'}")
+    print(f"📊 传感器状态 - 相机: {'正常' if camera_status else '异常'}, 雷达: {'正常' if lidar_status else '异常'}, 陀螺仪: {'正常' if gyro_status else '异常'}, 北斗: {'正常' if beidou_status else '异常'}")
+    
     return bytes(data)
-
-def create_sensor_data():
-    """创建传感器数据"""
-    data = bytearray()
-    data.extend(struct.pack('<f', 23.5))  # 温度 (°C)
-    data.extend(struct.pack('<f', 65.2))  # 湿度 (%)
-    data.extend(struct.pack('<H', 1013))  # 气压 (hPa)
-    data.extend(struct.pack('<H', 245))   # 光照强度
-    return bytes(data)
-
-def create_gps_data():
-    """创建GPS数据"""
-    data = bytearray()
-    data.extend(struct.pack('<d', 39.9042))   # 纬度
-    data.extend(struct.pack('<d', 116.4074))  # 经度
-    data.extend(struct.pack('<f', 50.5))      # 高度 (m)
-    data.extend(struct.pack('<f', 15.2))      # 速度 (m/s)
-    return bytes(data)
-
-def create_error_report():
-    """创建错误报告数据"""
-    error_info = {
-        "error_code": 1001,
-        "error_msg": "传感器连接异常",
-        "severity": "warning"
-    }
-    return json.dumps(error_info, ensure_ascii=False).encode('utf-8')
 
 class TestClient:
-    def __init__(self, server_host='127.0.0.1', server_port=8888, car_id="test_car_001"):
+    def __init__(self, server_host='127.0.0.1', server_port=8888, vehicle_id=1):
         self.server_host = server_host
         self.server_port = server_port
-        self.car_id = car_id
+        self.vehicle_id = vehicle_id
         self.socket = None
         self.running = False
         
@@ -167,27 +176,9 @@ class TestClient:
                 time.sleep(2)  # 每2秒发送一次数据
                 counter += 1
                 
-                # 循环发送不同类型的数据
-                if counter % 4 == 1:
-                    # 发送车辆状态
-                    data = create_vehicle_status_data()
-                    self.send_message(MESSAGE_TYPES['VEHICLE_STATUS'], data)
-                    
-                elif counter % 4 == 2:
-                    # 发送传感器数据
-                    data = create_sensor_data()
-                    self.send_message(MESSAGE_TYPES['SENSOR_DATA'], data)
-                    
-                elif counter % 4 == 3:
-                    # 发送GPS数据
-                    data = create_gps_data()
-                    self.send_message(MESSAGE_TYPES['GPS_LOCATION'], data)
-                    
-                else:
-                    # 偶尔发送错误报告
-                    if counter % 20 == 0:
-                        data = create_error_report()
-                        self.send_message(MESSAGE_TYPES['ERROR_REPORT'], data)
+                # 发送车辆信息协议
+                data = create_vehicle_info_data(self.vehicle_id)
+                self.send_message(MESSAGE_TYPES['VEHICLE_INFO'], data)
         
         thread = threading.Thread(target=data_simulation_loop, daemon=True)
         thread.start()
@@ -220,11 +211,22 @@ class TestClient:
         print("👂 开始监听服务器命令")
 
 def main():
-    print("🚗 Socket客户端测试程序")
+    import sys
+    
+    # 获取命令行参数 - 车辆ID
+    vehicle_id = 1
+    if len(sys.argv) > 1:
+        try:
+            vehicle_id = int(sys.argv[1])
+        except ValueError:
+            print("❌ 车辆ID必须是数字")
+            sys.exit(1)
+    
+    print(f"🚗 Socket客户端测试程序 - 车辆ID: {vehicle_id}")
     print("=" * 50)
     
     # 创建测试客户端
-    client = TestClient()
+    client = TestClient(vehicle_id=vehicle_id)
     
     # 连接到服务器
     if not client.connect():
@@ -240,13 +242,13 @@ def main():
         # 监听服务器命令
         client.listen_for_commands()
         
-        print("\n📋 测试客户端已启动，按 Ctrl+C 停止")
+        print(f"\n📋 测试客户端已启动 (车辆ID: {vehicle_id})，按 Ctrl+C 停止")
         print("正在发送以下类型的数据:")
         print("- 心跳包 (每10秒)")
-        print("- 车辆状态 (每8秒)")
-        print("- 传感器数据 (每8秒)")
-        print("- GPS位置 (每8秒)")
-        print("- 错误报告 (每40秒)")
+        print("- 车辆信息协议 (每2秒)")
+        print("\n📊 车辆信息协议数据域 (38字节):")
+        print("- 车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 电量(8)")
+        print("- 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1) + 北斗状态(1)")
         
         # 保持程序运行
         while client.running:

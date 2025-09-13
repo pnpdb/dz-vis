@@ -55,7 +55,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 
 const props = defineProps({
     carInfo: {
@@ -75,6 +75,17 @@ const sensorData = ref({
     beidouState: 1
 });
 
+// 重置传感器状态为默认状态
+const resetSensorData = () => {
+    sensorData.value = {
+        imuState: 0,  // 未连接时显示异常
+        lidarState: 0,
+        cameraState: 0,
+        beidouState: 0
+    };
+    console.log(`🔄 重置车辆${props.carInfo}传感器状态为默认状态`);
+};
+
 const getDesc = (val) => {
     return !props.online || val !== 1 ? '异常' : '正常';
 };
@@ -84,6 +95,53 @@ const getClass = (val) => {
         ? 'sensor-state status-error'
         : 'sensor-state status-normal';
 };
+
+// 处理车辆信息更新事件
+const handleVehicleInfoUpdate = (event) => {
+    const vehicleInfo = event.detail;
+    
+    // 根据当前选择的车辆信息来匹配
+    const isCurrentVehicle = vehicleInfo.carId === props.carInfo || 
+                           vehicleInfo.vehicleId === props.carInfo ||
+                           // 向后兼容：如果carInfo是字母，转换为数字ID
+                           (typeof props.carInfo === 'string' && 
+                            vehicleInfo.vehicleId === getVehicleIdFromLetter(props.carInfo));
+    
+    if (isCurrentVehicle) {
+        // 更新传感器状态
+        sensorData.value = {
+            imuState: vehicleInfo.sensors.gyro.status ? 1 : 0,
+            lidarState: vehicleInfo.sensors.lidar.status ? 1 : 0,
+            cameraState: vehicleInfo.sensors.camera.status ? 1 : 0,
+            beidouState: vehicleInfo.sensors.beidou.status ? 1 : 0
+        };
+        
+        console.log(`更新车辆${props.carInfo}传感器状态:`, sensorData.value);
+    }
+};
+
+// 向后兼容：字母ID转数字ID的映射
+const getVehicleIdFromLetter = (letter) => {
+    const letterMap = { 'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 5 };
+    return letterMap[letter.toUpperCase()] || null;
+};
+
+// 监听车辆切换
+watch(() => props.carInfo, (newVehicleId, oldVehicleId) => {
+    if (newVehicleId !== oldVehicleId) {
+        console.log(`🔄 Sensor车辆切换: ${oldVehicleId} → ${newVehicleId}`);
+        resetSensorData();
+    }
+}, { immediate: true });
+
+onMounted(() => {
+    // 监听车辆信息更新事件
+    window.addEventListener('vehicle-info-update', handleVehicleInfoUpdate);
+});
+
+onBeforeUnmount(() => {
+    window.removeEventListener('vehicle-info-update', handleVehicleInfoUpdate);
+});
 </script>
 
 <style lang="scss" scoped>

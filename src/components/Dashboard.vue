@@ -26,6 +26,15 @@ const onCountFinished = () => {
     previousSpeed.value = props.speedValue;
 };
 
+// 格式化速度显示
+const formatSpeed = (speed) => {
+    const numSpeed = Number(speed);
+    if (numSpeed === 0) {
+        return '0';
+    }
+    return numSpeed.toFixed(2);
+};
+
 // 监听速度变化（动画已禁用）
 watch(() => props.speedValue, (newVal, oldVal) => {
     if (newVal !== oldVal) {
@@ -44,11 +53,11 @@ watch(() => props.speedValue, (newVal, oldVal) => {
                 v-for="item in 60"
                 :key="item"
                 :style="`--i: ${item}; `"
-                :class="['scend', { scend_active: item * 2 <= speedValue }]"
+                :class="['scend', { scend_active: item <= (speedValue * 60) }]"
             ></div>
             <div class="inner-circle">
                 <div class="speed">
-                    <span class="speed-counter">{{ speedValue }}</span>
+                    <span class="speed-counter">{{ formatSpeed(speedValue) }}</span>
                 </div>
                 <div class="unit">m/s</div>
             </div>
@@ -59,7 +68,7 @@ watch(() => props.speedValue, (newVal, oldVal) => {
 <style lang="scss" scoped>
 $width: 120px;
 $height: 120px;
-$font-size: 32px;
+$font-size: 26px;
 
 .dashboard-wrap {
     flex-grow: 1;

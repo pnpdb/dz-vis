@@ -5,29 +5,35 @@
 // 接收消息类型 (从客户端接收)
 export const RECEIVE_MESSAGE_TYPES = {
     HEARTBEAT: 0x0001,           // 心跳包
-    VEHICLE_STATUS: 0x0002,      // 车辆状态信息
-    SENSOR_DATA: 0x0003,         // 传感器数据
-    GPS_LOCATION: 0x0004,        // GPS位置信息
-    CAMERA_STREAM: 0x0005,       // 摄像头数据流
-    ERROR_REPORT: 0x0006,        // 错误报告
-    SYSTEM_INFO: 0x0007,         // 系统信息
-    BATTERY_STATUS: 0x0008,      // 电池状态
-    SPEED_DATA: 0x0009,          // 速度数据
-    TEMPERATURE: 0x000A,         // 温度数据
+    VEHICLE_INFO: 0x0002,        // 车辆信息协议（车辆编号+速度+位置+电量+传感器状态）
 };
 
 // 发送消息类型 (发送给客户端)
 export const SEND_MESSAGE_TYPES = {
-    CONTROL_COMMAND: 0x1001,     // 控制指令
-    START_VEHICLE: 0x1002,       // 启动车辆
-    STOP_VEHICLE: 0x1003,        // 停止车辆
-    SET_SPEED: 0x1004,           // 设置速度
-    EMERGENCY_BRAKE: 0x1005,     // 紧急制动
-    SET_DIRECTION: 0x1006,       // 设置方向
-    REQUEST_STATUS: 0x1007,      // 请求状态
-    CONFIG_UPDATE: 0x1008,       // 配置更新
-    SYSTEM_RESET: 0x1009,        // 系统重置
-    CAMERA_CONTROL: 0x100A,      // 摄像头控制
+    // 预留给后续指令协议，从0x1001开始递增
+};
+
+// 车辆信息协议数据域定义 (37字节)
+export const VEHICLE_INFO_PROTOCOL = {
+    VEHICLE_ID_OFFSET: 0,        // 车辆编号偏移 (1字节)
+    SPEED_OFFSET: 1,             // 车速偏移 (8字节, DOUBLE)
+    POSITION_X_OFFSET: 9,        // 位置X偏移 (8字节, DOUBLE)
+    POSITION_Y_OFFSET: 17,       // 位置Y偏移 (8字节, DOUBLE)
+    BATTERY_OFFSET: 25,          // 电池电量偏移 (8字节, DOUBLE)
+    NAV_STATUS_OFFSET: 33,       // 导航状态偏移 (1字节)
+    CAMERA_STATUS_OFFSET: 34,    // 相机状态偏移 (1字节)
+    LIDAR_STATUS_OFFSET: 35,     // 激光雷达状态偏移 (1字节)
+    GYRO_STATUS_OFFSET: 36,      // 陀螺仪状态偏移 (1字节)
+    BEIDOU_STATUS_OFFSET: 37,    // 北斗状态偏移 (1字节)
+    TOTAL_SIZE: 38,              // 总大小 38字节
+    
+    // 状态值定义
+    STATUS_ABNORMAL: 0,          // 异常/未导航
+    STATUS_NORMAL: 1,            // 正常/导航中
+    
+    // 车速范围 (0-1 m/s)
+    MIN_SPEED: 0.0,
+    MAX_SPEED: 1.0
 };
 
 // 协议常量
@@ -81,6 +87,7 @@ export const MessageTypeUtils = {
 export default {
     RECEIVE_MESSAGE_TYPES,
     SEND_MESSAGE_TYPES,
+    VEHICLE_INFO_PROTOCOL,
     PROTOCOL_CONSTANTS,
     MessageTypeUtils
 };

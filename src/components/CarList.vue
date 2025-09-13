@@ -20,34 +20,93 @@
 </template>
 
 <script>
+import { VehicleConnectionAPI } from '@/utils/vehicleAPI.js';
+
+import { useCarStore } from '@/stores/car.js';
+
 export default {
     name: 'CarList',
+    setup() {
+        const carStore = useCarStore();
+        return { carStore };
+    },
     data() {
         return {
-            selectedCarId: 'car-A',
-            carList: [
-                {
-                    id: 'car-A',
-                    name: '车辆 A - 自动驾驶出租车',
-                    status: 'online',
-                    lastUpdateTime: '2 分钟前'
-                },
-                {
-                    id: 'car-B', 
-                    name: '车辆 B - AVP测试车',
-                    status: 'online',
-                    lastUpdateTime: '1 分钟前'
-                },
-                {
-                    id: 'car-C',
-                    name: '车辆 C - 物流配送车',
-                    status: 'offline',
-                    lastUpdateTime: '5 分钟前'
-                }
-            ]
+            carList: [],
+            loading: false
         };
     },
+    computed: {
+        selectedCarId: {
+            get() {
+                return this.carStore.selectedCarId;
+            },
+            set(value) {
+                this.carStore.changeCarId(value);
+            }
+        }
+    },
+    async mounted() {
+        await this.loadVehicleConnections();
+    },
     methods: {
+        async loadVehicleConnections() {
+            this.loading = true;
+            try {
+                const result = await VehicleConnectionAPI.getAllConnections();
+                if (result.success) {
+                    // 转换数据库数据为组件需要的格式
+                    this.carList = result.data.map(connection => ({
+                        id: connection.vehicle_id,
+                        name: connection.name, // 只显示车辆名称
+                        status: connection.is_active ? 'online' : 'offline',
+                        lastUpdateTime: this.formatTime(connection.updated_at),
+                        ipAddress: connection.ip_address,
+                        port: connection.port,
+                        vehicleId: connection.vehicle_id
+                    }));
+                    
+                    // 如果没有选中的车辆，默认选择第一个
+                    if (!this.carStore.selectedCarId && this.carList.length > 0) {
+                        this.carStore.changeCarId(this.carList[0].id);
+                    }
+                    
+                    console.log('✅ 加载车辆列表成功:', this.carList);
+                } else {
+                    console.error('❌ 加载车辆列表失败:', result.error);
+                    // 如果加载失败，使用默认数据
+                    this.carList = [
+                        {
+                            id: 'default-car',
+                            name: '默认车辆 - 请在设置中添加车辆',
+                            status: 'offline',
+                            lastUpdateTime: '无数据'
+                        }
+                    ];
+                }
+            } catch (error) {
+                console.error('❌ 加载车辆连接异常:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        formatTime(isoString) {
+            try {
+                const date = new Date(isoString);
+                const now = new Date();
+                const diffMs = now - date;
+                const diffMinutes = Math.floor(diffMs / (1000 * 60));
+                
+                if (diffMinutes < 1) return '刚刚';
+                if (diffMinutes < 60) return `${diffMinutes} 分钟前`;
+                if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)} 小时前`;
+                return `${Math.floor(diffMinutes / 1440)} 天前`;
+            } catch {
+                return '未知时间';
+            }
+        },
+        
         onCarChange(carId) {
             this.$emit('car-change', carId);
         },
@@ -72,11 +131,6 @@ export default {
                     }
                 });
             }
-        }
-    },
-    watch: {
-        selectedCarId(newVal) {
-            this.onCarChange(newVal);
         }
     }
 };

@@ -34,10 +34,15 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useCarStore } from '@/stores/car.js';
+import { VehicleConnectionAPI } from '@/utils/vehicleAPI.js';
 
 const carStore = useCarStore();
+
+// 从数据库加载的车辆列表
+const databaseCarList = ref([]);
+const loading = ref(false);
 
 const toggleList = ref([
     {
@@ -95,7 +100,43 @@ const selectedCarId = computed({
     set: (value) => carStore.changeCarId(value),
 });
 
-const carList = computed(() => carStore.carList);
+// 使用数据库中的车辆列表，如果为空则使用store中的默认数据
+const carList = computed(() => {
+    return databaseCarList.value.length > 0 ? databaseCarList.value : carStore.carList;
+});
+
+// 加载车辆连接数据
+const loadVehicleConnections = async () => {
+    loading.value = true;
+    try {
+        const result = await VehicleConnectionAPI.getAllConnections();
+        if (result.success) {
+            // 转换数据库数据为组件需要的格式
+            databaseCarList.value = result.data.map(connection => ({
+                id: connection.vehicle_id,
+                name: connection.name, // 只显示车辆名称，不带描述
+                vehicleId: connection.vehicle_id,
+                ipAddress: connection.ip_address,
+                port: connection.port,
+                description: connection.description,
+                isActive: connection.is_active
+            }));
+            
+            console.log('✅ 车辆设置页面加载车辆列表成功:', databaseCarList.value);
+        } else {
+            console.error('❌ 车辆设置页面加载车辆列表失败:', result.error);
+        }
+    } catch (error) {
+        console.error('❌ 车辆设置页面加载车辆连接异常:', error);
+    } finally {
+        loading.value = false;
+    }
+};
+
+// 组件挂载时加载数据
+onMounted(() => {
+    loadVehicleConnections();
+});
 
 const toggleSensorStatus = (item) => {
     if (item.id === 8) {

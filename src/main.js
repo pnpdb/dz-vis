@@ -53,7 +53,29 @@ app.use(ElementPlus, {
 // 全局注册Font Awesome组件
 app.component('fa', FontAwesomeIcon);
 
-app.mount('#app');
+// 挂载应用
+const mountedApp = app.mount('#app');
+
+// 初始化应用数据
+async function initializeApp() {
+    try {
+        // 获取store实例
+        const { useCarStore } = await import('./stores/car.js');
+        const carStore = useCarStore();
+        
+        // 加载车辆连接数据
+        console.log('🚗 正在加载车辆连接数据...');
+        await carStore.loadVehicleConnections();
+        console.log('✅ 车辆连接数据加载完成');
+    } catch (error) {
+        console.error('❌ 应用初始化失败:', error);
+    }
+}
+
+// 延迟初始化，确保应用完全挂载
+setTimeout(() => {
+    initializeApp();
+}, 1000);
 
 // 在Tauri环境中启动Socket服务器
 console.log('🔍 调试Tauri环境检测:');

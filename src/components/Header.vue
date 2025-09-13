@@ -531,7 +531,7 @@ const handleLogin = async () => {
         const { username, password } = loginForm.value;
         
         // 硬编码的账号密码
-        if (username === 'duzhong' && password === '123456') {
+        if (username === 'dz' && password === '123456') {
             ElMessage.success('登录成功！');
             loginDialogVisible.value = false;
             settingsDialogVisible.value = true;

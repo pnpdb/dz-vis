@@ -37,6 +37,8 @@
 import { ref, computed, onMounted } from 'vue';
 import { useCarStore } from '@/stores/car.js';
 import { VehicleConnectionAPI } from '@/utils/vehicleAPI.js';
+import { socketManager } from '@/utils/socketManager.js';
+import { ElMessage } from 'element-plus';
 
 const carStore = useCarStore();
 
@@ -138,16 +140,63 @@ onMounted(() => {
     loadVehicleConnections();
 });
 
-const toggleSensorStatus = (item) => {
-    if (item.id === 8) {
-        toggleList.value.forEach((e) => {
-            e.status = !item.status;
+const toggleSensorStatus = async (item) => {
+    // 检查是否选择了车辆
+    if (!selectedCarId.value) {
+        ElMessage.warning({
+            message: '请先选择车辆',
+            duration: 3000
         });
-    } else {
-        const selectedItem = toggleList.value.find((e) => e.id === item.id);
-        if (selectedItem) {
-            selectedItem.status = !selectedItem.status;
+        return;
+    }
+
+    // 检查选中的车辆是否在线
+    if (!socketManager.isVehicleConnected(selectedCarId.value)) {
+        ElMessage.warning({
+            message: '选中的车辆未在线',
+            duration: 3000
+        });
+        return;
+    }
+
+    try {
+        // 确定功能编号和新状态
+        let functionId = item.id;
+        if (item.id === 8) { // "所有程序"按钮
+            functionId = 0;
         }
+        
+        const newStatus = !item.status;
+        
+        // 发送车辆功能设置协议
+        await socketManager.sendVehicleFunctionSetting(selectedCarId.value, functionId, newStatus ? 1 : 0);
+        
+        // 更新UI状态
+        if (item.id === 8) {
+            // "所有程序"按钮：切换所有功能状态
+            toggleList.value.forEach((e) => {
+                e.status = newStatus;
+            });
+        } else {
+            // 单个功能按钮
+            const selectedItem = toggleList.value.find((e) => e.id === item.id);
+            if (selectedItem) {
+                selectedItem.status = newStatus;
+            }
+        }
+        
+        // 成功提示
+        ElMessage.success({
+            message: `车辆功能设置发送成功`,
+            duration: 3000
+        });
+        
+    } catch (error) {
+        console.error('车辆功能设置发送失败:', error);
+        ElMessage.error({
+            message: '车辆功能设置发送失败: ' + error.message,
+            duration: 3000
+        });
     }
 };
 </script>

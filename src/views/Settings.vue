@@ -18,10 +18,6 @@
                     inactive-color="#ff4949"
                 ></el-switch>
             </div>
-            <button class="btn btn-warning">
-                <fa icon="eraser" />
-                清空当前地图所有路径
-            </button>
         </div>
 
         <div class="form-group">
@@ -29,37 +25,118 @@
                 <fa icon="car"> </fa>
                 车辆路径
             </label>
-            <el-select v-model="selectedCar">
+            <el-select 
+                v-model="selectedCar" 
+                placeholder="请选择车辆"
+                :loading="loading"
+                loading-text="加载车辆列表..."
+            >
                 <el-option
-                    label="车辆 A - 自动驾驶出租车"
-                    value="A"
+                    v-for="vehicle in vehicleList"
+                    :key="vehicle.id"
+                    :label="vehicle.name"
+                    :value="vehicle.id"
                 ></el-option>
-                <el-option
-                    label="车辆 B - AVP测试车"
-                    value="B"
-                    selected
-                ></el-option>
-                <el-option label="车辆 C - 物流配送车" value="C"></el-option>
             </el-select>
 
-            <button class="btn btn-secondary">
+            <button class="btn btn-secondary" @click="handleViewVehiclePath">
                 <fa icon="route" />
                 查看车辆路径
             </button>
-            <!-- <button class="btn btn-warning">
-                <fa icon="eraser" />
-                清空所有路线
-            </button> -->
         </div>
     </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import CarSettings from '@/components/CarSettings.vue';
+import { VehicleConnectionAPI } from '@/utils/vehicleAPI.js';
+import { socketManager } from '@/utils/socketManager.js';
+import { ElMessage } from 'element-plus';
 
-const selectedCar = ref('B');
+const selectedCar = ref('');
 const showAllPaths = ref(false);
+const vehicleList = ref([]);
+const loading = ref(false);
+
+// 加载车辆连接数据
+const loadVehicleConnections = async () => {
+    loading.value = true;
+    try {
+        const result = await VehicleConnectionAPI.getAllConnections();
+        if (result.success) {
+            // 转换数据库数据为组件需要的格式
+            vehicleList.value = result.data.map(connection => ({
+                id: connection.vehicle_id,
+                name: connection.name, // 只显示车辆名称
+                vehicleId: connection.vehicle_id,
+                ipAddress: connection.ip_address,
+                port: connection.port,
+                description: connection.description,
+                isActive: connection.is_active
+            }));
+            
+            // 如果没有选中的车辆，默认选择第一个
+            if (!selectedCar.value && vehicleList.value.length > 0) {
+                selectedCar.value = vehicleList.value[0].id;
+            }
+            
+            console.log('✅ 路径设置页面加载车辆列表成功:', vehicleList.value);
+        } else {
+            console.error('❌ 加载车辆列表失败:', result.error);
+            vehicleList.value = [];
+        }
+    } catch (error) {
+        console.error('❌ 加载车辆列表异常:', error);
+        vehicleList.value = [];
+    } finally {
+        loading.value = false;
+    }
+};
+
+// 查看车辆路径事件处理
+const handleViewVehiclePath = async () => {
+    // 检查是否选择了车辆
+    if (!selectedCar.value) {
+        ElMessage.warning({
+            message: '请先选择车辆',
+            duration: 3000
+        });
+        return;
+    }
+
+    // 检查选中的车辆是否在线
+    if (!socketManager.isVehicleConnected(selectedCar.value)) {
+        ElMessage.warning({
+            message: '选中的车辆未在线',
+            duration: 3000
+        });
+        return;
+    }
+
+    try {
+        // 发送车辆路径显示控制指令（开启路径发送）
+        await socketManager.sendVehiclePathDisplay(selectedCar.value, 1);
+        
+        // 成功提示
+        ElMessage.success({
+            message: '车辆路径显示指令发送成功',
+            duration: 3000
+        });
+        
+    } catch (error) {
+        console.error('发送车辆路径显示指令失败:', error);
+        ElMessage.error({
+            message: '发送车辆路径显示指令失败: ' + error.message,
+            duration: 3000
+        });
+    }
+};
+
+// 组件挂载时加载数据
+onMounted(() => {
+    loadVehicleConnections();
+});
 </script>
 
 <style lang="scss" scoped>

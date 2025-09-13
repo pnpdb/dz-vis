@@ -5,7 +5,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { SEND_MESSAGE_TYPES, RECEIVE_MESSAGE_TYPES, VEHICLE_INFO_PROTOCOL, VEHICLE_CONTROL_PROTOCOL, DATA_RECORDING_PROTOCOL, TAXI_ORDER_PROTOCOL, AVP_PARKING_PROTOCOL, AVP_PICKUP_PROTOCOL, MessageTypeUtils } from '@/constants/messageTypes.js';
+import { SEND_MESSAGE_TYPES, RECEIVE_MESSAGE_TYPES, VEHICLE_INFO_PROTOCOL, VEHICLE_CONTROL_PROTOCOL, DATA_RECORDING_PROTOCOL, TAXI_ORDER_PROTOCOL, AVP_PARKING_PROTOCOL, AVP_PICKUP_PROTOCOL, VEHICLE_FUNCTION_SETTING_PROTOCOL, VEHICLE_PATH_DISPLAY_PROTOCOL, MessageTypeUtils } from '@/constants/messageTypes.js';
 import { ElMessage } from 'element-plus';
 import { createLogger } from '@/utils/logger.js';
 
@@ -669,6 +669,83 @@ class SocketManager {
             return result;
         } catch (error) {
             logger.error(`发送AVP取车指令失败 - 车辆: ${vehicleId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * 发送车辆功能设置指令
+     * @param {number} vehicleId - 车辆ID
+     * @param {number} functionId - 功能编号 (0:全部, 1:传感器, 2:建图, 3:录制, 4:定位, 5:自主导航, 6:图像识别, 7:打靶功能)
+     * @param {number} enableStatus - 启用状态 (0:关闭, 1:启用)
+     */
+    async sendVehicleFunctionSetting(vehicleId, functionId, enableStatus) {
+        try {
+            if (vehicleId == null) {
+                throw new Error('车辆ID不能为空');
+            }
+            if (functionId == null || functionId < 0 || functionId > 7) {
+                throw new Error('功能编号无效');
+            }
+            if (enableStatus == null || (enableStatus !== 0 && enableStatus !== 1)) {
+                throw new Error('启用状态无效');
+            }
+
+            console.log(`🔧 发送车辆功能设置指令 - 车辆: ${vehicleId}, 功能: ${functionId}, 状态: ${enableStatus}`);
+
+            // 构建数据域 (3字节)
+            const data = new Uint8Array(VEHICLE_FUNCTION_SETTING_PROTOCOL.TOTAL_SIZE);
+            data[VEHICLE_FUNCTION_SETTING_PROTOCOL.VEHICLE_ID_OFFSET] = vehicleId;
+            data[VEHICLE_FUNCTION_SETTING_PROTOCOL.FUNCTION_ID_OFFSET] = functionId;
+            data[VEHICLE_FUNCTION_SETTING_PROTOCOL.ENABLE_STATUS_OFFSET] = enableStatus;
+
+            // 调用Rust后端发送到指定车辆
+            const result = await invoke('send_to_vehicle', {
+                vehicleId: vehicleId,
+                messageType: SEND_MESSAGE_TYPES.VEHICLE_FUNCTION_SETTING,
+                data: Array.from(data)
+            });
+
+            logger.info(`车辆功能设置指令发送成功 - 车辆: ${vehicleId}, 功能: ${functionId}, 状态: ${enableStatus}, 数据大小: ${data.length}字节`);
+            return result;
+        } catch (error) {
+            logger.error(`发送车辆功能设置指令失败 - 车辆: ${vehicleId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * 发送车辆路径显示控制指令
+     * @param {number} vehicleId - 车辆ID
+     * @param {number} displayPath - 显示路径状态 (0:车端不发送, 1:车端开启发送)
+     */
+    async sendVehiclePathDisplay(vehicleId, displayPath) {
+        try {
+            if (vehicleId == null) {
+                throw new Error('车辆ID不能为空');
+            }
+            if (displayPath == null || (displayPath !== 0 && displayPath !== 1)) {
+                throw new Error('显示路径状态无效');
+            }
+
+            console.log(`🛣️ 发送车辆路径显示控制指令 - 车辆: ${vehicleId}, 显示路径: ${displayPath ? '开启' : '关闭'}`);
+
+            // 构建数据域 (2字节)
+            const data = new Uint8Array(VEHICLE_PATH_DISPLAY_PROTOCOL.TOTAL_SIZE);
+            data[VEHICLE_PATH_DISPLAY_PROTOCOL.VEHICLE_ID_OFFSET] = vehicleId;
+            data[VEHICLE_PATH_DISPLAY_PROTOCOL.DISPLAY_PATH_OFFSET] = displayPath;
+
+            // 调用Rust后端发送到指定车辆
+            const result = await invoke('send_to_vehicle', {
+                vehicleId: vehicleId,
+                messageType: SEND_MESSAGE_TYPES.VEHICLE_PATH_DISPLAY,
+                data: Array.from(data)
+            });
+
+            logger.info(`车辆路径显示控制指令发送成功 - 车辆: ${vehicleId}, 显示路径: ${displayPath ? '开启' : '关闭'}, 数据大小: ${data.length}字节`);
+            return result;
+        } catch (error) {
+            logger.error(`发送车辆路径显示控制指令失败 - 车辆: ${vehicleId}:`, error);
             throw error;
         }
     }

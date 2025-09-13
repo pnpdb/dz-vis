@@ -24,11 +24,13 @@ RECEIVE_MESSAGE_TYPES = {
 
 # 发送消息类型 (发送给客户端)
 SEND_MESSAGE_TYPES = {
-    'VEHICLE_CONTROL': 0x1001,  # 车辆控制指令
-    'DATA_RECORDING': 0x1002,   # 数据记录控制
-    'TAXI_ORDER': 0x1003,       # 出租车订单
-    'AVP_PARKING': 0x1004,      # AVP自主代客泊车
-    'AVP_PICKUP': 0x1005,       # AVP取车
+    'VEHICLE_CONTROL': 0x1001,           # 车辆控制指令
+    'DATA_RECORDING': 0x1002,            # 数据记录控制
+    'TAXI_ORDER': 0x1003,                # 出租车订单
+    'AVP_PARKING': 0x1004,               # AVP自主代客泊车
+    'AVP_PICKUP': 0x1005,                # AVP取车
+    'VEHICLE_FUNCTION_SETTING': 0x1006,  # 车辆功能设置
+    'VEHICLE_PATH_DISPLAY': 0x1007,      # 车辆路径显示控制
 }
 
 # 车辆控制指令类型
@@ -227,6 +229,83 @@ def parse_avp_pickup_message(data):
         
     except Exception as e:
         print(f"❌ 解析AVP取车指令失败: {e}")
+        return None
+
+
+def parse_vehicle_function_setting_message(data):
+    """解析车辆功能设置协议"""
+    if len(data) < 3:
+        print("❌ 车辆功能设置数据长度不足")
+        return None
+    
+    try:
+        # 解析车辆编号 (1字节, UINT8)
+        vehicle_id = data[0]
+        
+        # 解析功能编号 (1字节, UINT8)
+        function_id = data[1]
+        
+        # 解析启用状态 (1字节, UINT8)
+        enable_status = data[2]
+        
+        # 功能编号映射
+        function_names = {
+            0: '全部(所有程序)',
+            1: '传感器',
+            2: '建图', 
+            3: '录制',
+            4: '定位',
+            5: '自主导航',
+            6: '图像识别',
+            7: '打靶功能'
+        }
+        
+        # 启用状态映射
+        status_names = {
+            0: '关闭',
+            1: '启用'
+        }
+        
+        return {
+            'vehicle_id': vehicle_id,
+            'function_id': function_id,
+            'function_name': function_names.get(function_id, f'未知功能({function_id})'),
+            'enable_status': enable_status,
+            'status_name': status_names.get(enable_status, f'未知状态({enable_status})')
+        }
+        
+    except Exception as e:
+        print(f"❌ 解析车辆功能设置指令失败: {e}")
+        return None
+
+
+def parse_vehicle_path_display_message(data):
+    """解析车辆路径显示协议"""
+    if len(data) < 2:
+        print("❌ 车辆路径显示数据长度不足")
+        return None
+    
+    try:
+        # 解析车辆编号 (1字节, UINT8)
+        vehicle_id = data[0]
+        
+        # 解析显示路径状态 (1字节, UINT8)
+        display_path = data[1]
+        
+        # 显示路径状态映射
+        display_names = {
+            0: '车端不发送路径数据',
+            1: '车端开启发送路径数据'
+        }
+        
+        return {
+            'vehicle_id': vehicle_id,
+            'display_path': display_path,
+            'display_name': display_names.get(display_path, f'未知状态({display_path})')
+        }
+        
+    except Exception as e:
+        print(f"❌ 解析车辆路径显示指令失败: {e}")
         return None
 
 
@@ -557,6 +636,38 @@ class TestClient:
                     print(f"✅ 车辆{self.vehicle_id}开始执行AVP取车操作")
                 else:
                     print(f"⚠️ 取车指令目标车辆({pickup_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
+                    
+        elif message_type == SEND_MESSAGE_TYPES['VEHICLE_FUNCTION_SETTING']:
+            # 解析车辆功能设置指令
+            function_info = parse_vehicle_function_setting_message(data_domain)
+            if function_info:
+                print(f"🔧 车辆功能设置指令:")
+                print(f"   目标车辆: {function_info['vehicle_id']}")
+                print(f"   功能模块: {function_info['function_name']} ({function_info['function_id']})")
+                print(f"   设置状态: {function_info['status_name']} ({function_info['enable_status']})")
+                
+                # 模拟执行功能设置
+                if function_info['vehicle_id'] == self.vehicle_id:
+                    print(f"✅ 车辆{self.vehicle_id}执行功能设置: {function_info['function_name']} -> {function_info['status_name']}")
+                else:
+                    print(f"⚠️ 功能设置指令目标车辆({function_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
+                    
+        elif message_type == SEND_MESSAGE_TYPES['VEHICLE_PATH_DISPLAY']:
+            # 解析车辆路径显示控制指令
+            path_info = parse_vehicle_path_display_message(data_domain)
+            if path_info:
+                print(f"🛣️ 车辆路径显示控制指令:")
+                print(f"   目标车辆: {path_info['vehicle_id']}")
+                print(f"   显示路径: {path_info['display_name']} ({path_info['display_path']})")
+                
+                # 模拟执行路径显示控制
+                if path_info['vehicle_id'] == self.vehicle_id:
+                    if path_info['display_path'] == 1:
+                        print(f"✅ 车辆{self.vehicle_id}开始发送路径数据到服务端")
+                    else:
+                        print(f"✅ 车辆{self.vehicle_id}停止发送路径数据到服务端")
+                else:
+                    print(f"⚠️ 路径显示指令目标车辆({path_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
         else:
             print(f"❓ 未知消息类型: 0x{message_type:04X}")
             print(f"   数据: {data_domain.hex()}")

@@ -15,6 +15,8 @@ export const SEND_MESSAGE_TYPES = {
     TAXI_ORDER: 0x1003,              // 出租车订单
     AVP_PARKING: 0x1004,             // AVP自主代客泊车
     AVP_PICKUP: 0x1005,              // AVP取车
+    VEHICLE_FUNCTION_SETTING: 0x1006, // 车辆功能设置
+    VEHICLE_PATH_DISPLAY: 0x1007,    // 车辆路径显示控制
 };
 
 // 车辆信息协议数据域定义 (37字节)
@@ -120,6 +122,39 @@ export const AVP_PICKUP_PROTOCOL = {
     TOTAL_SIZE: 1,                   // 总大小 1字节
 };
 
+// 车辆功能设置协议数据域定义 (3字节)
+export const VEHICLE_FUNCTION_SETTING_PROTOCOL = {
+    VEHICLE_ID_OFFSET: 0,            // 车辆编号偏移 (1字节)
+    FUNCTION_ID_OFFSET: 1,           // 功能编号偏移 (1字节)
+    ENABLE_STATUS_OFFSET: 2,         // 启用状态偏移 (1字节)
+    TOTAL_SIZE: 3,                   // 总大小 3字节
+    
+    // 功能编号定义
+    FUNCTION_ALL: 0,                 // 全部(所有程序)
+    FUNCTION_SENSORS: 1,             // 传感器
+    FUNCTION_MAPPING: 2,             // 建图
+    FUNCTION_RECORDING: 3,           // 录制
+    FUNCTION_POSITIONING: 4,         // 定位
+    FUNCTION_AUTONOMOUS_NAV: 5,      // 自主导航
+    FUNCTION_IMAGE_RECOGNITION: 6,   // 图像识别
+    FUNCTION_TARGET_SHOOTING: 7,     // 打靶功能
+    
+    // 启用状态定义
+    STATUS_DISABLE: 0,               // 关闭
+    STATUS_ENABLE: 1,                // 启用
+};
+
+// 车辆路径显示协议数据域定义 (2字节)
+export const VEHICLE_PATH_DISPLAY_PROTOCOL = {
+    VEHICLE_ID_OFFSET: 0,            // 车辆编号偏移 (1字节)
+    DISPLAY_PATH_OFFSET: 1,          // 显示路径偏移 (1字节)
+    TOTAL_SIZE: 2,                   // 总大小 2字节
+    
+    // 显示路径状态定义
+    PATH_DISABLE: 0,                 // 车端不发送路径数据
+    PATH_ENABLE: 1,                  // 车端开启发送路径数据
+};
+
 // 协议常量
 export const PROTOCOL_CONSTANTS = {
     HEADER: [0xEF, 0xEF, 0xEF, 0xEF],        // 帧头
@@ -177,6 +212,8 @@ export default {
     TAXI_ORDER_PROTOCOL,
     AVP_PARKING_PROTOCOL,
     AVP_PICKUP_PROTOCOL,
+    VEHICLE_FUNCTION_SETTING_PROTOCOL,
+    VEHICLE_PATH_DISPLAY_PROTOCOL,
     PROTOCOL_CONSTANTS,
     MessageTypeUtils
 };

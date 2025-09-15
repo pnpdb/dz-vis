@@ -5,8 +5,10 @@ use local_ip_address::local_ip;
 mod socket;
 mod database;
 mod video_stream;
+mod rtsp_converter;
 
 use database::{VehicleDatabase, CreateVehicleConnectionRequest, UpdateVehicleConnectionRequest, UpdateTrafficLightSettingsRequest, CreateTaxiOrderRequest, CreateAvpParkingRequest, CreateAvpPickupRequest, CreateOrUpdateSandboxServiceRequest, CreateSandboxCameraRequest, UpdateSandboxCameraRequest};
+use rtsp_converter::{RTSPConverter, HLSServer};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -634,6 +636,88 @@ async fn get_camera_websocket_url(camera_id: i64, server_port: Option<u16>) -> R
     Ok(url)
 }
 
+// ============ RTSP转换相关命令 ============
+
+/// 启动RTSP到HLS转换
+#[tauri::command]
+async fn start_rtsp_conversion(
+    app: tauri::AppHandle,
+    camera_id: i64,
+    rtsp_url: String
+) -> Result<String, String> {
+    println!("🔄 启动RTSP转换: camera_id={}, rtsp_url={}", camera_id, rtsp_url);
+    
+    // 检查是否已有转换器实例
+    let converter = match app.try_state::<RTSPConverter>() {
+        Some(converter) => converter.inner().clone(),
+        None => {
+            // 创建新的转换器实例
+            let output_dir = std::env::temp_dir().join("dz_viz_hls");
+            let converter = RTSPConverter::new(output_dir);
+            app.manage(converter);
+            app.state::<RTSPConverter>().inner().clone()
+        }
+    };
+    
+    match converter.start_conversion(camera_id, rtsp_url).await {
+        Ok(hls_url) => Ok(hls_url),
+        Err(e) => Err(format!("启动RTSP转换失败: {}", e))
+    }
+}
+
+/// 停止RTSP转换
+#[tauri::command]
+async fn stop_rtsp_conversion(app: tauri::AppHandle, camera_id: i64) -> Result<String, String> {
+    if let Some(converter) = app.try_state::<RTSPConverter>() {
+        match converter.stop_conversion(camera_id).await {
+            Ok(_) => Ok("转换已停止".to_string()),
+            Err(e) => Err(format!("停止RTSP转换失败: {}", e))
+        }
+    } else {
+        Err("RTSP转换器未初始化".to_string())
+    }
+}
+
+/// 获取HLS流URL
+#[tauri::command]
+async fn get_hls_url(app: tauri::AppHandle, camera_id: i64, hls_port: Option<u16>) -> Result<String, String> {
+    let port = hls_port.unwrap_or(9002);
+    
+    if let Some(converter) = app.try_state::<RTSPConverter>() {
+        if let Some(stream_info) = converter.get_stream_info(camera_id).await {
+            let url = format!("http://127.0.0.1:{}{}", port, stream_info.hls_url);
+            return Ok(url);
+        }
+    }
+    
+    Err("未找到对应的HLS流".to_string())
+}
+
+/// 启动HLS服务器
+#[tauri::command]
+async fn start_hls_server(app: tauri::AppHandle, port: Option<u16>) -> Result<String, String> {
+    let hls_port = port.unwrap_or(9002);
+    
+    // 检查是否已有HLS服务器实例
+    if app.try_state::<HLSServer>().is_some() {
+        return Ok("HLS服务器已在运行".to_string());
+    }
+    
+    let base_dir = std::env::temp_dir().join("dz_viz_hls");
+    let hls_server = HLSServer::new(hls_port, base_dir);
+    
+    // 在后台启动HLS服务器
+    let server_clone = HLSServer::new(hls_port, std::env::temp_dir().join("dz_viz_hls"));
+    tokio::spawn(async move {
+        if let Err(e) = server_clone.start().await {
+            eprintln!("❌ HLS服务器启动失败: {}", e);
+        }
+    });
+    
+    app.manage(hls_server);
+    Ok(format!("HLS服务器已启动在端口: {}", hls_port))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -673,7 +757,11 @@ pub fn run() {
             delete_sandbox_camera,
             start_video_stream_server,
             get_camera_stream_url,
-            get_camera_websocket_url
+            get_camera_websocket_url,
+            start_rtsp_conversion,
+            stop_rtsp_conversion,
+            get_hls_url,
+            start_hls_server
         ])
         .setup(|app| {
             // 初始化数据库

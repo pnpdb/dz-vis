@@ -41,8 +41,7 @@ uuid = { version = "1.0", features = ["v4"] }
 base64 = "0.22"
 tokio-tungstenite = "0.21"
 urlencoding = "2.1"
-# FFmpeg bindings for video processing
-ffmpeg-next = { version = "7.0", optional = true }
-# WebRTC for real-time streaming
-webrtc = { version = "0.10", optional = true }
+# 使用系统FFmpeg命令，不使用Rust绑定（避免pkg-config问题）
+# File system operations
+tempfile = "3.8"
 

@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, State, WebSocketUpgrade},
     http::{HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
     routing::get,
@@ -9,14 +9,17 @@ use serde::Deserialize;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use crate::database::VehicleDatabase;
+use crate::video_stream::rtsp_proxy::RTSPProxy;
 
 #[derive(Clone)]
 pub struct VideoStreamState {
     pub db: Arc<VehicleDatabase>,
+    pub rtsp_proxy: Arc<RTSPProxy>,
 }
 
 /// 查询参数
 #[derive(Deserialize)]
+#[allow(dead_code)]
 pub struct StreamQuery {
     pub camera_id: Option<i64>,
 }
@@ -31,7 +34,10 @@ impl VideoStreamServer {
     pub fn new(port: u16, db: Arc<VehicleDatabase>) -> Self {
         Self {
             port,
-            state: VideoStreamState { db },
+            state: VideoStreamState { 
+                db,
+                rtsp_proxy: Arc::new(RTSPProxy::new()),
+            },
         }
     }
 
@@ -41,6 +47,7 @@ impl VideoStreamServer {
             .route("/stream/:camera_id", get(handle_stream))
             .route("/camera/list", get(get_camera_list))
             .route("/camera/:camera_id/info", get(get_camera_info))
+            .route("/ws/camera/:camera_id", get(handle_websocket))
             .layer(CorsLayer::permissive())
             .with_state(self.state.clone());
 
@@ -155,4 +162,28 @@ async fn get_camera_info(
         }
         None => Err(StatusCode::NOT_FOUND),
     }
+}
+
+/// 处理WebSocket连接
+async fn handle_websocket(
+    Path(camera_id): Path<i64>,
+    ws: WebSocketUpgrade,
+    State(state): State<VideoStreamState>,
+) -> Response {
+    println!("🔌 WebSocket连接请求: camera_id={}", camera_id);
+    
+    // 验证摄像头是否存在
+    let camera_exists = match state.db.get_all_sandbox_cameras().await {
+        Ok(cameras) => cameras.into_iter().any(|c| c.id == camera_id),
+        Err(_) => false,
+    };
+    
+    if !camera_exists {
+        println!("❌ 摄像头不存在: camera_id={}", camera_id);
+        return ws.on_upgrade(|socket| async move {
+            let _ = socket.close().await;
+        });
+    }
+    
+    state.rtsp_proxy.handle_websocket(ws, camera_id).await
 }

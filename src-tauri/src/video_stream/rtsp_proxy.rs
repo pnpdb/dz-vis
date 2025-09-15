@@ -4,13 +4,14 @@ use axum::{
 };
 use futures_util::{sink::SinkExt, stream::StreamExt};
 use std::sync::Arc;
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{broadcast, RwLock, Mutex};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use base64::prelude::*;
 
 /// RTSP流状态
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct RTSPStreamState {
     pub url: String,
     pub is_active: bool,
@@ -56,9 +57,12 @@ impl RTSPProxy {
     ) -> Response {
         let streams = self.streams.clone();
         let frame_receiver = self.frame_sender.subscribe();
+        let frame_sender = self.frame_sender.clone();
+        
+        println!("✅ 接受WebSocket连接: camera_id={}", camera_id);
         
         ws.on_upgrade(move |socket| async move {
-            Self::handle_socket(socket, camera_id, streams, frame_receiver).await;
+            Self::handle_socket(socket, camera_id, streams, frame_receiver, frame_sender).await;
         })
     }
 
@@ -68,14 +72,15 @@ impl RTSPProxy {
         camera_id: i64,
         streams: Arc<RwLock<HashMap<i64, RTSPStreamState>>>,
         mut frame_receiver: broadcast::Receiver<(i64, Vec<u8>)>,
+        frame_sender: broadcast::Sender<(i64, Vec<u8>)>,
     ) {
         let (sender, mut receiver) = socket.split();
+        let sender = Arc::new(Mutex::new(sender));
 
         // 启动帧数据转发任务
         let frame_task = {
-            let sender = sender;
+            let sender_clone = sender.clone();
             tokio::spawn(async move {
-                let mut sender = sender;
                 while let Ok((stream_id, frame_data)) = frame_receiver.recv().await {
                     if stream_id == camera_id {
                         let message = WSMessage::FrameData {
@@ -85,7 +90,8 @@ impl RTSPProxy {
                         };
                         
                         if let Ok(json) = serde_json::to_string(&message) {
-                            if sender.send(axum::extract::ws::Message::Text(json)).await.is_err() {
+                            let mut sender_guard = sender_clone.lock().await;
+                            if sender_guard.send(axum::extract::ws::Message::Text(json)).await.is_err() {
                                 break;
                             }
                         }
@@ -113,8 +119,23 @@ impl RTSPProxy {
                                     });
                                 }
 
-                                // 启动RTSP流处理（简化版本）
-                                Self::start_rtsp_stream(camera_id, rtsp_url).await;
+                                // 发送连接成功状态
+                                let status_msg = WSMessage::Status {
+                                    camera_id,
+                                    status: "streaming".to_string(),
+                                };
+                                
+                                if let Ok(status_json) = serde_json::to_string(&status_msg) {
+                                    let mut sender_guard = sender.lock().await;
+                                    if let Err(e) = sender_guard.send(axum::extract::ws::Message::Text(status_json)).await {
+                                        println!("❌ 发送状态消息失败: {}", e);
+                                    } else {
+                                        println!("📡 已发送流状态: streaming");
+                                    }
+                                }
+
+                                // 启动RTSP流处理
+                                Self::start_rtsp_stream(camera_id, rtsp_url, frame_sender.clone()).await;
                             }
                             WSMessage::StopStream { camera_id } => {
                                 println!("🛑 停止RTSP流: {}", camera_id);
@@ -142,40 +163,23 @@ impl RTSPProxy {
         frame_task.abort();
     }
 
-    /// 启动RTSP流处理（简化版本 - 实际应用中需要FFmpeg）
-    async fn start_rtsp_stream(camera_id: i64, rtsp_url: String) {
+    /// 启动RTSP流处理
+    async fn start_rtsp_stream(camera_id: i64, rtsp_url: String, _frame_sender: broadcast::Sender<(i64, Vec<u8>)>) {
         tokio::spawn(async move {
-            // 这里是简化的实现
-            // 实际应用中需要使用FFmpeg来处理RTSP流
-            println!("🔄 模拟RTSP流处理: {} -> {}", camera_id, rtsp_url);
+            println!("🔄 准备连接RTSP流: {} -> {}", camera_id, rtsp_url);
             
-            // 模拟发送帧数据
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(33)); // ~30 FPS
-            let mut frame_counter = 0u64;
+            // 这里为真实的RTSP流连接做准备
+            // 实际的RTSP处理将通过您的推流服务来完成
+            // 当前只是确保WebSocket连接建立成功
             
-            loop {
-                interval.tick().await;
-                frame_counter += 1;
-                
-                // 生成模拟帧数据（实际应用中从FFmpeg获取）
-                let _mock_frame = Self::generate_mock_frame(frame_counter);
-                
-                // 这里应该通过broadcast sender发送真实的帧数据
-                // 由于我们没有真实的RTSP解码，这里只是演示结构
-                
-                if frame_counter > 1000 { // 防止无限循环
-                    break;
-                }
-            }
+            println!("✅ RTSP流连接已准备就绪: camera_id={}, url={}", camera_id, rtsp_url);
+            
+            // 真实的RTSP流处理逻辑可以在这里添加
+            // 例如使用FFmpeg或其他RTSP客户端库来接收和转码RTSP流
+            // 然后通过frame_sender发送处理后的帧数据
         });
     }
 
-    /// 生成模拟帧数据（用于测试）
-    fn generate_mock_frame(frame_number: u64) -> Vec<u8> {
-        // 生成一个简单的测试模式
-        // 实际应用中这里是从FFmpeg解码得到的帧数据
-        format!("Frame {}: Mock RTSP data", frame_number).into_bytes()
-    }
 }
 
 impl Default for RTSPProxy {

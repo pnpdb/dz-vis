@@ -36,9 +36,12 @@
                     class="camera-video"
                     autoplay
                     muted
+                    playsinline
                     @loadstart="onVideoLoadStart"
                     @loadeddata="onVideoLoaded"
                     @error="onVideoError"
+                    @canplay="onVideoCanPlay"
+                    @contextmenu.prevent
                 >
                     您的浏览器不支持视频播放
                 </video>
@@ -53,14 +56,6 @@
                 <div v-else class="camera-placeholder">
                     <fa icon="camera" class="camera-icon" />
                     <p>{{ cameraPlaceholderText }}</p>
-                    <el-button 
-                        v-if="selectedCamera && selectedCamera.camera_type === 'USB'" 
-                        type="primary" 
-                        size="small"
-                        @click="requestCameraPermission"
-                    >
-                        请求摄像头权限
-                    </el-button>
                 </div>
             </div>
         </div>
@@ -98,43 +93,54 @@
             <label class="form-label"
                 ><fa icon="lightbulb"></fa> 设备控制</label
             >
-            <div class="light-controls">
-                <div class="light-item">
-                    <span
-                        ><fa icon="parking" class="light-icon"></fa>
-                        停车抬杠</span
-                    >
-                    <el-switch
-                        v-model="lightSettings.barrier"
-                        active-color="#13ce66"
-                    />
+            <div class="device-control-grid">
+                <div class="device-row">
+                    <div class="device-label">
+                        <fa icon="parking" class="device-icon"></fa>
+                        <span>停车抬杠</span>
+                    </div>
+                    <div class="device-switch">
+                        <el-switch
+                            v-model="lightSettings.barrier"
+                            active-color="#13ce66"
+                        />
+                    </div>
                 </div>
-                <div class="light-item">
-                    <span><fa icon="sun" class="light-icon"></fa> 环境灯</span>
-                    <el-switch
-                        v-model="lightSettings.ambient"
-                        active-color="#13ce66"
-                    />
+                <div class="device-row">
+                    <div class="device-label">
+                        <fa icon="sun" class="device-icon"></fa>
+                        <span>环境灯</span>
+                    </div>
+                    <div class="device-switch">
+                        <el-switch
+                            v-model="lightSettings.ambient"
+                            active-color="#13ce66"
+                        />
+                    </div>
                 </div>
-                <div class="light-item">
-                    <span
-                        ><fa icon="building" class="light-icon"></fa>
-                        建筑灯</span
-                    >
-                    <el-switch
-                        v-model="lightSettings.building"
-                        active-color="#13ce66"
-                    />
+                <div class="device-row">
+                    <div class="device-label">
+                        <fa icon="building" class="device-icon"></fa>
+                        <span>建筑灯</span>
+                    </div>
+                    <div class="device-switch">
+                        <el-switch
+                            v-model="lightSettings.building"
+                            active-color="#13ce66"
+                        />
+                    </div>
                 </div>
-                <div class="light-item">
-                    <span
-                        ><fa icon="street-view" class="light-icon"></fa>
-                        路灯</span
-                    >
-                    <el-switch
-                        v-model="lightSettings.street"
-                        active-color="#13ce66"
-                    />
+                <div class="device-row">
+                    <div class="device-label">
+                        <fa icon="street-view" class="device-icon"></fa>
+                        <span>路灯</span>
+                    </div>
+                    <div class="device-switch">
+                        <el-switch
+                            v-model="lightSettings.street"
+                            active-color="#13ce66"
+                        />
+                    </div>
                 </div>
             </div>
         </div>
@@ -156,10 +162,8 @@ const isStreaming = ref(false);
 const videoRef = ref();
 const cameraPreviewRef = ref();
 
-// 视频流服务器相关
+// 保留端口配置（可能用于其他服务）
 const streamServerPort = ref(9001);
-const streamServerStarted = ref(false);
-const websocketConnection = ref(null);
 
 // 计算属性
 const cameraPlaceholderText = computed(() => {
@@ -167,10 +171,18 @@ const cameraPlaceholderText = computed(() => {
         return '暂无可用摄像头，请先在设置中添加摄像头';
     }
     if (!selectedCamera.value) {
-        return '暂无视频';
+        return '请选择摄像头';
     }
-    if (!isStreaming.value && !isLoading.value) {
-        return '请点击连接摄像头';
+    if (isLoading.value) {
+        return '正在连接摄像头...';
+    }
+    if (!isStreaming.value) {
+        if (selectedCamera.value.camera_type === 'USB') {
+            return '准备连接USB摄像头';
+        } else if (selectedCamera.value.camera_type === 'RJ45') {
+            return '准备连接RTSP流';
+        }
+        return '准备连接摄像头';
     }
     return '暂无视频';
 });
@@ -276,12 +288,20 @@ const startVideoStream = async (camera) => {
         return;
     }
 
+    console.log(`🎥 开始连接摄像头: ${camera.name} (${camera.camera_type})`);
+    
+    // 设置加载状态
     isLoading.value = true;
     isStreaming.value = false;
+    
+    // 确保video元素已清理
+    if (videoRef.value) {
+        videoRef.value.removeAttribute('src');
+        videoRef.value.srcObject = null;
+        videoRef.value.load();
+    }
 
     try {
-        console.log(`🎥 开始连接摄像头: ${camera.name} (${camera.camera_type})`);
-        
         if (camera.camera_type === 'USB') {
             // USB摄像头 - 使用getUserMedia API
             await startUSBCamera(camera);
@@ -292,6 +312,7 @@ const startVideoStream = async (camera) => {
     } catch (error) {
         console.error('❌ 启动视频流失败:', error);
         ElMessage.error(`连接摄像头失败: ${error.message || error}`);
+        isStreaming.value = false;
     } finally {
         isLoading.value = false;
     }
@@ -377,57 +398,159 @@ const startUSBCamera = async (camera) => {
     }
 };
 
-// RTSP摄像头处理（使用Rust后端）
+// 等待HLS流就绪
+const waitForHLSReady = async (hlsUrl, maxRetries = 10, delay = 1000) => {
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            console.log(`🔍 检查HLS流是否就绪... (${i + 1}/${maxRetries})`);
+            const response = await fetch(hlsUrl, { 
+                method: 'HEAD',
+                cache: 'no-cache'
+            });
+            if (response.ok) {
+                console.log('✅ HLS流已就绪');
+                return;
+            }
+        } catch (error) {
+            console.log(`⏳ HLS流还未就绪: ${error.message}`);
+        }
+        
+        if (i < maxRetries - 1) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+    
+    console.warn('⚠️ HLS流可能还未完全就绪，但将尝试播放');
+};
+
+// RTSP摄像头处理（通过Rust后端转换为HLS）
 const startRTSPCamera = async (camera) => {
     if (!camera.rtsp_url) {
         throw new Error('RTSP地址不能为空');
     }
 
     try {
-        // 确保视频流服务器已启动
-        if (!streamServerStarted.value) {
-            await startVideoStreamServer();
+        console.log(`🎥 启动RTSP到HLS转换: ${camera.rtsp_url}`);
+        
+        // 先启动HLS服务器
+        try {
+            await invoke('start_hls_server', { port: 9002 });
+            console.log('✅ HLS服务器已启动');
+        } catch (error) {
+            console.log('ℹ️ HLS服务器已在运行或启动中');
         }
-
-        // 建立WebSocket连接处理RTSP流
-        await connectRTSPWebSocket(camera);
+        
+        // 启动RTSP到HLS转换
+        const hlsPath = await invoke('start_rtsp_conversion', {
+            cameraId: camera.id,
+            rtspUrl: camera.rtsp_url
+        });
+        
+        console.log(`🔄 HLS路径: ${hlsPath}`);
+        
+        // 等待一下让FFmpeg开始处理
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // 获取完整的HLS URL
+        const hlsUrl = await invoke('get_hls_url', {
+            cameraId: camera.id,
+            hlsPort: 9002
+        });
+        
+        console.log(`🎬 HLS URL: ${hlsUrl}`);
+        
+        // 检查HLS流是否真的可用
+        await waitForHLSReady(hlsUrl);
+        
+        // 先设置streaming状态让video元素显示
+        isStreaming.value = true;
+        
+        // 等待DOM更新，确保video元素已创建
+        await nextTick();
+        
+        if (videoRef.value) {
+            // 清除之前的源
+            videoRef.value.src = '';
+            videoRef.value.srcObject = null;
+            
+            // 设置播放属性优化性能
+            videoRef.value.autoplay = true;
+            videoRef.value.muted = true;
+            videoRef.value.playsInline = true;
+            // controls已在模板中设置
+            
+            // 设置HLS URL到video元素
+            videoRef.value.src = hlsUrl;
+            
+            // 尝试播放
+            try {
+                await videoRef.value.play();
+                console.log('✅ HLS流播放成功');
+            } catch (playError) {
+                console.warn('⚠️ 自动播放失败，用户可手动点击播放:', playError.message);
+                // 不设置为false，保持视频元素显示，用户可以手动播放
+            }
+        } else {
+            // 如果还是找不到video元素，重置状态
+            isStreaming.value = false;
+            throw new Error('video元素未找到，请重试');
+        }
         
     } catch (error) {
         console.error('❌ RTSP摄像头连接失败:', error);
+        isStreaming.value = false; // 发生错误时重置状态
         throw new Error(`RTSP流连接失败: ${error.message || error}`);
     }
 };
 
 // 停止视频流
-const stopVideoStream = () => {
-    // 停止USB摄像头流
-    if (videoRef.value && videoRef.value.srcObject) {
-        const tracks = videoRef.value.srcObject.getTracks();
-        tracks.forEach(track => track.stop());
-        videoRef.value.srcObject = null;
-    }
+const stopVideoStream = async () => {
+    console.log('🛑 开始停止视频流...');
     
-    // 停止RTSP流
-    if (videoRef.value && videoRef.value.src) {
-        videoRef.value.src = '';
-    }
-    
-    // 关闭WebSocket连接
-    if (websocketConnection.value) {
-        const selectedCameraValue = selectedCamera.value;
-        if (selectedCameraValue) {
-            // 发送停止流的消息
-            const message = {
-                type: 'stop_stream',
-                camera_id: selectedCameraValue.id
-            };
-            websocketConnection.value.send(JSON.stringify(message));
+    try {
+        // 停止USB摄像头流
+        if (videoRef.value && videoRef.value.srcObject) {
+            console.log('📹 停止USB摄像头流');
+            const tracks = videoRef.value.srcObject.getTracks();
+            tracks.forEach(track => {
+                track.stop();
+                console.log(`🔌 已停止轨道: ${track.kind}`);
+            });
+            videoRef.value.srcObject = null;
         }
-        closeWebSocketConnection();
+        
+        // 停止RTSP/HLS流
+        if (videoRef.value && videoRef.value.src) {
+            console.log('📺 停止RTSP/HLS流');
+            videoRef.value.pause(); // 暂停播放
+            videoRef.value.removeAttribute('src'); // 完全移除src属性
+            videoRef.value.load(); // 清除缓冲
+        }
+        
+        // 如果当前摄像头是RTSP类型，停止后端转换
+        if (selectedCamera.value && selectedCamera.value.camera_type === 'RJ45') {
+            try {
+                await invoke('stop_rtsp_conversion', { cameraId: selectedCamera.value.id });
+                console.log('🛑 RTSP转换已停止');
+            } catch (error) {
+                console.warn('⚠️ 停止RTSP转换时出现警告:', error);
+            }
+        }
+        
+        // 重置所有状态
+        isStreaming.value = false;
+        isLoading.value = false;
+        
+        // 等待一下确保清理完成
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        console.log('✅ 视频流已完全停止');
+        
+    } catch (error) {
+        console.warn('⚠️ 停止视频流时出现警告:', error.message);
+        isStreaming.value = false;
+        isLoading.value = false;
     }
-    
-    isStreaming.value = false;
-    console.log('🛑 视频流已停止');
 };
 
 // 视频事件处理
@@ -442,11 +565,77 @@ const onVideoLoaded = () => {
     isStreaming.value = true;
 };
 
+const onVideoCanPlay = () => {
+    console.log('🎬 视频可以播放');
+    isLoading.value = false;
+    if (videoRef.value) {
+        // 确保视频开始播放
+        videoRef.value.play().catch(error => {
+            console.warn('⚠️ 自动播放失败:', error.message);
+        });
+    }
+};
+
 const onVideoError = (event) => {
     console.error('❌ 视频加载错误:', event);
+    const videoEl = event.target;
+    
+    // 详细的错误信息
+    if (videoEl && videoEl.error) {
+        const errorCode = videoEl.error.code;
+        const errorMessage = videoEl.error.message;
+        console.error(`视频错误代码: ${errorCode}, 消息: ${errorMessage}`);
+        
+        // 根据摄像头类型和错误类型提供具体建议
+        let userMessage = '视频流播放失败';
+        const isRTSP = selectedCamera.value?.camera_type === 'RJ45';
+        
+        switch (errorCode) {
+            case 1: // MEDIA_ERR_ABORTED
+                userMessage = '视频播放被中断';
+                break;
+            case 2: // MEDIA_ERR_NETWORK
+                userMessage = isRTSP ? '网络错误，请检查RTSP服务是否可用' : '网络错误，请检查连接';
+                break;
+            case 3: // MEDIA_ERR_DECODE
+                userMessage = isRTSP ? '视频解码失败，请检查RTSP流格式' : '视频解码失败';
+                break;
+            case 4: // MEDIA_ERR_SRC_NOT_SUPPORTED
+                userMessage = isRTSP ? '不支持的视频格式或RTSP协议' : '不支持的视频格式，请检查摄像头兼容性';
+                break;
+        }
+        
+        // 对于RTSP摄像头，可能需要更多时间让HLS流准备就绪
+        if (isRTSP && errorCode === 4) {
+            console.log('🔄 HLS流可能还在准备中，等待一下再重试...');
+            // 对于RTSP，给HLS转换更多时间
+            setTimeout(async () => {
+                if (selectedCamera.value?.camera_type === 'RJ45' && videoRef.value) {
+                    try {
+                        const hlsUrl = await invoke('get_hls_url', {
+                            cameraId: selectedCamera.value.id,
+                            hlsPort: 9002
+                        });
+                        console.log('🔄 重新尝试播放HLS流:', hlsUrl);
+                        videoRef.value.src = hlsUrl;
+                        videoRef.value.load();
+                    } catch (retryError) {
+                        console.error('❌ 重试失败:', retryError);
+                        ElMessage.error('RTSP转换失败，请检查RTSP流是否可用');
+                    }
+                }
+            }, 3000); // 再等3秒
+            return; // 不显示错误消息，等待重试
+        }
+        
+        // 只有在真正出错时才显示错误消息，避免切换时的误报
+        if (isStreaming.value || isLoading.value) {
+            ElMessage.error(userMessage);
+        }
+    }
+    
     isLoading.value = false;
     isStreaming.value = false;
-    ElMessage.error('视频流播放失败');
 };
 
 // 监听摄像头选择变化
@@ -454,137 +643,24 @@ watch(cameraId, async (newCameraId, oldCameraId) => {
     if (newCameraId !== oldCameraId) {
         console.log(`🔄 摄像头切换: ${oldCameraId} → ${newCameraId}`);
         
-        // 停止之前的流
-        stopVideoStream();
-        
-        // 启动新的流
-        const camera = cameras.value.find(cam => cam.id === newCameraId);
-        if (camera) {
-            await nextTick(); // 等待DOM更新
-            await startVideoStream(camera);
+        try {
+            // 停止之前的流（包括清理RTSP转换）
+            await stopVideoStream();
+            
+            // 启动新的流
+            const camera = cameras.value.find(cam => cam.id === newCameraId);
+            if (camera) {
+                // 等待DOM更新和清理完成
+                await nextTick();
+                await startVideoStream(camera);
+            }
+        } catch (error) {
+            console.error('❌ 摄像头切换失败:', error);
+            ElMessage.error(`摄像头切换失败: ${error.message}`);
         }
     }
 });
 
-// 启动视频流服务器
-const startVideoStreamServer = async () => {
-    if (streamServerStarted.value) {
-        return;
-    }
-    
-    try {
-        console.log('🚀 启动视频流服务器...');
-        const result = await invoke('start_video_stream_server', { 
-            port: streamServerPort.value 
-        });
-        streamServerStarted.value = true;
-        console.log('✅ 视频流服务器启动成功:', result);
-    } catch (error) {
-        console.error('❌ 启动视频流服务器失败:', error);
-        ElMessage.error(`启动视频流服务器失败: ${error}`);
-        throw error;
-    }
-};
-
-// 连接RTSP WebSocket
-const connectRTSPWebSocket = async (camera) => {
-    try {
-        const wsUrl = await invoke('get_camera_websocket_url', { 
-            cameraId: camera.id,
-            serverPort: streamServerPort.value 
-        });
-        
-        console.log(`🔌 连接WebSocket: ${wsUrl}`);
-        
-        const ws = new WebSocket(wsUrl);
-        websocketConnection.value = ws;
-        
-        ws.onopen = () => {
-            console.log('✅ WebSocket连接成功');
-            
-            // 发送启动流的消息
-            const message = {
-                type: 'start_stream',
-                camera_id: camera.id,
-                rtsp_url: camera.rtsp_url
-            };
-            ws.send(JSON.stringify(message));
-        };
-        
-        ws.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                handleWebSocketMessage(data);
-            } catch (error) {
-                console.error('❌ 解析WebSocket消息失败:', error);
-            }
-        };
-        
-        ws.onclose = () => {
-            console.log('🔌 WebSocket连接关闭');
-            isStreaming.value = false;
-            websocketConnection.value = null;
-        };
-        
-        ws.onerror = (error) => {
-            console.error('❌ WebSocket错误:', error);
-            ElMessage.error('WebSocket连接失败');
-            isStreaming.value = false;
-        };
-        
-    } catch (error) {
-        console.error('❌ 创建WebSocket连接失败:', error);
-        throw error;
-    }
-};
-
-// 处理WebSocket消息
-const handleWebSocketMessage = (data) => {
-    switch (data.type) {
-        case 'frame_data':
-            // 处理帧数据
-            if (data.camera_id === selectedCamera.value?.id) {
-                displayVideoFrame(data.data);
-            }
-            break;
-            
-        case 'status':
-            console.log(`📡 摄像头状态: ${data.camera_id} - ${data.status}`);
-            if (data.status === 'streaming') {
-                isStreaming.value = true;
-            }
-            break;
-            
-        case 'error':
-            console.error('❌ 服务器错误:', data.message);
-            ElMessage.error(`视频流错误: ${data.message}`);
-            break;
-            
-        default:
-            console.log('📨 未处理的WebSocket消息:', data);
-    }
-};
-
-// 显示视频帧（简化版本）
-const displayVideoFrame = (frameData) => {
-    // 这里可以将base64编码的帧数据显示在canvas上
-    // 或者创建blob URL显示在video元素中
-    console.log('📺 收到视频帧数据，长度:', frameData.length);
-    
-    // 简化实现：显示提示信息
-    if (!isStreaming.value) {
-        isStreaming.value = true;
-        console.log('✅ 开始接收RTSP视频流');
-    }
-};
-
-// 关闭WebSocket连接
-const closeWebSocketConnection = () => {
-    if (websocketConnection.value) {
-        websocketConnection.value.close();
-        websocketConnection.value = null;
-    }
-};
 
 // 检查摄像头权限
 const checkCameraPermission = async () => {
@@ -603,41 +679,6 @@ const checkCameraPermission = async () => {
     }
 };
 
-// 请求摄像头权限
-const requestCameraPermission = async () => {
-    try {
-        console.log('🔐 请求摄像头权限...');
-        
-        // 通过尝试获取摄像头来请求权限
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: true, 
-            audio: false 
-        });
-        
-        // 立即停止流，我们只是为了获取权限
-        stream.getTracks().forEach(track => track.stop());
-        
-        console.log('✅ 摄像头权限获取成功');
-        ElMessage.success('摄像头权限获取成功，请重新选择摄像头');
-        
-        // 重新连接当前选择的摄像头
-        if (selectedCamera.value) {
-            await startVideoStream(selectedCamera.value);
-        }
-        
-    } catch (error) {
-        console.error('❌ 摄像头权限请求失败:', error);
-        
-        let message = '摄像头权限请求失败';
-        if (error.name === 'NotAllowedError') {
-            message = '摄像头权限被拒绝，请在浏览器地址栏点击摄像头图标并允许访问';
-        } else if (error.name === 'NotFoundError') {
-            message = '未找到摄像头设备，请检查设备连接';
-        }
-        
-        ElMessage.error(message);
-    }
-};
 
 // 组件挂载时加载设置
 onMounted(async () => {
@@ -646,17 +687,11 @@ onMounted(async () => {
     
     // 检查摄像头权限
     await checkCameraPermission();
-    
-    // 预启动视频流服务器
-    startVideoStreamServer().catch(error => {
-        console.log('⚠️ 预启动视频流服务器失败，将在需要时重试:', error);
-    });
 });
 
 // 组件卸载时清理资源
 onBeforeUnmount(() => {
     stopVideoStream();
-    closeWebSocketConnection();
 });
 
 const updateLightDuration = () => {
@@ -962,6 +997,38 @@ i.el-input__clear:hover,
     top: 0;
     left: 0;
     z-index: 1;
+    
+    /* 完全隐藏视频控制条 */
+    &::-webkit-media-controls {
+        display: none !important;
+    }
+    
+    &::-webkit-media-controls-panel {
+        display: none !important;
+    }
+    
+    &::-webkit-media-controls-play-button {
+        display: none !important;
+    }
+    
+    &::-webkit-media-controls-start-playback-button {
+        display: none !important;
+    }
+    
+    /* Firefox */
+    &::-moz-media-controls {
+        display: none !important;
+    }
+    
+    /* 禁用右键菜单但保留播放功能 */
+    &::-webkit-media-controls-overlay-play-button {
+        display: none !important;
+    }
+    
+    /* 禁用视频的默认右键菜单 */
+    &:focus {
+        outline: none;
+    }
 }
 
 .camera-loading {
@@ -997,6 +1064,68 @@ i.el-input__clear:hover,
     margin-bottom: 10px;
 }
 
+/* 重新设计的设备控制区域 */
+.device-control-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.device-row {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(0, 240, 255, 0.2);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.device-row:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(0, 240, 255, 0.4);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 240, 255, 0.1);
+}
+
+.device-label {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    margin-right: 12px;
+    font-size: 12px; /* 调小字号 */
+}
+
+.device-icon {
+    font-size: 12px; /* 调小图标 */
+    margin-right: 6px;
+    color: var(--primary);
+}
+
+.device-switch {
+    flex-shrink: 0;
+}
+
+/* 调整Element Plus开关大小 */
+.device-switch :deep(.el-switch) {
+    --el-switch-on-color: #13ce66;
+    --el-switch-off-color: #dcdfe6;
+    height: 20px !important;
+    min-width: 36px !important;
+}
+
+.device-switch :deep(.el-switch__core) {
+    height: 20px !important;
+    min-width: 36px !important;
+    border-radius: 10px !important;
+}
+
+.device-switch :deep(.el-switch__action) {
+    height: 16px !important;
+    width: 16px !important;
+    top: 2px !important;
+}
+
 /* 确保Element Plus输入框组件占满宽度 */
 :deep(.el-input-number) {
     width: 100%;
@@ -1028,66 +1157,6 @@ i.el-input__clear:hover,
     border-color: rgba(0, 240, 255, 0.5) !important;
 }
 
-/* 灯光控制增强 */
-.light-controls {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-
-    .light-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 8px;
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(0, 240, 255, 0.2);
-        border-radius: 8px;
-        transition: all 0.3s ease;
-        position: relative;
-        overflow: hidden;
-
-        &:hover {
-            background: rgba(255, 255, 255, 0.06);
-            border-color: rgba(0, 240, 255, 0.4);
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 240, 255, 0.1);
-        }
-
-        &::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(
-                90deg,
-                transparent,
-                rgba(0, 240, 255, 0.1),
-                transparent
-            );
-            transition: left 0.5s ease;
-        }
-
-        &:hover::before {
-            left: 100%;
-        }
-
-        .light-label {
-            display: flex;
-            align-items: center;
-            color: var(--text-primary);
-            font-weight: 500;
-            font-size: 11px;
-        }
-        
-        .light-icon {
-            font-size: 14px;
-            margin-right: 6px;
-            color: var(--primary);
-        }
-    }
-}
 
 /* 按钮增强 */
 .btn {
@@ -1165,4 +1234,5 @@ i.el-input__clear:hover,
 .floating-control-panel::-webkit-scrollbar-thumb:hover {
     box-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
 }
+
 </style>

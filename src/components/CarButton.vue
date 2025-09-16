@@ -24,11 +24,88 @@
             </button>
         </div>
     </div>
+
+    <!-- 位姿确认对话框 -->
+    <el-dialog
+        v-model="showPoseDialog"
+        title=""
+        width="500px"
+        :close-on-click-modal="false"
+        :close-on-press-escape="false"
+        :show-close="false"
+        center
+        class="pose-confirmation-dialog"
+    >
+        <div class="pose-dialog-content">
+            <!-- 图标和标题 -->
+            <div class="dialog-header">
+                <div class="icon-container">
+                    <fa icon="crosshairs" class="location-icon" />
+                </div>
+                <h2 class="dialog-title">确认初始化位姿</h2>
+                <p class="dialog-subtitle">请确认车辆的初始位置和朝向</p>
+            </div>
+
+            <!-- 位置信息卡片 -->
+            <div class="position-card" v-if="selectedPoseData">
+                <div class="card-header">
+                    <fa icon="map-marker-alt" class="card-icon" />
+                    <span class="card-title">选择的位置信息</span>
+                </div>
+                
+                <div class="position-details">
+                    <div class="detail-row">
+                        <span class="detail-label">X 坐标</span>
+                        <span class="detail-value">{{ selectedPoseData.x.toFixed(3) }}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Y 坐标</span>
+                        <span class="detail-value">{{ selectedPoseData.z.toFixed(3) }}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">朝向角度</span>
+                        <span class="detail-value">{{ selectedPoseData.orientation.toFixed(1) }}°</span>
+                    </div>
+                </div>
+
+                <div class="vehicle-info">
+                    <fa icon="car" class="vehicle-icon" />
+                    <span>车辆 {{ selectedVehicleId }} 将被初始化到此位置</span>
+                </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="dialog-actions">
+                <el-button 
+                    class="action-btn cancel-btn" 
+                    @click="cancelPoseSelection"
+                >
+                    <fa icon="times" />
+                    取消
+                </el-button>
+                <el-button 
+                    class="action-btn reselect-btn" 
+                    @click="reselectPose"
+                >
+                    <fa icon="redo" />
+                    重新选择
+                </el-button>
+                <el-button 
+                    class="action-btn confirm-btn" 
+                    type="primary"
+                    @click="confirmPoseInitialization"
+                >
+                    <fa icon="check" />
+                    确定初始化
+                </el-button>
+            </div>
+        </div>
+    </el-dialog>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage, ElDialog, ElButton } from 'element-plus';
 import { socketManager } from '@/utils/socketManager.js';
 import { useCarStore } from '@/stores/car.js';
 import { startPoseSelectionMode, stopPoseSelectionMode } from '@/components/Scene3D/index.js';
@@ -37,6 +114,11 @@ const carStore = useCarStore();
 
 // 当前选中的车辆ID
 const currentCarId = computed(() => carStore.selectedCarId);
+
+// 位姿确认对话框状态
+const showPoseDialog = ref(false);
+const selectedPoseData = ref(null);
+const selectedVehicleId = ref(null);
 
 // 显示成功或失败消息，持续时间3秒
 const showMsg = (isSuccess, message) => {
@@ -159,52 +241,41 @@ const showPoseConfirmDialog = (vehicleId, pose) => {
     // 停止位姿选择模式
     stopPoseSelectionMode();
     
-    const { x, z, orientation } = pose;
+    selectedPoseData.value = pose;
+    selectedVehicleId.value = vehicleId;
+    showPoseDialog.value = true;
+};
+
+// 确认位姿初始化
+const confirmPoseInitialization = () => {
+    const { x, z, orientation } = selectedPoseData.value;
+    const vehicleId = selectedVehicleId.value;
     
-    ElMessageBox.confirm(
-        `您选择的位置坐标：
-        X: ${x.toFixed(3)}
-        Y: ${z.toFixed(3)}
-        朝向: ${orientation.toFixed(1)}°
-        
-        确定要将车辆${vehicleId}初始化到此位置吗？`,
-        '确认初始化位姿',
-        {
-            confirmButtonText: '确定',
-            cancelButtonText: '取消',
-            showCancelButton: true,
-            showClose: true,
-            type: 'info',
-            center: true,
-            customClass: 'pose-confirm-dialog',
-            distinguishCancelAndClose: true,
-            beforeClose: (action, instance, done) => {
-                if (action === 'confirm') {
-                    // 执行初始化位姿
-                    executePoseInitialization(vehicleId, x, z, orientation);
-                    done();
-                } else if (action === 'cancel') {
-                    // 重新选择
-                    done();
-                    // 延迟重新启动选择模式，避免立即触发
-                    setTimeout(() => {
-                        const success = startPoseSelectionMode((newPose) => {
-                            showPoseConfirmDialog(vehicleId, newPose);
-                        });
-                        if (success) {
-                            showMsg(true, '请重新在沙盘地图上选择位置和朝向');
-                        }
-                    }, 100);
-                } else {
-                    // 关闭/取消
-                    done();
-                }
-            }
+    executePoseInitialization(vehicleId, x, z, orientation);
+    showPoseDialog.value = false;
+};
+
+// 重新选择位姿
+const reselectPose = () => {
+    showPoseDialog.value = false;
+    const vehicleId = selectedVehicleId.value;
+    
+    // 延迟重新启动选择模式，避免立即触发
+    setTimeout(() => {
+        const success = startPoseSelectionMode((newPose) => {
+            showPoseConfirmDialog(vehicleId, newPose);
+        });
+        if (success) {
+            showMsg(true, '请重新在沙盘地图上选择位置和朝向');
         }
-    ).catch(() => {
-        // 用户取消或关闭对话框
-        console.log('用户取消了位姿选择');
-    });
+    }, 100);
+};
+
+// 取消位姿选择
+const cancelPoseSelection = () => {
+    showPoseDialog.value = false;
+    selectedPoseData.value = null;
+    selectedVehicleId.value = null;
 };
 
 // 执行位姿初始化
@@ -326,49 +397,201 @@ onMounted(() => {
 
 <style>
 /* 位姿确认对话框样式 */
-.pose-confirm-dialog .el-message-box {
-    background: #1a1a1a !important;
-    border: 1px solid #444 !important;
+:deep(.pose-confirmation-dialog) {
+    .el-dialog {
+        background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+        border: 1px solid #65d36c;
+        border-radius: 16px;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(101, 211, 108, 0.2);
+        overflow: hidden;
+    }
+    
+    .el-dialog__header {
+        display: none;
+    }
+    
+    .el-dialog__body {
+        padding: 0;
+        background: transparent;
+    }
+}
+
+.pose-dialog-content {
+    padding: 30px;
+    color: #ffffff;
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.dialog-header {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+.icon-container {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #65d36c, #4caf50);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 15px;
+    box-shadow: 0 8px 25px rgba(101, 211, 108, 0.3);
+}
+
+.location-icon {
+    font-size: 24px;
+    color: #1a1a1a;
+}
+
+.dialog-title {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+    color: #ffffff;
+    letter-spacing: 0.5px;
+}
+
+.dialog-subtitle {
+    font-size: 14px;
+    color: #b0b0b0;
+    margin: 0;
+    font-weight: 400;
+}
+
+.position-card {
+    background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);
+    border: 1px solid rgba(101, 211, 108, 0.3);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 25px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(101, 211, 108, 0.2);
+}
+
+.card-icon {
+    font-size: 16px;
+    color: #65d36c;
+    margin-right: 8px;
+}
+
+.card-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.position-details {
+    margin-bottom: 15px;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.detail-row:last-child {
+    border-bottom: none;
+}
+
+.detail-label {
+    font-size: 14px;
+    color: #b0b0b0;
+    font-weight: 500;
+}
+
+.detail-value {
+    font-size: 16px;
+    color: #65d36c;
+    font-weight: 700;
+    font-family: 'Courier New', monospace;
+}
+
+.vehicle-info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background: rgba(101, 211, 108, 0.1);
+    border-radius: 8px;
+    font-size: 14px;
+    color: #ffffff;
+}
+
+.vehicle-icon {
+    font-size: 16px;
+    color: #65d36c;
+    margin-right: 8px;
+}
+
+.dialog-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+.action-btn {
+    padding: 12px 20px !important;
     border-radius: 8px !important;
-}
-
-.pose-confirm-dialog .el-message-box__header {
-    background: #1a1a1a !important;
-    border-bottom: 1px solid #333 !important;
-}
-
-.pose-confirm-dialog .el-message-box__title {
-    color: #ffffff !important;
     font-weight: 600 !important;
+    font-size: 14px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    transition: all 0.3s ease !important;
+    min-width: 110px !important;
+    justify-content: center !important;
 }
 
-.pose-confirm-dialog .el-message-box__content {
-    background: #1a1a1a !important;
-    color: #e8e8e8 !important;
-    white-space: pre-line !important;
-    line-height: 1.6 !important;
+.cancel-btn {
+    background: rgba(255, 77, 77, 0.2) !important;
+    border: 1px solid rgba(255, 77, 77, 0.4) !important;
+    color: #ff4d4d !important;
 }
 
-.pose-confirm-dialog .el-message-box__btns {
-    background: #1a1a1a !important;
-    border-top: 1px solid #333 !important;
+.cancel-btn:hover {
+    background: rgba(255, 77, 77, 0.3) !important;
+    border-color: #ff4d4d !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(255, 77, 77, 0.3) !important;
 }
 
-.pose-confirm-dialog .el-button--primary {
-    background: linear-gradient(135deg, #00d4ff, #0099cc) !important;
+.reselect-btn {
+    background: rgba(255, 193, 7, 0.2) !important;
+    border: 1px solid rgba(255, 193, 7, 0.4) !important;
+    color: #ffc107 !important;
+}
+
+.reselect-btn:hover {
+    background: rgba(255, 193, 7, 0.3) !important;
+    border-color: #ffc107 !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(255, 193, 7, 0.3) !important;
+}
+
+.confirm-btn {
+    background: linear-gradient(135deg, #65d36c, #4caf50) !important;
     border: none !important;
     color: #1a1a1a !important;
-    font-weight: 600 !important;
 }
 
-.pose-confirm-dialog .el-button--default {
-    background: #444 !important;
-    border: 1px solid #666 !important;
-    color: #ffffff !important;
+.confirm-btn:hover {
+    background: linear-gradient(135deg, #7de085, #66bb6a) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(101, 211, 108, 0.4) !important;
 }
 
-.pose-confirm-dialog .el-button--default:hover {
-    background: #555 !important;
-    border-color: #777 !important;
+.confirm-btn:active {
+    transform: translateY(0px) !important;
 }
 </style>

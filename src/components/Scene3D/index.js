@@ -28,6 +28,9 @@ import {
     Mesh,
     PlaneGeometry,
     DoubleSide,
+    TextureLoader,
+    SpriteMaterial,
+    Sprite,
 } from 'three';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 import { performanceMonitor } from '../../utils/performanceMonitor.js';
@@ -1246,19 +1249,25 @@ const onMouseDown = (event) => {
         event.preventDefault();
         isMouseDown = true;
         
-        // 获取鼠标在屏幕上的位置
+        // 获取鼠标在屏幕上的位置 - 更精确的计算
         const rect = container.getBoundingClientRect();
-        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        const mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        const mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        
+        // 设置鼠标坐标
+        mouse.x = mouseX;
+        mouse.y = mouseY;
         
         // 射线检测
-        raycaster.setFromCamera(mouse, camera);
+        raycaster.setFromCamera({ x: mouseX, y: mouseY }, camera);
         
         // 检测与地面的交点
         const intersects = raycaster.intersectObjects([groundPlane]);
         
         if (intersects.length > 0) {
             startPosition = intersects[0].point.clone();
+            // 确保startPosition在地面上
+            startPosition.y = 0;
             currentPosition = startPosition.clone();
             
             // 创建位置标记
@@ -1276,17 +1285,19 @@ const onMouseMove = (event) => {
     
     event.preventDefault();
     
-    // 获取鼠标在屏幕上的位置
+    // 获取鼠标在屏幕上的位置 - 更精确的计算
     const rect = container.getBoundingClientRect();
-    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    const mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     
     // 射线检测
-    raycaster.setFromCamera(mouse, camera);
+    raycaster.setFromCamera({ x: mouseX, y: mouseY }, camera);
     const intersects = raycaster.intersectObjects([groundPlane]);
     
     if (intersects.length > 0) {
         currentPosition = intersects[0].point.clone();
+        // 确保currentPosition在地面上
+        currentPosition.y = 0;
         
         // 更新方向线
         updateDirectionLine(startPosition, currentPosition);
@@ -1305,16 +1316,19 @@ const onMouseUp = (event) => {
         if (controls) controls.enabled = true;
         
         if (startPosition && currentPosition) {
-            // 计算朝向角度
+            // 计算朝向角度 - 修正为逆时针增加
             const direction = new Vector3().subVectors(currentPosition, startPosition);
-            const angle = Math.atan2(direction.z, direction.x) * 180 / Math.PI;
+            // 使用 -atan2(z, x) 来实现逆时针增加，X轴正方向为0度
+            let angle = -Math.atan2(direction.z, direction.x) * 180 / Math.PI;
+            // 确保角度在 0-360 范围内
+            if (angle < 0) angle += 360;
             
             // 调用回调函数
             if (poseSelectionCallback) {
                 poseSelectionCallback({
                     x: startPosition.x,
                     z: startPosition.z,
-                    orientation: angle < 0 ? angle + 360 : angle
+                    orientation: angle
                 });
             }
         }
@@ -1326,16 +1340,18 @@ const createPositionMarker = (position) => {
     // 清除之前的标记
     if (positionMarker) {
         scene.remove(positionMarker);
-        positionMarker.geometry.dispose();
-        positionMarker.material.dispose();
+        if (positionMarker.geometry) positionMarker.geometry.dispose();
+        if (positionMarker.material) positionMarker.material.dispose();
     }
     
-    // 创建球体标记
-    const geometry = new SphereGeometry(0.5, 16, 16);
-    const material = new MeshBasicMaterial({ color: 0x00ff00 });
+    // 创建小圆点几何体和材质
+    const geometry = new SphereGeometry(0.05, 12, 12); // 小圆点半径0.1 (约5像素大小)
+    const material = new MeshBasicMaterial({ color: 0x65d36c }); // 与射线相同颜色
+    
+    // 创建圆点标记
     positionMarker = new Mesh(geometry, material);
     positionMarker.position.copy(position);
-    positionMarker.position.y = 0.5; // 稍微抬高一点
+    positionMarker.position.y = 0.1; // 调整高度与新的半径匹配
     scene.add(positionMarker);
 };
 
@@ -1348,14 +1364,14 @@ const updateDirectionLine = (start, end) => {
         directionLine.material.dispose();
     }
     
-    // 创建新的线
+    // 创建新的线 - 起始点从小圆点中心开始
     const points = [
-        new Vector3(start.x, 0.1, start.z),
+        new Vector3(start.x, 0.1, start.z), // 与小圆点中心对齐 (圆点在y=0.1)
         new Vector3(end.x, 0.1, end.z)
     ];
     
     const geometry = new BufferGeometry().setFromPoints(points);
-    const material = new LineBasicMaterial({ color: 0xff0000, linewidth: 3 });
+    const material = new LineBasicMaterial({ color: 0x65d36c, linewidth: 3 });
     directionLine = new Line(geometry, material);
     scene.add(directionLine);
 };
@@ -1367,8 +1383,11 @@ const createGroundPlane = () => {
     
     const width = dimensions.bounds.max.x - dimensions.bounds.min.x;
     const depth = dimensions.bounds.max.z - dimensions.bounds.min.z;
+    const centerX = (dimensions.bounds.max.x + dimensions.bounds.min.x) / 2;
+    const centerZ = (dimensions.bounds.max.z + dimensions.bounds.min.z) / 2;
     
-    const geometry = new PlaneGeometry(width * 2, depth * 2);
+    // 创建足够大的平面确保覆盖整个沙盘区域
+    const geometry = new PlaneGeometry(width * 1.5, depth * 1.5);
     const material = new MeshBasicMaterial({ 
         color: 0x000000, 
         transparent: true, 
@@ -1378,9 +1397,14 @@ const createGroundPlane = () => {
     
     groundPlane = new Mesh(geometry, material);
     groundPlane.rotation.x = -Math.PI / 2; // 水平放置
-    groundPlane.position.y = 0; // 地面高度
+    groundPlane.position.set(centerX, 0, centerZ); // 设置到沙盘中心位置
     groundPlane.visible = false; // 不可见，只用于射线检测
     scene.add(groundPlane);
+    
+    console.log('🎯 地面检测平面已创建:', {
+        center: { x: centerX, z: centerZ },
+        size: { width: width * 1.5, depth: depth * 1.5 }
+    });
 };
 
 // 开始位姿选择模式
@@ -1416,8 +1440,8 @@ export const stopPoseSelectionMode = () => {
     // 清除视觉元素
     if (positionMarker) {
         scene.remove(positionMarker);
-        positionMarker.geometry.dispose();
-        positionMarker.material.dispose();
+        if (positionMarker.geometry) positionMarker.geometry.dispose();
+        if (positionMarker.material) positionMarker.material.dispose();
         positionMarker = null;
     }
     

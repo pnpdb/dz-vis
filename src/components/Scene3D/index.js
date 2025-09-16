@@ -17,6 +17,9 @@ import {
     Vector3,
     Raycaster,
     Group,
+    AxesHelper,
+    Box3,
+    GridHelper,
 } from 'three';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 import { performanceMonitor } from '../../utils/performanceMonitor.js';
@@ -41,6 +44,7 @@ const frameInterval = 1000 / targetFPS;
 let sceneGroup = null;
 let lightsGroup = null;
 let modelsGroup = null;
+let axesHelper = null; // 坐标轴辅助器
 
 export const initScene = dom => {
     container = dom;
@@ -76,6 +80,9 @@ const initSceneCore = async () => {
         scene.add(sceneGroup);
         sceneGroup.add(lightsGroup);
         sceneGroup.add(modelsGroup);
+        
+        // 添加坐标轴辅助器
+        createCoordinateAxes();
 
         // 步骤2：创建相机 (20%)
         window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 20 }));
@@ -367,6 +374,37 @@ const loadModelsWithProgress = async () => {
                     console.log(`沙盘模型加载进度: ${progress}%`);
                 }).then(() => {
                     console.log('沙盘模型加载完成');
+                    
+                    // 获取加载的沙盘模型并计算尺寸
+                    const sandboxModel = models.get('final');
+                    if (sandboxModel) {
+                        const dimensions = calculateSandboxDimensions(sandboxModel);
+                        if (dimensions) {
+                            // 为沙盘模型添加坐标轴 - 默认隐藏
+                            const sandboxAxes = new AxesHelper(8);
+                            sandboxAxes.name = 'SandboxAxes';
+                            sandboxAxes.position.copy(sandboxModel.position); // 与沙盘模型相同位置
+                            sandboxAxes.visible = false; // 默认隐藏
+                            scene.add(sandboxAxes);
+                            
+                            // 在沙盘中心点也添加一个坐标轴 - 默认隐藏
+                            const centerAxes = new AxesHelper(3);
+                            centerAxes.name = 'SandboxCenterAxes';
+                            centerAxes.position.set(
+                                dimensions.center.x,
+                                dimensions.center.y,
+                                dimensions.center.z
+                            );
+                            centerAxes.visible = false; // 默认隐藏
+                            scene.add(centerAxes);
+                            
+                            console.log('🎯 沙盘坐标轴已添加:');
+                            console.log(`  - 沙盘位置坐标轴: (${sandboxModel.position.x}, ${sandboxModel.position.y}, ${sandboxModel.position.z})`);
+                            console.log(`  - 沙盘中心坐标轴: (${dimensions.center.x.toFixed(3)}, ${dimensions.center.y.toFixed(3)}, ${dimensions.center.z.toFixed(3)})`);
+                            
+                        }
+                    }
+                    
                     resolve();
                 }).catch((error) => {
                     console.error('沙盘模型加载失败:', error);
@@ -677,6 +715,37 @@ const loadModel = (loader, url, key, options = {}) => {
             modelsGroup.add(model);
             
             console.log(`模型 ${key} 已添加到场景`);
+            
+            // 如果是沙盘模型，计算尺寸
+            if (key === 'final') {
+                setTimeout(() => {
+                    const dimensions = calculateSandboxDimensions(model);
+                    if (dimensions) {
+                        // 为沙盘模型添加坐标轴 - 默认隐藏
+                        const sandboxAxes = new AxesHelper(8);
+                        sandboxAxes.name = 'SandboxAxes';
+                        sandboxAxes.position.copy(model.position); // 与沙盘模型相同位置
+                        sandboxAxes.visible = false; // 默认隐藏
+                        scene.add(sandboxAxes);
+                        
+                        // 在沙盘中心点也添加一个坐标轴 - 默认隐藏
+                        const centerAxes = new AxesHelper(3);
+                        centerAxes.name = 'SandboxCenterAxes';
+                        centerAxes.position.set(
+                            dimensions.center.x,
+                            dimensions.center.y,
+                            dimensions.center.z
+                        );
+                        centerAxes.visible = false; // 默认隐藏
+                        scene.add(centerAxes);
+                        
+                        console.log('🎯 沙盘坐标轴已添加:');
+                        console.log(`  - 沙盘位置坐标轴: (${model.position.x}, ${model.position.y}, ${model.position.z})`);
+                        console.log(`  - 沙盘中心坐标轴: (${dimensions.center.x.toFixed(3)}, ${dimensions.center.y.toFixed(3)}, ${dimensions.center.z.toFixed(3)})`);
+                        
+                    }
+                }, 100); // 短暂延迟确保模型完全加载到场景中
+            }
         },
         (progress) => {
             const percentage = (progress.loaded / progress.total * 100).toFixed(0);
@@ -962,6 +1031,180 @@ if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', handleVisibilityChange);
 }
 
+// 创建坐标轴辅助器
+const createCoordinateAxes = () => {
+    // 在原点创建大坐标轴 (size = 30，更大更明显) - 默认隐藏
+    axesHelper = new AxesHelper(30);
+    axesHelper.name = 'MainCoordinateAxes';
+    axesHelper.position.set(0, 0, 0);
+    axesHelper.visible = false; // 默认隐藏
+    scene.add(axesHelper);
+    
+    // 添加网格辅助器到地面，帮助观察坐标 - 默认隐藏
+    const gridHelper = new GridHelper(50, 50, 0x00ffff, 0x404040);
+    gridHelper.name = 'GroundGrid';
+    gridHelper.position.set(0, 0, 0);
+    gridHelper.visible = false; // 默认隐藏
+    scene.add(gridHelper);
+    
+    // 为小车模型位置创建小坐标轴 - 默认隐藏
+    const carAxes = new AxesHelper(8);
+    carAxes.name = 'CarAxes';
+    carAxes.position.set(0, 0.5, 0); // 小车模型位置
+    carAxes.visible = false; // 默认隐藏
+    scene.add(carAxes);
+    
+    console.log('🔧 坐标系统已添加到场景 (默认隐藏):');
+    console.log('  - 主坐标轴: 原点 (0,0,0)，长度30 [隐藏]');
+    console.log('  - 地面网格: 50x50，蓝色线条 [隐藏]');
+    console.log('  - 小车坐标轴: 位置 (0,0.5,0)，长度8 [隐藏]');
+    console.log('  - 红色轴: X轴 (左右方向)');
+    console.log('  - 绿色轴: Y轴 (上下方向)');
+    console.log('  - 蓝色轴: Z轴 (前后方向)');
+    console.log('  提示: 通过设置面板可以控制显示/隐藏');
+};
+
+// 计算沙盘模型尺寸的工具函数
+const calculateSandboxDimensions = (model) => {
+    if (!model) {
+        console.error('❌ 沙盘模型未找到');
+        return null;
+    }
+    
+    // 创建包围盒
+    const box = new Box3().setFromObject(model);
+    
+    // 计算尺寸
+    const size = box.getSize(new Vector3());
+    const center = box.getCenter(new Vector3());
+    
+    // 获取模型的缩放比例
+    const scale = model.scale.x; // 假设xyz缩放比例相同
+    
+    // 计算原始尺寸（去除缩放影响）
+    const originalSize = {
+        x: size.x / scale,
+        y: size.y / scale,
+        z: size.z / scale
+    };
+    
+    const dimensions = {
+        // 当前场景中的实际尺寸
+        scaled: {
+            width: size.x,   // X轴宽度
+            height: size.y,  // Y轴高度  
+            depth: size.z    // Z轴深度
+        },
+        // 模型原始尺寸
+        original: {
+            width: originalSize.x,   // X轴宽度
+            height: originalSize.y,  // Y轴高度
+            depth: originalSize.z    // Z轴深度
+        },
+        // 中心点位置
+        center: {
+            x: center.x,
+            y: center.y,
+            z: center.z
+        },
+        // 包围盒范围
+        bounds: {
+            min: { x: box.min.x, y: box.min.y, z: box.min.z },
+            max: { x: box.max.x, y: box.max.y, z: box.max.z }
+        },
+        // 缩放比例
+        scale: scale
+    };
+    
+    console.log('📏 沙盘模型尺寸计算结果:');
+    console.log('='.repeat(50));
+    console.log('🎯 坐标轴对应:');
+    console.log('  - X轴(红色): 沙盘宽度 (左右方向)');
+    console.log('  - Y轴(绿色): 沙盘高度 (上下方向)');  
+    console.log('  - Z轴(蓝色): 沙盘深度 (前后方向)');
+    console.log('');
+    console.log('📐 场景中实际尺寸 (已应用缩放):');
+    console.log(`  - 宽度(X轴): ${dimensions.scaled.width.toFixed(3)} 单位`);
+    console.log(`  - 高度(Y轴): ${dimensions.scaled.height.toFixed(3)} 单位`);
+    console.log(`  - 深度(Z轴): ${dimensions.scaled.depth.toFixed(3)} 单位`);
+    console.log('');
+    console.log('📏 模型原始尺寸 (缩放前):');
+    console.log(`  - 宽度(X轴): ${dimensions.original.width.toFixed(3)} 单位`);
+    console.log(`  - 高度(Y轴): ${dimensions.original.height.toFixed(3)} 单位`);
+    console.log(`  - 深度(Z轴): ${dimensions.original.depth.toFixed(3)} 单位`);
+    console.log('');
+    console.log('🎯 模型中心点:');
+    console.log(`  - X: ${dimensions.center.x.toFixed(3)}`);
+    console.log(`  - Y: ${dimensions.center.y.toFixed(3)}`);
+    console.log(`  - Z: ${dimensions.center.z.toFixed(3)}`);
+    console.log('');
+    console.log('📦 包围盒范围:');
+    console.log(`  - X范围: ${dimensions.bounds.min.x.toFixed(3)} 到 ${dimensions.bounds.max.x.toFixed(3)}`);
+    console.log(`  - Y范围: ${dimensions.bounds.min.y.toFixed(3)} 到 ${dimensions.bounds.max.y.toFixed(3)}`);
+    console.log(`  - Z范围: ${dimensions.bounds.min.z.toFixed(3)} 到 ${dimensions.bounds.max.z.toFixed(3)}`);
+    console.log('');
+    console.log(`🔄 缩放比例: ${scale} (${(scale * 100).toFixed(1)}%)`);
+    console.log('='.repeat(50));
+    
+    return dimensions;
+};
+
+
+// 控制坐标轴显示的函数
+export const toggleAxesVisibility = (visible) => {
+    const axesToToggle = [
+        'MainCoordinateAxes',
+        'CarAxes', 
+        'SandboxAxes',
+        'SandboxCenterAxes'
+    ];
+    
+    if (!scene) {
+        console.warn('场景尚未初始化');
+        return false;
+    }
+    
+    let toggledCount = 0;
+    
+    scene.traverse((child) => {
+        if (axesToToggle.includes(child.name)) {
+            child.visible = visible;
+            toggledCount++;
+        }
+    });
+    
+    return toggledCount > 0;
+};
+
+// 控制地面网格显示的函数
+export const toggleGridVisibility = (visible) => {
+    if (!scene) {
+        console.warn('场景尚未初始化');
+        return false;
+    }
+    
+    let found = false;
+    scene.traverse((child) => {
+        if (child.name === 'GroundGrid') {
+            child.visible = visible;
+            found = true;
+        }
+    });
+    
+    return found;
+};
+
+// 获取沙盘尺寸信息的函数
+export const getSandboxDimensionsInfo = () => {
+    const sandboxModel = models.get('final');
+    if (!sandboxModel) {
+        return null;
+    }
+    
+    return calculateSandboxDimensions(sandboxModel);
+};
+
+
 export const destroyScene = () => {
     // 停止动画循环
     shouldRender = false;
@@ -1070,6 +1313,7 @@ export const destroyScene = () => {
     // 重置变量
     scene = camera = clock = null;
     sceneGroup = lightsGroup = modelsGroup = null;
+    axesHelper = null;
     shouldRender = true;
     lastRenderTime = 0;
 };

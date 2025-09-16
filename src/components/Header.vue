@@ -182,23 +182,38 @@
                         </el-form-item>
                     </el-form>
                 </el-tab-pane>
-                <el-tab-pane label="显示设置" name="display">
-                    <el-form label-width="120px">
-                        <el-form-item label="动画效果">
-                            <el-switch v-model="settings.animations" />
-                        </el-form-item>
-                        <el-form-item label="显示网格">
-                            <el-switch v-model="settings.showGrid" />
-                        </el-form-item>
-                        <el-form-item label="帧率限制">
-                            <el-slider
-                                v-model="settings.frameRate"
-                                :min="30"
-                                :max="120"
-                                :step="10"
-                                show-stops
-                                show-input
+                <el-tab-pane label="模型设置" name="model">
+                    <el-form label-width="140px">
+                        <el-form-item label="显示坐标轴">
+                            <el-switch 
+                                v-model="modelSettings.showAxes" 
+                                @change="handleAxesVisibilityChange"
+                                active-text="开启"
+                                inactive-text="关闭"
                             />
+                            <div class="setting-description">
+                                控制沙盘和小车模型的XYZ坐标轴显示
+                            </div>
+                        </el-form-item>
+                        <el-form-item label="显示地图网格">
+                            <el-switch 
+                                v-model="modelSettings.showGrid" 
+                                @change="handleGridVisibilityChange"
+                                active-text="开启"
+                                inactive-text="关闭"
+                            />
+                            <div class="setting-description">
+                                显示地面网格辅助线，帮助观察空间方向
+                            </div>
+                        </el-form-item>
+                        <el-form-item label="地图尺寸">
+                            <el-button 
+                                type="primary" 
+                                @click="showSandboxDimensions"
+                                icon="InfoFilled"
+                            >
+                                查看沙盘尺寸信息
+                            </el-button>
                         </el-form-item>
                     </el-form>
                 </el-tab-pane>
@@ -296,6 +311,136 @@
                 </div>
             </template>
         </el-dialog>
+
+        <!-- 沙盘尺寸信息弹窗 -->
+        <el-dialog
+            v-model="showSandboxDimensionsDialog"
+            title="沙盘模型尺寸信息"
+            width="800px"
+            :close-on-click-modal="true"
+            :close-on-press-escape="true"
+            center
+            class="sandbox-dimensions-custom-dialog"
+        >
+            <div v-if="sandboxDimensionsData" class="sandbox-content">
+                <!-- 标题区域 -->
+                <div class="title-section">
+                    <h2>沙盘模型尺寸信息</h2>
+                    <div class="title-line"></div>
+                </div>
+
+                <!-- 两列网格布局 -->
+                <div class="grid-layout">
+                    <!-- 第一行第一列 -->
+                    <div class="info-card axes-card">
+                        <h3>坐标轴对应</h3>
+                        <div class="info-content">
+                            <div>X轴 (红色): 沙盘宽度 - 左右方向</div>
+                            <div>Y轴 (绿色): 沙盘高度 - 上下方向</div>
+                            <div>Z轴 (蓝色): 沙盘深度 - 前后方向</div>
+                        </div>
+                    </div>
+
+                    <!-- 第一行第二列 -->
+                    <div class="info-card size-card">
+                        <h3>场景实际尺寸</h3>
+                        <div class="info-content">
+                            <div class="data-row">
+                                <span>宽度 (X轴):</span>
+                                <span class="value">{{ sandboxDimensionsData.scaled.width.toFixed(3) }} 单位</span>
+                            </div>
+                            <div class="data-row">
+                                <span>高度 (Y轴):</span>
+                                <span class="value">{{ sandboxDimensionsData.scaled.height.toFixed(3) }} 单位</span>
+                            </div>
+                            <div class="data-row">
+                                <span>深度 (Z轴):</span>
+                                <span class="value">{{ sandboxDimensionsData.scaled.depth.toFixed(3) }} 单位</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 第二行第一列 -->
+                    <div class="info-card center-card">
+                        <h3>中心坐标</h3>
+                        <div class="info-content">
+                            <div class="data-row">
+                                <span>X:</span>
+                                <span class="value">{{ sandboxDimensionsData.center.x.toFixed(3) }}</span>
+                            </div>
+                            <div class="data-row">
+                                <span>Y:</span>
+                                <span class="value">{{ sandboxDimensionsData.center.y.toFixed(3) }}</span>
+                            </div>
+                            <div class="data-row">
+                                <span>Z:</span>
+                                <span class="value">{{ sandboxDimensionsData.center.z.toFixed(3) }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 第二行第二列 -->
+                    <div class="info-card bounds-card">
+                        <h3>坐标范围</h3>
+                        <div class="info-content">
+                            <div class="data-row">
+                                <span>X轴:</span>
+                                <span class="value">{{ sandboxDimensionsData.bounds.min.x.toFixed(3) }} ~ {{ sandboxDimensionsData.bounds.max.x.toFixed(3) }}</span>
+                            </div>
+                            <div class="data-row">
+                                <span>Y轴:</span>
+                                <span class="value">{{ sandboxDimensionsData.bounds.min.y.toFixed(3) }} ~ {{ sandboxDimensionsData.bounds.max.y.toFixed(3) }}</span>
+                            </div>
+                            <div class="data-row">
+                                <span>Z轴:</span>
+                                <span class="value">{{ sandboxDimensionsData.bounds.min.z.toFixed(3) }} ~ {{ sandboxDimensionsData.bounds.max.z.toFixed(3) }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 第三行跨两列 -->
+                    <div class="info-card original-card full-width">
+                        <h3>原始尺寸</h3>
+                        <div class="info-content original-grid">
+                            <div class="data-row">
+                                <span>宽度:</span>
+                                <span class="value">{{ sandboxDimensionsData.original.width.toFixed(1) }} 单位</span>
+                            </div>
+                            <div class="data-row">
+                                <span>高度:</span>
+                                <span class="value">{{ sandboxDimensionsData.original.height.toFixed(1) }} 单位</span>
+                            </div>
+                            <div class="data-row">
+                                <span>深度:</span>
+                                <span class="value">{{ sandboxDimensionsData.original.depth.toFixed(1) }} 单位</span>
+                            </div>
+                            <div class="data-row">
+                                <span>缩放比例:</span>
+                                <span class="value">{{ (sandboxDimensionsData.scale * 100).toFixed(1) }}%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 使用说明居中 -->
+                <div class="usage-section">
+                    <div class="usage-card">
+                        <h3>使用说明</h3>
+                        <div class="usage-content">
+                            <div>坐标范围用于车辆位置映射计算</div>
+                            <div>中心点是沙盘几何中心位置</div>
+                            <div>可通过设置面板控制坐标轴和网格显示</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <template #footer>
+                <div class="custom-dialog-footer">
+                    <el-button type="primary" @click="closeSandboxDimensionsDialog">确定</el-button>
+                </div>
+            </template>
+        </el-dialog>
     </header>
 </template>
 
@@ -303,9 +448,10 @@
 import { ref, watch, onMounted, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { TauriUtils } from '@/utils/tauri.js';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import VehicleConnectionManager from '@/components/VehicleConnectionManager.vue';
 import SandboxSettingsManager from '@/components/SandboxSettingsManager.vue';
+import { toggleAxesVisibility, toggleGridVisibility, getSandboxDimensionsInfo } from '@/components/Scene3D/index.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -373,6 +519,16 @@ const settings = ref({
     logLevel: 'info',
     cacheSize: 1000
 });
+
+// 模型设置
+const modelSettings = ref({
+    showAxes: false,
+    showGrid: false
+});
+
+// 沙盘尺寸信息弹窗状态
+const showSandboxDimensionsDialog = ref(false);
+const sandboxDimensionsData = ref(null);
 
 const selected = (item) => {
     selectedTab.value = item.path;
@@ -636,7 +792,61 @@ const resetSettings = () => {
         logLevel: 'info',
         cacheSize: 1000
     };
+    
+    // 重置模型设置
+    modelSettings.value = {
+        showAxes: false,
+        showGrid: false
+    };
+    
+    // 应用模型设置
+    toggleAxesVisibility(modelSettings.value.showAxes);
+    toggleGridVisibility(modelSettings.value.showGrid);
+    
     ElMessage.info('设置已重置！');
+};
+
+// 处理坐标轴显示切换
+const handleAxesVisibilityChange = (visible) => {
+    const success = toggleAxesVisibility(visible);
+    if (success) {
+        ElMessage.success(visible ? '坐标轴已显示' : '坐标轴已隐藏');
+    } else {
+        ElMessage.warning('操作失败，场景可能尚未初始化');
+        // 回滚设置
+        modelSettings.value.showAxes = !visible;
+    }
+};
+
+// 处理地面网格显示切换
+const handleGridVisibilityChange = (visible) => {
+    const success = toggleGridVisibility(visible);
+    if (success) {
+        ElMessage.success(visible ? '地面网格已显示' : '地面网格已隐藏');
+    } else {
+        ElMessage.warning('操作失败，场景可能尚未初始化');
+        // 回滚设置
+        modelSettings.value.showGrid = !visible;
+    }
+};
+
+// 显示沙盘尺寸信息
+const showSandboxDimensions = () => {
+    const dimensions = getSandboxDimensionsInfo();
+    
+    if (!dimensions) {
+        ElMessage.warning('沙盘模型尚未加载完成，请稍后再试');
+        return;
+    }
+    
+    // 存储数据供模板使用
+    sandboxDimensionsData.value = dimensions;
+    showSandboxDimensionsDialog.value = true;
+};
+
+// 关闭弹窗
+const closeSandboxDimensionsDialog = () => {
+    showSandboxDimensionsDialog.value = false;
 };
 
 // 打开文件夹 - Tauri 版本
@@ -1524,5 +1734,560 @@ onMounted(() => {
 
 .copyright {
     font-weight: 400;
+}
+
+/* 模型设置样式 */
+.setting-description {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 5px;
+    line-height: 1.4;
+    opacity: 0.8;
+}
+
+/* 沙盘尺寸弹窗样式 */
+:deep(.sandbox-dimensions-dialog) {
+    /* 弹窗背景遮罩层 */
+    .el-overlay {
+        background-color: rgba(0, 0, 0, 0.8) !important;
+    }
+    
+    /* MessageBox 外层容器 */
+    .el-message-box__wrapper {
+        background: transparent !important;
+        padding: 0 !important;
+    }
+    
+    .el-message-box {
+        background: #1a1a1a !important;
+        backdrop-filter: blur(20px) !important;
+        border: 1px solid #444 !important;
+        border-radius: 16px !important;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 212, 255, 0.1) !important;
+        max-width: 1000px !important;
+        width: auto !important;
+        min-width: 800px !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+    }
+    
+    .el-message-box__header {
+        background: #1a1a1a !important;
+        border-bottom: none !important;
+        border-radius: 16px 16px 0 0 !important;
+        padding: 0 !important;
+        display: none !important;
+    }
+    
+    .el-message-box__title {
+        color: #ffffff !important;
+        font-weight: 600 !important;
+        font-size: 18px !important;
+    }
+    
+    .el-message-box__content {
+        padding: 0 !important;
+        max-height: 80vh !important;
+        overflow-y: auto !important;
+        background: #1a1a1a !important;
+        border-radius: 16px 16px 0 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    
+    .el-message-box__message {
+        color: #e8e8e8 !important;
+        line-height: 1.6 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #1a1a1a !important;
+    }
+    
+    .el-message-box__btns {
+        background: #1a1a1a !important;
+        border-top: 1px solid #333 !important;
+        border-radius: 0 0 16px 16px !important;
+        padding: 20px 0 20px 0 !important;
+        margin: 0 !important;
+        text-align: right !important;
+        display: flex !important;
+        justify-content: flex-start !important;
+        box-sizing: border-box !important;
+        width: 100% !important;
+        position: relative !important;
+    }
+    
+    .el-button--primary {
+        background: linear-gradient(135deg, #00d4ff, #0099cc) !important;
+        border: none !important;
+        color: #1a1a1a !important;
+        font-weight: 600 !important;
+        border-radius: 8px !important;
+        padding: 12px 24px !important;
+        font-size: 14px !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3) !important;
+        position: absolute !important;
+        right: 20px !important;
+        
+        &:hover {
+            background: linear-gradient(135deg, #33ddff, #00aadd) !important;
+            transform: translateY(-2px) !important;
+            box-shadow: 0 6px 20px rgba(0, 212, 255, 0.4) !important;
+        }
+        
+        &:active {
+            transform: translateY(0px) !important;
+        }
+    }
+    
+    /* 自定义滚动条 */
+    .el-message-box__content::-webkit-scrollbar {
+        width: 6px;
+    }
+    
+    .el-message-box__content::-webkit-scrollbar-track {
+        background: #2a2a2a;
+        border-radius: 3px;
+    }
+    
+    .el-message-box__content::-webkit-scrollbar-thumb {
+        background: linear-gradient(180deg, #00d4ff, #0099cc);
+        border-radius: 3px;
+    }
+    
+    .el-message-box__content::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(180deg, #33ddff, #00aadd);
+    }
+}
+
+/* 全局弹窗遮罩强制样式 */
+.el-overlay.sandbox-dimensions-dialog {
+    background-color: rgba(0, 0, 0, 0.8) !important;
+}
+
+/* 强制移除所有白色背景 */
+:deep(.sandbox-dimensions-dialog) {
+    /* 移除所有可能的白色背景和边框 */
+    * {
+        background-color: transparent !important;
+        background: transparent !important;
+        border: none !important;
+        outline: none !important;
+    }
+    
+    /* 恢复关键元素的背景 */
+    .el-message-box,
+    .el-message-box__content,
+    .el-message-box__message,
+    .el-message-box__btns {
+        background: #1a1a1a !important;
+        background-color: #1a1a1a !important;
+    }
+    
+    /* 恢复边框样式 */
+    .el-message-box {
+        border: 1px solid #444 !important;
+        border-radius: 16px !important;
+    }
+    
+    .el-message-box__btns {
+        border-top: 1px solid #333 !important;
+    }
+}
+
+/* 全局强制样式 - 覆盖Element Plus默认样式 */
+.el-message-box.sandbox-dimensions-dialog {
+    background: #1a1a1a !important;
+    border: 1px solid #444 !important;
+    border-radius: 16px !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+    max-width: 1000px !important;
+    width: auto !important;
+    min-width: 800px !important;
+    box-sizing: border-box !important;
+}
+
+.el-message-box.sandbox-dimensions-dialog * {
+    background: transparent !important;
+    border: none !important;
+}
+
+.el-message-box.sandbox-dimensions-dialog .el-message-box__content,
+.el-message-box.sandbox-dimensions-dialog .el-message-box__message,
+.el-message-box.sandbox-dimensions-dialog .el-message-box__btns {
+    background: #1a1a1a !important;
+}
+
+/* 更具体的Element Plus样式覆盖 */
+.el-overlay .sandbox-dimensions-dialog,
+.el-overlay .sandbox-dimensions-dialog .el-message-box,
+.sandbox-dimensions-dialog,
+.sandbox-dimensions-dialog .el-message-box {
+    background: #1a1a1a !important;
+    border: 1px solid #444 !important;
+    border-radius: 16px !important;
+    max-width: 1000px !important;
+    width: auto !important;
+    min-width: 800px !important;
+    box-sizing: border-box !important;
+}
+
+/* 针对所有可能的白色背景元素 */
+.sandbox-dimensions-dialog,
+.sandbox-dimensions-dialog *,
+.el-overlay .sandbox-dimensions-dialog,
+.el-overlay .sandbox-dimensions-dialog * {
+    box-shadow: none !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    background: transparent !important;
+}
+
+/* 恢复必要的背景 */
+.sandbox-dimensions-dialog .el-message-box,
+.el-overlay .sandbox-dimensions-dialog .el-message-box,
+.sandbox-dimensions-dialog .el-message-box__content,
+.sandbox-dimensions-dialog .el-message-box__message,
+.sandbox-dimensions-dialog .el-message-box__btns {
+    background: #1a1a1a !important;
+    background-color: #1a1a1a !important;
+}
+
+/* 模型设置开关样式优化 */
+:deep(.el-switch) {
+    .el-switch__core {
+        background-color: rgba(255, 255, 255, 0.2) !important;
+        border: 1px solid rgba(0, 240, 255, 0.3) !important;
+        
+        &::after {
+            background: var(--text-secondary) !important;
+        }
+    }
+    
+    &.is-checked .el-switch__core {
+        background-color: var(--primary) !important;
+        border-color: var(--primary) !important;
+        
+        &::after {
+            background: var(--dark-bg) !important;
+        }
+    }
+}
+
+/* 模型设置按钮样式 */
+.el-form-item__content .el-button--primary {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark)) !important;
+    border: 1px solid var(--primary) !important;
+    color: var(--dark-bg) !important;
+    font-weight: 500 !important;
+    border-radius: 8px !important;
+    padding: 8px 16px !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.2) !important;
+    
+    &:hover {
+        background: linear-gradient(135deg, var(--primary-light), var(--primary)) !important;
+        box-shadow: 0 0 15px rgba(0, 240, 255, 0.4) !important;
+        transform: translateY(-2px) !important;
+    }
+    
+    &:active {
+        transform: translateY(0px) !important;
+    }
+}
+
+/* 最高优先级的宽度强制覆盖 */
+.sandbox-dimensions-dialog.el-message-box {
+    max-width: 1000px !important;
+    width: auto !important;
+    min-width: 800px !important;
+    box-sizing: border-box !important;
+    margin: 0 auto !important;
+}
+
+/* 针对Element Plus可能的容器限制 */
+body .el-message-box.sandbox-dimensions-dialog,
+html .el-message-box.sandbox-dimensions-dialog {
+    max-width: 1000px !important;
+    width: auto !important;
+    min-width: 800px !important;
+    box-sizing: border-box !important;
+    margin: 0 auto !important;
+}
+
+/* 自定义沙盘尺寸弹窗样式 */
+:deep(.sandbox-dimensions-custom-dialog) {
+    .el-dialog {
+        background: #1a1a1a;
+        border: 1px solid #444;
+        border-radius: 16px;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(0, 212, 255, 0.1);
+    }
+    
+    .el-dialog__header {
+        background: #1a1a1a;
+        border-bottom: 1px solid #333;
+        border-radius: 16px 16px 0 0;
+        padding: 20px;
+    }
+    
+    .el-dialog__title {
+        color: #ffffff;
+        font-weight: 600;
+        font-size: 18px;
+    }
+    
+    .el-dialog__body {
+        background: #1a1a1a;
+        padding: 0;
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+    
+    .el-dialog__footer {
+        background: #1a1a1a;
+        border-top: 1px solid #333;
+        border-radius: 0 0 16px 16px;
+        padding: 16px 20px 20px 20px;
+    }
+    
+    /* 强制设置信息卡片边框 - 更明显的边框 */
+    .info-card.axes-card {
+        border: 1px solid rgba(0, 212, 255, 0.5) !important;
+        border-left: 4px solid #00d4ff !important;
+    }
+    
+    .info-card.size-card {
+        border: 1px solid rgba(76, 175, 80, 0.5) !important;
+        border-left: 4px solid #4CAF50 !important;
+    }
+    
+    .info-card.center-card {
+        border: 1px solid rgba(255, 152, 0, 0.5) !important;
+        border-left: 4px solid #FF9800 !important;
+    }
+    
+    .info-card.bounds-card {
+        border: 1px solid rgba(156, 39, 176, 0.5) !important;
+        border-left: 4px solid #9C27B0 !important;
+    }
+    
+    .info-card.original-card {
+        border: 1px solid rgba(244, 67, 54, 0.5) !important;
+        border-left: 4px solid #F44336 !important;
+    }
+}
+
+/* 沙盘内容样式 */
+.sandbox-content {
+    padding: 20px;
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.6;
+    color: #e8e8e8;
+}
+
+.title-section {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.title-section h2 {
+    color: #ffffff;
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.title-line {
+    width: 60px;
+    height: 3px;
+    background: linear-gradient(90deg, #00d4ff, #0099cc);
+    margin: 8px auto;
+    border-radius: 2px;
+}
+
+.grid-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 16px;
+}
+
+/* 响应式布局 - 小屏幕时改为单列 */
+@media (max-width: 900px) {
+    :deep(.sandbox-dimensions-custom-dialog) {
+        .el-dialog {
+            width: 95% !important;
+            margin: 10px !important;
+        }
+    }
+    
+    .grid-layout {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .original-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+    
+    .sandbox-content {
+        padding: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    :deep(.sandbox-dimensions-custom-dialog) {
+        .el-dialog {
+            width: 98% !important;
+            margin: 5px !important;
+        }
+    }
+    
+    .original-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .sandbox-content {
+        padding: 12px;
+    }
+}
+
+.info-card {
+    background: linear-gradient(135deg, #2a2a2a 0%, #333 100%);
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.info-card.axes-card {
+    border: 1px solid rgba(0, 212, 255, 0.5) !important;
+    border-left: 4px solid #00d4ff !important;
+}
+
+.info-card.size-card {
+    border: 1px solid rgba(76, 175, 80, 0.5) !important;
+    border-left: 4px solid #4CAF50 !important;
+}
+
+.info-card.center-card {
+    border: 1px solid rgba(255, 152, 0, 0.5) !important;
+    border-left: 4px solid #FF9800 !important;
+}
+
+.info-card.bounds-card {
+    border: 1px solid rgba(156, 39, 176, 0.5) !important;
+    border-left: 4px solid #9C27B0 !important;
+}
+
+.info-card.original-card {
+    border: 1px solid rgba(244, 67, 54, 0.5) !important;
+    border-left: 4px solid #F44336 !important;
+}
+
+.full-width {
+    grid-column: 1 / -1;
+}
+
+.info-card h3 {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.axes-card h3 { color: #00d4ff; }
+.size-card h3 { color: #4CAF50; }
+.center-card h3 { color: #FF9800; }
+.bounds-card h3 { color: #9C27B0; }
+.original-card h3 { color: #F44336; }
+
+.info-content {
+    color: #c8c8c8;
+    font-size: 14px;
+    line-height: 1.8;
+}
+
+.data-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.data-row .value {
+    color: #ffffff;
+    font-weight: 500;
+}
+
+.original-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 30px;
+}
+
+.usage-section {
+    text-align: center;
+    margin-bottom: 12px;
+}
+
+.usage-card {
+    background: linear-gradient(135deg, #0d4f3c 0%, #1a5f4a 100%);
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid rgba(76, 175, 80, 0.4);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    display: inline-block;
+    max-width: 600px;
+}
+
+.usage-card h3 {
+    color: #4CAF50;
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.usage-content {
+    color: #c8f2dc;
+    font-size: 13px;
+    line-height: 1.7;
+    text-align: left;
+}
+
+.usage-content div {
+    margin-bottom: 4px;
+}
+
+.custom-dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.custom-dialog-footer .el-button--primary {
+    background: linear-gradient(135deg, #00d4ff, #0099cc);
+    border: none;
+    color: #1a1a1a;
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 12px 24px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+}
+
+.custom-dialog-footer .el-button--primary:hover {
+    background: linear-gradient(135deg, #33ddff, #00aadd);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 212, 255, 0.4);
+}
+
+.custom-dialog-footer .el-button--primary:active {
+    transform: translateY(0px);
 }
 </style>

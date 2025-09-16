@@ -20,6 +20,14 @@ import {
     AxesHelper,
     Box3,
     GridHelper,
+    LineBasicMaterial,
+    BufferGeometry,
+    Line,
+    SphereGeometry,
+    MeshBasicMaterial,
+    Mesh,
+    PlaneGeometry,
+    DoubleSide,
 } from 'three';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 import { performanceMonitor } from '../../utils/performanceMonitor.js';
@@ -45,6 +53,18 @@ let sceneGroup = null;
 let lightsGroup = null;
 let modelsGroup = null;
 let axesHelper = null; // 坐标轴辅助器
+
+// 位姿选择相关
+let isPoseSelectionMode = false;
+let raycaster = new Raycaster();
+let mouse = new Vector3();
+let isMouseDown = false;
+let startPosition = null;
+let currentPosition = null;
+let directionLine = null;
+let positionMarker = null;
+let groundPlane = null;
+let poseSelectionCallback = null;
 
 export const initScene = dom => {
     container = dom;
@@ -164,6 +184,9 @@ const initSceneCore = async () => {
         // 监听resize事件
         window.addEventListener('resize', resizeHandler);
         resizeHandler();
+        
+        // 添加鼠标事件监听
+        setupMouseEventListeners();
 
         // 性能监控（开发环境）
         if (import.meta.env.DEV) {
@@ -1205,7 +1228,228 @@ export const getSandboxDimensionsInfo = () => {
 };
 
 
+// 鼠标事件监听设置
+const setupMouseEventListeners = () => {
+    if (!container) return;
+    
+    container.addEventListener('mousedown', onMouseDown);
+    container.addEventListener('mousemove', onMouseMove);
+    container.addEventListener('mouseup', onMouseUp);
+    container.addEventListener('contextmenu', (e) => e.preventDefault());
+};
+
+// 鼠标按下事件
+const onMouseDown = (event) => {
+    if (!isPoseSelectionMode) return;
+    
+    if (event.button === 0) { // 左键
+        event.preventDefault();
+        isMouseDown = true;
+        
+        // 获取鼠标在屏幕上的位置
+        const rect = container.getBoundingClientRect();
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        
+        // 射线检测
+        raycaster.setFromCamera(mouse, camera);
+        
+        // 检测与地面的交点
+        const intersects = raycaster.intersectObjects([groundPlane]);
+        
+        if (intersects.length > 0) {
+            startPosition = intersects[0].point.clone();
+            currentPosition = startPosition.clone();
+            
+            // 创建位置标记
+            createPositionMarker(startPosition);
+            
+            // 禁用相机控制
+            if (controls) controls.enabled = false;
+        }
+    }
+};
+
+// 鼠标移动事件
+const onMouseMove = (event) => {
+    if (!isPoseSelectionMode || !isMouseDown || !startPosition) return;
+    
+    event.preventDefault();
+    
+    // 获取鼠标在屏幕上的位置
+    const rect = container.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    
+    // 射线检测
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects([groundPlane]);
+    
+    if (intersects.length > 0) {
+        currentPosition = intersects[0].point.clone();
+        
+        // 更新方向线
+        updateDirectionLine(startPosition, currentPosition);
+    }
+};
+
+// 鼠标释放事件
+const onMouseUp = (event) => {
+    if (!isPoseSelectionMode || !isMouseDown) return;
+    
+    if (event.button === 0) { // 左键
+        event.preventDefault();
+        isMouseDown = false;
+        
+        // 重新启用相机控制
+        if (controls) controls.enabled = true;
+        
+        if (startPosition && currentPosition) {
+            // 计算朝向角度
+            const direction = new Vector3().subVectors(currentPosition, startPosition);
+            const angle = Math.atan2(direction.z, direction.x) * 180 / Math.PI;
+            
+            // 调用回调函数
+            if (poseSelectionCallback) {
+                poseSelectionCallback({
+                    x: startPosition.x,
+                    z: startPosition.z,
+                    orientation: angle < 0 ? angle + 360 : angle
+                });
+            }
+        }
+    }
+};
+
+// 创建位置标记
+const createPositionMarker = (position) => {
+    // 清除之前的标记
+    if (positionMarker) {
+        scene.remove(positionMarker);
+        positionMarker.geometry.dispose();
+        positionMarker.material.dispose();
+    }
+    
+    // 创建球体标记
+    const geometry = new SphereGeometry(0.5, 16, 16);
+    const material = new MeshBasicMaterial({ color: 0x00ff00 });
+    positionMarker = new Mesh(geometry, material);
+    positionMarker.position.copy(position);
+    positionMarker.position.y = 0.5; // 稍微抬高一点
+    scene.add(positionMarker);
+};
+
+// 更新方向线
+const updateDirectionLine = (start, end) => {
+    // 清除之前的线
+    if (directionLine) {
+        scene.remove(directionLine);
+        directionLine.geometry.dispose();
+        directionLine.material.dispose();
+    }
+    
+    // 创建新的线
+    const points = [
+        new Vector3(start.x, 0.1, start.z),
+        new Vector3(end.x, 0.1, end.z)
+    ];
+    
+    const geometry = new BufferGeometry().setFromPoints(points);
+    const material = new LineBasicMaterial({ color: 0xff0000, linewidth: 3 });
+    directionLine = new Line(geometry, material);
+    scene.add(directionLine);
+};
+
+// 创建地面平面用于射线检测
+const createGroundPlane = () => {
+    const dimensions = getSandboxDimensionsInfo();
+    if (!dimensions) return;
+    
+    const width = dimensions.bounds.max.x - dimensions.bounds.min.x;
+    const depth = dimensions.bounds.max.z - dimensions.bounds.min.z;
+    
+    const geometry = new PlaneGeometry(width * 2, depth * 2);
+    const material = new MeshBasicMaterial({ 
+        color: 0x000000, 
+        transparent: true, 
+        opacity: 0,
+        side: DoubleSide
+    });
+    
+    groundPlane = new Mesh(geometry, material);
+    groundPlane.rotation.x = -Math.PI / 2; // 水平放置
+    groundPlane.position.y = 0; // 地面高度
+    groundPlane.visible = false; // 不可见，只用于射线检测
+    scene.add(groundPlane);
+};
+
+// 开始位姿选择模式
+export const startPoseSelectionMode = (callback) => {
+    if (!scene) {
+        console.warn('Scene not initialized');
+        return false;
+    }
+    
+    isPoseSelectionMode = true;
+    poseSelectionCallback = callback;
+    
+    // 创建地面检测平面
+    createGroundPlane();
+    
+    // 修改鼠标样式
+    if (container) {
+        container.style.cursor = 'crosshair';
+    }
+    
+    console.log('🎯 位姿选择模式已启动');
+    return true;
+};
+
+// 停止位姿选择模式
+export const stopPoseSelectionMode = () => {
+    isPoseSelectionMode = false;
+    isMouseDown = false;
+    startPosition = null;
+    currentPosition = null;
+    poseSelectionCallback = null;
+    
+    // 清除视觉元素
+    if (positionMarker) {
+        scene.remove(positionMarker);
+        positionMarker.geometry.dispose();
+        positionMarker.material.dispose();
+        positionMarker = null;
+    }
+    
+    if (directionLine) {
+        scene.remove(directionLine);
+        directionLine.geometry.dispose();
+        directionLine.material.dispose();
+        directionLine = null;
+    }
+    
+    if (groundPlane) {
+        scene.remove(groundPlane);
+        groundPlane.geometry.dispose();
+        groundPlane.material.dispose();
+        groundPlane = null;
+    }
+    
+    // 恢复鼠标样式
+    if (container) {
+        container.style.cursor = 'default';
+    }
+    
+    // 重新启用相机控制
+    if (controls) controls.enabled = true;
+    
+    console.log('🛑 位姿选择模式已停止');
+};
+
 export const destroyScene = () => {
+    // 停止位姿选择模式
+    stopPoseSelectionMode();
+    
     // 停止动画循环
     shouldRender = false;
     if (rafId) {
@@ -1220,6 +1464,13 @@ export const destroyScene = () => {
     if (resizeHandler) {
         window.removeEventListener('resize', resizeHandler);
         resizeHandler = null;
+    }
+    
+    // 清理鼠标事件监听器
+    if (container) {
+        container.removeEventListener('mousedown', onMouseDown);
+        container.removeEventListener('mousemove', onMouseMove);
+        container.removeEventListener('mouseup', onMouseUp);
     }
     
     if (typeof document !== 'undefined') {

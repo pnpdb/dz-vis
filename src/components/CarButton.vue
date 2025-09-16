@@ -28,9 +28,10 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { socketManager } from '@/utils/socketManager.js';
 import { useCarStore } from '@/stores/car.js';
+import { startPoseSelectionMode, stopPoseSelectionMode } from '@/components/Scene3D/index.js';
 
 const carStore = useCarStore();
 
@@ -140,9 +141,78 @@ const initPose = async () => {
         return;
     }
 
+    // 启动位姿选择模式
+    const success = startPoseSelectionMode((selectedPose) => {
+        showPoseConfirmDialog(vehicleId, selectedPose);
+    });
+    
+    if (!success) {
+        showMsg(false, '无法启动位姿选择模式，请确认3D场景已加载');
+        return;
+    }
+    
+    showMsg(true, '请在沙盘地图上点击并拖拽选择车辆位置和朝向');
+};
+
+// 显示位姿确认对话框
+const showPoseConfirmDialog = (vehicleId, pose) => {
+    // 停止位姿选择模式
+    stopPoseSelectionMode();
+    
+    const { x, z, orientation } = pose;
+    
+    ElMessageBox.confirm(
+        `您选择的位置坐标：
+        X: ${x.toFixed(3)}
+        Y: ${z.toFixed(3)}
+        朝向: ${orientation.toFixed(1)}°
+        
+        确定要将车辆${vehicleId}初始化到此位置吗？`,
+        '确认初始化位姿',
+        {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            showCancelButton: true,
+            showClose: true,
+            type: 'info',
+            center: true,
+            customClass: 'pose-confirm-dialog',
+            distinguishCancelAndClose: true,
+            beforeClose: (action, instance, done) => {
+                if (action === 'confirm') {
+                    // 执行初始化位姿
+                    executePoseInitialization(vehicleId, x, z, orientation);
+                    done();
+                } else if (action === 'cancel') {
+                    // 重新选择
+                    done();
+                    // 延迟重新启动选择模式，避免立即触发
+                    setTimeout(() => {
+                        const success = startPoseSelectionMode((newPose) => {
+                            showPoseConfirmDialog(vehicleId, newPose);
+                        });
+                        if (success) {
+                            showMsg(true, '请重新在沙盘地图上选择位置和朝向');
+                        }
+                    }, 100);
+                } else {
+                    // 关闭/取消
+                    done();
+                }
+            }
+        }
+    ).catch(() => {
+        // 用户取消或关闭对话框
+        console.log('用户取消了位姿选择');
+    });
+};
+
+// 执行位姿初始化
+const executePoseInitialization = async (vehicleId, x, z, orientation) => {
     try {
-        // 使用默认的初始位置 (0, 0, 0)
-        await socketManager.initializePose(vehicleId, 0.0, 0.0, 0.0);
+        // 注意：socketManager.initializePose 的参数顺序是 (vehicleId, x, y, orientation)
+        // 这里 x 对应模型的 X 轴，y 对应模型的 Z 轴（因为是 2D 平面）
+        await socketManager.initializePose(vehicleId, x, z, orientation);
         showMsg(true, `车辆${vehicleId}位姿初始化指令发送成功`);
     } catch (error) {
         console.error('初始化位姿失败:', error);
@@ -251,5 +321,54 @@ onMounted(() => {
 
 .emergency-btn:hover {
     box-shadow: 0 5px 20px rgba(255, 204, 0, 0.4);
+}
+</style>
+
+<style>
+/* 位姿确认对话框样式 */
+.pose-confirm-dialog .el-message-box {
+    background: #1a1a1a !important;
+    border: 1px solid #444 !important;
+    border-radius: 8px !important;
+}
+
+.pose-confirm-dialog .el-message-box__header {
+    background: #1a1a1a !important;
+    border-bottom: 1px solid #333 !important;
+}
+
+.pose-confirm-dialog .el-message-box__title {
+    color: #ffffff !important;
+    font-weight: 600 !important;
+}
+
+.pose-confirm-dialog .el-message-box__content {
+    background: #1a1a1a !important;
+    color: #e8e8e8 !important;
+    white-space: pre-line !important;
+    line-height: 1.6 !important;
+}
+
+.pose-confirm-dialog .el-message-box__btns {
+    background: #1a1a1a !important;
+    border-top: 1px solid #333 !important;
+}
+
+.pose-confirm-dialog .el-button--primary {
+    background: linear-gradient(135deg, #00d4ff, #0099cc) !important;
+    border: none !important;
+    color: #1a1a1a !important;
+    font-weight: 600 !important;
+}
+
+.pose-confirm-dialog .el-button--default {
+    background: #444 !important;
+    border: 1px solid #666 !important;
+    color: #ffffff !important;
+}
+
+.pose-confirm-dialog .el-button--default:hover {
+    background: #555 !important;
+    border-color: #777 !important;
 }
 </style>

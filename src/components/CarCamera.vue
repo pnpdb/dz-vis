@@ -18,8 +18,8 @@
             <!-- <button class="btn btn-secondary">
                 <fa icon="camera" /> 连接/断开摄像头
             </button> -->
-            <button class="btn btn-primary">
-                <fa icon="gamepad" /> 平行驾驶
+            <button class="btn btn-primary" @click="toggleParallelDriving">
+                <fa icon="gamepad" /> {{ parallelDrivingMode ? '自动驾驶' : '平行驾驶' }}
             </button>
         </div>
     </div>
@@ -29,15 +29,23 @@
 import { ref } from 'vue';
 
 const cameraOn = ref(false);
+const parallelDrivingMode = ref(false);
 
 const toggleCamera = () => {
     cameraOn.value = !cameraOn.value;
     // TODO: 实现摄像头切换逻辑
 };
 
-const startParallelDriving = () => {
-    // TODO: 实现平行驾驶功能
-    console.log('启动平行驾驶模式');
+const toggleParallelDriving = () => {
+    parallelDrivingMode.value = !parallelDrivingMode.value;
+    console.log(`${parallelDrivingMode.value ? '启动' : '关闭'}平行驾驶模式`);
+    
+    // 通过事件通知父组件或其他组件切换车辆参数显示模式
+    window.dispatchEvent(new CustomEvent('parallel-driving-mode-change', {
+        detail: {
+            mode: parallelDrivingMode.value
+        }
+    }));
 };
 </script>
 

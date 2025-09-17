@@ -3,7 +3,9 @@
         <label class="form-label">
             <fa icon="bars-staggered" /> 车辆参数
         </label>
-        <div class="info-grid">
+        
+        <!-- 普通模式的车辆参数布局 -->
+        <div class="info-grid" v-show="!parallelDrivingMode">
             <Dashboard :speedValue="speedValue" :hasSpeed="hasSpeed" />
             
             <div class="right-column">
@@ -55,12 +57,53 @@
                 <div :class="['info-value', navStatus.status ? 'status-normal' : 'status-warning']">{{ navStatus.text }}</div>
             </div>
         </div>
+
+        <!-- 平行驾驶模式的车辆参数布局 -->
+        <div class="info-grid" v-show="parallelDrivingMode">
+            <Dashboard :speedValue="speedValue" :hasSpeed="hasSpeed" />
+            
+            <div class="steering-wheel-container">
+                <SteeringWheel :angle="steeringAngle" />
+            </div>
+            
+            <div class="info-card">
+                <div class="info-title">
+                    <fa icon="gear" />
+                    档位
+                </div>
+                <div :class="['info-value', 'gear-indicator']">{{ currentGear }}</div>
+            </div>
+            <div class="info-card">
+                <div class="info-title">
+                    <fa icon="battery-three-quarters" />
+                    电量
+                </div>
+                <div
+                    :class="[
+                        'info-value',
+                        { 'info-value_low': batteryValue < 20 },
+                    ]"
+                >
+                    {{ batteryValue }}%
+                </div>
+                <div class="battery-container">
+                    <div
+                        :class="[
+                            'battery-level',
+                            { 'battery-level_low': batteryValue < 20 },
+                        ]"
+                        :style="{ '--battery-level': batteryValue + '%' }"
+                    ></div>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import Dashboard from '@/components/Dashboard.vue';
+import SteeringWheel from '@/components/SteeringWheel.vue';
 
 const props = defineProps({
     carInfo: {
@@ -80,6 +123,11 @@ const navStatus = ref({
     status: false,
     text: '未导航'
 });
+
+// 平行驾驶模式相关数据
+const parallelDrivingMode = ref(false);
+const steeringAngle = ref(0); // 方向盘转角 (-360 到 360 度)
+const currentGear = ref('P'); // 当前档位 P/R/N/D
 
 // 用于确定是否显示该车辆的信息
 const currentVehicleId = ref(null);
@@ -190,11 +238,19 @@ watch(() => props.carInfo, (newVehicleId, oldVehicleId) => {
     }
 }, { immediate: true });
 
+// 处理平行驾驶模式切换事件
+const handleParallelDrivingModeChange = (event) => {
+    parallelDrivingMode.value = event.detail.mode;
+    console.log(`🎮 CarInfo平行驾驶模式切换: ${parallelDrivingMode.value ? '开启' : '关闭'}`);
+};
+
 onMounted(() => {
     // 监听车辆信息更新事件
     window.addEventListener('vehicle-info-update', handleVehicleInfoUpdate);
     // 监听车辆连接状态变化事件
     window.addEventListener('vehicle-connection-status', handleVehicleConnectionStatus);
+    // 监听平行驾驶模式切换事件
+    window.addEventListener('parallel-driving-mode-change', handleParallelDrivingModeChange);
     
     // 初始检查车辆状态
     checkAndUpdateVehicleStatus();
@@ -203,6 +259,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
     window.removeEventListener('vehicle-info-update', handleVehicleInfoUpdate);
     window.removeEventListener('vehicle-connection-status', handleVehicleConnectionStatus);
+    window.removeEventListener('parallel-driving-mode-change', handleParallelDrivingModeChange);
 });
 </script>
 
@@ -217,6 +274,22 @@ onBeforeUnmount(() => {
     display: flex;
     flex-direction: column;
     gap: 8px;
+}
+
+/* 方向盘容器样式 */
+.steering-wheel-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100px;
+}
+
+/* 档位指示器样式 */
+.gear-indicator {
+    font-size: 2rem !important;
+    font-weight: bold;
+    color: #00ff88 !important;
+    text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
 }
 
 .info-card {

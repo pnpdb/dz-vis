@@ -14,9 +14,10 @@
             <div class="camera-desc">暂无视频</div>
         </div>
         <div class="camera-controls">
-            <button class="btn btn-secondary">
+            <!-- 注释掉连接/断开摄像头按钮，因为右上角已有滑块按钮可以使用 -->
+            <!-- <button class="btn btn-secondary">
                 <fa icon="camera" /> 连接/断开摄像头
-            </button>
+            </button> -->
             <button class="btn btn-primary">
                 <fa icon="gamepad" /> 平行驾驶
             </button>

@@ -311,12 +311,6 @@ export class SandboxAPI {
         return VehicleConnectionAPI.validateIPAddress(ip);
     }
 
-    /**
-     * 验证端口号（复用VehicleConnectionAPI的方法）
-     */
-    static validatePort(port) {
-        return VehicleConnectionAPI.validatePort(port);
-    }
 
     /**
      * 验证RTSP URL格式

@@ -240,7 +240,7 @@ class UDPVideoSender:
                     
                     # 每100帧打印一次状态
                     if self.frame_counter % 100 == 0:
-                        print(f"📊 已发送 {self.frame_counter} 帧")
+                        pass  # 帧计数统计
                 
                 # 显示预览（可选）
                 if False:  # 关闭预览，专注于UDP发送

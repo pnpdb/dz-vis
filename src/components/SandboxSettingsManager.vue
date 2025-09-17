@@ -25,16 +25,6 @@
                     <el-form-item label="服务IP地址" prop="ipAddress">
                         <el-input v-model="serviceForm.ipAddress" placeholder="请输入沙盘服务IP地址" />
                     </el-form-item>
-                    <el-form-item label="服务端口" prop="port">
-                        <el-input-number 
-                            v-model="serviceForm.port" 
-                            :min="1" 
-                            :max="65535" 
-                            controls-position="right"
-                            placeholder="请输入端口号"
-                            style="width: 100%"
-                        />
-                    </el-form-item>
                     <el-form-item>
                         <div class="service-actions">
                             <el-button 
@@ -218,8 +208,7 @@ const hasServiceSettings = ref(false);
 const serviceFormRef = ref();
 
 const serviceForm = reactive({
-    ipAddress: '',
-    port: 8080
+    ipAddress: ''
 });
 
 const serviceRules = {
@@ -231,21 +220,6 @@ const serviceRules = {
                     callback(new Error('请输入IP地址'));
                 } else if (!SandboxAPI.validateIPAddress(value)) {
                     callback(new Error('IP地址格式不正确'));
-                } else {
-                    callback();
-                }
-            },
-            trigger: 'blur' 
-        }
-    ],
-    port: [
-        { required: true, message: '请输入端口号', trigger: 'blur' },
-        { 
-            validator: (rule, value, callback) => {
-                if (value == null) {
-                    callback(new Error('请输入端口号'));
-                } else if (!SandboxAPI.validatePort(value)) {
-                    callback(new Error('端口号必须在1-65535之间'));
                 } else {
                     callback();
                 }
@@ -325,7 +299,6 @@ const loadServiceSettings = async () => {
         const result = await SandboxAPI.getServiceSettings();
         if (result.success && result.data) {
             serviceForm.ipAddress = result.data.ip_address;
-            serviceForm.port = result.data.port;
             hasServiceSettings.value = true;
         } else {
             hasServiceSettings.value = false;
@@ -350,8 +323,7 @@ const saveServiceSettings = async () => {
     serviceSaving.value = true;
     try {
         const settingsData = {
-            ip_address: serviceForm.ipAddress,
-            port: serviceForm.port
+            ip_address: serviceForm.ipAddress
         };
         
         const result = await SandboxAPI.createOrUpdateServiceSettings(settingsData);

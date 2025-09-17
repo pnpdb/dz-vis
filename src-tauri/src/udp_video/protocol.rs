@@ -30,6 +30,7 @@ impl From<u8> for FrameType {
 
 /// UDP视频包头结构
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct VideoPacketHeader {
     /// 协议版本
     pub version: u8,
@@ -54,6 +55,7 @@ impl VideoPacketHeader {
     pub const HEADER_SIZE: usize = 26;
 
     /// 创建完整帧包头
+    #[allow(dead_code)]
     pub fn new_complete_frame(vehicle_id: u32, frame_id: u32, timestamp: u64, data_length: u32) -> Self {
         Self {
             version: PROTOCOL_VERSION,
@@ -68,6 +70,7 @@ impl VideoPacketHeader {
     }
 
     /// 创建分片帧包头
+    #[allow(dead_code)]
     pub fn new_fragment_frame(
         vehicle_id: u32,
         frame_id: u32,
@@ -99,6 +102,7 @@ impl VideoPacketHeader {
     }
 
     /// 序列化包头为字节数组
+    #[allow(dead_code)]
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::with_capacity(Self::HEADER_SIZE);
         
@@ -160,6 +164,7 @@ pub struct VideoPacket {
 
 impl VideoPacket {
     /// 创建完整的UDP包（包头 + 数据）
+    #[allow(dead_code)]
     pub fn to_udp_packet(&self) -> Vec<u8> {
         let mut packet = self.header.to_bytes();
         packet.extend_from_slice(&self.data);

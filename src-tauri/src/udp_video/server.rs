@@ -50,6 +50,7 @@ impl UdpVideoServer {
     }
 
     /// 获取视频帧接收器
+    #[allow(dead_code)]
     pub fn subscribe(&self) -> broadcast::Receiver<VideoFrame> {
         self.frame_sender.subscribe()
     }
@@ -81,7 +82,7 @@ impl UdpVideoServer {
                 }
             }
 
-            let mut buffer = vec![0u8; 65535]; // UDP最大包大小
+            let mut buffer = vec![0u8; 8192]; // 优化缓冲区大小
             
             match timeout(Duration::from_millis(10), self.socket.recv_from(&mut buffer)).await {
                 Ok(Ok((size, addr))) => {
@@ -112,10 +113,6 @@ impl UdpVideoServer {
         
         match VideoPacket::from_udp_packet(&packet_data) {
             Ok(packet) => {
-                // println!("📦 收到视频包: 车辆{}, 帧{}, 类型{:?}, 分片{}/{}", 
-                //     packet.header.vehicle_id, packet.header.frame_id, 
-                //     packet.header.frame_type, packet.header.fragment_index + 1, 
-                //     packet.header.total_fragments);
 
                 match packet.header.frame_type {
                     super::protocol::FrameType::Complete => {
@@ -246,7 +243,7 @@ impl UdpVideoManager {
     /// 启动UDP视频服务器
     pub async fn start_server(&mut self, bind_addr: &str, app_handle: Option<tauri::AppHandle>) -> Result<(), Box<dyn std::error::Error>> {
         if self.server.is_some() {
-            println!("⚠️ UDP视频服务器已经启动");
+            // UDP视频服务器已经启动
             return Ok(());
         }
 
@@ -260,8 +257,8 @@ impl UdpVideoManager {
         let server_clone = server.clone();
         
         let handle = tokio::spawn(async move {
-            if let Err(e) = server_clone.start().await {
-                println!("❌ UDP视频服务器运行错误: {}", e);
+            if let Err(_) = server_clone.start().await {
+                // UDP视频服务器运行错误
             }
         });
 
@@ -287,6 +284,7 @@ impl UdpVideoManager {
     }
 
     /// 获取视频帧订阅器
+    #[allow(dead_code)]
     pub fn subscribe_frames(&self) -> Option<broadcast::Receiver<VideoFrame>> {
         self.server.as_ref().map(|s| s.subscribe())
     }

@@ -169,12 +169,47 @@ impl VehicleDatabase {
             CREATE TABLE IF NOT EXISTS sandbox_service_settings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ip_address TEXT NOT NULL,
-                port INTEGER NOT NULL,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
             "#
         ).execute(&self.pool).await?;
+
+        // 迁移：如果存在port列，则删除它
+        let column_exists = sqlx::query("PRAGMA table_info(sandbox_service_settings)")
+            .fetch_all(&self.pool)
+            .await?
+            .iter()
+            .any(|row| row.get::<String, _>("name") == "port");
+
+        if column_exists {
+            // SQLite不支持直接删除列，需要重建表
+            sqlx::query(
+                r#"
+                CREATE TABLE sandbox_service_settings_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ip_address TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                "#
+            ).execute(&self.pool).await?;
+
+            // 复制数据（不包括port列）
+            sqlx::query(
+                r#"
+                INSERT INTO sandbox_service_settings_new (id, ip_address, created_at, updated_at)
+                SELECT id, ip_address, created_at, updated_at FROM sandbox_service_settings
+                "#
+            ).execute(&self.pool).await?;
+
+            // 删除旧表
+            sqlx::query("DROP TABLE sandbox_service_settings").execute(&self.pool).await?;
+
+            // 重命名新表
+            sqlx::query("ALTER TABLE sandbox_service_settings_new RENAME TO sandbox_service_settings")
+                .execute(&self.pool).await?;
+        }
 
         // 创建沙盘摄像头设置表
         sqlx::query(
@@ -702,7 +737,6 @@ impl VehicleDatabase {
             Ok(Some(SandboxServiceSettings {
                 id: row.get("id"),
                 ip_address: row.get("ip_address"),
-                port: row.get("port"),
                 created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))
                     .unwrap_or_default()
                     .with_timezone(&chrono::Utc),
@@ -730,12 +764,11 @@ impl VehicleDatabase {
             sqlx::query(
                 r#"
                 UPDATE sandbox_service_settings 
-                SET ip_address = ?, port = ?, updated_at = ?
+                SET ip_address = ?, updated_at = ?
                 WHERE id = ?
                 "#
             )
             .bind(&request.ip_address)
-            .bind(request.port)
             .bind(now.to_rfc3339())
             .bind(existing_settings.id)
             .execute(&self.pool)
@@ -745,7 +778,6 @@ impl VehicleDatabase {
             Ok(SandboxServiceSettings {
                 id: existing_settings.id,
                 ip_address: request.ip_address,
-                port: request.port,
                 created_at: existing_settings.created_at,
                 updated_at: now,
             })
@@ -753,12 +785,11 @@ impl VehicleDatabase {
             // 创建新记录
             let result = sqlx::query(
                 r#"
-                INSERT INTO sandbox_service_settings (ip_address, port, created_at, updated_at)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO sandbox_service_settings (ip_address, created_at, updated_at)
+                VALUES (?, ?, ?)
                 "#
             )
             .bind(&request.ip_address)
-            .bind(request.port)
             .bind(now.to_rfc3339())
             .bind(now.to_rfc3339())
             .execute(&self.pool)
@@ -767,7 +798,6 @@ impl VehicleDatabase {
             Ok(SandboxServiceSettings {
                 id: result.last_insert_rowid(),
                 ip_address: request.ip_address,
-                port: request.port,
                 created_at: now,
                 updated_at: now,
             })

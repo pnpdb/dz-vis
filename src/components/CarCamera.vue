@@ -9,7 +9,7 @@
             ></el-switch>
         </div>
 
-        <div class="camera-preview">
+        <div class="camera-preview" :class="{ 'has-video': cameraOn && videoSrc }">
             <!-- 双缓冲图片，避免闪烁 -->
             <img v-show="cameraOn && videoSrc" ref="videoImg" class="video-stream" alt="车载摄像头画面" />
             <div v-show="!cameraOn || !videoSrc">
@@ -71,7 +71,6 @@ const toggleCamera = () => {
 
 const toggleParallelDriving = () => {
     parallelDrivingMode.value = !parallelDrivingMode.value;
-    console.log(`${parallelDrivingMode.value ? '启动' : '关闭'}平行驾驶模式`);
     
     // 通过事件通知父组件或其他组件切换车辆参数显示模式
     window.dispatchEvent(new CustomEvent('parallel-driving-mode-change', {
@@ -98,7 +97,7 @@ const startVideoReceiver = async () => {
         startFrameRateCalculator();
         
     } catch (error) {
-        console.error('❌ 启动视频接收器失败:', error);
+        // 启动视频接收器失败
     }
 };
 
@@ -164,12 +163,14 @@ const handleVideoFrame = (frame) => {
     }
     
     try {
-        // Base64解码
-        const binaryString = atob(frame.jpeg_data);
-        const uint8Array = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-            uint8Array[i] = binaryString.charCodeAt(i);
+        // 验证Base64数据格式
+        if (!/^[A-Za-z0-9+/]+=*$/.test(frame.jpeg_data)) {
+            return;
         }
+        
+        // 更高效的Base64解码
+        const binaryString = atob(frame.jpeg_data);
+        const uint8Array = Uint8Array.from(binaryString, char => char.charCodeAt(0));
         
         // 验证JPEG文件头
         if (uint8Array.length >= 2 && uint8Array[0] === 0xFF && uint8Array[1] === 0xD8) {
@@ -300,6 +301,8 @@ onBeforeUnmount(() => {
     border-radius: 8px;
     background-color: #2c3e50; /* 防止加载时闪白 */
     transition: none; /* 移除可能的过渡效果 */
+    position: relative;
+    z-index: 2; /* 确保视频在扫描线之上 */
 }
 
 .camera-icon {
@@ -325,7 +328,8 @@ onBeforeUnmount(() => {
     border-radius: 4px;
 }
 
-.camera-preview::before {
+/* 只在没有视频时显示扫描线效果 */
+.camera-preview:not(.has-video)::before {
     content: '';
     position: absolute;
     width: 100%;
@@ -334,9 +338,16 @@ onBeforeUnmount(() => {
         0deg,
         rgba(0, 0, 0, 0.15),
         rgba(0, 0, 0, 0.15) 1px,
-        transparent 1px,
         transparent 4px
     );
+    z-index: 1;
+}
+
+/* 确保有视频时不显示扫描线 */
+.camera-preview.has-video::before {
+    display: none !important;
+    content: none !important;
+    background: none !important;
 }
 
 .camera-controls {

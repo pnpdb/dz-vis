@@ -169,7 +169,6 @@ impl UpdateTrafficLightSettingsRequest {
 pub struct SandboxServiceSettings {
     pub id: i64,
     pub ip_address: String,     // 沙盘服务IP地址
-    pub port: i32,              // 沙盘服务端口
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -178,7 +177,6 @@ pub struct SandboxServiceSettings {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateOrUpdateSandboxServiceRequest {
     pub ip_address: String,
-    pub port: i32,
 }
 
 /// 沙盘摄像头设置模型
@@ -216,10 +214,6 @@ impl CreateOrUpdateSandboxServiceRequest {
     pub fn validate(&self) -> Result<(), String> {
         if self.ip_address.parse::<std::net::IpAddr>().is_err() {
             return Err("IP地址格式无效".to_string());
-        }
-        
-        if self.port <= 0 || self.port > 65535 {
-            return Err("端口号必须在1-65535之间".to_string());
         }
         
         Ok(())

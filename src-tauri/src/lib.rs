@@ -4,11 +4,15 @@ use local_ip_address::local_ip;
 
 mod socket;
 mod database;
-mod video_stream;
+mod rtsp_stream;
 mod rtsp_converter;
+mod udp_video;
 
 use database::{VehicleDatabase, CreateVehicleConnectionRequest, UpdateVehicleConnectionRequest, UpdateTrafficLightSettingsRequest, CreateTaxiOrderRequest, CreateAvpParkingRequest, CreateAvpPickupRequest, CreateOrUpdateSandboxServiceRequest, CreateSandboxCameraRequest, UpdateSandboxCameraRequest};
 use rtsp_converter::{RTSPConverter, HLSServer};
+use udp_video::{UdpVideoManager, ServerStats};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -597,7 +601,7 @@ async fn start_video_stream_server(app: tauri::AppHandle, port: u16) -> Result<S
         let db_ref: &VehicleDatabase = db.inner();
         db_ref.clone()
     };
-    let server = video_stream::VideoStreamServer::new(port, std::sync::Arc::new(db_clone));
+    let server = rtsp_stream::VideoStreamServer::new(port, std::sync::Arc::new(db_clone));
     
     // 在后台启动视频流服务器
     tokio::spawn(async move {
@@ -718,6 +722,37 @@ async fn start_hls_server(app: tauri::AppHandle, port: Option<u16>) -> Result<St
     Ok(format!("HLS服务器已启动在端口: {}", hls_port))
 }
 
+// UDP视频服务器全局管理器
+static UDP_VIDEO_MANAGER: once_cell::sync::Lazy<Arc<Mutex<UdpVideoManager>>> = 
+    once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(UdpVideoManager::new())));
+
+/// 启动UDP视频服务器
+#[tauri::command]
+async fn start_udp_video_server(app: tauri::AppHandle, port: u16) -> Result<String, String> {
+    let bind_addr = format!("0.0.0.0:{}", port);
+    let mut manager = UDP_VIDEO_MANAGER.lock().await;
+    
+    manager.start_server(&bind_addr, Some(app)).await
+        .map_err(|e| format!("启动UDP视频服务器失败: {}", e))?;
+    
+    Ok(format!("UDP视频服务器已启动在端口: {}", port))
+}
+
+/// 停止UDP视频服务器
+#[tauri::command]
+async fn stop_udp_video_server() -> Result<String, String> {
+    let mut manager = UDP_VIDEO_MANAGER.lock().await;
+    manager.stop_server().await;
+    Ok("UDP视频服务器已停止".to_string())
+}
+
+/// 获取UDP视频服务器状态
+#[tauri::command]
+async fn get_udp_video_server_stats() -> Result<Option<ServerStats>, String> {
+    let manager = UDP_VIDEO_MANAGER.lock().await;
+    Ok(manager.get_stats().await)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -761,19 +796,38 @@ pub fn run() {
             start_rtsp_conversion,
             stop_rtsp_conversion,
             get_hls_url,
-            start_hls_server
+            start_hls_server,
+            start_udp_video_server,
+            stop_udp_video_server,
+            get_udp_video_server_stats
         ])
         .setup(|app| {
+            // 克隆app handle用于不同任务
+            let app_handle_db = app.handle().clone();
+            let app_handle_udp = app.handle().clone();
+            
             // 初始化数据库
-            let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 match VehicleDatabase::new().await {
                     Ok(db) => {
-                        app_handle.manage(db);
+                        app_handle_db.manage(db);
                         println!("✅ 车辆数据库初始化成功");
                     }
                     Err(e) => {
                         eprintln!("❌ 车辆数据库初始化失败: {}", e);
+                    }
+                }
+            });
+
+            // 初始化UDP视频服务器
+            tauri::async_runtime::spawn(async move {
+                let mut manager = UDP_VIDEO_MANAGER.lock().await;
+                match manager.start_server("0.0.0.0:8080", Some(app_handle_udp)).await {
+                    Ok(_) => {
+                        println!("✅ UDP视频服务器自动启动成功: 0.0.0.0:8080");
+                    }
+                    Err(e) => {
+                        eprintln!("❌ UDP视频服务器启动失败: {}", e);
                     }
                 }
             });

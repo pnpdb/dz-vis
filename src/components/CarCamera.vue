@@ -10,8 +10,15 @@
         </div>
 
         <div class="camera-preview">
+            <!-- 双缓冲图片，避免闪烁 -->
+            <img v-show="cameraOn && videoSrc" ref="videoImg" class="video-stream" alt="车载摄像头画面" />
+            <div v-show="!cameraOn || !videoSrc">
             <fa icon="camera" class="camera-icon" />
-            <div class="camera-desc">暂无视频</div>
+                <div class="camera-desc">{{ cameraOn ? '等待视频信号...' : '摄像头已关闭' }}</div>
+            </div>
+            <div v-if="cameraOn && lastFrameTime" class="camera-overlay">
+                车辆{{ currentVehicleId }} | {{ frameRate }} FPS
+            </div>
         </div>
         <div class="camera-controls">
             <!-- 注释掉连接/断开摄像头按钮，因为右上角已有滑块按钮可以使用 -->
@@ -26,14 +33,40 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import { useCarStore } from '@/stores/car.js';
+
+const carStore = useCarStore();
 
 const cameraOn = ref(false);
 const parallelDrivingMode = ref(false);
+const videoSrc = ref('');
+const lastFrameTime = ref(0);
+const frameRate = ref(0);
+const frameCount = ref(0);
+const lastFrameCountTime = ref(Date.now());
+const videoImg = ref(null);
+
+// 当前选中的车辆ID
+const currentVehicleId = computed(() => carStore.selectedCarId);
+
+// Tauri事件监听器
+let unlistenVideoFrame = null;
+let frameRateTimer = null;
+let videoTimeoutTimer = null;
+
+// 视频流超时时间（毫秒）
+const VIDEO_TIMEOUT = 3000; // 3秒无新帧则认为超时
 
 const toggleCamera = () => {
     cameraOn.value = !cameraOn.value;
-    // TODO: 实现摄像头切换逻辑
+    if (cameraOn.value) {
+        startVideoReceiver();
+    } else {
+        stopVideoReceiver();
+    }
 };
 
 const toggleParallelDriving = () => {
@@ -47,6 +80,202 @@ const toggleParallelDriving = () => {
         }
     }));
 };
+
+// 启动视频接收器
+const startVideoReceiver = async () => {
+    try {
+        // 启动UDP视频服务器（如果尚未启动）
+        await invoke('start_udp_video_server', { port: 8080 });
+        
+        // 监听UDP视频帧事件
+        if (!unlistenVideoFrame) {
+            unlistenVideoFrame = await listen('udp-video-frame', (event) => {
+                handleVideoFrame(event.payload);
+            });
+        }
+        
+        // 启动帧率计算器
+        startFrameRateCalculator();
+        
+    } catch (error) {
+        console.error('❌ 启动视频接收器失败:', error);
+    }
+};
+
+// 停止视频接收器
+const stopVideoReceiver = () => {
+    if (unlistenVideoFrame) {
+        unlistenVideoFrame();
+        unlistenVideoFrame = null;
+    }
+    
+    if (frameRateTimer) {
+        clearInterval(frameRateTimer);
+        frameRateTimer = null;
+    }
+    
+    if (videoTimeoutTimer) {
+        clearTimeout(videoTimeoutTimer);
+        videoTimeoutTimer = null;
+    }
+    
+    // 清理blob URL
+    if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
+        URL.revokeObjectURL(videoSrc.value);
+    }
+    
+    videoSrc.value = '';
+    lastFrameTime.value = 0;
+    frameRate.value = 0;
+    frameCount.value = 0;
+    
+};
+
+// 检查视频流超时
+const checkVideoTimeout = () => {
+    if (videoTimeoutTimer) {
+        clearTimeout(videoTimeoutTimer);
+    }
+    
+    videoTimeoutTimer = setTimeout(() => {
+        if (cameraOn.value && videoSrc.value) {
+            videoSrc.value = '';
+            lastFrameTime.value = 0;
+            frameRate.value = 0;
+        }
+    }, VIDEO_TIMEOUT);
+};
+
+// 处理接收到的视频帧
+const handleVideoFrame = (frame) => {
+    // 检查是否是当前选中的车辆
+    if (frame.vehicle_id !== currentVehicleId.value) {
+        return; // 不是当前车辆的视频，忽略
+    }
+    
+    // 检查摄像头是否开启
+    if (!cameraOn.value) {
+        return; // 摄像头关闭，忽略
+    }
+    
+    // 验证数据有效性
+    if (!frame.jpeg_data || frame.jpeg_data.length === 0) {
+        return;
+    }
+    
+    try {
+        // Base64解码
+        const binaryString = atob(frame.jpeg_data);
+        const uint8Array = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            uint8Array[i] = binaryString.charCodeAt(i);
+        }
+        
+        // 验证JPEG文件头
+        if (uint8Array.length >= 2 && uint8Array[0] === 0xFF && uint8Array[1] === 0xD8) {
+            // 创建Blob URL
+            const blob = new Blob([uint8Array], { type: 'image/jpeg' });
+            const blobUrl = URL.createObjectURL(blob);
+            
+            // 预加载避免闪烁
+            if (videoImg.value) {
+                const newImg = new Image();
+                newImg.onload = () => {
+                    // 清理上一个blob URL
+                    if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
+                        URL.revokeObjectURL(videoSrc.value);
+                    }
+                    
+                    // 更新显示
+                    videoSrc.value = blobUrl;
+                    videoImg.value.src = blobUrl;
+                };
+                newImg.onerror = () => {
+                    URL.revokeObjectURL(blobUrl);
+                };
+                newImg.src = blobUrl;
+            } else {
+                if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
+                    URL.revokeObjectURL(videoSrc.value);
+                }
+                videoSrc.value = blobUrl;
+            }
+        }
+    } catch (error) {
+        // 静默处理错误，避免控制台污染
+    }
+    
+    lastFrameTime.value = Date.now();
+    
+    // 重置超时计时器
+    checkVideoTimeout();
+    frameCount.value++;
+};
+
+// 启动帧率计算
+const startFrameRateCalculator = () => {
+    if (frameRateTimer) {
+        clearInterval(frameRateTimer);
+    }
+    
+    frameRateTimer = setInterval(() => {
+        const now = Date.now();
+        const timeDiff = now - lastFrameCountTime.value;
+        
+        if (timeDiff >= 1000) { // 每秒计算一次
+            frameRate.value = Math.round((frameCount.value * 1000) / timeDiff);
+            frameCount.value = 0;
+            lastFrameCountTime.value = now;
+        }
+    }, 1000);
+};
+
+// 监听摄像头开关状态变化
+watch(cameraOn, (newVal) => {
+    if (newVal) {
+        startVideoReceiver();
+    } else {
+        stopVideoReceiver();
+    }
+});
+
+// 监听车辆切换
+watch(currentVehicleId, (newVehicleId, oldVehicleId) => {
+    if (newVehicleId !== oldVehicleId) {
+        // 清除当前视频
+        if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
+            URL.revokeObjectURL(videoSrc.value);
+        }
+        videoSrc.value = '';
+        frameCount.value = 0;
+        lastFrameTime.value = 0;
+        frameRate.value = 0;
+        
+        // 清除超时计时器
+        if (videoTimeoutTimer) {
+            clearTimeout(videoTimeoutTimer);
+            videoTimeoutTimer = null;
+        }
+    }
+});
+
+onMounted(() => {
+    // 组件挂载时如果摄像头已开启，启动接收器
+    if (cameraOn.value) {
+        startVideoReceiver();
+    }
+});
+
+onBeforeUnmount(() => {
+    stopVideoReceiver();
+    
+    // 清理blob URL
+    if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
+        URL.revokeObjectURL(videoSrc.value);
+        videoSrc.value = '';
+    }
+});
+
 </script>
 
 <style lang="scss" scoped>
@@ -62,6 +291,15 @@ const toggleParallelDriving = () => {
     position: relative;
     overflow: hidden;
     margin-bottom: 5px;
+}
+
+.video-stream {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 8px;
+    background-color: #2c3e50; /* 防止加载时闪白 */
+    transition: none; /* 移除可能的过渡效果 */
 }
 
 .camera-icon {

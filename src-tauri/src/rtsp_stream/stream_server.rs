@@ -9,7 +9,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use crate::database::VehicleDatabase;
-use crate::video_stream::rtsp_proxy::RTSPProxy;
+use crate::rtsp_stream::rtsp_proxy::RTSPProxy;
 
 #[derive(Clone)]
 pub struct VideoStreamState {

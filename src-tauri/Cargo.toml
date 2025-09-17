@@ -44,4 +44,5 @@ urlencoding = "2.1"
 # 使用系统FFmpeg命令，不使用Rust绑定（避免pkg-config问题）
 # File system operations
 tempfile = "3.8"
+once_cell = "1.19"
 

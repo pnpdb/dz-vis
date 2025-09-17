@@ -32,6 +32,7 @@ import {
     SpriteMaterial,
     Sprite,
     ConeGeometry,
+    CanvasTexture,
 } from 'three';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 import { performanceMonitor } from '../../utils/performanceMonitor.js';
@@ -68,6 +69,7 @@ let currentPosition = null;
 let directionLine = null;
 let positionMarker = null;
 let directionArrow = null;
+let angleLabel = null;
 let groundPlane = null;
 let poseSelectionCallback = null;
 
@@ -1357,6 +1359,101 @@ const createPositionMarker = (position) => {
     scene.add(positionMarker);
 };
 
+// 创建角度标签
+const createAngleLabel = (angle, position) => {
+    // 清除之前的标签
+    if (angleLabel) {
+        scene.remove(angleLabel);
+        if (angleLabel.material && angleLabel.material.map) {
+            angleLabel.material.map.dispose();
+        }
+        if (angleLabel.material) angleLabel.material.dispose();
+    }
+    
+    // 创建canvas绘制文本
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    
+    // 使用高分辨率canvas来提高文字清晰度
+    const pixelRatio = window.devicePixelRatio || 1;
+    const logicalWidth = 160;
+    const logicalHeight = 40;
+    
+    canvas.width = logicalWidth * pixelRatio;
+    canvas.height = logicalHeight * pixelRatio;
+    canvas.style.width = logicalWidth + 'px';
+    canvas.style.height = logicalHeight + 'px';
+    
+    // 缩放context以匹配设备像素比
+    context.scale(pixelRatio, pixelRatio);
+    
+    // 启用文字抗锯齿和高质量渲染
+    context.textRenderingOptimization = 'optimizeQuality';
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    
+    // 绘制圆角矩形背景
+    const cornerRadius = 8;
+    const x = 0;
+    const y = 0;
+    const width = logicalWidth;
+    const height = logicalHeight;
+    
+    context.beginPath();
+    context.moveTo(x + cornerRadius, y);
+    context.lineTo(x + width - cornerRadius, y);
+    context.quadraticCurveTo(x + width, y, x + width, y + cornerRadius);
+    context.lineTo(x + width, y + height - cornerRadius);
+    context.quadraticCurveTo(x + width, y + height, x + width - cornerRadius, y + height);
+    context.lineTo(x + cornerRadius, y + height);
+    context.quadraticCurveTo(x, y + height, x, y + height - cornerRadius);
+    context.lineTo(x, y + cornerRadius);
+    context.quadraticCurveTo(x, y, x + cornerRadius, y);
+    context.closePath();
+    
+    // 填充半透明黑色背景
+    context.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    context.fill();
+    
+    // 设置文字样式
+    context.fillStyle = '#65d36c'; // 绿色文字
+    context.font = 'bold 18px Arial';  // 缩小字号
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    
+    // 绘制角度文本
+    const angleText = `${angle.toFixed(1)}°`;
+    context.fillText(angleText, logicalWidth / 2, logicalHeight / 2);
+    
+    // 创建纹理和材质
+    const texture = new CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    
+    // 设置纹理过滤器以获得更清晰的文字
+    texture.generateMipmaps = false;
+    texture.minFilter = LinearFilter;
+    texture.magFilter = LinearFilter;
+    
+    const spriteMaterial = new SpriteMaterial({
+        map: texture,
+        transparent: true,
+        alphaTest: 0.1
+    });
+    
+    // 创建精灵对象
+    angleLabel = new Sprite(spriteMaterial);
+    angleLabel.scale.set(2, 1, 1); // 缩小标签大小
+    
+    // 将标签放置在射线中点的侧边
+    angleLabel.position.set(
+        position.x + 0.5, // 稍微向右偏移
+        position.y + 1.5, // 抬高显示
+        position.z + 0.5  // 稍微向前偏移
+    );
+    
+    scene.add(angleLabel);
+};
+
 // 更新方向线
 const updateDirectionLine = (start, end) => {
     // 清除之前的线和箭头
@@ -1370,11 +1467,18 @@ const updateDirectionLine = (start, end) => {
         directionArrow.geometry.dispose();
         directionArrow.material.dispose();
     }
+    if (angleLabel) {
+        scene.remove(angleLabel);
+        if (angleLabel.material && angleLabel.material.map) {
+            angleLabel.material.map.dispose();
+        }
+        if (angleLabel.material) angleLabel.material.dispose();
+    }
     
     // 创建新的线 - 起始点从小圆点中心开始
     const points = [
-        new Vector3(start.x, 0.05, start.z), // 与小圆点中心对齐 (圆点在y=0.05)
-        new Vector3(end.x, 0.05, end.z)
+        new Vector3(start.x, 0.1, start.z), // 与小圆点中心对齐 (圆点在y=0.1)
+        new Vector3(end.x, 0.1, end.z)
     ];
     
     const geometry = new BufferGeometry().setFromPoints(points);
@@ -1389,16 +1493,36 @@ const updateDirectionLine = (start, end) => {
     directionArrow = new Mesh(arrowGeometry, arrowMaterial);
     
     // 设置箭头位置和旋转
-    directionArrow.position.set(end.x, 0.05, end.z);
+    directionArrow.position.set(end.x, 0.1, end.z);
     directionArrow.lookAt(
         end.x + direction.x,
-        0.05 + direction.y,
+        0.1 + direction.y,
         end.z + direction.z
     );
     // 将箭头旋转90度，使其指向正确方向
     directionArrow.rotateX(Math.PI / 2);
     
     scene.add(directionArrow);
+    
+    // 计算角度并显示标签
+    const deltaX = end.x - start.x;
+    const deltaZ = end.z - start.z;
+    let angle = Math.atan2(deltaZ, deltaX) * (180 / Math.PI); // 转换为度数
+    
+    // 确保角度在0-360范围内，逆时针从X轴开始
+    if (angle < 0) {
+        angle += 360;
+    }
+    
+    // 计算射线中点位置用于放置标签
+    const midPoint = new Vector3(
+        (start.x + end.x) / 2,
+        0.1,
+        (start.z + end.z) / 2
+    );
+    
+    // 创建角度标签
+    createAngleLabel(angle, midPoint);
 };
 
 // 创建地面平面用于射线检测
@@ -1482,6 +1606,15 @@ export const stopPoseSelectionMode = () => {
         directionArrow.geometry.dispose();
         directionArrow.material.dispose();
         directionArrow = null;
+    }
+    
+    if (angleLabel) {
+        scene.remove(angleLabel);
+        if (angleLabel.material && angleLabel.material.map) {
+            angleLabel.material.map.dispose();
+        }
+        if (angleLabel.material) angleLabel.material.dispose();
+        angleLabel = null;
     }
     
     if (groundPlane) {

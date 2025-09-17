@@ -31,6 +31,7 @@ import {
     TextureLoader,
     SpriteMaterial,
     Sprite,
+    ConeGeometry,
 } from 'three';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 import { performanceMonitor } from '../../utils/performanceMonitor.js';
@@ -66,6 +67,7 @@ let startPosition = null;
 let currentPosition = null;
 let directionLine = null;
 let positionMarker = null;
+let directionArrow = null;
 let groundPlane = null;
 let poseSelectionCallback = null;
 
@@ -1345,7 +1347,7 @@ const createPositionMarker = (position) => {
     }
     
     // 创建小圆点几何体和材质
-    const geometry = new SphereGeometry(0.05, 12, 12); // 小圆点半径0.1 (约5像素大小)
+    const geometry = new SphereGeometry(0.1, 12, 12); // 小圆点半径0.1 (约5像素大小)
     const material = new MeshBasicMaterial({ color: 0x65d36c }); // 与射线相同颜色
     
     // 创建圆点标记
@@ -1357,23 +1359,46 @@ const createPositionMarker = (position) => {
 
 // 更新方向线
 const updateDirectionLine = (start, end) => {
-    // 清除之前的线
+    // 清除之前的线和箭头
     if (directionLine) {
         scene.remove(directionLine);
         directionLine.geometry.dispose();
         directionLine.material.dispose();
     }
+    if (directionArrow) {
+        scene.remove(directionArrow);
+        directionArrow.geometry.dispose();
+        directionArrow.material.dispose();
+    }
     
     // 创建新的线 - 起始点从小圆点中心开始
     const points = [
-        new Vector3(start.x, 0.1, start.z), // 与小圆点中心对齐 (圆点在y=0.1)
-        new Vector3(end.x, 0.1, end.z)
+        new Vector3(start.x, 0.05, start.z), // 与小圆点中心对齐 (圆点在y=0.05)
+        new Vector3(end.x, 0.05, end.z)
     ];
     
     const geometry = new BufferGeometry().setFromPoints(points);
-    const material = new LineBasicMaterial({ color: 0x65d36c, linewidth: 3 });
+    const material = new LineBasicMaterial({ color: 0x65d36c, linewidth: 10 }); // 增加线条粗细
     directionLine = new Line(geometry, material);
     scene.add(directionLine);
+    
+    // 创建箭头
+    const direction = new Vector3().subVectors(end, start).normalize();
+    const arrowGeometry = new ConeGeometry(0.08, 0.2, 8); // 半径0.08，高度0.2，8个分段
+    const arrowMaterial = new MeshBasicMaterial({ color: 0x65d36c });
+    directionArrow = new Mesh(arrowGeometry, arrowMaterial);
+    
+    // 设置箭头位置和旋转
+    directionArrow.position.set(end.x, 0.05, end.z);
+    directionArrow.lookAt(
+        end.x + direction.x,
+        0.05 + direction.y,
+        end.z + direction.z
+    );
+    // 将箭头旋转90度，使其指向正确方向
+    directionArrow.rotateX(Math.PI / 2);
+    
+    scene.add(directionArrow);
 };
 
 // 创建地面平面用于射线检测
@@ -1450,6 +1475,13 @@ export const stopPoseSelectionMode = () => {
         directionLine.geometry.dispose();
         directionLine.material.dispose();
         directionLine = null;
+    }
+    
+    if (directionArrow) {
+        scene.remove(directionArrow);
+        directionArrow.geometry.dispose();
+        directionArrow.material.dispose();
+        directionArrow = null;
     }
     
     if (groundPlane) {

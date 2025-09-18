@@ -27,12 +27,12 @@
         <div class="user-section">
             <el-popover
                 class="center"
-                title="文件管理器"
-                content="点击打开指定文件夹"
+                title="文件查看器"
+                content="选择并查看本地PDF/Word/Excel"
                 placement="bottom-end"
             >
                 <template #reference>
-                    <button class="notification-btn btn-ripple" @click="openFolder">
+                    <button class="notification-btn btn-ripple" @click="openLocalDocument">
                         <fa icon="folder-open" />
                     </button>
                 </template>
@@ -422,6 +422,36 @@
                 </div>
             </template>
         </el-dialog>
+
+        <!-- 文档预览弹窗（仅内嵌预览PDF，Word/Excel使用系统默认程序打开） -->
+        <el-dialog
+            v-model="documentViewerVisible"
+            :title="documentTitle"
+            width="80vw"
+            top="8vh"
+            :show-close="true"
+            append-to-body
+            destroy-on-close
+            :close-on-click-modal="true"
+            :close-on-press-escape="true"
+            class="document-viewer-dialog"
+        >
+            <div v-if="documentType === 'pdf' && documentUrl" class="document-container">
+                <iframe
+                    :src="documentUrl"
+                    class="pdf-frame"
+                    title="PDF 预览"
+                />
+            </div>
+            <div v-else class="document-fallback">
+                <p>此文件类型暂不支持内嵌预览，已尝试使用系统默认程序打开。</p>
+            </div>
+            <template #footer>
+                <div class="dialog-footer">
+                    <el-button @click="closeDocumentViewer">关闭</el-button>
+                </div>
+            </template>
+        </el-dialog>
     </header>
 </template>
 
@@ -433,6 +463,8 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import VehicleConnectionManager from '@/components/VehicleConnectionManager.vue';
 import SandboxSettingsManager from '@/components/SandboxSettingsManager.vue';
 import { toggleAxesVisibility, toggleGridVisibility, getSandboxDimensionsInfo } from '@/components/Scene3D/index.js';
+// 使用后端命令，避免前端插件导入问题
+import { convertFileSrc } from '@tauri-apps/api/core';
 
 const router = useRouter();
 const route = useRoute();
@@ -508,6 +540,13 @@ const modelSettings = ref({
 // 沙盘尺寸信息弹窗状态
 const showSandboxDimensionsDialog = ref(false);
 const sandboxDimensionsData = ref(null);
+
+// 文档预览
+const documentViewerVisible = ref(false);
+const documentTitle = ref('文档预览');
+const documentUrl = ref('');
+const documentType = ref(''); // 'pdf' | 'docx' | 'xlsx' | 'other'
+let currentObjectUrl = '';
 
 const selected = (item) => {
     selectedTab.value = item.path;
@@ -850,6 +889,53 @@ const openFolder = async () => {
         console.error('打开文件夹失败:', result.error);
         await TauriUtils.showNotification('错误', `打开文件夹失败: ${result.error}`);
     }
+};
+
+// 打开本地文档并预览（PDF内嵌，其他类型交由系统程序）
+const openLocalDocument = async () => {
+    try {
+        const res = await TauriUtils.safeInvoke('pick_document');
+        if (!res.success || !res.data) return;
+        const filePath = res.data;
+        const lower = filePath.toLowerCase();
+
+        // 清理旧的对象URL
+        if (currentObjectUrl) {
+            URL.revokeObjectURL(currentObjectUrl);
+            currentObjectUrl = '';
+        }
+
+        if (lower.endsWith('.pdf')) {
+            // 内嵌预览PDF（使用convertFileSrc避免FS权限并减小内存占用）
+            const url = convertFileSrc(filePath);
+            documentUrl.value = url;
+            documentType.value = 'pdf';
+            documentTitle.value = `PDF 预览 - ${filePath.split('/').pop()}`;
+            documentViewerVisible.value = true;
+        } else if (lower.endsWith('.doc') || lower.endsWith('.docx') || lower.endsWith('.xls') || lower.endsWith('.xlsx')) {
+            // 使用后端命令调用系统默认程序打开
+            await TauriUtils.safeInvoke('open_path', { path: filePath });
+            documentType.value = 'other';
+            documentTitle.value = '文档打开';
+            documentUrl.value = '';
+            ElMessage.info('已使用系统默认程序打开该文件');
+        } else {
+            ElMessage.warning('不支持的文件类型');
+        }
+    } catch (error) {
+        console.error('打开文档失败:', error);
+        ElMessage.error(`打开文档失败: ${error}`);
+    }
+};
+
+const closeDocumentViewer = () => {
+    documentViewerVisible.value = false;
+    if (currentObjectUrl) {
+        URL.revokeObjectURL(currentObjectUrl);
+        currentObjectUrl = '';
+    }
+    documentUrl.value = '';
+    documentType.value = '';
 };
 
 // 监听路由变化
@@ -1582,6 +1668,32 @@ onMounted(() => {
     background: rgba(255, 0, 0, 0.2);
     color: #ff4d6d;
     transform: scale(1.1);
+}
+
+/* 文档查看器样式 */
+::deep(.document-viewer-dialog) {
+    .el-dialog__body {
+        padding: 0 !important;
+        background: #1a1a1a !important;
+    }
+}
+
+.document-container {
+    width: 100%;
+    height: calc(80vh - 120px);
+    background: #111;
+}
+
+.pdf-frame {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: #111;
+}
+
+.document-fallback {
+    padding: 20px;
+    color: var(--text-secondary);
 }
 
 /* 关于弹窗样式 */

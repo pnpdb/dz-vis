@@ -19,6 +19,26 @@ use tokio::sync::Mutex;
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
+// 打开系统文件选择器，返回选择的文档路径
+#[tauri::command]
+async fn pick_document(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let handle = app.clone();
+    let picked = tauri::async_runtime::spawn_blocking(move || {
+        handle
+            .dialog()
+            .file()
+            .add_filter("Documents", &["pdf", "doc", "docx", "xls", "xlsx"])
+            .blocking_pick_file()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(picked.map(|p| match p {
+        tauri_plugin_dialog::FilePath::Path(path) => path.to_string_lossy().to_string(),
+        tauri_plugin_dialog::FilePath::Url(url) => url.to_string(),
+    }))
+}
+
 
 // Open folder command for file management
 #[tauri::command]
@@ -47,6 +67,37 @@ async fn open_folder() -> Result<(), String> {
             .map_err(|e| format!("Failed to open folder: {}", e))?;
     }
     
+    Ok(())
+}
+
+// 使用系统默认程序打开指定文件或URL
+#[tauri::command]
+async fn open_path(path: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open path: {}", e))?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // 使用 cmd start 以系统默认程序打开
+        Command::new("cmd")
+            .args(["/C", "start", "", &path])
+            .spawn()
+            .map_err(|e| format!("Failed to open path: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open path: {}", e))?;
+    }
+
     Ok(())
 }
 
@@ -846,11 +897,14 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(socket::ConnectionManager::default())
         .manage(Arc::new(parking_lot::RwLock::new(None)) as socket::SandboxConnectionManager)
         .invoke_handler(tauri::generate_handler![
             greet,
             open_folder,
+            open_path,
+            pick_document,
             get_system_info,
             minimize_window,
             maximize_window,

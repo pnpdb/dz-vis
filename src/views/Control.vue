@@ -66,8 +66,8 @@
             >
             <div class="form-item">
                 <label class="item-label">红绿灯编号</label>
-                <el-select
-                    v-model="selectedTrafficLightId" 
+                <el-select 
+                    v-model.number="selectedTrafficLightId" 
                     @change="onTrafficLightChange"
                     placeholder="请选择红绿灯"
                     class="input-select"

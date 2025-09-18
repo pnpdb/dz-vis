@@ -60,6 +60,13 @@ async fn send_sandbox_traffic_light_duration(
     red_seconds: u16,
     green_seconds: u16,
 ) -> Result<String, String> {
+    // 基础范围校验（与前端一致，避免脏数据）
+    if red_seconds == 0 || red_seconds > 300 {
+        return Err("红灯时长必须在1-300秒之间".to_string());
+    }
+    if green_seconds == 0 || green_seconds > 300 {
+        return Err("绿灯时长必须在1-300秒之间".to_string());
+    }
     let sandbox = app.state::<socket::SandboxConnectionManager>();
     let mut data = Vec::with_capacity(1 + 2 + 2);
     data.push(light_id);

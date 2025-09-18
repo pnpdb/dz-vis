@@ -28,19 +28,40 @@ class Logger {
      * @returns {object}
      */
     formatMessage(level, component, args) {
+        const safeToString = (arg) => {
+            if (arg == null) return String(arg);
+            if (typeof arg === 'string') return arg;
+            if (typeof arg !== 'object') return String(arg);
+            try {
+                // 避免循环引用与超大对象
+                return JSON.stringify(arg, (key, value) => {
+                    if (key === 'target' || key === 'srcElement' || key === 'currentTarget') return undefined;
+                    return value;
+                });
+            } catch (_) {
+                try {
+                    return Object.prototype.toString.call(arg);
+                } catch (__) {
+                    return '[Unserializable Object]';
+                }
+            }
+        };
+
+        let message = args.map(safeToString).join(' ');
+        // 限制单条日志长度，避免阻塞控制台
+        if (message.length > 4000) {
+            message = message.slice(0, 4000) + '... [truncated]';
+        }
+
         const logEntry = {
             timestamp: new Date().toISOString(),
             level,
             component,
-            message: args.map(arg => 
-                typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-            ).join(' '),
+            message,
             raw: args
         };
 
-        // 添加到缓冲区
         this.addToBuffer(logEntry);
-
         return logEntry;
     }
 
@@ -49,9 +70,9 @@ class Logger {
      * @param {object} logEntry - 日志条目
      */
     addToBuffer(logEntry) {
-        this.logBuffer.unshift(logEntry);
+        this.logBuffer.push(logEntry);
         if (this.logBuffer.length > this.maxBufferSize) {
-            this.logBuffer = this.logBuffer.slice(0, this.maxBufferSize);
+            this.logBuffer.shift();
         }
     }
 

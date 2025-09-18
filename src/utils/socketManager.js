@@ -30,16 +30,17 @@ class SocketManager {
      */
     async startServer(port = this.defaultPort) {
         try {
-            console.log('🔍 SocketManager.startServer 被调用, 端口:', port);
+            // 降低噪音：仅在调试时输出详细日志
+            if (import.meta.env.DEV) console.debug('🔍 SocketManager.startServer 被调用, 端口:', port);
             
             if (this.isServerRunning) {
                 logger.warn('Socket服务器已在运行');
                 return;
             }
 
-            console.log('📞 调用 Tauri invoke start_socket_server...');
+            if (import.meta.env.DEV) console.debug('📞 调用 Tauri invoke start_socket_server...');
             const result = await invoke('start_socket_server', { port });
-            console.log('✅ Tauri invoke 返回结果:', result);
+            if (import.meta.env.DEV) console.debug('✅ Tauri invoke 返回结果:', result);
             
             this.isServerRunning = true;
             
@@ -276,12 +277,12 @@ class SocketManager {
      * 设置车辆状态请求处理器
      */
     setupStatusRequestHandler() {
-        console.log('🔧 SocketManager.setupStatusRequestHandler 已设置');
+            if (import.meta.env.DEV) console.debug('🔧 SocketManager.setupStatusRequestHandler 已设置');
         window.addEventListener('request-vehicle-status', (event) => {
             const { vehicleId } = event.detail;
             const isConnected = this.isVehicleConnected(vehicleId);
             
-            console.log(`🔍 SocketManager收到状态请求 - 车辆: ${vehicleId}, 连接状态: ${isConnected}`);
+            if (import.meta.env.DEV) console.debug(`🔍 SocketManager收到状态请求 - 车辆: ${vehicleId}, 连接状态: ${isConnected}`);
             
             // 立即响应车辆连接状态
             window.dispatchEvent(new CustomEvent('vehicle-connection-status', {
@@ -292,7 +293,7 @@ class SocketManager {
                 }
             }));
             
-            console.log(`📤 SocketManager发送状态响应 - 车辆: ${vehicleId}, 连接: ${isConnected}`);
+            if (import.meta.env.DEV) console.debug(`📤 SocketManager发送状态响应 - 车辆: ${vehicleId}, 连接: ${isConnected}`);
             logger.debug(`响应车辆状态请求 - 车辆: ${vehicleId}, 状态: ${isConnected ? '连接' : '未连接'}`);
         });
     }

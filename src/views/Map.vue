@@ -5,7 +5,6 @@
             <Scene3D />
             <!-- 模型区域内的右下角按钮，避免跨出模型区域 -->
             <div class="scene-bottom-right-controls">
-                <button class="scene-action-btn" @click="toggleConstructionMarker">施工标记</button>
                 <button class="scene-action-btn" @click="setDefaultView">俯视视角</button>
                 <button class="scene-action-btn" @click="setTopDownView">鸟瞰视角</button>
             </div>
@@ -193,10 +192,6 @@ const setTopDownView = () => {
 
 const setDefaultView = () => {
     window.dispatchEvent(new CustomEvent('scene3d-default'));
-};
-
-const toggleConstructionMarker = () => {
-    window.dispatchEvent(new CustomEvent('scene3d-toggle-construct'));
 };
 </script>
 
@@ -453,21 +448,26 @@ div.car-control-floating .form-label {
 }
 
 .scene-action-btn {
-    background: rgba(0, 15, 30, 0.9);
-    border: 1px solid rgba(0, 240, 255, 0.4);
+    background: linear-gradient(135deg, rgba(0, 240, 255, 0.15), rgba(0, 160, 220, 0.15));
+    border: 1px solid rgba(0, 240, 255, 0.45);
     color: var(--text-primary);
-    padding: 8px 12px;
-    border-radius: 8px;
+    padding: 8px 14px;
+    border-radius: 6px;
     font-size: 12px;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
+    box-shadow: 0 6px 18px rgba(0, 240, 255, 0.15), inset 0 1px 0 rgba(255,255,255,0.08);
 }
 
 .scene-action-btn:hover {
     border-color: var(--primary);
     color: var(--primary);
     transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(0, 240, 255, 0.25), inset 0 1px 0 rgba(255,255,255,0.12);
 }
+
+/* 去掉主按钮选中态，统一样式 */
 
 .dashboard-item {
     background: rgba(0, 15, 30, 0.9);

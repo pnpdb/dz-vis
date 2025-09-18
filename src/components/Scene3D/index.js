@@ -60,6 +60,7 @@ let modelsGroup = null;
 let axesHelper = null; // 坐标轴辅助器
 let defaultCameraState = null; // 初始视角
 let constructionMarker = null; // 施工标记
+let isAnimatingView = false; // 视角动画中标志
 
 // 位姿选择相关
 let isPoseSelectionMode = false;
@@ -205,7 +206,7 @@ const initSceneCore = async () => {
         // 监听来自Map.vue的视角与标记事件
         window.addEventListener('scene3d-topdown', handleTopDownView);
         window.addEventListener('scene3d-default', handleDefaultView);
-        window.addEventListener('scene3d-toggle-construct', handleToggleConstructionMarker);
+        // 不再监听施工标记事件
 
         // 性能监控（开发环境）
         if (import.meta.env.DEV) {
@@ -1669,7 +1670,7 @@ export const destroyScene = () => {
     // 移除自定义事件
     window.removeEventListener('scene3d-topdown', handleTopDownView);
     window.removeEventListener('scene3d-default', handleDefaultView);
-    window.removeEventListener('scene3d-toggle-construct', handleToggleConstructionMarker);
+    // 无
     
     // 清理鼠标事件监听器
     if (container) {
@@ -1775,39 +1776,37 @@ export const destroyScene = () => {
 };
 
 // 切换鸟瞰视角（从上往下看，保持X向右、Z向下）
-const handleTopDownView = () => {
-    if (!camera || !controls) return;
-    // 以场景原点为目标
-    const target = new Vector3(0, 0, 0);
-    // 将相机放到目标正上方
-    camera.position.set(target.x, Math.max(80, camera.position.y), target.z + 0.0001);
-    camera.lookAt(target);
-    controls.target.copy(target);
-    controls.update();
-};
+const handleTopDownView = () => animateCameraTo({ position: new Vector3(0, 120, 0.0001), target: new Vector3(0, 0, 0) });
 
 // 恢复默认视角
 const handleDefaultView = () => {
-    if (!camera || !controls || !defaultCameraState) return;
-    camera.position.copy(defaultCameraState.position);
-    controls.target.copy(defaultCameraState.target);
-    camera.lookAt(defaultCameraState.target);
-    controls.update();
+    if (!defaultCameraState) return;
+    animateCameraTo({ position: defaultCameraState.position.clone(), target: defaultCameraState.target.clone() });
 };
 
 // 施工标记开关（在场景中右下角附近放置一个显眼标记）
-const handleToggleConstructionMarker = () => {
-    if (!scene) return;
-    if (constructionMarker) {
-        scene.remove(constructionMarker);
-        if (constructionMarker.geometry) constructionMarker.geometry.dispose();
-        if (constructionMarker.material) constructionMarker.material.dispose();
-        constructionMarker = null;
-        return;
-    }
-    const cone = new ConeGeometry(1, 2, 16);
-    const mat = new MeshBasicMaterial({ color: 0xffaa00 });
-    constructionMarker = new Mesh(cone, mat);
-    constructionMarker.position.set(10, 1, 10);
-    scene.add(constructionMarker);
+// 平滑动画切换视角（缓动）
+const animateCameraTo = ({ position, target }, duration = 600) => {
+    if (!camera || !controls || isAnimatingView) return;
+    isAnimatingView = true;
+    const startPos = camera.position.clone();
+    const startTarget = controls.target.clone();
+    const toPos = position.clone();
+    const toTarget = target.clone();
+    const start = performance.now();
+    const ease = t => 1 - Math.pow(1 - t, 3); // easeOutCubic
+    const step = (now) => {
+        const t = Math.min(1, (now - start) / duration);
+        const k = ease(t);
+        camera.position.lerpVectors(startPos, toPos, k);
+        controls.target.lerpVectors(startTarget, toTarget, k);
+        camera.lookAt(controls.target);
+        controls.update();
+        if (t < 1) {
+            requestAnimationFrame(step);
+        } else {
+            isAnimatingView = false;
+        }
+    };
+    requestAnimationFrame(step);
 };

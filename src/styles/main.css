@@ -10,6 +10,29 @@
 @import '@fontsource/roboto/500.css';
 
 /* layout */
+/* 全局FontAwesome SVG颜色修正，避免在不同平台继承异常导致不可见 */
+.logo-icon svg {
+    color: var(--dark-bg) !important;
+}
+
+.nav-btn svg {
+    color: var(--text-secondary) !important;
+}
+
+.nav-btn.active svg {
+    color: var(--dark-bg) !important;
+}
+
+.notification-btn svg,
+.user-btn svg {
+    color: var(--text-secondary) !important;
+}
+
+.notification-btn:hover svg,
+.user-btn:hover svg {
+    color: var(--dark-bg) !important;
+}
+
 
 #app {
     width: 100%;

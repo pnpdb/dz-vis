@@ -3,7 +3,6 @@
     <header class="header" style="overflow: visible !important;">
         <div class="logo">
             <div class="logo-icon">
-                <i class="fas fa-car"></i>
                 <fa icon="car" />
             </div>
             <div class="logo-text">DZ CAR MANAGER</div>

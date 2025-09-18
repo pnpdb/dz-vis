@@ -6,6 +6,10 @@ import router from './router';
 
 import '@/icons/index.js'; // 图标库
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import { config } from '@fortawesome/fontawesome-svg-core';
+import '@fortawesome/fontawesome-svg-core/styles.css';
+// 避免自动注入样式导致在不同平台/打包环境下样式缺失或冲突
+config.autoAddCss = false;
 
 import ElementPlus from 'element-plus';
 import 'element-plus/theme-chalk/dark/css-vars.css';

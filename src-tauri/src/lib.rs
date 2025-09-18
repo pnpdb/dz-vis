@@ -836,6 +836,14 @@ async fn get_udp_video_server_stats() -> Result<Option<ServerStats>, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // 在 Linux 平台上禁用 WebKit 复合渲染以修复 SVG/Icon 渲染问题
+    // 等效于在启动前导出 WEBKIT_DISABLE_COMPOSITING_MODE=1
+    #[cfg(target_os = "linux")]
+    {
+        std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+        println!("🌐 Linux: 设置 WEBKIT_DISABLE_COMPOSITING_MODE=1");
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(socket::ConnectionManager::default())

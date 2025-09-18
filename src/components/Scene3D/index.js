@@ -58,6 +58,8 @@ let sceneGroup = null;
 let lightsGroup = null;
 let modelsGroup = null;
 let axesHelper = null; // 坐标轴辅助器
+let defaultCameraState = null; // 初始视角
+let constructionMarker = null; // 施工标记
 
 // 位姿选择相关
 let isPoseSelectionMode = false;
@@ -123,6 +125,11 @@ const initSceneCore = async () => {
         );
         camera.position.set(0, 40, 50);
         camera.lookAt(0, 0, 0);
+        // 记录默认视角
+        defaultCameraState = {
+            position: camera.position.clone(),
+            target: new Vector3(0, 0, 0)
+        };
 
         // 步骤3：创建控制器 (30%)
         window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 30 }));
@@ -194,6 +201,11 @@ const initSceneCore = async () => {
         
         // 添加鼠标事件监听
         setupMouseEventListeners();
+
+        // 监听来自Map.vue的视角与标记事件
+        window.addEventListener('scene3d-topdown', handleTopDownView);
+        window.addEventListener('scene3d-default', handleDefaultView);
+        window.addEventListener('scene3d-toggle-construct', handleToggleConstructionMarker);
 
         // 性能监控（开发环境）
         if (import.meta.env.DEV) {
@@ -1654,6 +1666,10 @@ export const destroyScene = () => {
         window.removeEventListener('resize', resizeHandler);
         resizeHandler = null;
     }
+    // 移除自定义事件
+    window.removeEventListener('scene3d-topdown', handleTopDownView);
+    window.removeEventListener('scene3d-default', handleDefaultView);
+    window.removeEventListener('scene3d-toggle-construct', handleToggleConstructionMarker);
     
     // 清理鼠标事件监听器
     if (container) {
@@ -1756,4 +1772,42 @@ export const destroyScene = () => {
     axesHelper = null;
     shouldRender = true;
     lastRenderTime = 0;
+};
+
+// 切换鸟瞰视角（从上往下看，保持X向右、Z向下）
+const handleTopDownView = () => {
+    if (!camera || !controls) return;
+    // 以场景原点为目标
+    const target = new Vector3(0, 0, 0);
+    // 将相机放到目标正上方
+    camera.position.set(target.x, Math.max(80, camera.position.y), target.z + 0.0001);
+    camera.lookAt(target);
+    controls.target.copy(target);
+    controls.update();
+};
+
+// 恢复默认视角
+const handleDefaultView = () => {
+    if (!camera || !controls || !defaultCameraState) return;
+    camera.position.copy(defaultCameraState.position);
+    controls.target.copy(defaultCameraState.target);
+    camera.lookAt(defaultCameraState.target);
+    controls.update();
+};
+
+// 施工标记开关（在场景中右下角附近放置一个显眼标记）
+const handleToggleConstructionMarker = () => {
+    if (!scene) return;
+    if (constructionMarker) {
+        scene.remove(constructionMarker);
+        if (constructionMarker.geometry) constructionMarker.geometry.dispose();
+        if (constructionMarker.material) constructionMarker.material.dispose();
+        constructionMarker = null;
+        return;
+    }
+    const cone = new ConeGeometry(1, 2, 16);
+    const mat = new MeshBasicMaterial({ color: 0xffaa00 });
+    constructionMarker = new Mesh(cone, mat);
+    constructionMarker.position.set(10, 1, 10);
+    scene.add(constructionMarker);
 };

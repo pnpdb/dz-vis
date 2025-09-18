@@ -3,6 +3,12 @@
         <!-- 全屏3D场景 -->
         <div class="scene-container">
             <Scene3D />
+            <!-- 模型区域内的右下角按钮，避免跨出模型区域 -->
+            <div class="scene-bottom-right-controls">
+                <button class="scene-action-btn" @click="toggleConstructionMarker">施工标记</button>
+                <button class="scene-action-btn" @click="setDefaultView">俯视视角</button>
+                <button class="scene-action-btn" @click="setTopDownView">鸟瞰视角</button>
+            </div>
         </div>
 
         <!-- 悬浮控制元素 -->
@@ -17,7 +23,6 @@
             <div class="floating-element vehicle-time-chart-floating">
                 <VehicleTimeChart />
             </div>
-
             <!-- 自动驾驶行为统计图表 - 左中下 -->
             <div class="floating-element driving-behavior-chart-floating">
                 <DrivingBehaviorChart />
@@ -66,6 +71,8 @@
                 </div>
             </div>
         </div>
+
+
     </div>
 </template>
 
@@ -178,6 +185,19 @@ onBeforeUnmount(() => {
     // 移除事件监听器
     window.removeEventListener('online-vehicles-count-changed', handleOnlineVehiclesCountChanged);
 });
+
+// 交互：发送事件给3D场景
+const setTopDownView = () => {
+    window.dispatchEvent(new CustomEvent('scene3d-topdown'));
+};
+
+const setDefaultView = () => {
+    window.dispatchEvent(new CustomEvent('scene3d-default'));
+};
+
+const toggleConstructionMarker = () => {
+    window.dispatchEvent(new CustomEvent('scene3d-toggle-construct'));
+};
 </script>
 
 <style lang="scss" scoped>
@@ -194,6 +214,15 @@ onBeforeUnmount(() => {
     position: relative;
     z-index: 1;
 }
+.scene-container::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 300px; /* 预留右侧菜单宽度，确保按钮在菜单左侧 */
+    width: 0;
+    height: 100%;
+}
+
 
 .floating-controls {
     position: absolute;
@@ -201,7 +230,7 @@ onBeforeUnmount(() => {
     left: 0;
     width: 100%;
     height: 100%;
-    pointer-events: none;
+    pointer-events: none; /* 子元素需要交互的要自己开启 */
     z-index: 50;
 }
 
@@ -392,12 +421,52 @@ div.car-control-floating .form-label {
 .mini-dashboard {
     position: absolute;
     bottom: 30px;
-    left: 50%;
+    left: calc(50% - 160px); /* 向左移动一些距离，避免正中遮挡 */
     transform: translateX(-50%);
     display: flex;
     gap: 20px;
     z-index: 50;
     pointer-events: auto;
+}
+
+/* 右下角按钮组（与右上角系统时间右侧对齐同一右边距） */
+.scene-container .scene-bottom-right-controls {
+    position: absolute;
+    right: 480px; /* 右侧内容区域预估宽度，确保按钮完全在其左侧，不被覆盖 */
+    bottom: 30px;
+    display: flex;
+    gap: 10px;
+    z-index: 1001; /* 高于其他浮层 */
+    pointer-events: auto;
+}
+
+@media (max-width: 1600px) {
+  .scene-container .scene-bottom-right-controls {
+    right: 360px; /* 中屏时收窄右侧内容区域预估 */
+  }
+}
+
+@media (max-width: 1366px) {
+  .scene-container .scene-bottom-right-controls {
+    right: 300px; /* 小屏进一步收窄，避免过度左移 */
+  }
+}
+
+.scene-action-btn {
+    background: rgba(0, 15, 30, 0.9);
+    border: 1px solid rgba(0, 240, 255, 0.4);
+    color: var(--text-primary);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.scene-action-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-2px);
 }
 
 .dashboard-item {

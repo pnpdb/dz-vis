@@ -41,6 +41,9 @@ impl RTSPConverter {
     ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
         println!("🔄 开始RTSP到HLS转换: camera_id={}, rtsp_url={}", camera_id, rtsp_url);
 
+        // 跨平台依赖自检：FFmpeg 是否可用
+        self.ensure_ffmpeg_available().await?;
+
         // 创建输出目录
         let output_dir = self.base_output_dir.join(format!("camera_{}", camera_id));
         tokio::fs::create_dir_all(&output_dir).await?;
@@ -180,6 +183,24 @@ impl RTSPConverter {
         });
 
         Ok(())
+    }
+
+    /// 确认系统已安装 ffmpeg（macOS/Ubuntu/Windows 均需）
+    async fn ensure_ffmpeg_available(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let status = Command::new("ffmpeg")
+            .arg("-version")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .await;
+
+        match status {
+            Ok(s) if s.success() => Ok(()),
+            _ => {
+                println!("❌ 未检测到 ffmpeg，请先安装。Ubuntu: sudo apt update && sudo apt install -y ffmpeg");
+                Err("ffmpeg 未安装或不可用".into())
+            }
+        }
     }
 }
 

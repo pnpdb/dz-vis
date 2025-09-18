@@ -171,14 +171,26 @@
                                 <el-radio label="light">浅色主题</el-radio>
                             </el-radio-group>
                         </el-form-item>
-                        <el-form-item label="语言设置">
-                            <el-select v-model="settings.language" placeholder="请选择语言">
-                                <el-option label="简体中文" value="zh-CN" />
-                                <el-option label="English" value="en-US" />
+                        <el-form-item label="调试模式">
+                            <el-switch v-model="settings.debugMode" />
+                        </el-form-item>
+                        <el-form-item label="日志级别">
+                            <el-select v-model="settings.logLevel" placeholder="请选择日志级别">
+                                <el-option label="ERROR" value="error" />
+                                <el-option label="WARN" value="warn" />
+                                <el-option label="INFO" value="info" />
+                                <el-option label="DEBUG" value="debug" />
                             </el-select>
                         </el-form-item>
-                        <el-form-item label="自动保存">
-                            <el-switch v-model="settings.autoSave" />
+                        <el-form-item label="缓存大小">
+                            <el-input-number
+                                v-model="settings.cacheSize"
+                                :min="100"
+                                :max="10000"
+                                :step="100"
+                                controls-position="right"
+                            />
+                            <span style="margin-left: 8px; color: var(--text-secondary);">MB</span>
                         </el-form-item>
                     </el-form>
                 </el-tab-pane>
@@ -222,31 +234,6 @@
                 </el-tab-pane>
                 <el-tab-pane label="沙盘设置" name="sandbox">
                     <SandboxSettingsManager />
-                </el-tab-pane>
-                <el-tab-pane label="高级设置" name="advanced">
-                    <el-form label-width="120px">
-                        <el-form-item label="调试模式">
-                            <el-switch v-model="settings.debugMode" />
-                        </el-form-item>
-                        <el-form-item label="日志级别">
-                            <el-select v-model="settings.logLevel" placeholder="请选择日志级别">
-                                <el-option label="ERROR" value="error" />
-                                <el-option label="WARN" value="warn" />
-                                <el-option label="INFO" value="info" />
-                                <el-option label="DEBUG" value="debug" />
-                            </el-select>
-                        </el-form-item>
-                        <el-form-item label="缓存大小">
-                            <el-input-number
-                                v-model="settings.cacheSize"
-                                :min="100"
-                                :max="10000"
-                                :step="100"
-                                controls-position="right"
-                            />
-                            <span style="margin-left: 8px; color: var(--text-secondary);">MB</span>
-                        </el-form-item>
-                    </el-form>
                 </el-tab-pane>
             </el-tabs>
             <template #footer>
@@ -510,8 +497,6 @@ const activeSettingsTab = ref('basic');
 const aboutDialogVisible = ref(false);
 const settings = ref({
     theme: 'dark',
-    language: 'zh-CN',
-    autoSave: true,
     animations: true,
     showGrid: false,
     frameRate: 60,
@@ -783,8 +768,6 @@ const saveSettings = () => {
 const resetSettings = () => {
     settings.value = {
         theme: 'dark',
-        language: 'zh-CN',
-        autoSave: true,
         animations: true,
         showGrid: false,
         frameRate: 60,

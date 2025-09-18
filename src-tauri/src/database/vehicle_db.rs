@@ -87,6 +87,20 @@ impl VehicleDatabase {
         // 初始化默认交通灯设置
         self.init_default_traffic_light_settings().await?;
 
+        // 创建单个红绿灯时长表（按编号独立保存）
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS traffic_light_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                light_id INTEGER NOT NULL UNIQUE,
+                red_light_duration INTEGER NOT NULL DEFAULT 30,
+                green_light_duration INTEGER NOT NULL DEFAULT 30,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            "#
+        ).execute(&self.pool).await?;
+
         // 创建出租车订单表
         sqlx::query(
             r#"
@@ -169,6 +183,7 @@ impl VehicleDatabase {
             CREATE TABLE IF NOT EXISTS sandbox_service_settings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ip_address TEXT NOT NULL,
+                traffic_light_count INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
@@ -176,19 +191,21 @@ impl VehicleDatabase {
         ).execute(&self.pool).await?;
 
         // 迁移：如果存在port列，则删除它
-        let column_exists = sqlx::query("PRAGMA table_info(sandbox_service_settings)")
+        let cols = sqlx::query("PRAGMA table_info(sandbox_service_settings)")
             .fetch_all(&self.pool)
             .await?
             .iter()
-            .any(|row| row.get::<String, _>("name") == "port");
+            .map(|row| row.get::<String, _>("name"))
+            .collect::<Vec<_>>();
 
-        if column_exists {
+        if cols.iter().any(|n| n == "port") {
             // SQLite不支持直接删除列，需要重建表
             sqlx::query(
                 r#"
                 CREATE TABLE sandbox_service_settings_new (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     ip_address TEXT NOT NULL,
+                    traffic_light_count INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
@@ -198,8 +215,8 @@ impl VehicleDatabase {
             // 复制数据（不包括port列）
             sqlx::query(
                 r#"
-                INSERT INTO sandbox_service_settings_new (id, ip_address, created_at, updated_at)
-                SELECT id, ip_address, created_at, updated_at FROM sandbox_service_settings
+                INSERT INTO sandbox_service_settings_new (id, ip_address, traffic_light_count, created_at, updated_at)
+                SELECT id, ip_address, 0 as traffic_light_count, created_at, updated_at FROM sandbox_service_settings
                 "#
             ).execute(&self.pool).await?;
 
@@ -209,6 +226,13 @@ impl VehicleDatabase {
             // 重命名新表
             sqlx::query("ALTER TABLE sandbox_service_settings_new RENAME TO sandbox_service_settings")
                 .execute(&self.pool).await?;
+        }
+
+        // 如果缺少 traffic_light_count 列则添加
+        if !cols.iter().any(|n| n == "traffic_light_count") {
+            sqlx::query("ALTER TABLE sandbox_service_settings ADD COLUMN traffic_light_count INTEGER NOT NULL DEFAULT 0")
+                .execute(&self.pool)
+                .await?;
         }
 
         // 创建沙盘摄像头设置表
@@ -739,6 +763,7 @@ impl VehicleDatabase {
             Ok(Some(SandboxServiceSettings {
                 id: row.get("id"),
                 ip_address: row.get("ip_address"),
+                traffic_light_count: row.get("traffic_light_count"),
                 created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))
                     .unwrap_or_default()
                     .with_timezone(&chrono::Utc),
@@ -766,43 +791,53 @@ impl VehicleDatabase {
             sqlx::query(
                 r#"
                 UPDATE sandbox_service_settings 
-                SET ip_address = ?, updated_at = ?
+                SET ip_address = ?, traffic_light_count = ?, updated_at = ?
                 WHERE id = ?
                 "#
             )
             .bind(&request.ip_address)
+            .bind(request.traffic_light_count)
             .bind(now.to_rfc3339())
             .bind(existing_settings.id)
             .execute(&self.pool)
             .await?;
 
             // 返回更新后的记录
-            Ok(SandboxServiceSettings {
+            let updated = SandboxServiceSettings {
                 id: existing_settings.id,
                 ip_address: request.ip_address,
+                traffic_light_count: request.traffic_light_count,
                 created_at: existing_settings.created_at,
                 updated_at: now,
-            })
+            };
+            // 确保单灯时长表具有对应数量的记录（默认30/30）
+            self.ensure_traffic_light_items(updated.traffic_light_count).await?;
+            Ok(updated)
         } else {
             // 创建新记录
             let result = sqlx::query(
                 r#"
-                INSERT INTO sandbox_service_settings (ip_address, created_at, updated_at)
-                VALUES (?, ?, ?)
+                INSERT INTO sandbox_service_settings (ip_address, traffic_light_count, created_at, updated_at)
+                VALUES (?, ?, ?, ?)
                 "#
             )
             .bind(&request.ip_address)
+            .bind(request.traffic_light_count)
             .bind(now.to_rfc3339())
             .bind(now.to_rfc3339())
             .execute(&self.pool)
             .await?;
 
-            Ok(SandboxServiceSettings {
+            let created = SandboxServiceSettings {
                 id: result.last_insert_rowid(),
                 ip_address: request.ip_address,
+                traffic_light_count: request.traffic_light_count,
                 created_at: now,
                 updated_at: now,
-            })
+            };
+            // 初始化对应数量的单灯记录
+            self.ensure_traffic_light_items(created.traffic_light_count).await?;
+            Ok(created)
         }
     }
 
@@ -813,6 +848,68 @@ impl VehicleDatabase {
             .await?;
 
         Ok(result.rows_affected() > 0)
+    }
+
+    // ============ 每个红绿灯时长（按编号） ============
+    async fn ensure_traffic_light_items(&self, count: i32) -> Result<(), sqlx::Error> {
+        if count <= 0 { return Ok(()); }
+        for i in 1..=count {
+            let exists: Option<i64> = sqlx::query_scalar("SELECT id FROM traffic_light_items WHERE light_id = ?")
+                .bind(i)
+                .fetch_optional(&self.pool)
+                .await?;
+            if exists.is_none() {
+                let now = Utc::now().to_rfc3339();
+                sqlx::query(
+                    "INSERT INTO traffic_light_items (light_id, red_light_duration, green_light_duration, created_at, updated_at) VALUES (?, 30, 30, ?, ?)"
+                )
+                .bind(i)
+                .bind(&now)
+                .bind(&now)
+                .execute(&self.pool)
+                .await?;
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn get_traffic_light_item(&self, light_id: i32) -> Result<TrafficLightItem, sqlx::Error> {
+        // 如果不存在该编号记录则创建默认
+        self.ensure_traffic_light_items(light_id).await?;
+        let row = sqlx::query("SELECT * FROM traffic_light_items WHERE light_id = ?")
+            .bind(light_id)
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(TrafficLightItem {
+            id: row.get("id"),
+            light_id: row.get("light_id"),
+            red_light_duration: row.get("red_light_duration"),
+            green_light_duration: row.get("green_light_duration"),
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at")).unwrap_or_default().with_timezone(&chrono::Utc),
+            updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at")).unwrap_or_default().with_timezone(&chrono::Utc),
+        })
+    }
+
+    pub async fn update_traffic_light_item(&self, light_id: i32, red_seconds: i32, green_seconds: i32) -> Result<TrafficLightItem, sqlx::Error> {
+        let now = Utc::now().to_rfc3339();
+        let updated = sqlx::query("UPDATE traffic_light_items SET red_light_duration = ?, green_light_duration = ?, updated_at = ? WHERE light_id = ?")
+            .bind(red_seconds)
+            .bind(green_seconds)
+            .bind(&now)
+            .bind(light_id)
+            .execute(&self.pool)
+            .await?;
+        if updated.rows_affected() == 0 {
+            sqlx::query("INSERT INTO traffic_light_items (light_id, red_light_duration, green_light_duration, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
+                .bind(light_id)
+                .bind(red_seconds)
+                .bind(green_seconds)
+                .bind(&now)
+                .bind(&now)
+                .execute(&self.pool)
+                .await?;
+        }
+        self.get_traffic_light_item(light_id).await
     }
 
     /// 获取所有沙盘摄像头

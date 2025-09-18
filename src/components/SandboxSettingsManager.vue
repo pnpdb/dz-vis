@@ -25,6 +25,16 @@
                     <el-form-item label="服务IP地址" prop="ipAddress">
                         <el-input v-model="serviceForm.ipAddress" placeholder="请输入沙盘服务IP地址" />
                     </el-form-item>
+                    <el-form-item label="红绿灯数量" prop="trafficLightCount">
+                        <el-input-number 
+                            v-model="serviceForm.trafficLightCount" 
+                            :min="0"
+                            :step="1"
+                            controls-position="right"
+                            placeholder="请输入红绿灯数量"
+                            style="width: 100%"
+                        />
+                    </el-form-item>
                     <el-form-item>
                         <div class="service-actions">
                             <el-button 
@@ -208,7 +218,8 @@ const hasServiceSettings = ref(false);
 const serviceFormRef = ref();
 
 const serviceForm = reactive({
-    ipAddress: ''
+    ipAddress: '',
+    trafficLightCount: 0
 });
 
 const serviceRules = {
@@ -225,6 +236,19 @@ const serviceRules = {
                 }
             },
             trigger: 'blur' 
+        }
+    ],
+    trafficLightCount: [
+        { required: true, message: '请输入红绿灯数量', trigger: 'blur' },
+        { 
+            validator: (rule, value, callback) => {
+                if (value == null || value < 0) {
+                    callback(new Error('红绿灯数量必须为非负整数'));
+                } else {
+                    callback();
+                }
+            },
+            trigger: 'change'
         }
     ]
 };
@@ -299,6 +323,7 @@ const loadServiceSettings = async () => {
         const result = await SandboxAPI.getServiceSettings();
         if (result.success && result.data) {
             serviceForm.ipAddress = result.data.ip_address;
+            serviceForm.trafficLightCount = result.data.traffic_light_count ?? 0;
             hasServiceSettings.value = true;
         } else {
             hasServiceSettings.value = false;
@@ -323,7 +348,8 @@ const saveServiceSettings = async () => {
     serviceSaving.value = true;
     try {
         const settingsData = {
-            ip_address: serviceForm.ipAddress
+            ip_address: serviceForm.ipAddress,
+            traffic_light_count: serviceForm.trafficLightCount
         };
         
         const result = await SandboxAPI.createOrUpdateServiceSettings(settingsData);

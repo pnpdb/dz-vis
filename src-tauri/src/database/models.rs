@@ -74,6 +74,17 @@ pub struct TrafficLightSettings {
     pub updated_at: DateTime<Utc>,
 }
 
+/// 单个红绿灯时长模型
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct TrafficLightItem {
+    pub id: i64,
+    pub light_id: i32,              // 红绿灯编号（从1开始）
+    pub red_light_duration: i32,    // 红灯时长（秒）
+    pub green_light_duration: i32,  // 绿灯时长（秒）
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 /// 更新交通灯设置的请求参数
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateTrafficLightSettingsRequest {
@@ -169,6 +180,7 @@ impl UpdateTrafficLightSettingsRequest {
 pub struct SandboxServiceSettings {
     pub id: i64,
     pub ip_address: String,     // 沙盘服务IP地址
+    pub traffic_light_count: i32, // 红绿灯数量
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -177,6 +189,7 @@ pub struct SandboxServiceSettings {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateOrUpdateSandboxServiceRequest {
     pub ip_address: String,
+    pub traffic_light_count: i32,
 }
 
 /// 沙盘摄像头设置模型

@@ -50,6 +50,60 @@ async fn open_folder() -> Result<(), String> {
     Ok(())
 }
 
+// ============ 沙盘交通灯指令 ============
+
+/// 发送红绿灯时长到沙盘（0x2002）
+#[tauri::command]
+async fn send_sandbox_traffic_light_duration(
+    app: tauri::AppHandle,
+    light_id: u8,
+    red_seconds: u16,
+    green_seconds: u16,
+) -> Result<String, String> {
+    let sandbox = app.state::<socket::SandboxConnectionManager>();
+    let mut data = Vec::with_capacity(1 + 2 + 2);
+    data.push(light_id);
+    data.extend_from_slice(&red_seconds.to_le_bytes());
+    data.extend_from_slice(&green_seconds.to_le_bytes());
+
+    // 发送成功后在DB保存对应编号的时长
+    match socket::SocketServer::send_to_sandbox(&sandbox, 0x2002, &data) {
+        Ok(_) => {
+            if let Some(db) = app.try_state::<VehicleDatabase>() {
+                let _ = db.update_traffic_light_item(light_id as i32, red_seconds as i32, green_seconds as i32).await;
+            }
+            Ok("发送成功".to_string())
+        }
+        Err(e) => Err(e)
+    }
+}
+
+// 单个红绿灯项查询
+#[tauri::command]
+async fn get_traffic_light_item(app: tauri::AppHandle, light_id: i32) -> Result<serde_json::Value, String> {
+    if let Some(db) = app.try_state::<VehicleDatabase>() {
+        db.get_traffic_light_item(light_id)
+            .await
+            .map(|item| serde_json::to_value(item).unwrap())
+            .map_err(|e| e.to_string())
+    } else {
+        Err("数据库未初始化".to_string())
+    }
+}
+
+// 单个红绿灯项更新
+#[tauri::command]
+async fn update_traffic_light_item(app: tauri::AppHandle, light_id: i32, red_seconds: i32, green_seconds: i32) -> Result<serde_json::Value, String> {
+    if let Some(db) = app.try_state::<VehicleDatabase>() {
+        db.update_traffic_light_item(light_id, red_seconds, green_seconds)
+            .await
+            .map(|item| serde_json::to_value(item).unwrap())
+            .map_err(|e| e.to_string())
+    } else {
+        Err("数据库未初始化".to_string())
+    }
+}
+
 // Get system information
 #[tauri::command]
 async fn get_system_info() -> Result<serde_json::Value, String> {
@@ -821,7 +875,10 @@ pub fn run() {
             start_hls_server,
             start_udp_video_server,
             stop_udp_video_server,
-            get_udp_video_server_stats
+            get_udp_video_server_stats,
+            send_sandbox_traffic_light_duration,
+            get_traffic_light_item,
+            update_traffic_light_item
         ])
         .setup(|app| {
             // 克隆app handle用于不同任务

@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """
 沙盘客户端测试程序
-连接到界面端(Tauri Socket服务器)，接收 0x2001 协议并打印 自动驾驶/平行驾驶。
+连接到界面端(Tauri Socket服务器)，接收沙盘相关协议并打印信息。
+
+支持:
+- 0x2001: 自动/平行驾驶模式
+- 0x2002: 红绿灯时长设置
 
 使用方式:
   python3 sandbox_client.py [host] [port]
@@ -85,6 +89,11 @@ def main():
                     action = data[1]
                     action_text = '自动驾驶' if action == 0 else '平行驾驶' if action == 1 else f'未知({action})'
                     print(f"📨 {ts} 收到 0x2001 指令: 车辆{vehicle_id}, 动作: {action_text}")
+                elif mt == 0x2002 and len(data) >= 5:
+                    light_id = data[0]
+                    red_seconds = struct.unpack_from('<H', data, 1)[0]
+                    green_seconds = struct.unpack_from('<H', data, 3)[0]
+                    print(f"🚦 {ts} 收到 0x2002 指令: 红绿灯#{light_id}, 红灯{red_seconds}s, 绿灯{green_seconds}s")
                 else:
                     print(f"ℹ️ {ts} 收到消息: 0x{mt:04X}, 数据长度: {len(data)}")
     finally:

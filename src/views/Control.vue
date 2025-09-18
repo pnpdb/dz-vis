@@ -65,6 +65,22 @@
                 ><fa icon="traffic-light"></fa> 交通信号控制</label
             >
             <div class="form-item">
+                <label class="item-label">红绿灯编号</label>
+                <el-select
+                    v-model="selectedTrafficLightId" 
+                    @change="onTrafficLightChange"
+                    placeholder="请选择红绿灯"
+                    class="input-select"
+                >
+                    <el-option
+                        v-for="id in trafficLightOptions"
+                        :key="id"
+                        :label="`#${id}`"
+                        :value="id"
+                    />
+                </el-select>
+            </div>
+            <div class="form-item">
                 <label class="item-label color-red">红灯默认时长 (秒)</label>
 
                 <el-input-number
@@ -195,6 +211,14 @@ const trafficSettings = ref({
     greenLight: 60,
 });
 
+// 红绿灯编号与数量
+const selectedTrafficLightId = ref(1);
+const trafficLightCount = ref(0);
+const trafficLightOptions = computed(() => {
+    const count = Math.max(1, Number(trafficLightCount.value || 0));
+    return Array.from({ length: count }, (_, i) => i + 1);
+});
+
 const lightSettings = ref({
     barrier: true, // 停车抬杠
     ambient: true, // 环境灯
@@ -202,13 +226,18 @@ const lightSettings = ref({
     street: true, // 路灯
 });
 
-// 从数据库加载交通灯设置
+// 切换编号时加载该编号的时长
+const onTrafficLightChange = async () => {
+    await loadTrafficLightSettings();
+};
+
+// 从数据库加载所选红绿灯的时长
 const loadTrafficLightSettings = async () => {
     try {
-        const result = await TrafficLightAPI.getSettings();
-        if (result.success) {
-            trafficSettings.value.redLight = result.data.red_light_duration;
-            trafficSettings.value.greenLight = result.data.green_light_duration;
+        const result = await TrafficLightAPI.getLightItem(Number(selectedTrafficLightId.value || 1));
+        if (result.success && result.data) {
+            trafficSettings.value.redLight = result.data.red_light_duration ?? 30;
+            trafficSettings.value.greenLight = result.data.green_light_duration ?? 30;
             console.log('✅ 交通灯设置加载成功:', result.data);
         } else {
             console.error('❌ 交通灯设置加载失败:', result.error);
@@ -236,23 +265,32 @@ const updateTrafficLightSettings = async () => {
     updating.value = true;
     
     try {
-        const updateData = {
-            red_light_duration: trafficSettings.value.redLight,
-            green_light_duration: trafficSettings.value.greenLight
-        };
-        
-        const result = await TrafficLightAPI.updateSettings(updateData);
-        
-        if (result.success) {
-            ElMessage.success('交通灯时长更新成功！');
-            console.log('✅ 交通灯设置更新成功:', result.data);
-            
-            // 更新本地数据以确保一致性
-            trafficSettings.value.redLight = result.data.red_light_duration;
-            trafficSettings.value.greenLight = result.data.green_light_duration;
-        } else {
-            ElMessage.error('更新失败: ' + result.error);
-            console.error('❌ 交通灯设置更新失败:', result.error);
+        // 发送到沙盘：先检查沙盘是否在线（有无沙盘连接）
+        try {
+            if (!trafficLightOptions.value.includes(selectedTrafficLightId.value)) {
+                ElMessage.warning('请选择有效的红绿灯编号');
+                return;
+            }
+            await invoke('send_sandbox_traffic_light_duration', {
+                lightId: selectedTrafficLightId.value,
+                redSeconds: trafficSettings.value.redLight,
+                greenSeconds: trafficSettings.value.greenLight
+            });
+            ElMessage.success('发送成功');
+            // 发送成功后保存到DB，并刷新显示
+            const save = await TrafficLightAPI.updateLightItem(
+                Number(selectedTrafficLightId.value),
+                Number(trafficSettings.value.redLight),
+                Number(trafficSettings.value.greenLight)
+            );
+            if (!save.success) {
+                console.warn('⚠️ 保存到数据库失败:', save.error);
+            } else {
+                await loadTrafficLightSettings();
+            }
+        } catch (e) {
+            // Rust端如果未连接会返回错误"设备离线"或其它
+            ElMessage.error('设备离线');
         }
     } catch (error) {
         ElMessage.error('更新异常: ' + error.message);
@@ -278,6 +316,22 @@ const loadCameras = async () => {
     } catch (error) {
         console.error('❌ 加载摄像头列表失败:', error);
         cameras.value = [];
+    }
+};
+
+// 读取沙盘服务设置（获取红绿灯数量）
+const loadSandboxServiceSettings = async () => {
+    try {
+        const res = await SandboxAPI.getServiceSettings();
+        if (res.success && res.data) {
+            const count = Number(res.data.traffic_light_count || 0);
+            trafficLightCount.value = count;
+            if (selectedTrafficLightId.value > Math.max(1, count)) {
+                selectedTrafficLightId.value = 1;
+            }
+        }
+    } catch (err) {
+        console.warn('读取沙盘服务设置失败:', err);
     }
 };
 
@@ -682,7 +736,8 @@ const checkCameraPermission = async () => {
 
 // 组件挂载时加载设置
 onMounted(async () => {
-    loadTrafficLightSettings();
+    await loadSandboxServiceSettings();
+    await loadTrafficLightSettings();
     loadCameras();
     
     // 检查摄像头权限

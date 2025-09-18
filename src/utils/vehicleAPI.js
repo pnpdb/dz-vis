@@ -158,6 +158,33 @@ export class TrafficLightAPI {
             return { success: false, error: error.toString() };
         }
     }
+
+    /**
+     * 获取单个红绿灯的时长
+     * @param {number} lightId
+     */
+    static async getLightItem(lightId) {
+        try {
+            const result = await invoke('get_traffic_light_item', { lightId });
+            return { success: true, data: result };
+        } catch (error) {
+            console.error('❌ 获取红绿灯时长失败:', error);
+            return { success: false, error: error.toString() };
+        }
+    }
+
+    /**
+     * 更新单个红绿灯的时长
+     */
+    static async updateLightItem(lightId, redSeconds, greenSeconds) {
+        try {
+            const result = await invoke('update_traffic_light_item', { lightId, redSeconds, greenSeconds });
+            return { success: true, data: result };
+        } catch (error) {
+            console.error('❌ 更新红绿灯时长失败:', error);
+            return { success: false, error: error.toString() };
+        }
+    }
 }
 
 /**

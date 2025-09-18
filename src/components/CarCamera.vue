@@ -36,6 +36,7 @@
 import { ref, onMounted, onBeforeUnmount, watch, computed } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { ElMessage } from 'element-plus';
 import { useCarStore } from '@/stores/car.js';
 
 const carStore = useCarStore();
@@ -69,7 +70,7 @@ const toggleCamera = () => {
     }
 };
 
-const toggleParallelDriving = () => {
+const toggleParallelDriving = async () => {
     parallelDrivingMode.value = !parallelDrivingMode.value;
     
     // 通过事件通知父组件或其他组件切换车辆参数显示模式
@@ -78,6 +79,19 @@ const toggleParallelDriving = () => {
             mode: parallelDrivingMode.value
         }
     }));
+    
+    // 发送沙盘控制指令 (0x2001): 动作 0=自动驾驶, 1=平行驾驶
+    try {
+        const vehicleId = Number(currentVehicleId.value);
+        if (Number.isNaN(vehicleId)) {
+            return;
+        }
+        const action = parallelDrivingMode.value ? 1 : 0;
+        await invoke('send_sandbox_control', { vehicleId, action });
+        ElMessage.success('发送成功');
+    } catch (e) {
+        ElMessage.error('服务离线');
+    }
 };
 
 // 启动视频接收器

@@ -85,7 +85,8 @@ async fn start_socket_server(app: tauri::AppHandle, port: u16) -> Result<String,
     
     // 使用Tauri状态中的ConnectionManager
     let connections = app.state::<socket::ConnectionManager>();
-    let server = socket::SocketServer::new_with_connections(port, app.clone(), connections.inner().clone());
+    let sandbox = app.state::<socket::SandboxConnectionManager>();
+    let server = socket::SocketServer::new_with_connections(port, app.clone(), connections.inner().clone(), sandbox.inner().clone());
     
     // 在后台启动服务器
     tokio::spawn(async move {
@@ -96,7 +97,7 @@ async fn start_socket_server(app: tauri::AppHandle, port: u16) -> Result<String,
     });
     
     // 给服务器一点时间启动
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
     
     let result = format!("Socket服务器启动在端口: {}", port);
     println!("✅ {}", result);
@@ -113,6 +114,23 @@ async fn send_to_vehicle(
     let connections = app.state::<socket::ConnectionManager>();
     socket::SocketServer::send_to_vehicle(&connections, vehicle_id, message_type, &data)
         .map(|_| "消息发送成功".to_string())
+}
+
+// 发送沙盘控制指令（0x2001）
+#[tauri::command]
+async fn send_sandbox_control(
+    app: tauri::AppHandle,
+    vehicle_id: u8,
+    action: u8, // 0: 自动驾驶, 1: 平行驾驶
+) -> Result<String, String> {
+    // 构建数据域: 车辆编号(1) + 动作(1)
+    let mut data = Vec::with_capacity(2);
+    data.push(vehicle_id);
+    data.push(action);
+
+    let sandbox = app.state::<socket::SandboxConnectionManager>();
+    socket::SocketServer::send_to_sandbox(&sandbox, 0x2001, &data)
+        .map(|_| "发送成功".to_string())
 }
 
 #[tauri::command]
@@ -758,6 +776,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(socket::ConnectionManager::default())
+        .manage(Arc::new(parking_lot::RwLock::new(None)) as socket::SandboxConnectionManager)
         .invoke_handler(tauri::generate_handler![
             greet,
             open_folder,
@@ -767,6 +786,7 @@ pub fn run() {
             close_window,
             start_socket_server,
             send_to_vehicle,
+            send_sandbox_control,
             broadcast_message,
             get_connected_vehicles,
             get_vehicle_connections,

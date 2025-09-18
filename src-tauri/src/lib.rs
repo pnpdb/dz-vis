@@ -62,6 +62,8 @@ async fn get_system_info() -> Result<serde_json::Value, String> {
     Ok(info)
 }
 
+// （已移除主题设置相关命令）
+
 // Window control commands
 #[tauri::command]
 async fn minimize_window(window: tauri::Window) -> Result<(), String> {

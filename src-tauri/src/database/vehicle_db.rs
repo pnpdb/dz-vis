@@ -229,6 +229,8 @@ impl VehicleDatabase {
         // 创建索引（如果不存在）
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_sandbox_camera_type ON sandbox_cameras(camera_type)")
             .execute(&self.pool).await?;
+
+        // （已移除应用主题设置表）
         
         println!("✅ 数据库表结构检查完成");
         Ok(())

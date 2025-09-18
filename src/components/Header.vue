@@ -165,12 +165,7 @@
             <el-tabs v-model="activeSettingsTab" type="border-card">
                 <el-tab-pane label="基本设置" name="basic">
                     <el-form label-width="120px">
-                        <el-form-item label="系统主题">
-                            <el-radio-group v-model="settings.theme">
-                                <el-radio label="dark">深色主题</el-radio>
-                                <el-radio label="light">浅色主题</el-radio>
-                            </el-radio-group>
-                        </el-form-item>
+                        
                         <el-form-item label="调试模式">
                             <el-switch v-model="settings.debugMode" />
                         </el-form-item>
@@ -520,6 +515,20 @@ const selected = (item) => {
     router.push(item.path);
 };
 
+// 主题应用（固定深色）
+const applyTheme = (theme) => {
+    const root = document.documentElement;
+    root.setAttribute('data-theme', 'dark');
+    root.style.setProperty('--dark-bg', '#0a1523');
+    root.style.setProperty('--darker-card', '#091220');
+    root.style.setProperty('--dark-card', '#0f1e2f');
+    root.style.setProperty('--dark-border', '#1a324d');
+    root.style.setProperty('--text-primary', '#e6f7ff');
+    root.style.setProperty('--text-secondary', '#89a2c0');
+    document.body.style.background = 'radial-gradient(circle at top left, #071220 0%, #0a1625 70%)';
+};
+
+
 // 关闭登录框
 const closeLogin = () => {
     console.log('关闭登录框');
@@ -856,6 +865,9 @@ watch(
 onMounted(() => {
     selectedTab.value = route.path;
     
+    // 固定深色主题
+    applyTheme('dark');
+
     // 初始化 Tauri 事件监听
     if (TauriUtils.isTauri()) {
         TauriUtils.listenToWindowEvents({

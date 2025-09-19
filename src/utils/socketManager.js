@@ -328,8 +328,8 @@ class SocketManager {
     // ============ 数据域解析方法 ============
 
     /**
-     * 解析车辆信息协议数据域 (46字节)
-     * 协议格式：车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 朝向(8) + 电量(8) + 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1) + 车位占用状态(1)
+     * 解析车辆信息协议数据域 (54字节)
+     * 协议格式：车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 朝向(8) + 电量(8) + 档位(1) + 方向盘转角(8) + 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1)
      */
     parseVehicleInfo(carId, data, timestamp) {
         logger.info(`解析车辆信息 - 车辆: ${carId}, 数据长度: ${data.length}`);
@@ -350,11 +350,12 @@ class SocketManager {
             const positionY = view.getFloat64(VEHICLE_INFO_PROTOCOL.POSITION_Y_OFFSET, true);
             const orientation = view.getFloat64(VEHICLE_INFO_PROTOCOL.ORIENTATION_OFFSET, true);
             const battery = view.getFloat64(VEHICLE_INFO_PROTOCOL.BATTERY_OFFSET, true);
+            const gear = view.getUint8(VEHICLE_INFO_PROTOCOL.GEAR_OFFSET);
+            const steeringAngle = view.getFloat64(VEHICLE_INFO_PROTOCOL.STEERING_ANGLE_OFFSET, true);
             const navCode = view.getUint8(VEHICLE_INFO_PROTOCOL.NAV_STATUS_OFFSET);
             const cameraStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.CAMERA_STATUS_OFFSET);
             const lidarStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.LIDAR_STATUS_OFFSET);
             const gyroStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.GYRO_STATUS_OFFSET);
-            const parkingOccupancy = view.getUint8(VEHICLE_INFO_PROTOCOL.PARKING_OCCUPANCY_OFFSET);
             
             // 数据验证
             const clampedSpeed = Math.max(VEHICLE_INFO_PROTOCOL.MIN_SPEED, 
@@ -368,6 +369,8 @@ class SocketManager {
                 position: { x: positionX, y: positionY },
                 orientation,
                 battery: clampedBattery,
+                gear,
+                steeringAngle,
                 navigation: {
                     code: navCode,
                     text: NAV_STATUS_TEXTS[navCode] || `未知状态(${navCode})`
@@ -385,10 +388,6 @@ class SocketManager {
                         status: gyroStatus === 1,
                         text: gyroStatus === 1 ? '正常' : '异常'
                     }
-                },
-                parking: {
-                    occupied: parkingOccupancy !== 0,
-                    spot: parkingOccupancy
                 },
                 timestamp
             };

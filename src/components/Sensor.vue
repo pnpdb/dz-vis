@@ -7,12 +7,12 @@
                 <div class="sensor-icon"><fa icon="compass" /></div>
                 <div class="sensor-name">陀螺仪</div>
                 <div :class="getClass(sensorData.imuState)">{{ getDesc(sensorData.imuState) }}</div>
-            </div>
+                        </div>
             <div class="sensor-card">
                 <div class="sensor-icon"><fa icon="signal" /></div>
                 <div class="sensor-name">激光雷达</div>
                 <div :class="getClass(sensorData.lidarState)">{{ getDesc(sensorData.lidarState) }}</div>
-            </div>
+                        </div>
             <div class="sensor-card">
                 <div class="sensor-icon"><fa icon="camera" /></div>
                 <div class="sensor-name">相机</div>
@@ -131,13 +131,13 @@ onBeforeUnmount(() => {
 }
 
 .sensor-name {
-    font-size: 12px;
-    color: #a0b3d0;
+        font-size: 12px;
+        color: #a0b3d0;
     margin-bottom: 2px;
-}
+    }
 
-.sensor-state {
-    font-size: 12px;
+    .sensor-state {
+        font-size: 12px;
 }
 
 .status-normal { color: var(--success, #00ff00); }

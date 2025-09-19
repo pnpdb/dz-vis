@@ -198,6 +198,25 @@ const handleVehicleInfoUpdate = (event) => {
         hasSpeed.value = true;
         isOnline.value = true;
         
+        // 更新平行驾驶相关参数（若存在）
+        if (vehicleInfo.steeringAngle != null) {
+            const angle = Number(vehicleInfo.steeringAngle);
+            // 保留一位小数
+            steeringAngle.value = Number.isFinite(angle) ? Number(angle.toFixed(1)) : 0;
+        }
+        if (vehicleInfo.gear != null) {
+            const toGearLabel = (code) => {
+                switch (code) {
+                    case 1: return 'P';
+                    case 2: return 'R';
+                    case 3: return 'N';
+                    case 4: return 'D';
+                    default: return 'P';
+                }
+            };
+            currentGear.value = toGearLabel(vehicleInfo.gear);
+        }
+        
         console.log(`更新车辆${props.carInfo}信息:`, vehicleInfo);
     }
 };

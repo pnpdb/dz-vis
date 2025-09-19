@@ -99,7 +99,7 @@ const requestParallelDriving = async () => {
         // 1) 检查沙盘是否在线
         const sandboxOnline = await invoke('is_sandbox_connected');
         if (!sandboxOnline) {
-            ElMessage.error('工控机离线');
+            ElMessage.error('调度服务离线');
             return;
         }
         // 2) 检查车辆是否在线

@@ -19,7 +19,7 @@ export const SEND_MESSAGE_TYPES = {
     VEHICLE_PATH_DISPLAY: 0x1007,    // 车辆路径显示控制
 };
 
-// 车辆信息协议数据域定义 (46字节)
+// 车辆信息协议数据域定义 (54字节)
 export const VEHICLE_INFO_PROTOCOL = {
     VEHICLE_ID_OFFSET: 0,            // 车辆编号偏移 (1字节)
     SPEED_OFFSET: 1,                 // 车速偏移 (8字节, DOUBLE)
@@ -27,12 +27,13 @@ export const VEHICLE_INFO_PROTOCOL = {
     POSITION_Y_OFFSET: 17,           // 位置Y偏移 (8字节, DOUBLE)
     ORIENTATION_OFFSET: 25,          // 朝向偏移 (8字节, DOUBLE)
     BATTERY_OFFSET: 33,              // 电池电量偏移 (8字节, DOUBLE)
-    NAV_STATUS_OFFSET: 41,           // 导航状态偏移 (1字节)
-    CAMERA_STATUS_OFFSET: 42,        // 相机状态偏移 (1字节)
-    LIDAR_STATUS_OFFSET: 43,         // 激光雷达状态偏移 (1字节)
-    GYRO_STATUS_OFFSET: 44,          // 陀螺仪状态偏移 (1字节)
-    PARKING_OCCUPANCY_OFFSET: 45,    // 车位占用状态偏移 (1字节)
-    TOTAL_SIZE: 46,                  // 总大小 46字节
+    GEAR_OFFSET: 41,                 // 档位偏移 (1字节, UINT8) 1:P 2:R 3:N 4:D
+    STEERING_ANGLE_OFFSET: 42,       // 方向盘转角偏移 (8字节, DOUBLE)
+    NAV_STATUS_OFFSET: 50,           // 导航状态偏移 (1字节)
+    CAMERA_STATUS_OFFSET: 51,        // 相机状态偏移 (1字节)
+    LIDAR_STATUS_OFFSET: 52,         // 激光雷达状态偏移 (1字节)
+    GYRO_STATUS_OFFSET: 53,          // 陀螺仪状态偏移 (1字节)
+    TOTAL_SIZE: 54,                  // 总大小 54字节
     
     // 车速范围 (0-1 m/s)
     MIN_SPEED: 0.0,

@@ -369,8 +369,8 @@ force_parallel_until = 0
 
 def create_vehicle_info_data(vehicle_id=1):
     """
-    创建车辆信息协议数据域 (46字节)
-    格式：车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 朝向(8) + 电量(8) + 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1) + 车位占用状态(1)
+    创建车辆信息协议数据域 (54字节)
+    格式：车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 朝向(8) + 电量(8) + 档位(1) + 方向盘转角(8) + 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1)
     """
     import random
     
@@ -399,7 +399,15 @@ def create_vehicle_info_data(vehicle_id=1):
     battery = random.uniform(20.0, 100.0)
     data.extend(struct.pack('<d', battery))
     
-    # 导航状态 (1字节, UINT8) - 新定义 1..15
+    # 档位 (1字节, UINT8) - 1:P 2:R 3:N 4:D
+    gear = random.choice([1, 2, 3, 4])
+    data.extend(struct.pack('<B', gear))
+    
+    # 方向盘转角 (8字节, DOUBLE) - 角度 -540~540 示例
+    steering_angle = random.uniform(-540.0, 540.0)
+    data.extend(struct.pack('<d', steering_angle))
+    
+    # 导航状态 (1字节, UINT8) - 新定义 1..15 (注意10为终点)
     now_ms = int(time.time() * 1000)
     if now_ms < force_parallel_until:
         nav_status = 15
@@ -419,12 +427,8 @@ def create_vehicle_info_data(vehicle_id=1):
     gyro_status = random.choice([0, 1])
     data.extend(struct.pack('<B', gyro_status))
     
-    # 车位占用状态 (1字节, UINT8) - 0:未占用；其它：占用对应车位编号
-    parking = random.choice([0,1,2,3])
-    data.extend(struct.pack('<B', parking))
-    
-    print(f"🚗 车辆信息 - ID: {vehicle_id}, 速度: {speed:.3f}m/s, 位置: ({position_x:.2f}, {position_y:.2f}), 朝向: {orientation:.1f}°, 电量: {battery:.1f}%, 导航状态码: {nav_status}")
-    print(f"📊 传感器状态 - 相机: {'正常' if camera_status else '异常'}, 雷达: {'正常' if lidar_status else '异常'}, 陀螺仪: {'正常' if gyro_status else '异常'}，车位占用: {parking}")
+    print(f"🚗 车辆信息 - ID: {vehicle_id}, 速度: {speed:.3f}m/s, 位置: ({position_x:.2f}, {position_y:.2f}), 朝向: {orientation:.1f}°, 电量: {battery:.1f}%, 档位: {gear}, 方向盘: {steering_angle:.1f}°, 导航状态码: {nav_status}")
+    print(f"📊 传感器状态 - 相机: {'正常' if camera_status else '异常'}, 雷达: {'正常' if lidar_status else '异常'}, 陀螺仪: {'正常' if gyro_status else '异常'}")
     
     return bytes(data)
 
@@ -728,9 +732,9 @@ def main():
         print("正在发送以下类型的数据:")
         print("- 心跳包 (每10秒)")
         print("- 车辆信息协议 (每2秒)")
-        print("\n📊 车辆信息协议数据域 (46字节):")
+        print("\n📊 车辆信息协议数据域 (54字节):")
         print("- 车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 朝向(8) + 电量(8)")
-        print("- 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1) + 车位占用状态(1)")
+        print("- 档位(1) + 方向盘转角(8) + 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1)")
         
         # 保持程序运行
         while client.running:

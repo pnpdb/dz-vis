@@ -54,7 +54,7 @@
                     <fa icon="route" />
                     导航状态
                 </div>
-                <div :class="['info-value', navStatus.status ? 'status-normal' : 'status-warning']">{{ navStatus.text }}</div>
+                <div class="info-value">{{ navStatus.text }}</div>
             </div>
         </div>
 
@@ -120,7 +120,7 @@ const positionX = ref(116.40);
 const positionY = ref(39.90);
 const isOnline = ref(false); // 简单的在线/离线状态
 const navStatus = ref({
-    status: false,
+    code: 0,
     text: '未导航'
 });
 
@@ -141,7 +141,7 @@ const resetToDefaultState = () => {
     positionY.value = 0;
     isOnline.value = false;
     navStatus.value = {
-        status: false,
+        code: 0,
         text: '未导航'
     };
     console.log(`🔄 重置车辆${props.carInfo}信息为默认状态`);

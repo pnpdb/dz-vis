@@ -230,21 +230,30 @@ async fn send_to_vehicle(
         .map(|_| "消息发送成功".to_string())
 }
 
-// 发送沙盘控制指令（0x2001）
+// 发送平行驾驶指令（0x2001）
 #[tauri::command]
 async fn send_sandbox_control(
     app: tauri::AppHandle,
     vehicle_id: u8,
-    action: u8, // 0: 自动驾驶, 1: 平行驾驶
 ) -> Result<String, String> {
-    // 构建数据域: 车辆编号(1) + 动作(1)
-    let mut data = Vec::with_capacity(2);
-    data.push(vehicle_id);
-    data.push(action);
+    // 构建数据域: 车辆编号(1)
+    let data = vec![vehicle_id];
 
     let sandbox = app.state::<socket::SandboxConnectionManager>();
+    if sandbox.read().is_none() {
+        return Err("沙盘未连接".to_string());
+    }
     socket::SocketServer::send_to_sandbox(&sandbox, 0x2001, &data)
         .map(|_| "发送成功".to_string())
+        .map_err(|e| format!("发送失败: {}", e))
+}
+
+/// 查询沙盘是否已连接
+#[tauri::command]
+async fn is_sandbox_connected(app: tauri::AppHandle) -> Result<bool, String> {
+    let sandbox = app.state::<socket::SandboxConnectionManager>();
+    let is_connected = sandbox.read().is_some();
+    Ok(is_connected)
 }
 
 #[tauri::command]
@@ -912,6 +921,7 @@ pub fn run() {
             start_socket_server,
             send_to_vehicle,
             send_sandbox_control,
+            is_sandbox_connected,
             broadcast_message,
             get_connected_vehicles,
             get_vehicle_connections,

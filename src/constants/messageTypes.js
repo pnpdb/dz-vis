@@ -19,27 +19,42 @@ export const SEND_MESSAGE_TYPES = {
     VEHICLE_PATH_DISPLAY: 0x1007,    // 车辆路径显示控制
 };
 
-// 车辆信息协议数据域定义 (37字节)
+// 车辆信息协议数据域定义 (46字节)
 export const VEHICLE_INFO_PROTOCOL = {
-    VEHICLE_ID_OFFSET: 0,        // 车辆编号偏移 (1字节)
-    SPEED_OFFSET: 1,             // 车速偏移 (8字节, DOUBLE)
-    POSITION_X_OFFSET: 9,        // 位置X偏移 (8字节, DOUBLE)
-    POSITION_Y_OFFSET: 17,       // 位置Y偏移 (8字节, DOUBLE)
-    BATTERY_OFFSET: 25,          // 电池电量偏移 (8字节, DOUBLE)
-    NAV_STATUS_OFFSET: 33,       // 导航状态偏移 (1字节)
-    CAMERA_STATUS_OFFSET: 34,    // 相机状态偏移 (1字节)
-    LIDAR_STATUS_OFFSET: 35,     // 激光雷达状态偏移 (1字节)
-    GYRO_STATUS_OFFSET: 36,      // 陀螺仪状态偏移 (1字节)
-    BEIDOU_STATUS_OFFSET: 37,    // 北斗状态偏移 (1字节)
-    TOTAL_SIZE: 38,              // 总大小 38字节
-    
-    // 状态值定义
-    STATUS_ABNORMAL: 0,          // 异常/未导航
-    STATUS_NORMAL: 1,            // 正常/导航中
+    VEHICLE_ID_OFFSET: 0,            // 车辆编号偏移 (1字节)
+    SPEED_OFFSET: 1,                 // 车速偏移 (8字节, DOUBLE)
+    POSITION_X_OFFSET: 9,            // 位置X偏移 (8字节, DOUBLE)
+    POSITION_Y_OFFSET: 17,           // 位置Y偏移 (8字节, DOUBLE)
+    ORIENTATION_OFFSET: 25,          // 朝向偏移 (8字节, DOUBLE)
+    BATTERY_OFFSET: 33,              // 电池电量偏移 (8字节, DOUBLE)
+    NAV_STATUS_OFFSET: 41,           // 导航状态偏移 (1字节)
+    CAMERA_STATUS_OFFSET: 42,        // 相机状态偏移 (1字节)
+    LIDAR_STATUS_OFFSET: 43,         // 激光雷达状态偏移 (1字节)
+    GYRO_STATUS_OFFSET: 44,          // 陀螺仪状态偏移 (1字节)
+    PARKING_OCCUPANCY_OFFSET: 45,    // 车位占用状态偏移 (1字节)
+    TOTAL_SIZE: 46,                  // 总大小 46字节
     
     // 车速范围 (0-1 m/s)
     MIN_SPEED: 0.0,
     MAX_SPEED: 1.0
+};
+
+export const NAV_STATUS_TEXTS = {
+    1: '正常行驶中（空载模式倒车入库）',
+    2: '正常行驶中（空载模式不倒车入库）',
+    3: '接客模式，去起点接客',
+    4: '接客模式，去终点送客',
+    5: '去往充电车位',
+    6: '充电中',
+    7: '去往定车位路上',
+    8: '车位停车中',
+    9: '到达接客起点',
+    10: '到达接客终点',
+    11: '正在倒车入库',
+    12: '正在出库中',
+    13: '正在倒车入库',
+    14: '出库完成',
+    15: '平行驾驶模式'
 };
 
 // 车辆控制协议数据域定义

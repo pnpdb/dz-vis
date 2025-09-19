@@ -5,7 +5,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { SEND_MESSAGE_TYPES, RECEIVE_MESSAGE_TYPES, VEHICLE_INFO_PROTOCOL, VEHICLE_CONTROL_PROTOCOL, DATA_RECORDING_PROTOCOL, TAXI_ORDER_PROTOCOL, AVP_PARKING_PROTOCOL, AVP_PICKUP_PROTOCOL, VEHICLE_FUNCTION_SETTING_PROTOCOL, VEHICLE_PATH_DISPLAY_PROTOCOL, MessageTypeUtils } from '@/constants/messageTypes.js';
+import { SEND_MESSAGE_TYPES, RECEIVE_MESSAGE_TYPES, VEHICLE_INFO_PROTOCOL, VEHICLE_CONTROL_PROTOCOL, DATA_RECORDING_PROTOCOL, TAXI_ORDER_PROTOCOL, AVP_PARKING_PROTOCOL, AVP_PICKUP_PROTOCOL, VEHICLE_FUNCTION_SETTING_PROTOCOL, VEHICLE_PATH_DISPLAY_PROTOCOL, MessageTypeUtils, NAV_STATUS_TEXTS } from '@/constants/messageTypes.js';
 import { ElMessage } from 'element-plus';
 import { createLogger } from '@/utils/logger.js';
 
@@ -328,8 +328,8 @@ class SocketManager {
     // ============ 数据域解析方法 ============
 
     /**
-     * 解析车辆信息协议数据域 (38字节)
-     * 协议格式：车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 电量(8) + 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1) + 北斗状态(1)
+     * 解析车辆信息协议数据域 (46字节)
+     * 协议格式：车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 朝向(8) + 电量(8) + 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1) + 车位占用状态(1)
      */
     parseVehicleInfo(carId, data, timestamp) {
         logger.info(`解析车辆信息 - 车辆: ${carId}, 数据长度: ${data.length}`);
@@ -348,12 +348,13 @@ class SocketManager {
             const speed = view.getFloat64(VEHICLE_INFO_PROTOCOL.SPEED_OFFSET, true);  // 小端序
             const positionX = view.getFloat64(VEHICLE_INFO_PROTOCOL.POSITION_X_OFFSET, true);
             const positionY = view.getFloat64(VEHICLE_INFO_PROTOCOL.POSITION_Y_OFFSET, true);
+            const orientation = view.getFloat64(VEHICLE_INFO_PROTOCOL.ORIENTATION_OFFSET, true);
             const battery = view.getFloat64(VEHICLE_INFO_PROTOCOL.BATTERY_OFFSET, true);
-            const navStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.NAV_STATUS_OFFSET);
+            const navCode = view.getUint8(VEHICLE_INFO_PROTOCOL.NAV_STATUS_OFFSET);
             const cameraStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.CAMERA_STATUS_OFFSET);
             const lidarStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.LIDAR_STATUS_OFFSET);
             const gyroStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.GYRO_STATUS_OFFSET);
-            const beidouStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.BEIDOU_STATUS_OFFSET);
+            const parkingOccupancy = view.getUint8(VEHICLE_INFO_PROTOCOL.PARKING_OCCUPANCY_OFFSET);
             
             // 数据验证
             const clampedSpeed = Math.max(VEHICLE_INFO_PROTOCOL.MIN_SPEED, 
@@ -365,39 +366,44 @@ class SocketManager {
                 vehicleId,
                 speed: clampedSpeed,
                 position: { x: positionX, y: positionY },
+                orientation,
                 battery: clampedBattery,
                 navigation: {
-                    status: navStatus === VEHICLE_INFO_PROTOCOL.STATUS_NORMAL,
-                    text: navStatus === VEHICLE_INFO_PROTOCOL.STATUS_NORMAL ? '导航中' : '未导航'
+                    code: navCode,
+                    text: NAV_STATUS_TEXTS[navCode] || `未知状态(${navCode})`
                 },
                 sensors: {
                     camera: {
-                        status: cameraStatus === VEHICLE_INFO_PROTOCOL.STATUS_NORMAL,
-                        text: cameraStatus === VEHICLE_INFO_PROTOCOL.STATUS_NORMAL ? '正常' : '异常'
+                        status: cameraStatus === 1,
+                        text: cameraStatus === 1 ? '正常' : '异常'
                     },
                     lidar: {
-                        status: lidarStatus === VEHICLE_INFO_PROTOCOL.STATUS_NORMAL,
-                        text: lidarStatus === VEHICLE_INFO_PROTOCOL.STATUS_NORMAL ? '正常' : '异常'
+                        status: lidarStatus === 1,
+                        text: lidarStatus === 1 ? '正常' : '异常'
                     },
                     gyro: {
-                        status: gyroStatus === VEHICLE_INFO_PROTOCOL.STATUS_NORMAL,
-                        text: gyroStatus === VEHICLE_INFO_PROTOCOL.STATUS_NORMAL ? '正常' : '异常'
-                    },
-                    beidou: {
-                        status: beidouStatus === VEHICLE_INFO_PROTOCOL.STATUS_NORMAL,
-                        text: beidouStatus === VEHICLE_INFO_PROTOCOL.STATUS_NORMAL ? '正常' : '异常'
+                        status: gyroStatus === 1,
+                        text: gyroStatus === 1 ? '正常' : '异常'
                     }
+                },
+                parking: {
+                    occupied: parkingOccupancy !== 0,
+                    spot: parkingOccupancy
                 },
                 timestamp
             };
             
-            logger.info(`车辆信息解析成功 - 车辆ID: ${vehicleId}, 速度: ${clampedSpeed.toFixed(3)}m/s, 位置: (${positionX.toFixed(2)}, ${positionY.toFixed(2)}), 电量: ${clampedBattery.toFixed(1)}%`);
-            
-            console.log('📡 SocketManager发送vehicle-info-update事件:', vehicleInfo);
+            logger.info(`车辆信息解析成功 - 车辆ID: ${vehicleId}, 速度: ${clampedSpeed.toFixed(3)}m/s, 位置: (${positionX.toFixed(2)}, ${positionY.toFixed(2)}), 朝向: ${orientation.toFixed(2)}°, 电量: ${clampedBattery.toFixed(1)}%`);
             
             // 发送到UI更新
             window.dispatchEvent(new CustomEvent('vehicle-info-update', {
                 detail: vehicleInfo
+            }));
+
+            // 根据导航状态自动切换平行驾驶模式
+            const isParallelDriving = navCode === 15;
+            window.dispatchEvent(new CustomEvent('parallel-driving-mode-change', {
+                detail: { mode: isParallelDriving }
             }));
             
         } catch (error) {

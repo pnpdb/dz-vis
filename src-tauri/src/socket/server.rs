@@ -95,8 +95,14 @@ impl SocketServer {
         if let Some(db) = app_handle.try_state::<VehicleDatabase>() {
             match db.get_sandbox_service_settings().await {
                 Ok(Some(settings)) => {
-                    if settings.ip_address == addr.ip().to_string() {
+                    let configured_ip = settings.ip_address.trim();
+                    let remote_ip = addr.ip().to_string();
+                    println!("🔍 检查沙盘IP: 配置={}, 实际={}", configured_ip, remote_ip);
+                    if configured_ip == remote_ip {
                         is_sandbox = true;
+                        println!("✅ 沙盘连接已识别");
+                    } else {
+                        println!("⚠️ 沙盘IP不匹配: 配置={}, 实际={}", configured_ip, remote_ip);
                     }
                 }
                 _ => {}
@@ -144,7 +150,7 @@ impl SocketServer {
                     sender: tx.clone(),
                 });
             }
-            println!("✅ 沙盘服务连接已建立: {}", addr);
+            println!("✅ 沙盘服务连接已建立: {} (IP: {})", addr, addr.ip());
         }
 
         let (vehicle_id, vehicle_name) = if is_sandbox {

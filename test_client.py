@@ -365,10 +365,12 @@ def parse_received_message(data):
         print(f"❌ 解析协议消息失败: {e}")
         return None
 
+force_parallel_until = 0
+
 def create_vehicle_info_data(vehicle_id=1):
     """
-    创建车辆信息协议数据域 (38字节)
-    格式：车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 电量(8) + 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1) + 北斗状态(1)
+    创建车辆信息协议数据域 (46字节)
+    格式：车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 朝向(8) + 电量(8) + 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1) + 车位占用状态(1)
     """
     import random
     
@@ -389,12 +391,20 @@ def create_vehicle_info_data(vehicle_id=1):
     position_y = random.uniform(-100.0, 100.0)
     data.extend(struct.pack('<d', position_y))
     
+    # 朝向 (8字节, DOUBLE) - 范围 0-360 度
+    orientation = random.uniform(0.0, 360.0)
+    data.extend(struct.pack('<d', orientation))
+    
     # 电池电量 (8字节, DOUBLE) - 范围 0-100%
     battery = random.uniform(20.0, 100.0)
     data.extend(struct.pack('<d', battery))
     
-    # 导航状态 (1字节, UINT8) - 0:未导航, 1:导航中
-    nav_status = random.choice([0, 1])
+    # 导航状态 (1字节, UINT8) - 新定义 1..15
+    now_ms = int(time.time() * 1000)
+    if now_ms < force_parallel_until:
+        nav_status = 15
+    else:
+        nav_status = random.choice([1,2,3,4,5,6,7,8,9,10,11,12,13,14])
     data.extend(struct.pack('<B', nav_status))
     
     # 相机状态 (1字节, UINT8) - 0:异常, 1:正常
@@ -409,12 +419,12 @@ def create_vehicle_info_data(vehicle_id=1):
     gyro_status = random.choice([0, 1])
     data.extend(struct.pack('<B', gyro_status))
     
-    # 北斗状态 (1字节, UINT8) - 0:异常, 1:正常
-    beidou_status = random.choice([0, 1])
-    data.extend(struct.pack('<B', beidou_status))
+    # 车位占用状态 (1字节, UINT8) - 0:未占用；其它：占用对应车位编号
+    parking = random.choice([0,1,2,3])
+    data.extend(struct.pack('<B', parking))
     
-    print(f"🚗 车辆信息 - ID: {vehicle_id}, 速度: {speed:.3f}m/s, 位置: ({position_x:.2f}, {position_y:.2f}), 电量: {battery:.1f}%, 导航: {'导航中' if nav_status else '未导航'}")
-    print(f"📊 传感器状态 - 相机: {'正常' if camera_status else '异常'}, 雷达: {'正常' if lidar_status else '异常'}, 陀螺仪: {'正常' if gyro_status else '异常'}, 北斗: {'正常' if beidou_status else '异常'}")
+    print(f"🚗 车辆信息 - ID: {vehicle_id}, 速度: {speed:.3f}m/s, 位置: ({position_x:.2f}, {position_y:.2f}), 朝向: {orientation:.1f}°, 电量: {battery:.1f}%, 导航状态码: {nav_status}")
+    print(f"📊 传感器状态 - 相机: {'正常' if camera_status else '异常'}, 雷达: {'正常' if lidar_status else '异常'}, 陀螺仪: {'正常' if gyro_status else '异常'}，车位占用: {parking}")
     
     return bytes(data)
 
@@ -571,7 +581,15 @@ class TestClient:
         print(f"   数据长度: {message['data_length']} 字节")
         
         # 根据消息类型处理
-        if message_type == SEND_MESSAGE_TYPES['VEHICLE_CONTROL']:
+        if message_type == 0x2001:
+            # 来自界面端的平行驾驶请求（沙盘离线时的回退路径)
+            if len(data_domain) >= 1:
+                vid = data_domain[0]
+                if vid == self.vehicle_id:
+                    print(f"🎮 收到平行驾驶请求 -> 车辆{vid} 将在10秒内维持导航=15")
+                    global force_parallel_until
+                    force_parallel_until = int(time.time() * 1000) + 10000
+        elif message_type == SEND_MESSAGE_TYPES['VEHICLE_CONTROL']:
             # 解析车辆控制指令
             control_info = parse_vehicle_control_message(data_domain)
             if control_info:
@@ -710,9 +728,9 @@ def main():
         print("正在发送以下类型的数据:")
         print("- 心跳包 (每10秒)")
         print("- 车辆信息协议 (每2秒)")
-        print("\n📊 车辆信息协议数据域 (38字节):")
-        print("- 车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 电量(8)")
-        print("- 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1) + 北斗状态(1)")
+        print("\n📊 车辆信息协议数据域 (46字节):")
+        print("- 车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 朝向(8) + 电量(8)")
+        print("- 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1) + 车位占用状态(1)")
         
         # 保持程序运行
         while client.running:

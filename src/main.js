@@ -25,6 +25,9 @@ import { socketManager } from '@/utils/socketManager.js';
 // Setup global error handling
 setupGlobalErrorHandling();
 
+// 将 socketManager 暴露到 window 对象供组件使用
+window.socketManager = socketManager;
+
 const app = createApp(App);
 
 // Error handling for Vue app
@@ -82,17 +85,7 @@ setTimeout(() => {
 }, 1000);
 
 // 在Tauri环境中启动Socket服务器
-console.log('🔍 调试Tauri环境检测:');
-console.log('  - window.__TAURI_INTERNALS__:', typeof window !== 'undefined' ? '__TAURI_INTERNALS__' in window : 'window未定义');
-console.log('  - window.__TAURI__:', typeof window !== 'undefined' ? '__TAURI__' in window : 'window未定义');
-console.log('  - import.meta.env.DEV:', import.meta.env.DEV);
-console.log('  - import.meta.env.TAURI_ENV_PLATFORM:', import.meta.env.TAURI_ENV_PLATFORM);
-console.log('  - Environment.isTauri():', Environment.isTauri());
-
-// 强制启动Socket服务器进行调试（临时）
 const shouldStartSocket = Environment.isTauri() || import.meta.env.TAURI_ENV_PLATFORM;
-
-console.log('🔍 检查是否应启动Socket服务器:', shouldStartSocket);
 
 if (shouldStartSocket) {
     console.log('✅ 准备启动Socket服务器');

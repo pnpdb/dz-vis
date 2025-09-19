@@ -25,8 +25,8 @@
             <!-- <button class="btn btn-secondary">
                 <fa icon="camera" /> 连接/断开摄像头
             </button> -->
-            <button class="btn btn-primary" @click="toggleParallelDriving">
-                <fa icon="gamepad" /> {{ parallelDrivingMode ? '自动驾驶' : '平行驾驶' }}
+            <button class="btn btn-primary" :disabled="parallelDrivingMode" @click="requestParallelDriving">
+                <fa icon="gamepad" /> {{ parallelDrivingMode ? '当前平行驾驶模式' : '平行驾驶' }}
             </button>
         </div>
     </div>
@@ -43,6 +43,7 @@ const carStore = useCarStore();
 
 const cameraOn = ref(false);
 const parallelDrivingMode = ref(false);
+const lastNavConfirmedParallel = ref(false);
 const videoSrc = ref('');
 const lastFrameTime = ref(0);
 const frameRate = ref(0);
@@ -70,27 +71,65 @@ const toggleCamera = () => {
     }
 };
 
-const toggleParallelDriving = async () => {
-    parallelDrivingMode.value = !parallelDrivingMode.value;
-    
-    // 通过事件通知父组件或其他组件切换车辆参数显示模式
-    window.dispatchEvent(new CustomEvent('parallel-driving-mode-change', {
-        detail: {
-            mode: parallelDrivingMode.value
-        }
-    }));
-    
-    // 发送沙盘控制指令 (0x2001): 动作 0=自动驾驶, 1=平行驾驶
+let revertTimer = null;
+
+const clearRevertTimer = () => {
+    if (revertTimer) {
+        clearTimeout(revertTimer);
+        revertTimer = null;
+    }
+};
+
+// 切换平行驾驶模式的统一函数
+const setParallelDrivingMode = (mode) => {
+    parallelDrivingMode.value = mode;
+    window.dispatchEvent(new CustomEvent('parallel-driving-mode-change', { detail: { mode } }));
+    if (mode && !cameraOn.value) {
+        cameraOn.value = true;
+        startVideoReceiver();
+    }
+};
+
+const requestParallelDriving = async () => {
+    // 只能主动触发“平行驾驶”，不能主动切回“自动驾驶”
+    if (parallelDrivingMode.value) return;
     try {
-        const vehicleId = Number(currentVehicleId.value);
-        if (Number.isNaN(vehicleId)) {
+        const vehicleId = Number(currentVehicleId.value ?? 1);
+        if (Number.isNaN(vehicleId)) return;
+        // 1) 检查沙盘是否在线
+        const sandboxOnline = await invoke('is_sandbox_connected');
+        if (!sandboxOnline) {
+            ElMessage.error('工控机离线');
             return;
         }
-        const action = parallelDrivingMode.value ? 1 : 0;
-        await invoke('send_sandbox_control', { vehicleId, action });
-        ElMessage.success('发送成功');
+        // 2) 检查车辆是否在线
+        if (!window?.socketManager?.isVehicleConnected) {
+            ElMessage.error('车辆管理器未初始化');
+            return;
+        }
+        const carOnline = window.socketManager.isVehicleConnected(vehicleId);
+        if (!carOnline) {
+            ElMessage.error('车辆离线');
+            return;
+        }
+        // 3) 发送到沙盘
+        await invoke('send_sandbox_control', { vehicleId: vehicleId });
+        // 本地先切入平行驾驶UI，等待车端3秒内回报导航=15确认，否则回退
+        setParallelDrivingMode(true);
+        ElMessage.success('已请求平行驾驶');
+        clearRevertTimer();
+        revertTimer = setTimeout(() => {
+            // 3秒后若未确认(由socketManager根据车辆消息触发确认)，则回退
+            if (!lastNavConfirmedParallel.value) {
+                setParallelDrivingMode(false);
+                ElMessage.warning('未收到车辆确认, 已恢复自动驾驶');
+            }
+            lastNavConfirmedParallel.value = false;
+            clearRevertTimer();
+        }, 3000);
     } catch (e) {
-        ElMessage.error('服务离线');
+        console.error('发送平行驾驶指令失败:', e);
+        ElMessage.error(`发送失败: ${e}`);
     }
 };
 
@@ -279,6 +318,29 @@ onMounted(() => {
     if (cameraOn.value) {
         startVideoReceiver();
     }
+    // 监听由车辆状态驱动的平行驾驶模式切换
+    window.addEventListener('parallel-driving-mode-change', (event) => {
+        const mode = !!event.detail?.mode;
+        parallelDrivingMode.value = mode;
+        if (mode && !cameraOn.value) {
+            cameraOn.value = true;
+            startVideoReceiver();
+        }
+    });
+
+    // 监听车辆导航状态确认事件
+    window.addEventListener('vehicle-info-update', (event) => {
+        const info = event.detail;
+        if (info?.navigation?.code != null) {
+            if (info.navigation.code === 15) {
+                lastNavConfirmedParallel.value = true;
+                clearRevertTimer();
+            } else if (parallelDrivingMode.value) {
+                // 车端非15，自动恢复自动驾驶
+                setParallelDrivingMode(false);
+            }
+        }
+    });
 });
 
 onBeforeUnmount(() => {

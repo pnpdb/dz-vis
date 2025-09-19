@@ -2,53 +2,21 @@
     <div class="form-group">
         <label class="form-label"><fa icon="cog" /> 传感器</label>
 
-        <div class="sensor center">
-            <div class="circle-tit">传感器</div>
-            <div :class="['circle1', { circle1_active: online }]"></div>
-            <div class="circle2"></div>
-            <div :class="['circle3', { circle3_active: online }]"></div>
-            <div class="circle4">
-                <div class="point1 center">
-                    <div class="sensor-item sensor-item1">
-                        <div class="sensor-tit">
-                            <fa icon="compass" /> 陀螺仪
-                        </div>
-                        <div :class="getClass(sensorData.imuState)">
-                            {{ getDesc(sensorData.imuState) }}
-                        </div>
-                    </div>
-                </div>
-                <div class="point2 center">
-                    <div class="sensor-item sensor-item2">
-                        <div class="sensor-tit">
-                            <fa icon="signal" />
-                            激光雷达
-                        </div>
-                        <div :class="getClass(sensorData.lidarState)">
-                            {{ getDesc(sensorData.lidarState) }}
-                        </div>
-                    </div>
-                </div>
-                <div class="point3 center">
-                    <div class="sensor-item sensor-item3">
-                        <div class="sensor-tit">
-                            <fa icon="camera" /> 相机
-                        </div>
-                        <div :class="getClass(sensorData.cameraState)">
-                            {{ getDesc(sensorData.cameraState) }}
-                        </div>
-                    </div>
-                </div>
-                <div class="point4 center">
-                    <div class="sensor-item sensor-item4">
-                        <div class="sensor-tit">
-                            <fa icon="wifi" /> 北斗
-                        </div>
-                        <div :class="getClass(sensorData.beidouState)">
-                            {{ getDesc(sensorData.beidouState) }}
-                        </div>
-                    </div>
-                </div>
+        <div class="sensor-list">
+            <div class="sensor-card">
+                <div class="sensor-icon"><fa icon="compass" /></div>
+                <div class="sensor-name">陀螺仪</div>
+                <div :class="getClass(sensorData.imuState)">{{ getDesc(sensorData.imuState) }}</div>
+            </div>
+            <div class="sensor-card">
+                <div class="sensor-icon"><fa icon="signal" /></div>
+                <div class="sensor-name">激光雷达</div>
+                <div :class="getClass(sensorData.lidarState)">{{ getDesc(sensorData.lidarState) }}</div>
+            </div>
+            <div class="sensor-card">
+                <div class="sensor-icon"><fa icon="camera" /></div>
+                <div class="sensor-name">相机</div>
+                <div :class="getClass(sensorData.cameraState)">{{ getDesc(sensorData.cameraState) }}</div>
             </div>
         </div>
     </div>
@@ -71,8 +39,7 @@ const props = defineProps({
 const sensorData = ref({
     imuState: 1,
     lidarState: 1,
-    cameraState: 1,
-    beidouState: 1
+    cameraState: 1
 });
 
 // 重置传感器状态为默认状态
@@ -80,8 +47,7 @@ const resetSensorData = () => {
     sensorData.value = {
         imuState: 0,  // 未连接时显示异常
         lidarState: 0,
-        cameraState: 0,
-        beidouState: 0
+        cameraState: 0
     };
     console.log(`🔄 重置车辆${props.carInfo}传感器状态为默认状态`);
 };
@@ -110,10 +76,9 @@ const handleVehicleInfoUpdate = (event) => {
     if (isCurrentVehicle) {
         // 更新传感器状态
         sensorData.value = {
-            imuState: vehicleInfo.sensors.gyro.status ? 1 : 0,
-            lidarState: vehicleInfo.sensors.lidar.status ? 1 : 0,
-            cameraState: vehicleInfo.sensors.camera.status ? 1 : 0,
-            beidouState: vehicleInfo.sensors.beidou.status ? 1 : 0
+            imuState: vehicleInfo.sensors.gyro?.status ? 1 : 0,
+            lidarState: vehicleInfo.sensors.lidar?.status ? 1 : 0,
+            cameraState: vehicleInfo.sensors.camera?.status ? 1 : 0
         };
         
         console.log(`更新车辆${props.carInfo}传感器状态:`, sensorData.value);
@@ -145,211 +110,36 @@ onBeforeUnmount(() => {
 </script>
 
 <style lang="scss" scoped>
-.sensor {
-    position: relative;
-    width: 100%;
-    height: 180px;
-
-    .circle-tit {
-        font-size: 15px;
-        font-weight: bold;
-        font-family: Arial, sans-serif;
-        animation: breathing 3s infinite;
-        text-shadow: 1px 1px 4px var(--primary);
-        color: var(--primary);
-    }
-
-    @keyframes breathing {
-        0% {
-            transform: scale(1);
-        }
-
-        50% {
-            transform: scale(0.9);
-        }
-
-        100% {
-            transform: scale(1);
-        }
-    }
-
-    .circle1 {
-        position: absolute;
-        width: 70px;
-        height: 70px;
-        border-radius: 50%;
-        border-top: 2px #ffffff40 solid;
-        border-bottom: 2px #ffffff40 solid;
-        border-left: 2px #39485b solid;
-        border-right: 2px #39485b solid;
-        box-shadow: 0 0 2px #fff;
-    }
-    .circle1_active {
-        animation: rotateAn 2s linear infinite;
-    }
-
-    .circle2 {
-        position: absolute;
-        width: 95px;
-        height: 95px;
-        border-radius: 50%;
-        border: 8px #39485be1 solid;
-        box-shadow: var(--primary) 0px 0px 10px;
-    }
-
-    .circle3 {
-        position: absolute;
-        width: 120px;
-        height: 120px;
-        border-radius: 50%;
-        border-left: 2px #ffffff40 solid;
-        border-right: 2px #ffffff40 solid;
-        border-top: 2px #39485b solid;
-        border-bottom: 2px #39485b solid;
-        box-shadow: 0px 0px 2px #fff;
-    }
-    .circle3_active {
-        animation: rotateAn 3s linear infinite;
-    }
-
-    .circle4 {
-        position: absolute;
-        width: 155px;
-        height: 140px;
-        border-radius: 50%;
-        border-top: 1px transparent solid;
-        border-bottom: 1px transparent solid;
-        border-left: 1px var(--primary-transparent) solid;
-        border-right: 1px var(--primary-transparent) solid;
-    }
-
-    .point {
-        width: 2px;
-        height: 2px;
-        border-radius: 50%;
-        background-color: #fff;
-        position: absolute;
-    }
-
-    .point_after {
-        position: absolute;
-        content: '';
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        border: 1px solid var(--primary-light);
-    }
-
-    .point_before {
-        position: absolute;
-        content: '';
-        width: 45px;
-        height: 2px;
-        background: linear-gradient(to right, #39485b, var(--primary-light));
-    }
-
-    .point1 {
-        @extend .point;
-        left: 20px;
-        top: 24px;
-    }
-
-    .point1::after {
-        @extend .point_after;
-    }
-
-    .point1::before {
-        @extend .point_before;
-        right: 6px;
-    }
-
-    .point2 {
-        @extend .point;
-        right: 22px;
-        top: 24px;
-    }
-
-    .point2::after {
-        @extend .point_after;
-    }
-
-    .point2::before {
-        @extend .point_before;
-        background: linear-gradient(to left, #39485b, var(--primary-light));
-        left: 6px;
-    }
-
-    .point3 {
-        @extend .point;
-        left: 22px;
-        bottom: 24px;
-    }
-
-    .point3::after {
-        @extend .point_after;
-    }
-
-    .point3::before {
-        @extend .point_before;
-        right: 6px;
-    }
-
-    .point4 {
-        @extend .point;
-        right: 22px;
-        bottom: 24px;
-    }
-
-    .point4::after {
-        @extend .point_after;
-    }
-
-    .point4::before {
-        @extend .point_before;
-        background: linear-gradient(to left, #39485b, var(--primary-light));
-        left: 6px;
-    }
+.sensor-list {
+    display: flex;
+    gap: 8px;
 }
 
-.sensor-item {
-    position: relative;
-    left: -60px;
-    top: -5px;
+.sensor-card {
+    flex: 1;
+    min-width: 90px;
+    background: rgba(10, 25, 47, 0.5);
+    border: 1px solid rgba(0, 240, 255, 0.1);
+    border-radius: 6px;
+    padding: 8px;
     text-align: center;
-
-    .sensor-tit {
-        margin-bottom: 3px;
-        font-size: 12px;
-        width: 70px;
-        color: #a0b3d0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 3px;
-    }
-
-    .sensor-state {
-        font-size: 12px;
-    }
 }
 
-.sensor-item2 {
-    position: relative;
-    left: 60px;
+.sensor-icon {
+    color: var(--primary);
+    margin-bottom: 4px;
 }
 
-.sensor-item4 {
-    position: relative;
-    left: 60px;
+.sensor-name {
+    font-size: 12px;
+    color: #a0b3d0;
+    margin-bottom: 2px;
 }
 
-@keyframes rotateAn {
-    0% {
-        transform: rotate(0);
-    }
-
-    100% {
-        transform: rotate(360deg);
-    }
+.sensor-state {
+    font-size: 12px;
 }
+
+.status-normal { color: var(--success, #00ff00); }
+.status-error { color: var(--danger, #ff4444); }
 </style>

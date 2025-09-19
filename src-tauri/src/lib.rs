@@ -1,6 +1,8 @@
 use tauri::Manager;
 use std::process::Command;
 use local_ip_address::local_ip;
+use tauri_plugin_log::{Target, TargetKind};
+use log::{info, warn, error, debug};
 
 mod socket;
 mod database;
@@ -924,6 +926,20 @@ pub fn run() {
     }
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_log::Builder::new()
+        .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
+        .max_file_size(1024_0 /* bytes */)
+        .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(10))
+        .level(log::LevelFilter::Info)
+        .format(|out, message, record| {
+            out.finish(format_args!(
+              "[{} {}] {}",
+              record.level(),
+              record.target(),
+              message
+            ))
+          })
+        .build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(socket::ConnectionManager::default())
@@ -981,6 +997,8 @@ pub fn run() {
             update_app_settings
         ])
         .setup(|app| {
+            info!("🚀 Tauri 应用启动: {}", env!("CARGO_PKG_NAME"));
+            debug!("🔧 插件初始化完成: logging/opener/dialog");
             // 克隆app handle用于不同任务
             let app_handle_db = app.handle().clone();
             let app_handle_udp = app.handle().clone();
@@ -990,10 +1008,10 @@ pub fn run() {
                 match VehicleDatabase::new().await {
                     Ok(db) => {
                         app_handle_db.manage(db);
-                        println!("✅ 车辆数据库初始化成功");
+                        info!("✅ 车辆数据库初始化成功");
                     }
                     Err(e) => {
-                        eprintln!("❌ 车辆数据库初始化失败: {}", e);
+                        error!("❌ 车辆数据库初始化失败: {}", e);
                     }
                 }
             });
@@ -1003,10 +1021,10 @@ pub fn run() {
                 let mut manager = UDP_VIDEO_MANAGER.lock().await;
                 match manager.start_server("0.0.0.0:8080", Some(app_handle_udp)).await {
                     Ok(_) => {
-                        println!("✅ UDP视频服务器自动启动成功: 0.0.0.0:8080");
+                        info!("✅ UDP视频服务器自动启动成功: 0.0.0.0:8080");
                     }
                     Err(e) => {
-                        eprintln!("❌ UDP视频服务器启动失败: {}", e);
+                        error!("❌ UDP视频服务器启动失败: {}", e);
                     }
                 }
             });

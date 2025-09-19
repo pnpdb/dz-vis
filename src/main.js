@@ -21,6 +21,7 @@ import './styles/customer.scss';
 import { setupGlobalErrorHandling, ErrorHandler } from '@/utils/errorHandler.js';
 import { Environment } from '@/utils/tauri.js';
 import { socketManager } from '@/utils/socketManager.js';
+import { debug as jsDebug, info as jsInfo, warn as jsWarn, error as jsError } from '@tauri-apps/plugin-log';
 
 // Setup global error handling
 setupGlobalErrorHandling();
@@ -66,16 +67,23 @@ const mountedApp = app.mount('#app');
 // 初始化应用数据
 async function initializeApp() {
     try {
+        // JS 侧日志插件测试
+        await jsInfo('📝 前端启动 initializeApp');
+        await jsDebug('🧪 Debug 日志: 初始化开始');
+        await jsInfo('🧪 %%%%%%%%%%%%%%%%%%%%%%%%%%%%');
         // 获取store实例
         const { useCarStore } = await import('./stores/car.js');
         const carStore = useCarStore();
         
         // 加载车辆连接数据
         console.log('🚗 正在加载车辆连接数据...');
+        await jsInfo('🚗 正在加载车辆连接数据...');
         await carStore.loadVehicleConnections();
         console.log('✅ 车辆连接数据加载完成');
+        await jsInfo('✅ 车辆连接数据加载完成');
     } catch (error) {
         console.error('❌ 应用初始化失败:', error);
+        await jsError(`❌ 应用初始化失败: ${error}`);
     }
 }
 

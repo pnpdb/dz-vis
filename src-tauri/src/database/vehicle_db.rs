@@ -256,6 +256,29 @@ impl VehicleDatabase {
 
         // （已移除应用主题设置表）
         
+        // 创建应用基本设置表
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS app_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                debug_model BOOLEAN NOT NULL DEFAULT 0,
+                log_level TEXT NOT NULL DEFAULT 'INFO',
+                cache_size INTEGER NOT NULL DEFAULT 512,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            "#
+        ).execute(&self.pool).await?;
+        
+        // 初始化默认应用设置
+        let cnt: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM app_settings").fetch_one(&self.pool).await?;
+        if cnt == 0 {
+            let now = Utc::now().to_rfc3339();
+            sqlx::query(
+                r#"INSERT INTO app_settings (debug_model, log_level, cache_size, created_at, updated_at) VALUES (0, 'INFO', 512, ?, ?)"#
+            ).bind(&now).bind(&now).execute(&self.pool).await?;
+        }
+        
         println!("✅ 数据库表结构检查完成");
         Ok(())
     }
@@ -300,6 +323,49 @@ impl VehicleDatabase {
             created_at: row.get::<String, _>("created_at").parse().unwrap(),
             updated_at: row.get::<String, _>("updated_at").parse().unwrap(),
         })
+    }
+
+    // ============ 应用基本设置 ==========
+    pub async fn get_app_settings(&self) -> Result<AppSettings, sqlx::Error> {
+        let row = sqlx::query("SELECT * FROM app_settings ORDER BY id DESC LIMIT 1")
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(AppSettings {
+            id: row.get("id"),
+            debug_model: row.get::<i64, _>("debug_model") != 0,
+            log_level: row.get("log_level"),
+            cache_size: row.get("cache_size"),
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at")).unwrap_or_default().with_timezone(&chrono::Utc),
+            updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at")).unwrap_or_default().with_timezone(&chrono::Utc),
+        })
+    }
+
+    pub async fn update_app_settings(&self, req: UpdateAppSettingsRequest) -> Result<AppSettings, sqlx::Error> {
+        // 读取当前设置并合并
+        let current = self.get_app_settings().await?;
+        let debug_model = req.debug_model.unwrap_or(current.debug_model);
+        let log_level = req
+            .log_level
+            .unwrap_or(current.log_level)
+            .to_uppercase();
+        let cache_size = req.cache_size.unwrap_or(current.cache_size);
+        let now = Utc::now().to_rfc3339();
+
+        sqlx::query(
+            r#"
+            UPDATE app_settings 
+            SET debug_model = ?, log_level = ?, cache_size = ?, updated_at = ?
+            WHERE id = (SELECT id FROM app_settings ORDER BY id DESC LIMIT 1)
+            "#
+        )
+        .bind(if debug_model { 1 } else { 0 })
+        .bind(&log_level)
+        .bind(cache_size)
+        .bind(&now)
+        .execute(&self.pool)
+        .await?;
+
+        self.get_app_settings().await
     }
     
     /// 获取所有车辆连接

@@ -163,17 +163,23 @@
         >
             <el-tabs v-model="activeSettingsTab" type="border-card">
                 <el-tab-pane label="基本设置" name="basic">
-                    <el-form label-width="120px">
+                    <el-form label-width="120px" label-position="left" class="basic-settings-form">
                         
                         <el-form-item label="调试模式">
                             <el-switch v-model="settings.debugMode" />
                         </el-form-item>
                         <el-form-item label="日志级别">
-                            <el-select v-model="settings.logLevel" placeholder="请选择日志级别">
-                                <el-option label="ERROR" value="error" />
-                                <el-option label="WARN" value="warn" />
-                                <el-option label="INFO" value="info" />
-                                <el-option label="DEBUG" value="debug" />
+                            <el-select 
+                                v-model="settings.logLevel" 
+                                placeholder="请选择日志级别" 
+                                style="min-width: 180px;" 
+                                :teleported="true"
+                                popper-class="settings-select-popper"
+                            >
+                                <el-option label="DEBUG" value="DEBUG" />
+                                <el-option label="INFO" value="INFO" />
+                                <el-option label="WARNING" value="WARNING" />
+                                <el-option label="ERROR" value="ERROR" />
                             </el-select>
                         </el-form-item>
                         <el-form-item label="缓存大小">
@@ -183,6 +189,7 @@
                                 :max="10000"
                                 :step="100"
                                 controls-position="right"
+                                style="vertical-align: middle;"
                             />
                             <span style="margin-left: 8px; color: var(--text-secondary);">MB</span>
                         </el-form-item>
@@ -459,6 +466,7 @@
 import { ref, watch, onMounted, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { TauriUtils } from '@/utils/tauri.js';
+import { invoke } from '@tauri-apps/api/core';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import VehicleConnectionManager from '@/components/VehicleConnectionManager.vue';
 import SandboxSettingsManager from '@/components/SandboxSettingsManager.vue';
@@ -527,7 +535,7 @@ const settings = ref({
     showGrid: false,
     frameRate: 60,
     debugMode: false,
-    logLevel: 'info',
+    logLevel: 'INFO',
     cacheSize: 1000
 });
 
@@ -804,11 +812,21 @@ const handleLogin = async () => {
 };
 
 // 保存设置
-const saveSettings = () => {
-    // 这里可以实现设置的保存逻辑
-    ElMessage.success('设置已保存！');
-    settingsDialogVisible.value = false;
-    console.log('当前设置:', settings.value);
+const saveSettings = async () => {
+    try {
+        const payload = {
+            debug_model: settings.value.debugMode,
+            log_level: settings.value.logLevel,
+            cache_size: settings.value.cacheSize
+        };
+        const res = await invoke('update_app_settings', { request: payload });
+        console.log('✅ 应用设置已保存:', res);
+        ElMessage.success('设置已保存！');
+        settingsDialogVisible.value = false;
+    } catch (e) {
+        console.error('❌ 保存应用设置失败:', e);
+        ElMessage.error(`保存失败: ${e}`);
+    }
 };
 
 // 重置设置
@@ -968,6 +986,16 @@ onMounted(() => {
             }
         });
     }
+    // 加载应用设置
+    invoke('get_app_settings').then((res) => {
+        if (res) {
+            settings.value.debugMode = !!res.debug_model;
+            settings.value.logLevel = (res.log_level || 'INFO').toUpperCase();
+            settings.value.cacheSize = Number(res.cache_size ?? 1000);
+        }
+    }).catch((e) => {
+        console.warn('加载应用设置失败:', e);
+    });
 });
 </script>
 
@@ -1611,6 +1639,23 @@ onMounted(() => {
     display: flex;
     justify-content: flex-end;
     gap: 12px;
+}
+
+/* 对齐基本设置表单项，修正文字与控件垂直对齐偏差 */
+::deep(.basic-settings-form .el-form-item) {
+    align-items: center;
+}
+::deep(.basic-settings-form .el-form-item__label) {
+    line-height: 32px; /* 接近输入框高度，文本垂直居中 */
+}
+::deep(.basic-settings-form .el-input-number),
+::deep(.basic-settings-form .el-select .el-input__wrapper) {
+    height: 32px;
+}
+
+/* 提升“日志级别”下拉弹层层级，防止被对话框或HUD遮挡 */
+::v-deep(.settings-select-popper) {
+    z-index: 4000 !important;
 }
 
 /* 自定义登录对话框样式 */

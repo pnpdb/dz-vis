@@ -894,6 +894,25 @@ async fn get_udp_video_server_stats() -> Result<Option<ServerStats>, String> {
     Ok(manager.get_stats().await)
 }
 
+#[tauri::command]
+async fn get_app_settings(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let db = app.state::<VehicleDatabase>();
+    match db.get_app_settings().await {
+        Ok(settings) => Ok(serde_json::to_value(settings).unwrap()),
+        Err(e) => Err(format!("获取应用设置失败: {}", e))
+    }
+}
+
+#[tauri::command]
+async fn update_app_settings(app: tauri::AppHandle, request: crate::database::models::UpdateAppSettingsRequest) -> Result<serde_json::Value, String> {
+    if let Err(e) = request.validate() { return Err(e); }
+    let db = app.state::<VehicleDatabase>();
+    match db.update_app_settings(request).await {
+        Ok(settings) => Ok(serde_json::to_value(settings).unwrap()),
+        Err(e) => Err(format!("更新应用设置失败: {}", e))
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // 在 Linux 平台上禁用 WebKit 复合渲染以修复 SVG/Icon 渲染问题
@@ -957,7 +976,9 @@ pub fn run() {
             get_udp_video_server_stats,
             send_sandbox_traffic_light_duration,
             get_traffic_light_item,
-            update_traffic_light_item
+            update_traffic_light_item,
+            get_app_settings,
+            update_app_settings
         ])
         .setup(|app| {
             // 克隆app handle用于不同任务

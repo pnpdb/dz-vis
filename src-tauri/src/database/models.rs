@@ -233,6 +233,43 @@ impl CreateOrUpdateSandboxServiceRequest {
     }
 }
 
+/// 应用基本设置模型
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct AppSettings {
+    pub id: i64,
+    pub debug_model: bool,       // 调试模型开关
+    pub log_level: String,       // 日志级别: DEBUG/INFO/WARNING/ERROR
+    pub cache_size: i32,         // 缓存大小(MB)
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// 更新/创建应用基本设置请求
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateAppSettingsRequest {
+    pub debug_model: Option<bool>,
+    pub log_level: Option<String>,
+    pub cache_size: Option<i32>,
+}
+
+impl UpdateAppSettingsRequest {
+    pub fn validate(&self) -> Result<(), String> {
+        if let Some(level) = &self.log_level {
+            let upper = level.to_uppercase();
+            let ok = matches!(upper.as_str(), "DEBUG" | "INFO" | "WARNING" | "ERROR");
+            if !ok {
+                return Err("日志级别必须为 DEBUG/INFO/WARNING/ERROR".to_string());
+            }
+        }
+        if let Some(size) = self.cache_size {
+            if size < 0 || size > 1024 * 10 { // 上限10GB
+                return Err("缓存大小必须在0-10240MB之间".to_string());
+            }
+        }
+        Ok(())
+    }
+}
+
 impl CreateSandboxCameraRequest {
     /// 验证请求参数
     pub fn validate(&self) -> Result<(), String> {

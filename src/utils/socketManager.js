@@ -7,7 +7,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { SEND_MESSAGE_TYPES, RECEIVE_MESSAGE_TYPES, VEHICLE_INFO_PROTOCOL, VEHICLE_CONTROL_PROTOCOL, DATA_RECORDING_PROTOCOL, TAXI_ORDER_PROTOCOL, AVP_PARKING_PROTOCOL, AVP_PICKUP_PROTOCOL, VEHICLE_FUNCTION_SETTING_PROTOCOL, VEHICLE_PATH_DISPLAY_PROTOCOL, MessageTypeUtils, NAV_STATUS_TEXTS } from '@/constants/messageTypes.js';
 import { ElMessage } from 'element-plus';
-import { createLogger } from '@/utils/logger.js';
+import { createLogger, logger } from '@/utils/logger.js';
 import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log';
 
 const socketLogger = createLogger('SocketManager');
@@ -330,7 +330,7 @@ class SocketManager {
      * 协议格式：车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 朝向(8) + 电量(8) + 档位(1) + 方向盘转角(8) + 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1)
      */
     parseVehicleInfo(carId, data, timestamp) {
-        socketLogger.outputToPlugin('DEBUG', 'SocketManager.parseVehicleInfo', [`车:${carId} 数据:${data.length}`], { throttle: true, throttleKey: `vinfo-${carId}`, interval: 300 });
+        logger.outputToPlugin('DEBUG', 'SocketManager.parseVehicleInfo', [`车:${carId} 数据:${data.length}`], { throttle: true, throttleKey: `vinfo-${carId}`, interval: 300 });
         
         // 验证数据长度
         if (data.length !== VEHICLE_INFO_PROTOCOL.TOTAL_SIZE) {
@@ -391,7 +391,7 @@ class SocketManager {
                 timestamp
             };
             
-            socketLogger.outputToPlugin('DEBUG', 'SocketManager.parseVehicleInfo', [
+            logger.outputToPlugin('DEBUG', 'SocketManager.parseVehicleInfo', [
                 `车辆:${vehicleId} 速:${clampedSpeed.toFixed(3)} 位置:(${positionX.toFixed(2)},${positionY.toFixed(2)}) 电:${clampedBattery.toFixed(1)}%`
             ], { throttle: true, throttleKey: `vinfo-ok-${vehicleId}`, interval: 500 });
             

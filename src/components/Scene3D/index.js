@@ -35,7 +35,6 @@ import {
     CanvasTexture,
 } from 'three';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
-import { performanceMonitor } from '../../utils/performanceMonitor.js';
 
 let scene, camera, container, renderer, controls, stats, clock;
 let models = new Map(); // 模型缓存
@@ -212,9 +211,6 @@ const initSceneCore = async () => {
         if (import.meta.env.DEV) {
             stats = new Stats();
             container.appendChild(stats.dom);
-
-            // 初始化性能监控器
-            performanceMonitor.init(container);
         }
 
         // 步骤6：启动渲染循环 (70%)
@@ -249,7 +245,6 @@ const initSceneCore = async () => {
                 if (performanceMode === 'auto') {
                     if (currentFPS < 20) {
                         switchToLowPerformance();
-                        performanceMonitor.logFPS(currentFPS, 1000/currentFPS);
                     } else if (currentFPS > 50) {
                         switchToHighPerformance();
                     }
@@ -1759,7 +1754,7 @@ export const destroyScene = () => {
     }
     
     // 清理性能监控器
-    performanceMonitor.destroy();
+    
     
     // 清空容器
     if (container) {

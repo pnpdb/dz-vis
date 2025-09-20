@@ -162,9 +162,9 @@ const startCar = async () => {
     }
 
     try {
-        console.log(`🚗 开始发送启动指令给车辆${vehicleId}`);
+        console.debug(`🚗 开始发送启动指令给车辆${vehicleId}`);
         const result = await socketManager.startVehicle(vehicleId);
-        console.log(`✅ 启动指令发送结果:`, result);
+        console.debug(`✅ 启动指令发送结果:`, result);
         showMsg(true, `车辆${vehicleId}启动指令发送成功`);
     } catch (error) {
         console.error('启动车辆失败:', error);
@@ -313,7 +313,7 @@ const emergencyBrake = async () => {
 
 onMounted(() => {
     // 组件挂载时可以检查Socket连接状态
-    console.log('CarButton组件已挂载，当前车辆ID:', currentCarId.value);
+    console.debug('CarButton组件已挂载，当前车辆ID:', currentCarId.value);
 });
 </script>
 

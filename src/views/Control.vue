@@ -168,6 +168,7 @@ import { ref, onMounted, watch, onBeforeUnmount, computed, nextTick } from 'vue'
 import { ElMessage } from 'element-plus';
 import { TrafficLightAPI, SandboxAPI } from '@/utils/vehicleAPI.js';
 import { invoke } from '@tauri-apps/api/core';
+import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log';
 
 // 摄像头相关
 const cameras = ref([]);
@@ -342,7 +343,7 @@ const startVideoStream = async (camera) => {
         return;
     }
 
-    console.log(`🎥 开始连接摄像头: ${camera.name} (${camera.camera_type})`);
+    try { await plInfo(`🎥 开始连接摄像头: ${camera.name} (${camera.camera_type})`); } catch (_) {}
     
     // 设置加载状态
     isLoading.value = true;
@@ -364,7 +365,7 @@ const startVideoStream = async (camera) => {
             await startRTSPCamera(camera);
         }
     } catch (error) {
-        console.error('❌ 启动视频流失败:', error);
+        try { await plError(`❌ 启动视频流失败: ${error.message || error}`); } catch (_) {}
         ElMessage.error(`连接摄像头失败: ${error.message || error}`);
         isStreaming.value = false;
     } finally {
@@ -375,23 +376,21 @@ const startVideoStream = async (camera) => {
 // USB摄像头处理
 const startUSBCamera = async (camera) => {
     try {
-        console.log(`🔌 尝试连接USB摄像头，设备索引: ${camera.device_index}`);
+        try { await plDebug(`🔌 尝试连接USB摄像头，设备索引: ${camera.device_index}`); } catch (_) {}
         
         // 首先获取所有可用的摄像头设备
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices.filter(device => device.kind === 'videoinput');
         
-        console.log('📹 可用摄像头设备:', videoDevices.map(d => ({ 
-            label: d.label, 
-            deviceId: d.deviceId 
-        })));
+        // 调试信息保留在控制台，避免大量写入文件
+        console.debug('📹 可用摄像头设备:', videoDevices.map(d => ({ label: d.label, deviceId: d.deviceId })));
         
         let constraints;
         
         if (camera.device_index !== null && camera.device_index >= 0 && camera.device_index < videoDevices.length) {
             // 使用指定索引的摄像头
             const targetDevice = videoDevices[camera.device_index];
-            console.log(`🎯 使用指定摄像头: ${targetDevice.label || 'Unknown'}`);
+            console.debug(`🎯 使用指定摄像头: ${targetDevice.label || 'Unknown'}`);
             
             constraints = {
                 video: {
@@ -403,7 +402,7 @@ const startUSBCamera = async (camera) => {
             };
         } else {
             // 使用默认摄像头
-            console.log('📷 使用默认摄像头');
+            console.debug('📷 使用默认摄像头');
             constraints = {
                 video: {
                     width: { ideal: 1280 },
@@ -414,7 +413,7 @@ const startUSBCamera = async (camera) => {
         }
 
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        console.log('🎉 getUserMedia成功，获得视频流');
+        console.debug('🎉 getUserMedia成功，获得视频流');
         
         // 先设置流状态为true，这样video元素会显示
         isStreaming.value = true;
@@ -430,8 +429,7 @@ const startUSBCamera = async (camera) => {
             throw new Error('video元素未找到');
         }
     } catch (error) {
-        console.error('❌ USB摄像头连接失败:', error);
-        console.error('错误详情:', error.name, error.message);
+        try { await plError(`❌ USB摄像头连接失败: ${error.name} ${error.message}`); } catch (_) {}
         
         // 重置状态
         isStreaming.value = false;
@@ -484,14 +482,14 @@ const startRTSPCamera = async (camera) => {
     }
 
     try {
-        console.log(`🎥 启动RTSP到HLS转换: ${camera.rtsp_url}`);
+        try { await plInfo(`🎥 启动RTSP到HLS转换: ${camera.rtsp_url}`); } catch (_) {}
         
         // 先启动HLS服务器
         try {
             await invoke('start_hls_server', { port: 9002 });
-            console.log('✅ HLS服务器已启动');
+            console.debug('✅ HLS服务器已启动');
         } catch (error) {
-            console.log('ℹ️ HLS服务器已在运行或启动中');
+            console.debug('ℹ️ HLS服务器已在运行或启动中');
         }
         
         // 启动RTSP到HLS转换
@@ -500,7 +498,7 @@ const startRTSPCamera = async (camera) => {
             rtspUrl: camera.rtsp_url
         });
         
-        console.log(`🔄 HLS路径: ${hlsPath}`);
+        console.debug(`🔄 HLS路径: ${hlsPath}`);
         
         // 等待一下让FFmpeg开始处理
         await new Promise(resolve => setTimeout(resolve, 3000));
@@ -511,7 +509,7 @@ const startRTSPCamera = async (camera) => {
             hlsPort: 9002
         });
         
-        console.log(`🎬 HLS URL: ${hlsUrl}`);
+        console.debug(`🎬 HLS URL: ${hlsUrl}`);
         
         // 检查HLS流是否真的可用
         await waitForHLSReady(hlsUrl);
@@ -551,7 +549,7 @@ const startRTSPCamera = async (camera) => {
         }
         
     } catch (error) {
-        console.error('❌ RTSP摄像头连接失败:', error);
+        try { await plError(`❌ RTSP摄像头连接失败: ${error.message || error}`); } catch (_) {}
         isStreaming.value = false; // 发生错误时重置状态
         throw new Error(`RTSP流连接失败: ${error.message || error}`);
     }
@@ -559,12 +557,12 @@ const startRTSPCamera = async (camera) => {
 
 // 停止视频流
 const stopVideoStream = async () => {
-    console.log('🛑 开始停止视频流...');
+    console.debug('🛑 开始停止视频流...');
     
     try {
         // 停止USB摄像头流
         if (videoRef.value && videoRef.value.srcObject) {
-            console.log('📹 停止USB摄像头流');
+            console.debug('📹 停止USB摄像头流');
             const tracks = videoRef.value.srcObject.getTracks();
             tracks.forEach(track => {
                 track.stop();
@@ -575,7 +573,7 @@ const stopVideoStream = async () => {
         
         // 停止RTSP/HLS流
         if (videoRef.value && videoRef.value.src) {
-            console.log('📺 停止RTSP/HLS流');
+            console.debug('📺 停止RTSP/HLS流');
             videoRef.value.pause(); // 暂停播放
             videoRef.value.removeAttribute('src'); // 完全移除src属性
             videoRef.value.load(); // 清除缓冲
@@ -585,7 +583,7 @@ const stopVideoStream = async () => {
         if (selectedCamera.value && selectedCamera.value.camera_type === 'RJ45') {
             try {
                 await invoke('stop_rtsp_conversion', { cameraId: selectedCamera.value.id });
-                console.log('🛑 RTSP转换已停止');
+                console.debug('🛑 RTSP转换已停止');
             } catch (error) {
                 console.warn('⚠️ 停止RTSP转换时出现警告:', error);
             }
@@ -598,7 +596,7 @@ const stopVideoStream = async () => {
         // 等待一下确保清理完成
         await new Promise(resolve => setTimeout(resolve, 100));
         
-        console.log('✅ 视频流已完全停止');
+        console.debug('✅ 视频流已完全停止');
         
     } catch (error) {
         console.warn('⚠️ 停止视频流时出现警告:', error.message);
@@ -609,18 +607,18 @@ const stopVideoStream = async () => {
 
 // 视频事件处理
 const onVideoLoadStart = () => {
-    console.log('📹 视频开始加载...');
+    console.debug('📹 视频开始加载...');
     isLoading.value = true;
 };
 
 const onVideoLoaded = () => {
-    console.log('✅ 视频加载完成');
+    console.debug('✅ 视频加载完成');
     isLoading.value = false;
     isStreaming.value = true;
 };
 
 const onVideoCanPlay = () => {
-    console.log('🎬 视频可以播放');
+    console.debug('🎬 视频可以播放');
     isLoading.value = false;
     if (videoRef.value) {
         // 确保视频开始播放
@@ -670,7 +668,7 @@ const onVideoError = (event) => {
                             cameraId: selectedCamera.value.id,
                             hlsPort: 9002
                         });
-                        console.log('🔄 重新尝试播放HLS流:', hlsUrl);
+                    console.debug('🔄 重新尝试播放HLS流:', hlsUrl);
                         videoRef.value.src = hlsUrl;
                         videoRef.value.load();
                     } catch (retryError) {

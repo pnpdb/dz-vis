@@ -327,7 +327,7 @@ const loadServiceSettings = async () => {
             hasServiceSettings.value = true;
         } else {
             hasServiceSettings.value = false;
-            console.log('📝 暂无沙盘服务设置');
+            console.debug('📝 暂无沙盘服务设置');
         }
     } catch (error) {
         console.error('❌ 加载沙盘服务设置失败:', error);

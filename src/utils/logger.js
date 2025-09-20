@@ -3,12 +3,17 @@
  */
 
 import { LOG_CONFIG } from '@/config/app.js';
+import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log';
 
 class Logger {
     constructor() {
         this.config = LOG_CONFIG;
         this.logBuffer = [];
         this.maxBufferSize = 1000;
+
+        // 高频日志节流（每 key 至多 interval 输出一次到插件日志）
+        this.throttleMap = new Map(); // key -> { last:number, timer:any, pending:{level,component,args} }
+        this.defaultThrottleMs = 200; // 200ms 合并一次
     }
 
     /**
@@ -130,10 +135,77 @@ class Logger {
         // 输出到控制台
         this.outputToConsole(logEntry);
 
-        // TODO: 在Tauri环境中可以添加文件日志
-        // if (this.config.output.file && window.__TAURI__) {
-        //     this.writeToFile(logEntry);
-        // }
+        // 输出到 Tauri 插件日志（仅在存在 Tauri 环境时）
+        if (window.__TAURI__?.metadata) {
+            this.outputToPlugin(level.toUpperCase(), component, args);
+        }
+    }
+
+    // 将日志输出到插件（带节流选项）
+    outputToPlugin(level, component, args, options = {}) {
+        const { throttle = false, throttleKey = null, interval = this.defaultThrottleMs } = options;
+
+        if (!throttle) {
+            return this.writePlugin(level, component, args);
+        }
+
+        const key = throttleKey || `${level}|${component}`;
+        const now = Date.now();
+        const prev = this.throttleMap.get(key);
+
+        if (!prev) {
+            this.throttleMap.set(key, { last: now, timer: null, pending: null });
+            return this.writePlugin(level, component, args);
+        }
+
+        // 如果间隔已过，立即输出并更新时间；否则合并为待处理
+        if (now - prev.last >= interval) {
+            prev.last = now;
+            this.throttleMap.set(key, prev);
+            return this.writePlugin(level, component, args);
+        } else {
+            prev.pending = { level, component, args };
+            if (!prev.timer) {
+                prev.timer = setTimeout(() => {
+                    const state = this.throttleMap.get(key);
+                    if (state?.pending) {
+                        this.writePlugin(state.pending.level, state.pending.component, state.pending.args);
+                        state.last = Date.now();
+                        state.pending = null;
+                        state.timer = null;
+                        this.throttleMap.set(key, state);
+                    } else {
+                        // 无待处理，清空定时器
+                        this.throttleMap.set(key, { last: Date.now(), timer: null, pending: null });
+                    }
+                }, interval);
+                this.throttleMap.set(key, prev);
+            }
+        }
+    }
+
+    async writePlugin(level, component, args) {
+        const message = this.formatMessage(level, component, args).message;
+        try {
+            switch (level) {
+                case 'DEBUG':
+                    await plDebug(message);
+                    break;
+                case 'INFO':
+                    await plInfo(message);
+                    break;
+                case 'WARN':
+                    await plWarn(message);
+                    break;
+                case 'ERROR':
+                    await plError(message);
+                    break;
+                default:
+                    await plInfo(message);
+            }
+        } catch (e) {
+            // 插件不可用时忽略
+        }
     }
 
     /**

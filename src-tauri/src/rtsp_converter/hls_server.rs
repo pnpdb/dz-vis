@@ -37,7 +37,7 @@ impl HLSServer {
             .with_state(state);
 
         let addr = format!("127.0.0.1:{}", self.port);
-        println!("🎥 HLS服务器启动在: http://{}", addr);
+        log::info!("🎥 HLS服务器启动在: http://{}", addr);
 
         let listener = tokio::net::TcpListener::bind(&addr).await?;
         axum::serve(listener, app).await?;

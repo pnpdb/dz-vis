@@ -186,7 +186,7 @@ const handleVehicleInfoUpdate = (event) => {
                            (typeof props.carInfo === 'string' && 
                             vehicleInfo.vehicleId === getVehicleIdFromLetter(props.carInfo));
     
-    console.log(`🎯 CarInfo匹配: 车辆${vehicleInfo.vehicleId} vs 当前${props.carInfo} = ${isCurrentVehicle}`);
+    console.debug(`🎯 CarInfo匹配: 车辆${vehicleInfo.vehicleId} vs 当前${props.carInfo} = ${isCurrentVehicle}`);
     
     if (isCurrentVehicle) {
         // 更新车辆信息
@@ -217,7 +217,7 @@ const handleVehicleInfoUpdate = (event) => {
             currentGear.value = toGearLabel(vehicleInfo.gear);
         }
         
-        console.log(`更新车辆${props.carInfo}信息:`, vehicleInfo);
+        console.debug(`更新车辆${props.carInfo}信息:`, vehicleInfo);
     }
 };
 
@@ -229,7 +229,7 @@ const getVehicleIdFromLetter = (letter) => {
 
 // 处理车辆连接状态变化事件
 const handleVehicleConnectionStatus = (event) => {
-    console.log('📥 CarInfo收到vehicle-connection-status事件:', event.detail);
+    console.debug('📥 CarInfo收到vehicle-connection-status事件:', event.detail);
     const { carId, isConnected } = event.detail;
     
     // 根据当前选择的车辆信息来匹配
@@ -239,19 +239,19 @@ const handleVehicleConnectionStatus = (event) => {
                            (typeof props.carInfo === 'string' && 
                             carId === getVehicleIdFromLetter(props.carInfo));
     
-    console.log(`🔍 CarInfo车辆匹配: 事件车辆${carId} vs 当前${props.carInfo} = ${isCurrentVehicle}`);
+    console.debug(`🔍 CarInfo车辆匹配: 事件车辆${carId} vs 当前${props.carInfo} = ${isCurrentVehicle}`);
     
     if (isCurrentVehicle) {
         const oldStatus = isOnline.value;
         isOnline.value = isConnected;
-        console.log(`🔗 CarInfo状态更新: 车辆${carId}, 连接:${isConnected} → ${oldStatus} → ${isOnline.value}`);
+        console.debug(`🔗 CarInfo状态更新: 车辆${carId}, 连接:${isConnected} → ${oldStatus} → ${isOnline.value}`);
     }
 };
 
 // 监听车辆切换
 watch(() => props.carInfo, (newVehicleId, oldVehicleId) => {
     if (newVehicleId !== oldVehicleId) {
-        console.log(`🔄 车辆切换: ${oldVehicleId} → ${newVehicleId}`);
+        console.debug(`🔄 车辆切换: ${oldVehicleId} → ${newVehicleId}`);
         resetToDefaultState();
         checkAndUpdateVehicleStatus();
     }
@@ -260,7 +260,7 @@ watch(() => props.carInfo, (newVehicleId, oldVehicleId) => {
 // 处理平行驾驶模式切换事件
 const handleParallelDrivingModeChange = (event) => {
     parallelDrivingMode.value = event.detail.mode;
-    console.log(`🎮 CarInfo平行驾驶模式切换: ${parallelDrivingMode.value ? '开启' : '关闭'}`);
+    console.debug(`🎮 CarInfo平行驾驶模式切换: ${parallelDrivingMode.value ? '开启' : '关闭'}`);
 };
 
 onMounted(() => {

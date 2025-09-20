@@ -197,7 +197,7 @@ async fn close_window(window: tauri::Window) -> Result<(), String> {
 // Socket服务器相关命令
 #[tauri::command]
 async fn start_socket_server(app: tauri::AppHandle, port: u16) -> Result<String, String> {
-    println!("开始启动Socket服务器，端口: {}", port);
+    info!("开始启动Socket服务器，端口: {}", port);
     
     // 使用Tauri状态中的ConnectionManager
     let connections = app.state::<socket::ConnectionManager>();
@@ -206,9 +206,9 @@ async fn start_socket_server(app: tauri::AppHandle, port: u16) -> Result<String,
     
     // 在后台启动服务器
     tokio::spawn(async move {
-        println!("📡 Socket服务器开始监听...");
+        info!("📡 Socket服务器开始监听...");
         if let Err(e) = server.start().await {
-            eprintln!("❌ Socket服务器错误: {}", e);
+            error!("❌ Socket服务器错误: {}", e);
         }
     });
     
@@ -216,7 +216,7 @@ async fn start_socket_server(app: tauri::AppHandle, port: u16) -> Result<String,
     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
     
     let result = format!("Socket服务器启动在端口: {}", port);
-    println!("✅ {}", result);
+    info!("✅ {}", result);
     Ok(result)
 }
 
@@ -515,11 +515,11 @@ async fn broadcast_taxi_order(
             };
             
             match db.create_taxi_order(taxi_order_request).await {
-                Ok(_) => {
-                    println!("✅ 出租车订单已保存到数据库: {}", order_id);
-                }
-                Err(e) => {
-                    println!("❌ 保存出租车订单到数据库失败: {}", e);
+                    Ok(_) => {
+                        info!("✅ 出租车订单已保存到数据库: {}", order_id);
+                    }
+                    Err(e) => {
+                        warn!("❌ 保存出租车订单到数据库失败: {}", e);
                     // 虽然数据库保存失败，但消息已发送，所以不返回错误
                 }
             }
@@ -560,10 +560,10 @@ async fn send_avp_parking(
                 
                 match db.create_avp_parking(avp_parking_request).await {
                     Ok(_) => {
-                        println!("✅ AVP泊车记录已保存到数据库: 车辆{}, 车位{}", vehicle_id, 1);
+                        info!("✅ AVP泊车记录已保存到数据库: 车辆{}, 车位{}", vehicle_id, 1);
                     }
                     Err(e) => {
-                        println!("❌ 保存AVP泊车记录到数据库失败: {}", e);
+                        warn!("❌ 保存AVP泊车记录到数据库失败: {}", e);
                         // 虽然数据库保存失败，但消息已发送，所以不返回错误
                     }
                 }
@@ -602,10 +602,10 @@ async fn send_avp_pickup(
                 
                 match db.create_avp_pickup(avp_pickup_request).await {
                     Ok(_) => {
-                        println!("✅ AVP取车记录已保存到数据库: 车辆{}", vehicle_id);
+                        info!("✅ AVP取车记录已保存到数据库: 车辆{}", vehicle_id);
                     }
                     Err(e) => {
-                        println!("❌ 保存AVP取车记录到数据库失败: {}", e);
+                        warn!("❌ 保存AVP取车记录到数据库失败: {}", e);
                         // 虽然数据库保存失败，但消息已发送，所以不返回错误
                     }
                 }
@@ -737,7 +737,7 @@ async fn delete_sandbox_camera(app: tauri::AppHandle, id: i64) -> Result<String,
 /// 启动视频流服务器
 #[tauri::command]
 async fn start_video_stream_server(app: tauri::AppHandle, port: u16) -> Result<String, String> {
-    println!("🎥 启动视频流服务器，端口: {}", port);
+    info!("🎥 启动视频流服务器，端口: {}", port);
     
     let db = app.state::<VehicleDatabase>();
     let db_clone = {
@@ -748,13 +748,13 @@ async fn start_video_stream_server(app: tauri::AppHandle, port: u16) -> Result<S
     
     // 在后台启动视频流服务器
     tokio::spawn(async move {
-        println!("📺 视频流服务器开始监听...");
+        info!("📺 视频流服务器开始监听...");
         if let Err(e) = server.start().await {
             let error_msg = e.to_string();
             if error_msg.contains("Address already in use") {
-                println!("ℹ️ 视频流服务器端口{}已被占用，可能已有实例在运行", port);
+                warn!("ℹ️ 视频流服务器端口{}已被占用，可能已有实例在运行", port);
             } else {
-                eprintln!("❌ 视频流服务器错误: {}", e);
+                error!("❌ 视频流服务器错误: {}", e);
             }
         }
     });
@@ -763,7 +763,7 @@ async fn start_video_stream_server(app: tauri::AppHandle, port: u16) -> Result<S
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
     
     let result = format!("视频流服务器启动在端口: {}", port);
-    println!("✅ {}", result);
+    info!("✅ {}", result);
     Ok(result)
 }
 
@@ -792,7 +792,7 @@ async fn start_rtsp_conversion(
     camera_id: i64,
     rtsp_url: String
 ) -> Result<String, String> {
-    println!("🔄 启动RTSP转换: camera_id={}, rtsp_url={}", camera_id, rtsp_url);
+    info!("🔄 启动RTSP转换: camera_id={}, rtsp_url={}", camera_id, rtsp_url);
     
     // 检查是否已有转换器实例
     let converter = match app.try_state::<RTSPConverter>() {
@@ -857,7 +857,7 @@ async fn start_hls_server(app: tauri::AppHandle, port: Option<u16>) -> Result<St
     let server_clone = HLSServer::new(hls_port, std::env::temp_dir().join("dz_viz_hls"));
     tokio::spawn(async move {
         if let Err(e) = server_clone.start().await {
-            eprintln!("❌ HLS服务器启动失败: {}", e);
+            error!("❌ HLS服务器启动失败: {}", e);
         }
     });
     
@@ -952,12 +952,10 @@ pub fn run() {
 
                 // 缓存大小（界面单位MB）→ 字节
                 let cache_mb = settings.cache_size.max(1) as u64;
-                println!("🔄 初始化缓存大小(MB): {:?}", cache_mb);
                 max_bytes = cache_mb.saturating_mul(1024 * 1024);
-                println!("🔄 初始化缓存大小(字节): {:?}", max_bytes);
             }
         }
-        println!("🔄 初始化日志级别: {:?}, 初始化缓存大小: {:?}", level, max_bytes);
+        debug!("🔄 初始化日志级别: {:?}, 初始化缓存大小(bytes): {:?}", level, max_bytes);
         (level, max_bytes)
     };
 
@@ -965,7 +963,7 @@ pub fn run() {
     #[cfg(target_os = "linux")]
     {
         std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
-        println!("🌐 Linux: 设置 WEBKIT_DISABLE_COMPOSITING_MODE=1");
+        info!("🌐 Linux: 设置 WEBKIT_DISABLE_COMPOSITING_MODE=1");
     }
 
     tauri::Builder::default()

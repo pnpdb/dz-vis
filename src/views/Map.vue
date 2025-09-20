@@ -154,7 +154,7 @@ let serverStatusInterval = null;
 const handleOnlineVehiclesCountChanged = (event) => {
     const { count, vehicleIds } = event.detail;
     onlineVehicles.value = count;
-    console.log(`📊 主界面在线车辆数量更新: ${count}台, 车辆ID: [${vehicleIds.join(', ')}]`);
+    console.debug(`📊 主界面在线车辆数量更新: ${count}台, 车辆ID: [${vehicleIds.join(', ')}]`);
 };
 
 onMounted(() => {
@@ -170,7 +170,7 @@ onMounted(() => {
     
     // 初始获取当前在线车辆数量
     onlineVehicles.value = socketManager.getOnlineVehicleCount();
-    console.log(`🚗 初始在线车辆数量: ${onlineVehicles.value}台`);
+    console.debug(`🚗 初始在线车辆数量: ${onlineVehicles.value}台`);
 });
 
 onBeforeUnmount(() => {
@@ -293,14 +293,14 @@ div.car-control-floating .form-label {
 }
 
 .vehicle-time-chart-floating {
-    top: 555px; /* 大幅向下移动避免重叠 */
+    top: 525px; /* 大幅向下移动避免重叠 */
     left: 20px;
     width: 220px; /* 与上面元素宽度一致 */
     padding: 0; /* 图表组件自己有padding */
 }
 
 .driving-behavior-chart-floating {
-    top: 735px; /* 大幅向下移动避免重叠 */
+    top: 700px; /* 大幅向下移动避免重叠 */
     left: 20px;
     width: 220px; /* 与上面元素宽度一致 */
     padding: 0; /* 图表组件自己有padding */

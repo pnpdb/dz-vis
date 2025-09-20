@@ -34,7 +34,7 @@ impl VehicleDatabase {
         let db_path = data_dir.join("vehicles.db");
         let database_url = format!("sqlite:{}?mode=rwc", db_path.display());
         
-        println!("📁 数据库路径: {}", database_url);
+        log::debug!("📁 数据库路径: {}", database_url);
         
         // 创建连接池
         let pool = SqlitePool::connect(&database_url).await?;
@@ -279,7 +279,7 @@ impl VehicleDatabase {
             ).bind(&now).bind(&now).execute(&self.pool).await?;
         }
         
-        println!("✅ 数据库表结构检查完成");
+        log::info!("✅ 数据库表结构检查完成");
         Ok(())
     }
     
@@ -509,7 +509,7 @@ impl VehicleDatabase {
             .execute(&self.pool)
             .await?;
             
-            println!("✅ 初始化默认交通灯设置: 红灯45秒, 绿灯60秒");
+            log::info!("✅ 初始化默认交通灯设置: 红灯45秒, 绿灯60秒");
         }
         
         Ok(())

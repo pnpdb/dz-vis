@@ -59,7 +59,7 @@ impl RTSPProxy {
         let frame_receiver = self.frame_sender.subscribe();
         let frame_sender = self.frame_sender.clone();
         
-        println!("✅ 接受WebSocket连接: camera_id={}", camera_id);
+        log::info!("✅ 接受WebSocket连接: camera_id={}", camera_id);
         
         ws.on_upgrade(move |socket| async move {
             Self::handle_socket(socket, camera_id, streams, frame_receiver, frame_sender).await;
@@ -107,7 +107,7 @@ impl RTSPProxy {
                     if let Ok(ws_msg) = serde_json::from_str::<WSMessage>(&text) {
                         match ws_msg {
                             WSMessage::StartStream { camera_id, rtsp_url } => {
-                                println!("🎥 启动RTSP流: {} -> {}", camera_id, rtsp_url);
+                                log::info!("🎥 启动RTSP流: {} -> {}", camera_id, rtsp_url);
                                 
                                 // 更新流状态
                                 {
@@ -128,9 +128,9 @@ impl RTSPProxy {
                                 if let Ok(status_json) = serde_json::to_string(&status_msg) {
                                     let mut sender_guard = sender.lock().await;
                                     if let Err(e) = sender_guard.send(axum::extract::ws::Message::Text(status_json)).await {
-                                        println!("❌ 发送状态消息失败: {}", e);
+                                        log::warn!("❌ 发送状态消息失败: {}", e);
                                     } else {
-                                        println!("📡 已发送流状态: streaming");
+                                        log::debug!("📡 已发送流状态: streaming");
                                     }
                                 }
 
@@ -138,7 +138,7 @@ impl RTSPProxy {
                                 Self::start_rtsp_stream(camera_id, rtsp_url, frame_sender.clone()).await;
                             }
                             WSMessage::StopStream { camera_id } => {
-                                println!("🛑 停止RTSP流: {}", camera_id);
+                                log::info!("🛑 停止RTSP流: {}", camera_id);
                                 
                                 let mut streams_guard = streams.write().await;
                                 streams_guard.remove(&camera_id);
@@ -148,11 +148,11 @@ impl RTSPProxy {
                     }
                 }
                 Ok(axum::extract::ws::Message::Close(_)) => {
-                    println!("📱 WebSocket连接关闭");
+                    log::debug!("📱 WebSocket连接关闭");
                     break;
                 }
                 Err(e) => {
-                    println!("❌ WebSocket错误: {}", e);
+                    log::error!("❌ WebSocket错误: {}", e);
                     break;
                 }
                 _ => {}
@@ -166,13 +166,13 @@ impl RTSPProxy {
     /// 启动RTSP流处理
     async fn start_rtsp_stream(camera_id: i64, rtsp_url: String, _frame_sender: broadcast::Sender<(i64, Vec<u8>)>) {
         tokio::spawn(async move {
-            println!("🔄 准备连接RTSP流: {} -> {}", camera_id, rtsp_url);
+            log::debug!("🔄 准备连接RTSP流: {} -> {}", camera_id, rtsp_url);
             
             // 这里为真实的RTSP流连接做准备
             // 实际的RTSP处理将通过您的推流服务来完成
             // 当前只是确保WebSocket连接建立成功
             
-            println!("✅ RTSP流连接已准备就绪: camera_id={}, url={}", camera_id, rtsp_url);
+            log::info!("✅ RTSP流连接已准备就绪: camera_id={}, url={}", camera_id, rtsp_url);
             
             // 真实的RTSP流处理逻辑可以在这里添加
             // 例如使用FFmpeg或其他RTSP客户端库来接收和转码RTSP流

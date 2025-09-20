@@ -21,7 +21,24 @@ import './styles/customer.scss';
 import { setupGlobalErrorHandling, ErrorHandler } from '@/utils/errorHandler.js';
 import { Environment } from '@/utils/tauri.js';
 import { socketManager } from '@/utils/socketManager.js';
+import { logger } from '@/utils/logger.js';
+import { invoke } from '@tauri-apps/api/core';
 import { debug as jsDebug, info as jsInfo, warn as jsWarn, error as jsError } from '@tauri-apps/plugin-log';
+
+// 在Tauri环境启动时从SQLite读取日志级别并应用到前端logger
+if (Environment.isTauri()) {
+    try {
+        const appSettings = await invoke('get_app_settings');
+        const lvl = (appSettings?.log_level || '').toString().toUpperCase();
+        if (lvl) {
+            logger.setLevel(lvl);
+            // 也记录一条初始化日志，便于排查
+            try { await jsInfo(`前端日志级别已应用: ${lvl}`); } catch (_) {}
+        }
+    } catch (_) {
+        // 忽略读取失败
+    }
+}
 
 // Setup global error handling
 setupGlobalErrorHandling();

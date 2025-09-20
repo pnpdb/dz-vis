@@ -38,6 +38,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { ElMessage } from 'element-plus';
 import { useCarStore } from '@/stores/car.js';
+import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log';
 
 const carStore = useCarStore();
 
@@ -150,7 +151,8 @@ const startVideoReceiver = async () => {
         startFrameRateCalculator();
         
     } catch (error) {
-        // 启动视频接收器失败
+        // 启动视频接收器失败（关键）
+        try { await plError(`启动UDP视频接收器失败: ${error}`); } catch (_) {}
     }
 };
 
@@ -218,6 +220,7 @@ const handleVideoFrame = (frame) => {
     try {
         // 验证Base64数据格式
         if (!/^[A-Za-z0-9+/]+=*$/.test(frame.jpeg_data)) {
+            try { plWarn('UDP视频帧Base64校验失败').catch(() => {}); } catch (_) {}
             return;
         }
         
@@ -246,6 +249,7 @@ const handleVideoFrame = (frame) => {
                 };
                 newImg.onerror = () => {
                     URL.revokeObjectURL(blobUrl);
+                    try { plWarn('UDP视频帧Blob预加载失败'); } catch (_) {}
                 };
                 newImg.src = blobUrl;
             } else {
@@ -256,7 +260,8 @@ const handleVideoFrame = (frame) => {
             }
         }
     } catch (error) {
-        // 静默处理错误，避免控制台污染
+        // 保持静默，但关键异常记录到插件日志
+        try { plWarn(`UDP视频帧处理异常: ${error}`).catch(() => {}); } catch (_) {}
     }
     
     lastFrameTime.value = Date.now();
@@ -270,6 +275,7 @@ const handleVideoFrame = (frame) => {
 const startFrameRateCalculator = () => {
     if (frameRateTimer) {
         clearInterval(frameRateTimer);
+        frameRateTimer = null;
     }
     
     frameRateTimer = setInterval(() => {

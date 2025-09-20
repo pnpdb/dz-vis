@@ -467,6 +467,7 @@ import { ref, watch, onMounted, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { TauriUtils } from '@/utils/tauri.js';
 import { invoke } from '@tauri-apps/api/core';
+import { logger } from '@/utils/logger.js';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import VehicleConnectionManager from '@/components/VehicleConnectionManager.vue';
 import SandboxSettingsManager from '@/components/SandboxSettingsManager.vue';
@@ -765,7 +766,8 @@ const onDialogClosed = () => {
 
 // 显示登录框 - 简化版本
 const showLogin = () => {
-    console.log('设置按钮被点击，显示登录框');
+    // 简单调试保留即可
+    console.debug('设置按钮被点击，显示登录框');
     
     // 清空表单
     loginForm.value = {
@@ -780,7 +782,7 @@ const showLogin = () => {
 
 // 显示关于弹窗
 const showAbout = () => {
-    console.log('关于按钮被点击，显示关于弹窗');
+    console.debug('关于按钮被点击，显示关于弹窗');
     aboutDialogVisible.value = true;
 };
 
@@ -822,6 +824,11 @@ const saveSettings = async () => {
         const res = await invoke('update_app_settings', { request: payload });
         console.log('✅ 应用设置已保存:', res);
         ElMessage.success('设置已保存！');
+        // 运行时动态应用前端日志级别
+        if (settings.value?.logLevel) {
+            logger.setLevel(String(settings.value.logLevel).toUpperCase());
+            console.info(`[Logger] 前端日志级别已更新为: ${String(settings.value.logLevel).toUpperCase()}`);
+        }
         settingsDialogVisible.value = false;
     } catch (e) {
         console.error('❌ 保存应用设置失败:', e);
@@ -992,6 +999,11 @@ onMounted(() => {
             settings.value.debugMode = !!res.debug_model;
             settings.value.logLevel = (res.log_level || 'INFO').toUpperCase();
             settings.value.cacheSize = Number(res.cache_size ?? 1000);
+            // 根据读取到的设置初始化前端日志级别
+            if (settings.value?.logLevel) {
+                logger.setLevel(String(settings.value.logLevel).toUpperCase());
+                console.info(`[Logger] 启动时应用前端日志级别: ${String(settings.value.logLevel).toUpperCase()}`);
+            }
         }
     }).catch((e) => {
         console.warn('加载应用设置失败:', e);

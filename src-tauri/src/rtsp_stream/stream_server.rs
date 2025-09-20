@@ -52,7 +52,7 @@ impl VideoStreamServer {
             .with_state(self.state.clone());
 
         let addr = format!("127.0.0.1:{}", self.port);
-        println!("🎥 视频流服务器启动在: http://{}", addr);
+        log::info!("🎥 视频流服务器启动在: http://{}", addr);
 
         let listener = tokio::net::TcpListener::bind(&addr).await?;
         axum::serve(listener, app).await?;
@@ -170,7 +170,7 @@ async fn handle_websocket(
     ws: WebSocketUpgrade,
     State(state): State<VideoStreamState>,
 ) -> Response {
-    println!("🔌 WebSocket连接请求: camera_id={}", camera_id);
+    log::debug!("🔌 WebSocket连接请求: camera_id={}", camera_id);
     
     // 验证摄像头是否存在
     let camera_exists = match state.db.get_all_sandbox_cameras().await {
@@ -179,7 +179,7 @@ async fn handle_websocket(
     };
     
     if !camera_exists {
-        println!("❌ 摄像头不存在: camera_id={}", camera_id);
+        log::warn!("❌ 摄像头不存在: camera_id={}", camera_id);
         return ws.on_upgrade(|socket| async move {
             let _ = socket.close().await;
         });

@@ -124,7 +124,7 @@ const loadVehicleConnections = async () => {
                 isActive: connection.is_active
             }));
             
-            console.log('✅ 车辆设置页面加载车辆列表成功:', databaseCarList.value);
+            console.debug('✅ 车辆设置页面加载车辆列表成功:', databaseCarList.value);
         } else {
             console.error('❌ 车辆设置页面加载车辆列表失败:', result.error);
         }

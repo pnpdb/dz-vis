@@ -71,7 +71,7 @@ export default {
                         this.carStore.changeCarId(this.carList[0].id);
                     }
                     
-                    console.log('✅ 加载车辆列表成功:', this.carList);
+                    console.debug('✅ 加载车辆列表成功:', this.carList);
                 } else {
                     console.error('❌ 加载车辆列表失败:', result.error);
                     // 如果加载失败，使用默认数据

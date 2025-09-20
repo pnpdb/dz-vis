@@ -233,7 +233,7 @@ const callTaxi = async () => {
             duration: 3000
         });
         
-        console.log(`🚕 出租车订单发送成功 - 订单: ${orderId}, 结果: ${result}`);
+        console.debug(`🚕 出租车订单发送成功 - 订单: ${orderId}, 结果: ${result}`);
         
     } catch (error) {
         // 5. 发送失败，显示失败Toast
@@ -281,7 +281,7 @@ const startParking = async () => {
             duration: 3000
         });
         
-        console.log(`🅿️ AVP泊车指令发送成功 - 车辆: ${parking.value.car}, 结果: ${result}`);
+        console.debug(`🅿️ AVP泊车指令发送成功 - 车辆: ${parking.value.car}, 结果: ${result}`);
         
     } catch (error) {
         // 5. 发送失败，显示失败Toast
@@ -329,7 +329,7 @@ const pickupCar = async () => {
             duration: 3000
         });
         
-        console.log(`AVP取车指令发送成功 - 车辆: ${pickup.value.car}, 结果: ${result}`);
+        console.debug(`AVP取车指令发送成功 - 车辆: ${pickup.value.car}, 结果: ${result}`);
         
     } catch (error) {
         // 5. 发送失败，显示失败Toast

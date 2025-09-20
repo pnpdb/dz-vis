@@ -49,7 +49,7 @@ const resetSensorData = () => {
         lidarState: 0,
         cameraState: 0
     };
-    console.log(`🔄 重置车辆${props.carInfo}传感器状态为默认状态`);
+    console.debug(`🔄 重置车辆${props.carInfo}传感器状态为默认状态`);
 };
 
 const getDesc = (val) => {
@@ -81,7 +81,7 @@ const handleVehicleInfoUpdate = (event) => {
             cameraState: vehicleInfo.sensors.camera?.status ? 1 : 0
         };
         
-        console.log(`更新车辆${props.carInfo}传感器状态:`, sensorData.value);
+        console.debug(`更新车辆${props.carInfo}传感器状态:`, sensorData.value);
     }
 };
 
@@ -94,7 +94,7 @@ const getVehicleIdFromLetter = (letter) => {
 // 监听车辆切换
 watch(() => props.carInfo, (newVehicleId, oldVehicleId) => {
     if (newVehicleId !== oldVehicleId) {
-        console.log(`🔄 Sensor车辆切换: ${oldVehicleId} → ${newVehicleId}`);
+        console.debug(`🔄 Sensor车辆切换: ${oldVehicleId} → ${newVehicleId}`);
         resetSensorData();
     }
 }, { immediate: true });

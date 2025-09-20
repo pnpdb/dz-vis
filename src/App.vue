@@ -19,6 +19,9 @@
         <div class="floating-panels">
             <RouterView />
         </div>
+
+        <!-- 浮动日志查看器（可拖拽） -->
+        <LogViewer v-model="showLogViewer" />
         
         <!-- HUD状态指示器 -->
         <div class="hud-overlay">
@@ -49,6 +52,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { RouterView } from 'vue-router';
 import Header from '@/components/Header.vue';
+import LogViewer from '@/components/LogViewer.vue';
 import Map from '@/views/Map.vue';
 import { error as jsError } from '@tauri-apps/plugin-log';
 
@@ -132,6 +136,7 @@ const checkNetworkStatus = async () => {
 
 let timeInterval = null;
 let networkInterval = null;
+const showLogViewer = ref(false);
 
 onMounted(() => {
     // 启动实时更新
@@ -151,6 +156,11 @@ onMounted(() => {
     
     // 绑定resize事件
     window.addEventListener('resize', handleResize);
+
+    // 根据设置动态控制日志查看器显示
+    window.addEventListener('toggle-log-viewer', (e) => {
+        showLogViewer.value = !!(e?.detail?.visible);
+    });
 });
 
 onBeforeUnmount(() => {
@@ -162,6 +172,7 @@ onBeforeUnmount(() => {
     window.removeEventListener('resize', handleResize);
     window.removeEventListener('online', checkNetworkStatus);
     window.removeEventListener('offline', checkNetworkStatus);
+    window.removeEventListener('toggle-log-viewer', () => {});
 });
 </script>
 

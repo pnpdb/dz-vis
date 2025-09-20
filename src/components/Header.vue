@@ -829,6 +829,8 @@ const saveSettings = async () => {
             logger.setLevel(String(settings.value.logLevel).toUpperCase());
             console.info(`[Logger] 前端日志级别已更新为: ${String(settings.value.logLevel).toUpperCase()}`);
         }
+        // 同步调试模式 → 日志查看器开关
+        window.dispatchEvent(new CustomEvent('toggle-log-viewer', { detail: { visible: !!settings.value.debugMode } }));
         settingsDialogVisible.value = false;
     } catch (e) {
         console.error('❌ 保存应用设置失败:', e);
@@ -1004,6 +1006,8 @@ onMounted(() => {
                 logger.setLevel(String(settings.value.logLevel).toUpperCase());
                 console.info(`[Logger] 启动时应用前端日志级别: ${String(settings.value.logLevel).toUpperCase()}`);
             }
+            // 根据调试模式显示/隐藏日志查看器
+            window.dispatchEvent(new CustomEvent('toggle-log-viewer', { detail: { visible: !!res.debug_model } }));
         }
     }).catch((e) => {
         console.warn('加载应用设置失败:', e);

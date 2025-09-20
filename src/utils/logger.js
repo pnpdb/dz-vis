@@ -14,6 +14,9 @@ class Logger {
         // 高频日志节流（每 key 至多 interval 输出一次到插件日志）
         this.throttleMap = new Map(); // key -> { last:number, timer:any, pending:{level,component,args} }
         this.defaultThrottleMs = 200; // 200ms 合并一次
+
+        // 订阅者（用于前端实时日志查看器）
+        this.listeners = new Set(); // (entry) => void
     }
 
     /**
@@ -78,6 +81,15 @@ class Logger {
         this.logBuffer.push(logEntry);
         if (this.logBuffer.length > this.maxBufferSize) {
             this.logBuffer.shift();
+        }
+
+        // 通知订阅者
+        if (this.listeners.size > 0) {
+            try {
+                this.listeners.forEach(cb => {
+                    try { cb(logEntry); } catch (_) {}
+                });
+            } catch (_) {}
         }
     }
 
@@ -283,6 +295,14 @@ class Logger {
         if (levelValue !== undefined) {
             this.config.currentLevel = levelValue;
         }
+    }
+
+    // 供实时查看器使用
+    subscribe(callback) {
+        if (typeof callback === 'function') {
+            this.listeners.add(callback);
+        }
+        return () => this.listeners.delete(callback);
     }
 }
 

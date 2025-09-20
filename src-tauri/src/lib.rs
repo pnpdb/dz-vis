@@ -197,7 +197,7 @@ async fn close_window(window: tauri::Window) -> Result<(), String> {
 // Socket服务器相关命令
 #[tauri::command]
 async fn start_socket_server(app: tauri::AppHandle, port: u16) -> Result<String, String> {
-    println!("🚀 开始启动Socket服务器，端口: {}", port);
+    println!("开始启动Socket服务器，端口: {}", port);
     
     // 使用Tauri状态中的ConnectionManager
     let connections = app.state::<socket::ConnectionManager>();
@@ -930,7 +930,7 @@ pub fn run() {
         .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
         .max_file_size(1024_0 /* bytes */)
         .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(10))
-        .level(log::LevelFilter::Info)
+        .level(log::LevelFilter::Debug)
         .format(|out, message, record| {
             out.finish(format_args!(
               "[{} {}] {}",
@@ -997,8 +997,8 @@ pub fn run() {
             update_app_settings
         ])
         .setup(|app| {
-            info!("🚀 Tauri 应用启动: {}", env!("CARGO_PKG_NAME"));
-            debug!("🔧 插件初始化完成: logging/opener/dialog");
+            info!("Tauri 应用启动: {}", env!("CARGO_PKG_NAME"));
+            debug!("插件初始化完成: logging/opener/dialog");
             // 克隆app handle用于不同任务
             let app_handle_db = app.handle().clone();
             let app_handle_udp = app.handle().clone();

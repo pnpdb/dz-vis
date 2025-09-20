@@ -50,6 +50,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { RouterView } from 'vue-router';
 import Header from '@/components/Header.vue';
 import Map from '@/views/Map.vue';
+import { error as jsError } from '@tauri-apps/plugin-log';
 
 // 实时状态数据
 const currentTime = ref('');
@@ -119,7 +120,7 @@ const checkNetworkStatus = async () => {
         };
         
     } catch (error) {
-        console.error('网络状态检测失败:', error);
+        await jsError('网络状态检测失败:', error);
         networkStatus.value = {
             text: '网络状态未知',
             icon: 'question-circle',

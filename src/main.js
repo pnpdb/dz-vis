@@ -43,8 +43,8 @@ app.config.errorHandler = (err, instance, info) => {
 // Development mode enhancements
 if (Environment.isDevelopment()) {
     app.config.performance = true;
-    console.log('🚀 DZ Car Manager - Development Mode');
-    console.log('📊 Environment:', {
+    await jsDebug('DZ Car Manager - Development Mode');
+    await jsDebug('Environment:', {
         mode: Environment.getMode(),
         isTauri: Environment.isTauri(),
         baseUrl: Environment.getBaseUrl()
@@ -68,22 +68,17 @@ const mountedApp = app.mount('#app');
 async function initializeApp() {
     try {
         // JS 侧日志插件测试
-        await jsInfo('📝 前端启动 initializeApp');
-        await jsDebug('🧪 Debug 日志: 初始化开始');
-        await jsInfo('🧪 %%%%%%%%%%%%%%%%%%%%%%%%%%%%');
+        await jsInfo('前端启动 initializeApp');
         // 获取store实例
         const { useCarStore } = await import('./stores/car.js');
         const carStore = useCarStore();
         
         // 加载车辆连接数据
-        console.log('🚗 正在加载车辆连接数据...');
-        await jsInfo('🚗 正在加载车辆连接数据...');
+        await jsInfo('正在加载车辆连接数据...');
         await carStore.loadVehicleConnections();
-        console.log('✅ 车辆连接数据加载完成');
-        await jsInfo('✅ 车辆连接数据加载完成');
+        await jsInfo('车辆连接数据加载完成');
     } catch (error) {
-        console.error('❌ 应用初始化失败:', error);
-        await jsError(`❌ 应用初始化失败: ${error}`);
+        await jsError(`应用初始化失败: ${error}`);
     }
 }
 
@@ -96,18 +91,16 @@ setTimeout(() => {
 const shouldStartSocket = Environment.isTauri() || import.meta.env.TAURI_ENV_PLATFORM;
 
 if (shouldStartSocket) {
-    console.log('✅ 准备启动Socket服务器');
     // 延迟启动Socket服务器，确保应用完全初始化
     setTimeout(async () => {
         try {
-            console.log('🚀 开始启动Socket服务器...');
             const result = await socketManager.startServer(8888);
-            console.log('✅ Socket服务器启动成功:', result);
+            await jsInfo('Socket服务器启动成功:', result);
         } catch (error) {
-            console.error('❌ Socket服务器启动失败:', error);
-            console.error('错误详情:', error.stack || error);
+            await jsError('Socket服务器启动失败:', error);
+            await jsError('错误详情:', error.stack || error);
         }
     }, 2000); // 增加延迟时间
 } else {
-    console.log('⚠️ 不启动Socket服务器');
+    await jsInfo('不启动Socket服务器');
 }

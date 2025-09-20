@@ -265,7 +265,7 @@ impl UdpVideoManager {
         self.server = Some(server);
         self.server_handle = Some(handle);
         
-        println!("✅ UDP视频服务器已启动: {}", bind_addr);
+        log::info!("UDP视频服务器已启动: {}", bind_addr);
         Ok(())
     }
 
@@ -280,7 +280,7 @@ impl UdpVideoManager {
         }
 
         self.server = None;
-        println!("🛑 UDP视频服务器已停止");
+        log::info!("UDP视频服务器已停止");
     }
 
     /// 获取视频帧订阅器

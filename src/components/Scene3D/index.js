@@ -363,7 +363,7 @@ const loadModelsWithProgress = async () => {
     dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
     loader.setDRACOLoader(dracoLoader);
 
-    console.log('开始异步模型加载...');
+    console.info('开始异步模型加载');
     
     // 模型加载进度追踪
     let carsProgress = 0;
@@ -380,7 +380,7 @@ const loadModelsWithProgress = async () => {
     const loadCarsModel = async () => {
         return new Promise((resolve) => {
             setTimeout(() => {
-                console.log('开始加载小车模型...');
+                console.info('开始加载小车模型');
                 loadModelAsync(loader, '/model/cars.glb', 'cars', {
                     scale: 8,
                     position: [0, 0.5, 0],
@@ -388,9 +388,9 @@ const loadModelsWithProgress = async () => {
                 }, (progress) => {
                     carsProgress = progress;
                     updateTotalProgress();
-                    console.log(`小车模型加载进度: ${progress}%`);
+                    console.debug(`小车模型加载进度: ${progress}%`);
                 }).then(() => {
-                    console.log('小车模型加载完成');
+                    console.info('小车模型加载完成');
                     resolve();
                 }).catch((error) => {
                     console.error('小车模型加载失败:', error);
@@ -404,7 +404,7 @@ const loadModelsWithProgress = async () => {
     const loadFinalModel = async () => {
         return new Promise((resolve) => {
             setTimeout(() => {
-                console.log('开始加载沙盘模型...');
+                console.info('开始加载沙盘模型');
                 loadModelAsync(loader, '/model/final.glb', 'final', {
                     scale: 0.01,
                     position: [0, 1.4, 0],
@@ -414,9 +414,9 @@ const loadModelsWithProgress = async () => {
                 }, (progress) => {
                     finalProgress = progress;
                     updateTotalProgress();
-                    console.log(`沙盘模型加载进度: ${progress}%`);
+                    console.debug(`沙盘模型加载进度: ${progress}%`);
                 }).then(() => {
-                    console.log('沙盘模型加载完成');
+                    console.info('沙盘模型加载完成');
                     
                     // 获取加载的沙盘模型并计算尺寸
                     const sandboxModel = models.get('final');
@@ -441,9 +441,9 @@ const loadModelsWithProgress = async () => {
                             centerAxes.visible = false; // 默认隐藏
                             scene.add(centerAxes);
                             
-                            console.log('🎯 沙盘坐标轴已添加:');
-                            console.log(`  - 沙盘位置坐标轴: (${sandboxModel.position.x}, ${sandboxModel.position.y}, ${sandboxModel.position.z})`);
-                            console.log(`  - 沙盘中心坐标轴: (${dimensions.center.x.toFixed(3)}, ${dimensions.center.y.toFixed(3)}, ${dimensions.center.z.toFixed(3)})`);
+                            console.debug('沙盘坐标轴已添加');
+                            console.debug(`沙盘位置坐标轴: (${sandboxModel.position.x}, ${sandboxModel.position.y}, ${sandboxModel.position.z})`);
+                            console.debug(`沙盘中心坐标轴: (${dimensions.center.x.toFixed(3)}, ${dimensions.center.y.toFixed(3)}, ${dimensions.center.z.toFixed(3)})`);
                             
                         }
                     }
@@ -464,7 +464,7 @@ const loadModelsWithProgress = async () => {
             loadFinalModel()
         ]);
         
-        console.log('所有模型加载完成');
+        console.info('所有模型加载完成');
         window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 100 }));
         
     } catch (error) {
@@ -527,7 +527,7 @@ const loadModelAsync = (loader, url, key, options = {}, progressCallback = null)
             },
             (progress) => {
                 const percentage = Math.round((progress.loaded / progress.total) * 100);
-                console.log(`模型 ${key} 加载进度: ${percentage}%`);
+                console.debug(`模型 ${key} 加载进度: ${percentage}%`);
                 progressCallback?.(percentage);
             },
             (error) => {

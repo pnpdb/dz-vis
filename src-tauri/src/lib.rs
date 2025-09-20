@@ -917,8 +917,51 @@ async fn update_app_settings(app: tauri::AppHandle, request: crate::database::mo
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // 在 Linux 平台上禁用 WebKit 复合渲染以修复 SVG/Icon 渲染问题
-    // 等效于在启动前导出 WEBKIT_DISABLE_COMPOSITING_MODE=1
+    // 预读取数据库中的应用设置，用于在日志插件初始化之前配置日志级别与最大文件大小
+    // 注意：此处需要阻塞式获取，因为插件在 Builder 构建时即完成初始化
+    let (initial_log_level, initial_max_file_size_bytes) = {
+        // 默认值：INFO 级别，512MB
+        let mut level = log::LevelFilter::Info;
+        let mut max_bytes: u64 = 512 * 1024 * 1024;
+
+        if let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+        {
+            let loaded = rt.block_on(async {
+                match VehicleDatabase::new().await {
+                    Ok(db) => match db.get_app_settings().await {
+                        Ok(s) => Some(s),
+                        Err(_) => None,
+                    },
+                    Err(_) => None,
+                }
+            });
+
+            if let Some(settings) = loaded {
+                // 映射日志级别
+                let mapped = match settings.log_level.to_uppercase().as_str() {
+                    "TRACE" => log::LevelFilter::Trace,
+                    "DEBUG" => log::LevelFilter::Debug,
+                    "INFO" => log::LevelFilter::Info,
+                    "WARN" | "WARNING" => log::LevelFilter::Warn,
+                    "ERROR" => log::LevelFilter::Error,
+                    _ => log::LevelFilter::Info,
+                };
+                level = mapped;
+
+                // 缓存大小（界面单位MB）→ 字节
+                let cache_mb = settings.cache_size.max(1) as u64;
+                println!("🔄 初始化缓存大小(MB): {:?}", cache_mb);
+                max_bytes = cache_mb.saturating_mul(1024 * 1024);
+                println!("🔄 初始化缓存大小(字节): {:?}", max_bytes);
+            }
+        }
+        println!("🔄 初始化日志级别: {:?}, 初始化缓存大小: {:?}", level, max_bytes);
+        (level, max_bytes)
+    };
+
+    // 在 Linux 平台禁用 WebKit 复合渲染以修复 SVG/Icon 渲染问题
     #[cfg(target_os = "linux")]
     {
         std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
@@ -928,9 +971,10 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_log::Builder::new()
         .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
-        .max_file_size(1024_0 /* bytes */)
+        .max_file_size(initial_max_file_size_bytes as u128 /* bytes */)
         .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(10))
-        .level(log::LevelFilter::Debug)
+        .level(initial_log_level)
+        .level_for("sqlx::query", log::LevelFilter::Warn)
         .format(|out, message, record| {
             out.finish(format_args!(
               "[{} {}] {}",

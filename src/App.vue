@@ -364,7 +364,7 @@ onBeforeUnmount(() => {
 
 .top-left { top: 120px; left: 20px; }
 .top-right { top: 120px; right: 450px; }
-.top-right-fps { top: 120px; right: 560px; } /* FPS显示在时间左侧 */
+.top-right-fps { top: 120px; right: 570px; } /* FPS显示在时间左侧 */
 .bottom-left { bottom: 20px; left: 20px; }
 .bottom-right { bottom: 20px; right: 450px; }
 

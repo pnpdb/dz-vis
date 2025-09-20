@@ -185,9 +185,9 @@
                         <el-form-item label="缓存大小">
                             <el-input-number
                                 v-model="settings.cacheSize"
-                                :min="100"
-                                :max="10000"
-                                :step="100"
+                                :min="10"
+                                :max="10240"
+                                :step="10"
                                 controls-position="right"
                                 style="vertical-align: middle;"
                             />

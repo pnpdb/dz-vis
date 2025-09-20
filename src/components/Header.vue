@@ -2442,3 +2442,10 @@ html .el-message-box.sandbox-dimensions-dialog {
     transform: translateY(0px);
 }
 </style>
+
+<style>
+/* 全局：提升“日志级别”下拉弹层层级，确保不被遮罩/对话框覆盖 */
+.settings-select-popper {
+    z-index: 100010 !important; /* 高于手动设置的 overlay(99998) 与 dialog(99999) */
+}
+</style>

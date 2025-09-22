@@ -1242,6 +1242,104 @@ export const getSandboxDimensionsInfo = () => {
     return calculateSandboxDimensions(sandboxModel);
 };
 
+// ============ 施工标记管理 ============
+let constructionMarkers = new Map(); // id -> Sprite
+let nextConstructionId = 1;
+let constructionTexture = null;
+let constructionTextureAspect = 0.75; // 默认宽高比，纹理加载后更新（width/height）
+let constructionMarkerScale = 0.3; // 全局尺寸缩放（1为基准，0.5为缩小一半）
+
+const ensureConstructionTexture = () => {
+    if (constructionTexture) return constructionTexture;
+    try {
+        const loader = new TextureLoader();
+        constructionTexture = loader.load('/Image/construction.svg', (tex) => {
+            try {
+                if (tex?.image?.width && tex?.image?.height) {
+                    constructionTextureAspect = tex.image.width / tex.image.height;
+                }
+            } catch (_) {}
+        });
+        constructionTexture.generateMipmaps = false;
+        constructionTexture.minFilter = LinearFilter;
+        constructionTexture.magFilter = LinearFilter;
+    } catch (e) {
+        console.warn('加载施工标记纹理失败:', e);
+    }
+    return constructionTexture;
+};
+
+/**
+ * 在场景中创建一个施工标记，返回 { id, x, z }
+ */
+export const createConstructionMarkerAt = (x, z, options = {}) => {
+    if (!scene) {
+        console.warn('场景未初始化，无法创建施工标记');
+        return null;
+    }
+
+    const tex = ensureConstructionTexture();
+    if (!tex) return null;
+
+    const material = new SpriteMaterial({ map: tex, transparent: true });
+    const sprite = new Sprite(material);
+    // 底部中点对齐所选点
+    sprite.center.set(0.5, 0.0);
+    // 适配尺寸（根据沙盘尺寸做一个相对适中的大小）
+    // 基于沙盘尺寸的自适应高度，然后按全局缩放系数缩放，宽度按纹理宽高比计算
+    let baseHeight = 1.6; // 基准高度（世界单位）
+    let heightScale = 1.0;
+    try {
+        const dims = getSandboxDimensionsInfo();
+        if (dims) {
+            const base = Math.max(dims.scaled.width, dims.scaled.depth);
+            heightScale = Math.max(0.6, Math.min(2.0, base / 120));
+        }
+    } catch (_) {}
+    const height = baseHeight * heightScale * constructionMarkerScale;
+    const width = height * constructionTextureAspect;
+    sprite.scale.set(width, height, 1);
+    sprite.position.set(x, 0.05, z);
+    sprite.name = 'ConstructionMarker';
+
+    modelsGroup.add(sprite);
+
+    const id = nextConstructionId++;
+    constructionMarkers.set(id, sprite);
+    return { id, x, z };
+};
+
+export const removeConstructionMarker = (id) => {
+    const sprite = constructionMarkers.get(id);
+    if (!sprite) return false;
+    if (modelsGroup && sprite.parent === modelsGroup) {
+        modelsGroup.remove(sprite);
+    } else if (scene && sprite.parent === scene) {
+        scene.remove(sprite);
+    }
+    if (sprite.material && sprite.material.map) {
+        sprite.material.map.dispose();
+    }
+    if (sprite.material) sprite.material.dispose();
+    constructionMarkers.delete(id);
+    return true;
+};
+
+export const listConstructionMarkers = () => {
+    return Array.from(constructionMarkers.keys());
+};
+
+// 尺寸控制接口（对外暴露）
+export const setConstructionMarkerScale = (scale) => {
+    const s = Number(scale);
+    if (!isNaN(s) && isFinite(s)) {
+        constructionMarkerScale = Math.max(0.05, Math.min(10, s));
+    }
+    return constructionMarkerScale;
+};
+
+export const getConstructionMarkerScale = () => constructionMarkerScale;
+
 
 // 鼠标事件监听设置
 const setupMouseEventListeners = () => {
@@ -1703,6 +1801,18 @@ export const destroyScene = () => {
         });
     });
     models.clear();
+
+    // 清理施工标记
+    if (constructionMarkers) {
+        for (const [id, sprite] of constructionMarkers.entries()) {
+            if (modelsGroup && sprite?.parent === modelsGroup) modelsGroup.remove(sprite);
+            if (sprite?.material?.map) sprite.material.map.dispose();
+            if (sprite?.material) sprite.material.dispose();
+        }
+        constructionMarkers.clear();
+        nextConstructionId = 1;
+        constructionTexture = null;
+    }
     
     // 清理场景
     if (scene) {

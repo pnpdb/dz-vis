@@ -7,6 +7,7 @@
             <div class="scene-bottom-right-controls">
                 <button class="scene-action-btn" @click="setDefaultView">俯视视角</button>
                 <button class="scene-action-btn" @click="setTopDownView">鸟瞰视角</button>
+                <button class="scene-action-btn" @click="startConstructionMark">施工标记</button>
             </div>
         </div>
 
@@ -71,6 +72,83 @@
             </div>
         </div>
 
+        <!-- 施工标记确认弹窗 -->
+        <el-dialog
+            v-model="constructionDialogVisible"
+            title=""
+            width="500px"
+            :close-on-click-modal="false"
+            :close-on-press-escape="false"
+            :show-close="false"
+            center
+            class="construction-confirmation-dialog"
+        >
+            <div class="construction-dialog-content">
+                <!-- 图标和标题 -->
+                <div class="dialog-header">
+                    <div class="icon-container">
+                        <fa icon="hard-hat" class="construction-icon" />
+                    </div>
+                    <h2 class="dialog-title">确定施工标记</h2>
+                    <p class="dialog-subtitle">请确认施工标记的位置信息</p>
+                </div>
+
+                <!-- 位置信息卡片 -->
+                <div class="position-card" v-if="constructionSelected">
+                    <div class="card-header">
+                        <fa icon="map-marker-alt" class="card-icon" />
+                        <span class="card-title">选择的位置信息</span>
+                    </div>
+                    
+                    <div class="position-details">
+                        <div class="detail-row">
+                            <span class="detail-label">标记ID</span>
+                            <span class="detail-value">{{ constructionSelected.id ?? '-' }}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">X 坐标</span>
+                            <span class="detail-value">{{ constructionSelected.x?.toFixed(3) ?? '-' }}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Y 坐标</span>
+                            <span class="detail-value">{{ constructionSelected.z?.toFixed(3) ?? '-' }}</span>
+                        </div>
+                    </div>
+
+                    <div class="construction-info">
+                        <fa icon="hard-hat" class="construction-info-icon" />
+                        <span>施工标记点 {{ constructionSelected.id }} 将被添加到该点</span>
+                    </div>
+                </div>
+
+                <!-- 操作按钮 -->
+                <div class="dialog-actions">
+                    <el-button 
+                        class="action-btn cancel-btn" 
+                        @click="cancelConstructionPoint"
+                    >
+                        <fa icon="times" />
+                        取消
+                    </el-button>
+                    <el-button 
+                        class="action-btn reselect-btn" 
+                        @click="reselectConstructionPoint"
+                    >
+                        <fa icon="redo" />
+                        重新选择
+                    </el-button>
+                    <el-button 
+                        class="action-btn confirm-btn" 
+                        type="primary"
+                        @click="confirmConstructionPoint"
+                    >
+                        <fa icon="check" />
+                        确定添加
+                    </el-button>
+                </div>
+            </div>
+        </el-dialog>
+
 
     </div>
 </template>
@@ -83,6 +161,7 @@ import Scene3D from '@/components/Scene3D/index.vue';
 import VehicleTimeChart from '@/components/VehicleTimeChart.vue';
 import DrivingBehaviorChart from '@/components/DrivingBehaviorChart.vue';
 import { socketManager } from '@/utils/socketManager.js';
+import { startPoseSelectionMode, stopPoseSelectionMode, createConstructionMarkerAt, removeConstructionMarker } from '@/components/Scene3D/index.js';
 
 // 实时数据
 const networkDelay = ref(12);
@@ -192,6 +271,48 @@ const setTopDownView = () => {
 
 const setDefaultView = () => {
     window.dispatchEvent(new CustomEvent('scene3d-default'));
+};
+
+// ============ 施工标记交互 ============
+const constructionDialogVisible = ref(false);
+const constructionSelected = ref({ x: 0, z: 0, id: null });
+
+const startConstructionMark = () => {
+    // 启用与“初始化位姿”相同的点击模式
+    startPoseSelectionMode(({ x, z, orientation }) => {
+        // 结束选择模式以移除绿色点/辅助线
+        stopPoseSelectionMode();
+        // 先创建临时施工标记（底部中点对齐）
+        const res = createConstructionMarkerAt(x, z);
+        if (res) {
+            constructionSelected.value = { id: res.id, x, z };
+        } else {
+            constructionSelected.value = { id: null, x, z };
+        }
+        constructionDialogVisible.value = true;
+    });
+};
+
+const confirmConstructionPoint = () => {
+    constructionDialogVisible.value = false;
+    // 已经创建了标记，直接退出
+};
+
+const reselectConstructionPoint = () => {
+    // 移除临时标记后重新选择
+    if (constructionSelected.value.id != null) {
+        removeConstructionMarker(constructionSelected.value.id);
+    }
+    constructionDialogVisible.value = false;
+    startConstructionMark();
+};
+
+const cancelConstructionPoint = () => {
+    // 取消则移除临时标记并关闭
+    if (constructionSelected.value.id != null) {
+        removeConstructionMarker(constructionSelected.value.id);
+    }
+    constructionDialogVisible.value = false;
 };
 </script>
 
@@ -416,7 +537,7 @@ div.car-control-floating .form-label {
 .mini-dashboard {
     position: absolute;
     bottom: 30px;
-    left: calc(50% - 160px); /* 向左移动一些距离，避免正中遮挡 */
+    left: calc(50% - 260px); /* 向左移动更多距离，给右下按钮留空间 */
     transform: translateX(-50%);
     display: flex;
     gap: 20px;
@@ -492,6 +613,200 @@ div.car-control-floating .form-label {
             0 8px 25px rgba(0, 0, 0, 0.4),
             0 0 15px rgba(0, 240, 255, 0.3);
     }
+}
+
+/* 施工标记确认弹窗样式 */
+:deep(.construction-confirmation-dialog) {
+    .el-dialog {
+        background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+        border: 1px solid #ffa500;
+        border-radius: 16px;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(255, 165, 0, 0.2);
+        overflow: hidden;
+    }
+    
+    .el-dialog__header {
+        display: none;
+    }
+    
+    .el-dialog__body {
+        padding: 0;
+        background: transparent;
+    }
+}
+
+.construction-dialog-content {
+    padding: 30px;
+    color: #ffffff;
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.dialog-header {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+.icon-container {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #ffa500, #ff8c00);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 15px;
+    box-shadow: 0 8px 25px rgba(255, 165, 0, 0.3);
+}
+
+.construction-icon {
+    font-size: 24px;
+    color: #1a1a1a;
+}
+
+.dialog-title {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+    color: #ffffff;
+    letter-spacing: 0.5px;
+}
+
+.dialog-subtitle {
+    font-size: 14px;
+    color: #b0b0b0;
+    margin: 0;
+    font-weight: 400;
+}
+
+.position-card {
+    background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 100%);
+    border: 1px solid rgba(255, 165, 0, 0.3);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 25px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 165, 0, 0.2);
+}
+
+.card-icon {
+    font-size: 16px;
+    color: #ffa500;
+    margin-right: 8px;
+}
+
+.card-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.position-details {
+    margin-bottom: 15px;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.detail-row:last-child {
+    border-bottom: none;
+}
+
+.detail-label {
+    font-size: 14px;
+    color: #b0b0b0;
+    font-weight: 500;
+}
+
+.detail-value {
+    font-size: 16px;
+    color: #ffa500;
+    font-weight: 700;
+    font-family: 'Courier New', monospace;
+}
+
+.construction-info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background: rgba(255, 165, 0, 0.1);
+    border-radius: 8px;
+    font-size: 14px;
+    color: #ffffff;
+}
+
+.construction-info-icon {
+    font-size: 16px;
+    color: #ffa500;
+    margin-right: 8px;
+}
+
+.dialog-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+.action-btn {
+    padding: 12px 20px !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    font-size: 14px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    transition: all 0.3s ease !important;
+    border: none !important;
+    min-width: 110px !important;
+    justify-content: center !important;
+}
+
+.cancel-btn {
+    background: linear-gradient(135deg, #666666 0%, #555555 100%) !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 15px rgba(102, 102, 102, 0.3) !important;
+}
+
+.cancel-btn:hover {
+    background: linear-gradient(135deg, #777777 0%, #666666 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(102, 102, 102, 0.4) !important;
+}
+
+.reselect-btn {
+    background: linear-gradient(135deg, #17a2b8 0%, #138496 100%) !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 15px rgba(23, 162, 184, 0.3) !important;
+}
+
+.reselect-btn:hover {
+    background: linear-gradient(135deg, #20c0d7 0%, #17a2b8 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(23, 162, 184, 0.4) !important;
+}
+
+.confirm-btn {
+    background: linear-gradient(135deg, #ffa500 0%, #ff8c00 100%) !important;
+    color: #1a1a1a !important;
+    box-shadow: 0 4px 15px rgba(255, 165, 0, 0.3) !important;
+}
+
+.confirm-btn:hover {
+    background: linear-gradient(135deg, #ffb84d 0%, #ffa500 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(255, 165, 0, 0.4) !important;
 }
 
 .dashboard-icon {

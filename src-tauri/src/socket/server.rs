@@ -68,11 +68,13 @@ impl SocketServer {
                     let app_handle = self.app_handle.clone();
                     let sandbox = self.sandbox.clone();
                     
-                    tokio::spawn(async move {
+                    let handle = tokio::spawn(async move {
                         if let Err(e) = Self::handle_client(stream, addr, connections, app_handle, sandbox).await {
                             error!("客户端处理错误 {}: {}", addr, e);
                         }
                     });
+                    // 可选：你可以在这里添加handle.await如果需要等待
+                    let _ = handle;
                 }
                 Err(e) => {
                     error!("接受连接失败: {}", e);
@@ -171,14 +173,19 @@ impl SocketServer {
         
         // 保存车辆连接（非沙盘）
         if !is_sandbox {
-            let mut conns = connections.write();
-            conns.insert(vehicle_id, ClientConnection {
-                vehicle_id,
-                vehicle_name: vehicle_name.clone(),
-                addr,
-                sender: tx.clone(),
-            });
-            info!("车辆 {} (ID: {}) 连接已建立，当前连接数: {}", vehicle_name, vehicle_id, conns.len());
+            {
+                let mut conns = connections.write();
+                conns.insert(vehicle_id, ClientConnection {
+                    vehicle_id,
+                    vehicle_name: vehicle_name.clone(),
+                    addr,
+                    sender: tx.clone(),
+                });
+                info!("车辆 {} (ID: {}) 连接已建立，当前连接数: {}", vehicle_name, vehicle_id, conns.len());
+            } // 在这里释放锁
+            
+            // 发送车辆连接事件到前端
+            Self::send_connect_event(vehicle_id, &vehicle_name, &app_handle).await;
         }
 
         // 启动在线时长统计任务
@@ -321,6 +328,25 @@ impl SocketServer {
             Err(e) => {
                 error!("发送消息到前端失败: {}", e);
             }
+        }
+    }
+
+    /// 发送车辆连接事件到前端
+    async fn send_connect_event(vehicle_id: i32, vehicle_name: &str, app_handle: &tauri::AppHandle) {
+        let connect_message = serde_json::json!({
+            "type": "vehicle_connect",
+            "vehicle_id": vehicle_id,
+            "vehicle_name": vehicle_name,
+            "timestamp": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64
+        });
+        
+        if let Err(e) = app_handle.emit("vehicle-connect", connect_message) {
+            error!("发送车辆连接事件到前端失败: {}", e);
+        } else {
+            info!("已通知前端车辆 {} (ID: {}) 连接", vehicle_name, vehicle_id);
         }
     }
 

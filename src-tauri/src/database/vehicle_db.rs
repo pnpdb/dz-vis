@@ -617,6 +617,41 @@ impl VehicleDatabase {
         })
     }
 
+    /// 保存出租车订单（包含分配的车辆ID）
+    pub async fn save_taxi_order(&self, order_id: &str, assigned_vehicle_id: i32, start_x: f64, start_y: f64, end_x: f64, end_y: f64) -> Result<TaxiOrder, sqlx::Error> {
+        let now = Utc::now().to_rfc3339();
+        
+        let row = sqlx::query(
+            r#"
+            INSERT INTO taxi_orders (order_id, start_x, start_y, end_x, end_y, assigned_vehicle_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id, order_id, start_x, start_y, end_x, end_y, assigned_vehicle_id, created_at, updated_at
+            "#
+        )
+        .bind(order_id)
+        .bind(start_x)
+        .bind(start_y)
+        .bind(end_x)
+        .bind(end_y)
+        .bind(assigned_vehicle_id)
+        .bind(&now)
+        .bind(&now)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(TaxiOrder {
+            id: row.get("id"),
+            order_id: row.get("order_id"),
+            start_x: row.get("start_x"),
+            start_y: row.get("start_y"),
+            end_x: row.get("end_x"),
+            end_y: row.get("end_y"),
+            assigned_vehicle_id: row.get("assigned_vehicle_id"),
+            created_at: row.get("created_at"),
+            updated_at: row.get("updated_at"),
+        })
+    }
+
     /// 获取所有出租车订单
     pub async fn get_all_taxi_orders(&self) -> Result<Vec<TaxiOrder>, sqlx::Error> {
         let rows = sqlx::query(

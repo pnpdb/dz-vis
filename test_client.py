@@ -155,31 +155,29 @@ def parse_data_recording_message(data):
 
 
 def parse_taxi_order_message(data):
-    """解析出租车订单协议"""
-    if len(data) < 48:
+    """解析出租车订单协议（新格式：去掉订单号）"""
+    if len(data) < 33:  # 1 + 8 + 8 + 8 + 8 = 33字节
         print("❌ 出租车订单数据长度不足")
         return None
     
     try:
-        # 解析订单号 (16字节)
-        order_bytes = data[0:16]
-        # 去除空字节并转换为字符串
-        order_id = order_bytes.rstrip(b'\x00').decode('utf-8', errors='ignore')
+        # 解析车辆编号 (1字节, UINT8)
+        vehicle_id = struct.unpack('<B', data[0:1])[0]
         
-        # 解析起点X (DOUBLE, 小端序)
-        start_x = struct.unpack('<d', data[16:24])[0]
+        # 解析起点X (8字节, DOUBLE, 小端序)
+        start_x = struct.unpack('<d', data[1:9])[0]
         
-        # 解析起点Y (DOUBLE, 小端序)
-        start_y = struct.unpack('<d', data[24:32])[0]
+        # 解析起点Y (8字节, DOUBLE, 小端序)
+        start_y = struct.unpack('<d', data[9:17])[0]
         
-        # 解析终点X (DOUBLE, 小端序)
-        end_x = struct.unpack('<d', data[32:40])[0]
+        # 解析终点X (8字节, DOUBLE, 小端序)
+        end_x = struct.unpack('<d', data[17:25])[0]
         
-        # 解析终点Y (DOUBLE, 小端序)
-        end_y = struct.unpack('<d', data[40:48])[0]
+        # 解析终点Y (8字节, DOUBLE, 小端序)
+        end_y = struct.unpack('<d', data[25:33])[0]
         
         return {
-            'order_id': order_id,
+            'vehicle_id': vehicle_id,
             'start_x': start_x,
             'start_y': start_y,
             'end_x': end_x,
@@ -664,12 +662,12 @@ class TestClient:
             taxi_info = parse_taxi_order_message(data_domain)
             if taxi_info:
                 print(f"🚕 出租车订单:")
-                print(f"   订单号: {taxi_info['order_id']}")
+                print(f"   目标车辆: {taxi_info['vehicle_id']}")
                 print(f"   起点: ({taxi_info['start_x']:.3f}, {taxi_info['start_y']:.3f})")
                 print(f"   终点: ({taxi_info['end_x']:.3f}, {taxi_info['end_y']:.3f})")
                 
                 # 模拟接单处理
-                print(f"✅ 车辆{self.vehicle_id}收到出租车订单: {taxi_info['order_id']}")
+                print(f"✅ 车辆{self.vehicle_id}收到出租车订单，目标车辆: {taxi_info['vehicle_id']}")
                 
         elif message_type == SEND_MESSAGE_TYPES['AVP_PARKING']:
             # 解析AVP泊车指令

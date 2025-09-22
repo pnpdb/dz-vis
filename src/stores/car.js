@@ -48,6 +48,13 @@ export const useCarStore = defineStore('car', {
         count: 0,
         name: 'Eduardo',
         loading: false,
+        // 出租车状态管理
+        taxi: {
+            startPoint: '',
+            endPoint: '',
+            startCoords: null, // { x, z }
+            endCoords: null,   // { x, z }
+        },
     }),
     getters: {
         selectedCar: state => {
@@ -114,6 +121,28 @@ export const useCarStore = defineStore('car', {
         // 刷新车辆列表
         async refreshVehicleList() {
             await this.loadVehicleConnections();
+        },
+
+        // 出租车状态管理actions
+        setTaxiStartPoint(point, coords) {
+            this.taxi.startPoint = point;
+            this.taxi.startCoords = coords;
+        },
+
+        setTaxiEndPoint(point, coords) {
+            this.taxi.endPoint = point;
+            this.taxi.endCoords = coords;
+        },
+
+        clearTaxiPoints() {
+            this.taxi.startPoint = '';
+            this.taxi.endPoint = '';
+            this.taxi.startCoords = null;
+            this.taxi.endCoords = null;
+        },
+
+        getTaxiState() {
+            return { ...this.taxi };
         },
     },
 });

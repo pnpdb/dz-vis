@@ -66,6 +66,11 @@ class SocketManager {
                 this.handleIncomingMessage(event.payload);
             });
             
+            // 监听车辆连接事件
+            await listen('vehicle-connect', (event) => {
+                this.handleVehicleConnect(event.payload);
+            });
+
             // 监听车辆断开连接事件
             await listen('vehicle-disconnect', (event) => {
                 this.handleVehicleDisconnect(event.payload);
@@ -76,6 +81,18 @@ class SocketManager {
             socketLogger.error('监听Socket事件失败:', error);
             plError(`监听Socket事件失败: ${error}`).catch(() => {});
         }
+    }
+
+    /**
+     * 处理车辆连接事件
+     */
+    handleVehicleConnect(payload) {
+        const { vehicle_id, vehicle_name } = payload;
+        socketLogger.info(`车辆连接 - 车辆: ${vehicle_name} (ID: ${vehicle_id})`);
+        plInfo(`车辆连接 - 车辆: ${vehicle_name} (ID: ${vehicle_id})`).catch(() => {});
+        
+        // 更新车辆连接状态为在线
+        this.updateVehicleStatus(vehicle_id, true);
     }
 
     /**
@@ -605,6 +622,38 @@ class SocketManager {
             return result;
         } catch (error) {
             socketLogger.error(`发送出租车订单失败 - 订单: ${orderId}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * 发送出租车订单给指定车辆
+     * @param {string} orderId 订单ID (16字节UUID)
+     * @param {number} vehicleId 目标车辆ID
+     * @param {number} startX 起点X坐标
+     * @param {number} startY 起点Y坐标
+     * @param {number} endX 终点X坐标
+     * @param {number} endY 终点Y坐标
+     * @returns {Promise<string>} 发送结果
+     */
+    async sendTaxiOrderToVehicle(orderId, vehicleId, startX, startY, endX, endY) {
+        try {
+            socketLogger.info(`发送出租车订单给指定车辆 - 订单: ${orderId}, 车辆: ${vehicleId}, 起点: (${startX}, ${startY}), 终点: (${endX}, ${endY})`);
+
+            // 调用Rust后端发送给指定车辆并保存到数据库
+            const result = await invoke('send_taxi_order_to_vehicle', {
+                orderId: orderId,
+                vehicleId: vehicleId,
+                startX: startX,
+                startY: startY,
+                endX: endX,
+                endY: endY
+            });
+
+            socketLogger.info(`出租车订单发送成功 - 订单: ${orderId}, 车辆: ${vehicleId}`);
+            return result;
+        } catch (error) {
+            socketLogger.error(`发送出租车订单失败 - 订单: ${orderId}, 车辆: ${vehicleId}:`, error);
             throw error;
         }
     }

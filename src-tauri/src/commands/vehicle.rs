@@ -188,7 +188,71 @@ pub async fn get_socket_server_status(app: tauri::AppHandle) -> Result<serde_jso
     }))
 }
 
-/// 广播出租车订单
+/// 发送出租车订单给指定车辆
+#[tauri::command]
+pub async fn send_taxi_order_to_vehicle(
+    app: tauri::AppHandle,
+    order_id: String,
+    vehicle_id: u8,
+    start_x: f64,
+    start_y: f64,
+    end_x: f64,
+    end_y: f64,
+) -> Result<String, String> {
+    let connections = app.state::<ConnectionManager>();
+    let db = app.state::<VehicleDatabase>();
+    
+    // 1. 检查指定车辆是否在线
+    let vehicle_id_i32 = vehicle_id as i32;
+    let online_vehicles = socket::SocketServer::get_connection_status(&connections);
+    let vehicle_online = online_vehicles.iter().any(|v| {
+        v.get("vehicle_id").and_then(|id| id.as_i64()).map(|id| id as i32) == Some(vehicle_id_i32)
+    });
+    
+    if !vehicle_online {
+        return Err(format!("车辆{}当前不在线", vehicle_id));
+    }
+
+    // 2. 构建出租车订单协议数据域 (33字节: 1+8+8+8+8)
+    let mut data = Vec::with_capacity(33);
+    
+    // 车辆编号 (1字节, UINT8)
+    data.push(vehicle_id);
+    
+    // 起点X (8字节, DOUBLE, 小端序)
+    data.extend_from_slice(&start_x.to_le_bytes());
+    
+    // 起点Y (8字节, DOUBLE, 小端序)  
+    data.extend_from_slice(&start_y.to_le_bytes());
+    
+    // 终点X (8字节, DOUBLE, 小端序)
+    data.extend_from_slice(&end_x.to_le_bytes());
+    
+    // 终点Y (8字节, DOUBLE, 小端序)
+    data.extend_from_slice(&end_y.to_le_bytes());
+
+    // 3. 发送消息给指定车辆
+    let success = socket::SocketServer::send_to_vehicle(&connections, vehicle_id_i32, 0x1003, &data).is_ok();
+    
+    if success {
+        // 4. 发送成功后保存到数据库
+        match db.save_taxi_order(&order_id, vehicle_id_i32, start_x, start_y, end_x, end_y).await {
+            Ok(_) => {
+                info!("✅ 出租车订单发送并保存成功: 订单{}, 车辆{}", order_id, vehicle_id);
+                Ok(format!("出租车订单已发送给{}号车并保存到数据库", vehicle_id))
+            }
+            Err(e) => {
+                warn!("⚠️ 出租车订单发送成功但保存失败: 订单{}, 车辆{}, 错误: {}", order_id, vehicle_id, e);
+                // 即使保存失败，也认为发送成功
+                Ok(format!("出租车订单已发送给{}号车，但数据库保存失败: {}", vehicle_id, e))
+            }
+        }
+    } else {
+        Err(format!("发送出租车订单给车辆{}失败", vehicle_id))
+    }
+}
+
+/// 广播出租车订单（保留原有功能）
 #[tauri::command]
 pub async fn broadcast_taxi_order(
     app: tauri::AppHandle,

@@ -1242,12 +1242,20 @@ export const getSandboxDimensionsInfo = () => {
     return calculateSandboxDimensions(sandboxModel);
 };
 
-// ============ 施工标记管理 ============
+// ============ 标记管理（施工标记、起点、终点） ============
 let constructionMarkers = new Map(); // id -> Sprite
 let nextConstructionId = 1;
 let constructionTexture = null;
 let constructionTextureAspect = 1.0; // 默认宽高比，纹理加载后更新（width/height）
 let constructionMarkerScale = 0.3; // 全局尺寸缩放（1为基准，0.5为缩小一半）
+
+// 起点和终点标记管理
+let startPointMarker = null;
+let endPointMarker = null;
+let startTexture = null;
+let endTexture = null;
+let startTextureAspect = 1.0;
+let endTextureAspect = 1.0;
 
 const ensureConstructionTexture = () => {
     if (constructionTexture) return constructionTexture;
@@ -1270,6 +1278,54 @@ const ensureConstructionTexture = () => {
         console.warn('加载施工标记纹理失败:', e);
     }
     return constructionTexture;
+};
+
+// 确保起点纹理加载
+const ensureStartTexture = () => {
+    if (startTexture) return startTexture;
+    try {
+        const loader = new TextureLoader();
+        startTexture = loader.load('/Image/start.svg', (tex) => {
+            try {
+                if (tex?.image?.width && tex?.image?.height) {
+                    startTextureAspect = tex.image.width / tex.image.height;
+                    console.log(`🚀 起点标记纹理加载完成 - 尺寸: ${tex.image.width}x${tex.image.height}, 宽高比: ${startTextureAspect.toFixed(3)}`);
+                }
+            } catch (e) {
+                console.warn('读取起点标记纹理尺寸失败:', e);
+            }
+        });
+        startTexture.generateMipmaps = false;
+        startTexture.minFilter = LinearFilter;
+        startTexture.magFilter = LinearFilter;
+    } catch (e) {
+        console.warn('加载起点标记纹理失败:', e);
+    }
+    return startTexture;
+};
+
+// 确保终点纹理加载
+const ensureEndTexture = () => {
+    if (endTexture) return endTexture;
+    try {
+        const loader = new TextureLoader();
+        endTexture = loader.load('/Image/end.svg', (tex) => {
+            try {
+                if (tex?.image?.width && tex?.image?.height) {
+                    endTextureAspect = tex.image.width / tex.image.height;
+                    console.log(`🏁 终点标记纹理加载完成 - 尺寸: ${tex.image.width}x${tex.image.height}, 宽高比: ${endTextureAspect.toFixed(3)}`);
+                }
+            } catch (e) {
+                console.warn('读取终点标记纹理尺寸失败:', e);
+            }
+        });
+        endTexture.generateMipmaps = false;
+        endTexture.minFilter = LinearFilter;
+        endTexture.magFilter = LinearFilter;
+    } catch (e) {
+        console.warn('加载终点标记纹理失败:', e);
+    }
+    return endTexture;
 };
 
 /**
@@ -1915,6 +1971,12 @@ export const destroyScene = () => {
         constructionTexture = null;
     }
     
+    // 清理起点和终点标记
+    removeStartPointMarker();
+    removeEndPointMarker();
+    startTexture = null;
+    endTexture = null;
+    
     // 清理场景
     if (scene) {
         scene.traverse((child) => {
@@ -2015,4 +2077,175 @@ const animateCameraTo = ({ position, target }, duration = 600) => {
         }
     };
     requestAnimationFrame(step);
+};
+
+// ============ 起点和终点标记管理 ============
+
+/**
+ * 创建起点标记
+ */
+export const createStartPointMarker = (x, z) => {
+    if (!scene) {
+        console.warn('场景未初始化，无法创建起点标记');
+        return null;
+    }
+
+    // 移除现有的起点标记
+    removeStartPointMarker();
+
+    const tex = ensureStartTexture();
+    if (!tex) return null;
+
+    const material = new SpriteMaterial({ map: tex, transparent: true });
+    const sprite = new Sprite(material);
+    // 底部中点对齐所选点
+    sprite.center.set(0.5, 0.0);
+    
+    // 计算标记尺寸 - 保持原始宽高比
+    let baseWidth = 1.5; // 起点标记稍大一些
+    let widthScale = 1.0;
+    try {
+        const dims = getSandboxDimensionsInfo();
+        if (dims) {
+            const base = Math.max(dims.scaled.width, dims.scaled.depth);
+            widthScale = Math.max(0.6, Math.min(2.0, base / 120));
+        }
+    } catch (_) {}
+    
+    const width = baseWidth * widthScale * constructionMarkerScale;
+    // 高度 = 宽度 / 宽高比，保持原始宽高比不缩放
+    const aspectRatio = startTextureAspect > 0 ? startTextureAspect : 1.0;
+    const height = width / aspectRatio;
+    sprite.scale.set(width, height, 1);
+    sprite.position.set(x, 0.05, z);
+    sprite.name = 'StartPointMarker';
+
+    modelsGroup.add(sprite);
+    startPointMarker = sprite;
+    
+    console.log(`🚀 起点标记已创建: (${x.toFixed(3)}, ${z.toFixed(3)})`);
+    
+    return { x, z };
+};
+
+/**
+ * 创建终点标记
+ */
+export const createEndPointMarker = (x, z) => {
+    if (!scene) {
+        console.warn('场景未初始化，无法创建终点标记');
+        return null;
+    }
+
+    // 移除现有的终点标记
+    removeEndPointMarker();
+
+    const tex = ensureEndTexture();
+    if (!tex) return null;
+
+    const material = new SpriteMaterial({ map: tex, transparent: true });
+    const sprite = new Sprite(material);
+    // 底部中点对齐所选点
+    sprite.center.set(0.5, 0.0);
+    
+    // 计算标记尺寸 - 保持原始宽高比
+    let baseWidth = 1.5; // 终点标记稍大一些
+    let widthScale = 1.0;
+    try {
+        const dims = getSandboxDimensionsInfo();
+        if (dims) {
+            const base = Math.max(dims.scaled.width, dims.scaled.depth);
+            widthScale = Math.max(0.6, Math.min(2.0, base / 120));
+        }
+    } catch (_) {}
+    
+    const width = baseWidth * widthScale * constructionMarkerScale;
+    // 高度 = 宽度 / 宽高比，保持原始宽高比不缩放
+    const aspectRatio = endTextureAspect > 0 ? endTextureAspect : 1.0;
+    const height = width / aspectRatio;
+    sprite.scale.set(width, height, 1);
+    sprite.position.set(x, 0.05, z);
+    sprite.name = 'EndPointMarker';
+
+    modelsGroup.add(sprite);
+    endPointMarker = sprite;
+    
+    console.log(`🏁 终点标记已创建: (${x.toFixed(3)}, ${z.toFixed(3)})`);
+    
+    return { x, z };
+};
+
+/**
+ * 移除起点标记
+ */
+export const removeStartPointMarker = () => {
+    if (!startPointMarker) return false;
+    
+    if (modelsGroup && startPointMarker.parent === modelsGroup) {
+        modelsGroup.remove(startPointMarker);
+    } else if (scene && startPointMarker.parent === scene) {
+        scene.remove(startPointMarker);
+    }
+    
+    if (startPointMarker.material && startPointMarker.material.map) {
+        startPointMarker.material.map.dispose();
+    }
+    if (startPointMarker.material) startPointMarker.material.dispose();
+    
+    startPointMarker = null;
+    console.log('🚀 起点标记已移除');
+    return true;
+};
+
+/**
+ * 移除终点标记
+ */
+export const removeEndPointMarker = () => {
+    if (!endPointMarker) return false;
+    
+    if (modelsGroup && endPointMarker.parent === modelsGroup) {
+        modelsGroup.remove(endPointMarker);
+    } else if (scene && endPointMarker.parent === scene) {
+        scene.remove(endPointMarker);
+    }
+    
+    if (endPointMarker.material && endPointMarker.material.map) {
+        endPointMarker.material.map.dispose();
+    }
+    if (endPointMarker.material) endPointMarker.material.dispose();
+    
+    endPointMarker = null;
+    console.log('🏁 终点标记已移除');
+    return true;
+};
+
+/**
+ * 获取起点标记位置
+ */
+export const getStartPointPosition = () => {
+    if (!startPointMarker) return null;
+    return {
+        x: startPointMarker.position.x,
+        z: startPointMarker.position.z
+    };
+};
+
+/**
+ * 获取终点标记位置
+ */
+export const getEndPointPosition = () => {
+    if (!endPointMarker) return null;
+    return {
+        x: endPointMarker.position.x,
+        z: endPointMarker.position.z
+    };
+};
+
+/**
+ * 清除所有起点和终点标记
+ */
+export const clearTaxiPoints = () => {
+    removeStartPointMarker();
+    removeEndPointMarker();
+    console.log('🚕 所有出租车路径标记已清除');
 };

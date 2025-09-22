@@ -61,11 +61,6 @@ app.config.errorHandler = (err, instance, info) => {
 if (Environment.isDevelopment()) {
     app.config.performance = true;
     await jsDebug('DZ Car Manager - Development Mode');
-    await jsDebug('Environment:', {
-        mode: Environment.getMode(),
-        isTauri: Environment.isTauri(),
-        baseUrl: Environment.getBaseUrl()
-    });
 }
 
 app.use(createPinia());
@@ -91,7 +86,7 @@ async function initializeApp() {
         const carStore = useCarStore();
         
         // 加载车辆连接数据
-        await jsInfo('正在加载车辆连接数据...');
+        await jsInfo('正在加载车辆连接数据');
         await carStore.loadVehicleConnections();
         await jsInfo('车辆连接数据加载完成');
     } catch (error) {
@@ -112,7 +107,6 @@ if (shouldStartSocket) {
     setTimeout(async () => {
         try {
             const result = await socketManager.startServer(8888);
-            await jsInfo('Socket服务器启动成功:', result);
         } catch (error) {
             await jsError('Socket服务器启动失败:', error);
             await jsError('错误详情:', error.stack || error);

@@ -51,9 +51,14 @@
                 </button>
             </div>
 
-            <button class="btn btn-primary" @click="callTaxi">
-                <fa icon="car-side"></fa> 呼叫出租车
-            </button>
+            <div class="flex">
+                <button class="btn btn-primary" @click="callTaxi">
+                    <fa icon="car-side"></fa> 呼叫出租车
+                </button>
+                <button class="btn btn-secondary btn-small" @click="clearTaxiSelection" style="margin-left: 8px;">
+                    <fa icon="eraser"></fa> 清除选择
+                </button>
+            </div>
         </div>
 
         <!-- AVP自主代客泊车 -->
@@ -118,6 +123,14 @@ import { ref, watch, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useCarStore } from '@/stores/car.js';
 import { socketManager } from '@/utils/socketManager.js';
+import { 
+    startPointSelectionMode, 
+    stopPointSelectionMode, 
+    createStartPointMarker, 
+    createEndPointMarker,
+    removeStartPointMarker,
+    removeEndPointMarker
+} from '@/components/Scene3D/index.js';
 
 const carStore = useCarStore();
 
@@ -193,6 +206,8 @@ const handleDataRecordChange = async (newValue) => {
 const taxi = ref({
     startPoint: '',
     endPoint: '',
+    startCoords: null, // { x, z }
+    endCoords: null,   // { x, z }
 });
 
 // 停车相关数据
@@ -343,17 +358,72 @@ const pickupCar = async () => {
     }
 };
 
-// 选择地图位置的函数（占位符）
+// 选择起点
 const selectStartPoint = () => {
     ElMessage.info('请在地图上点击选择起点位置');
+    
+    // 启动点选择模式
+    startPointSelectionMode(({ x, z }) => {
+        // 结束选择模式
+        stopPointSelectionMode();
+        
+        // 创建起点标记
+        const result = createStartPointMarker(x, z);
+        if (result) {
+            // 更新数据
+            taxi.value.startCoords = { x, z };
+            taxi.value.startPoint = `X: ${x.toFixed(3)}, Y: ${z.toFixed(3)}`;
+            
+            ElMessage.success('起点已选择');
+            console.log(`🚀 起点已选择: (${x.toFixed(3)}, ${z.toFixed(3)})`);
+        } else {
+            ElMessage.error('起点标记创建失败');
+        }
+    });
 };
 
+// 选择终点
 const selectEndPoint = () => {
     ElMessage.info('请在地图上点击选择终点位置');
+    
+    // 启动点选择模式
+    startPointSelectionMode(({ x, z }) => {
+        // 结束选择模式
+        stopPointSelectionMode();
+        
+        // 创建终点标记
+        const result = createEndPointMarker(x, z);
+        if (result) {
+            // 更新数据
+            taxi.value.endCoords = { x, z };
+            taxi.value.endPoint = `X: ${x.toFixed(3)}, Y: ${z.toFixed(3)}`;
+            
+            ElMessage.success('终点已选择');
+            console.log(`🏁 终点已选择: (${x.toFixed(3)}, ${z.toFixed(3)})`);
+        } else {
+            ElMessage.error('终点标记创建失败');
+        }
+    });
 };
 
 const selectParkingSpot = () => {
     ElMessage.info('请在地图上点击选择停车位');
+};
+
+// 清除出租车起点和终点选择
+const clearTaxiSelection = () => {
+    // 移除地图上的标记
+    removeStartPointMarker();
+    removeEndPointMarker();
+    
+    // 清除数据
+    taxi.value.startPoint = '';
+    taxi.value.endPoint = '';
+    taxi.value.startCoords = null;
+    taxi.value.endCoords = null;
+    
+    ElMessage.info('已清除起点和终点选择');
+    console.log('🧹 出租车起点和终点选择已清除');
 };
 </script>
 

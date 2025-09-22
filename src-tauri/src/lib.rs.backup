@@ -1097,7 +1097,7 @@ pub fn run() {
             update_app_settings
         ])
         .setup(move |app| {
-            info!("Tauri 应用启动: {}", env!("CARGO_PKG_NAME"));
+            info!("应用启动: {}", env!("CARGO_PKG_NAME"));
             #[cfg(desktop)]
             {
                 use tauri_plugin_autostart::MacosLauncher;

@@ -1,8 +1,5 @@
 // 系统相关命令
-use tauri::Manager;
 use std::process::Command;
-use local_ip_address::local_ip;
-use log::{info, warn, error};
 
 /// 问候命令 (示例命令)
 #[tauri::command]
@@ -60,7 +57,7 @@ pub async fn open_folder() -> Result<(), String> {
     Ok(())
 }
 
-/// 打开指定路径
+/// 使用系统默认程序打开指定文件或URL
 #[tauri::command]
 pub async fn open_path(path: String) -> Result<(), String> {
     #[cfg(target_os = "macos")]
@@ -70,15 +67,16 @@ pub async fn open_path(path: String) -> Result<(), String> {
             .spawn()
             .map_err(|e| format!("Failed to open path: {}", e))?;
     }
-    
+
     #[cfg(target_os = "windows")]
     {
+        // 使用 cmd start 以系统默认程序打开
         Command::new("cmd")
-            .args(["/C", "start", &path])
+            .args(["/C", "start", "", &path])
             .spawn()
             .map_err(|e| format!("Failed to open path: {}", e))?;
     }
-    
+
     #[cfg(target_os = "linux")]
     {
         Command::new("xdg-open")
@@ -86,19 +84,20 @@ pub async fn open_path(path: String) -> Result<(), String> {
             .spawn()
             .map_err(|e| format!("Failed to open path: {}", e))?;
     }
-    
+
     Ok(())
 }
 
 /// 获取系统信息
 #[tauri::command]
 pub async fn get_system_info() -> Result<serde_json::Value, String> {
-    let local_ip = local_ip().map(|ip| ip.to_string()).unwrap_or_else(|_| "未知".to_string());
+    let info = serde_json::json!({
+        "platform": std::env::consts::OS,
+        "arch": std::env::consts::ARCH,
+        "version": env!("CARGO_PKG_VERSION")
+    });
     
-    Ok(serde_json::json!({
-        "local_ip": local_ip,
-        "timestamp": chrono::Utc::now().to_rfc3339()
-    }))
+    Ok(info)
 }
 
 /// 最小化窗口
@@ -117,25 +116,4 @@ pub async fn maximize_window(window: tauri::Window) -> Result<(), String> {
 #[tauri::command]
 pub async fn close_window(window: tauri::Window) -> Result<(), String> {
     window.close().map_err(|e| e.to_string())
-}
-
-/// 获取网络状态
-#[tauri::command]
-pub async fn get_network_status() -> Result<serde_json::Value, String> {
-    let local_ip = match local_ip() {
-        Ok(ip) => ip.to_string(),
-        Err(_) => "未知".to_string(),
-    };
-    
-    // 简单的网络连通性检查
-    let is_connected = match reqwest::get("http://www.baidu.com").await {
-        Ok(response) => response.status().is_success(),
-        Err(_) => false,
-    };
-    
-    Ok(serde_json::json!({
-        "local_ip": local_ip,
-        "is_connected": is_connected,
-        "timestamp": chrono::Utc::now().to_rfc3339()
-    }))
 }

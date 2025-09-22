@@ -1,9 +1,9 @@
 // 设置相关命令
-use crate::database::VehicleDatabase;
+use crate::database::{VehicleDatabase, models::UpdateAppSettingsRequest};
 use log::{info, warn};
 use tauri::Manager;
 
-/// 获取应用基本设置 (get_app_settings)
+/// 获取应用基本设置
 #[tauri::command]
 pub async fn get_app_settings(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
     let db = app.state::<VehicleDatabase>();
@@ -13,9 +13,9 @@ pub async fn get_app_settings(app: tauri::AppHandle) -> Result<serde_json::Value
     }
 }
 
-/// 更新应用基本设置 (update_app_settings)
+/// 更新应用基本设置
 #[tauri::command]
-pub async fn update_app_settings(app: tauri::AppHandle, request: crate::database::models::UpdateAppSettingsRequest) -> Result<serde_json::Value, String> {
+pub async fn update_app_settings(app: tauri::AppHandle, request: UpdateAppSettingsRequest) -> Result<serde_json::Value, String> {
     if let Err(e) = request.validate() { return Err(e); }
     let db = app.state::<VehicleDatabase>();
     match db.update_app_settings(request.clone()).await {

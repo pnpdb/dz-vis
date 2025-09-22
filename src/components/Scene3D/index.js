@@ -1392,7 +1392,7 @@ const setupMouseEventListeners = () => {
 
 // 鼠标按下事件
 const onMouseDown = (event) => {
-    if (!isPoseSelectionMode) return;
+    if (!isPoseSelectionMode && !isPointSelectionMode) return;
     
     if (event.button === 0) { // 左键
         event.preventDefault();
@@ -1430,6 +1430,9 @@ const onMouseDown = (event) => {
 
 // 鼠标移动事件
 const onMouseMove = (event) => {
+    // 点选择模式下不处理鼠标移动（不需要朝向线）
+    if (isPointSelectionMode) return;
+    
     if (!isPoseSelectionMode || !isMouseDown || !startPosition) return;
     
     event.preventDefault();
@@ -1455,7 +1458,7 @@ const onMouseMove = (event) => {
 
 // 鼠标释放事件
 const onMouseUp = (event) => {
-    if (!isPoseSelectionMode || !isMouseDown) return;
+    if ((!isPoseSelectionMode && !isPointSelectionMode) || !isMouseDown) return;
     
     if (event.button === 0) { // 左键
         event.preventDefault();
@@ -1464,8 +1467,16 @@ const onMouseUp = (event) => {
         // 重新启用相机控制
         if (controls) controls.enabled = true;
         
-        if (startPosition && currentPosition) {
-            // 计算朝向角度 - 修正为逆时针增加
+        if (isPointSelectionMode && startPosition) {
+            // 点选择模式：直接返回点击位置，不需要朝向
+            if (pointSelectionCallback) {
+                pointSelectionCallback({
+                    x: startPosition.x,
+                    z: startPosition.z
+                });
+            }
+        } else if (isPoseSelectionMode && startPosition && currentPosition) {
+            // 位姿选择模式：计算朝向角度
             const direction = new Vector3().subVectors(currentPosition, startPosition);
             // 使用 -atan2(z, x) 来实现逆时针增加，X轴正方向为0度
             let angle = -Math.atan2(direction.z, direction.x) * 180 / Math.PI;
@@ -1721,6 +1732,51 @@ export const startPoseSelectionMode = (callback) => {
     
     console.log('🎯 位姿选择模式已启动');
     return true;
+};
+
+// 简单点选择模式（用于施工标记等不需要朝向的场景）
+let isPointSelectionMode = false;
+let pointSelectionCallback = null;
+
+export const startPointSelectionMode = (callback) => {
+    if (!scene) {
+        console.warn('Scene not initialized');
+        return false;
+    }
+    
+    isPointSelectionMode = true;
+    pointSelectionCallback = callback;
+    
+    // 创建地面检测平面
+    createGroundPlane();
+    
+    // 修改鼠标样式
+    if (container) {
+        container.style.cursor = 'crosshair';
+    }
+    
+    console.log('📍 点选择模式已启动');
+    return true;
+};
+
+export const stopPointSelectionMode = () => {
+    isPointSelectionMode = false;
+    pointSelectionCallback = null;
+    
+    // 清除地面平面
+    if (groundPlane) {
+        scene.remove(groundPlane);
+        groundPlane.geometry.dispose();
+        groundPlane.material.dispose();
+        groundPlane = null;
+    }
+    
+    // 恢复鼠标样式
+    if (container) {
+        container.style.cursor = 'default';
+    }
+    
+    console.log('📍 点选择模式已停止');
 };
 
 // 停止位姿选择模式

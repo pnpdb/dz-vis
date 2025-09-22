@@ -161,7 +161,7 @@ import Scene3D from '@/components/Scene3D/index.vue';
 import VehicleTimeChart from '@/components/VehicleTimeChart.vue';
 import DrivingBehaviorChart from '@/components/DrivingBehaviorChart.vue';
 import { socketManager } from '@/utils/socketManager.js';
-import { startPoseSelectionMode, stopPoseSelectionMode, createConstructionMarkerAt, removeConstructionMarker } from '@/components/Scene3D/index.js';
+import { startPoseSelectionMode, stopPoseSelectionMode, startPointSelectionMode, stopPointSelectionMode, createConstructionMarkerAt, removeConstructionMarker } from '@/components/Scene3D/index.js';
 
 // 实时数据
 const networkDelay = ref(12);
@@ -278,10 +278,10 @@ const constructionDialogVisible = ref(false);
 const constructionSelected = ref({ x: 0, z: 0, id: null });
 
 const startConstructionMark = () => {
-    // 启用与“初始化位姿”相同的点击模式
-    startPoseSelectionMode(({ x, z, orientation }) => {
-        // 结束选择模式以移除绿色点/辅助线
-        stopPoseSelectionMode();
+    // 启用简单的点选择模式（不需要朝向）
+    startPointSelectionMode(({ x, z }) => {
+        // 结束选择模式
+        stopPointSelectionMode();
         // 先创建临时施工标记（底部中点对齐）
         const res = createConstructionMarkerAt(x, z);
         if (res) {

@@ -31,6 +31,7 @@ SEND_MESSAGE_TYPES = {
     'AVP_PICKUP': 0x1005,                # AVP取车
     'VEHICLE_FUNCTION_SETTING': 0x1006,  # 车辆功能设置
     'VEHICLE_PATH_DISPLAY': 0x1007,      # 车辆路径显示控制
+    'CONSTRUCTION_MARKER': 0x1008,       # 施工标记
 }
 
 # 车辆控制指令类型
@@ -306,6 +307,44 @@ def parse_vehicle_path_display_message(data):
         
     except Exception as e:
         print(f"❌ 解析车辆路径显示指令失败: {e}")
+        return None
+
+
+def parse_construction_marker_message(data):
+    """解析施工标记协议"""
+    if len(data) < 18:
+        print("❌ 施工标记数据长度不足")
+        return None
+    
+    try:
+        # 解析施工点ID (1字节, UINT8)
+        marker_id = data[0]
+        
+        # 解析位置X (8字节, DOUBLE)
+        position_x = struct.unpack('<d', data[1:9])[0]
+        
+        # 解析位置Y (8字节, DOUBLE)
+        position_y = struct.unpack('<d', data[9:17])[0]
+        
+        # 解析动作 (1字节, UINT8)
+        action = data[17]
+        
+        # 动作名称映射
+        action_names = {
+            0: '取消',
+            1: '设置'
+        }
+        
+        return {
+            'marker_id': marker_id,
+            'position_x': position_x,
+            'position_y': position_y,
+            'action': action,
+            'action_name': action_names.get(action, f'未知动作({action})')
+        }
+        
+    except Exception as e:
+        print(f"❌ 解析施工标记指令失败: {e}")
         return None
 
 
@@ -690,6 +729,21 @@ class TestClient:
                         print(f"✅ 车辆{self.vehicle_id}停止发送路径数据到服务端")
                 else:
                     print(f"⚠️ 路径显示指令目标车辆({path_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
+                    
+        elif message_type == SEND_MESSAGE_TYPES['CONSTRUCTION_MARKER']:
+            # 解析施工标记指令
+            marker_info = parse_construction_marker_message(data_domain)
+            if marker_info:
+                print(f"🚧 施工标记指令:")
+                print(f"   标记ID: {marker_info['marker_id']}")
+                print(f"   位置坐标: ({marker_info['position_x']:.3f}, {marker_info['position_y']:.3f})")
+                print(f"   动作: {marker_info['action_name']} ({marker_info['action']})")
+                
+                # 模拟执行施工标记操作
+                if marker_info['action'] == 1:
+                    print(f"✅ 添加施工标记 ID={marker_info['marker_id']} 到位置({marker_info['position_x']:.3f}, {marker_info['position_y']:.3f})")
+                else:
+                    print(f"✅ 取消施工标记 ID={marker_info['marker_id']} 从位置({marker_info['position_x']:.3f}, {marker_info['position_y']:.3f})")
         else:
             print(f"❓ 未知消息类型: 0x{message_type:04X}")
             print(f"   数据: {data_domain.hex()}")

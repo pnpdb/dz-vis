@@ -269,6 +269,32 @@ async fn broadcast_message(
     Ok(format!("消息已发送给 {} 个车辆", count))
 }
 
+/// 广播施工标记信息 (0x1008)
+#[tauri::command]
+async fn broadcast_construction_marker(
+    app: tauri::AppHandle,
+    marker_id: u8,
+    position_x: f64,
+    position_y: f64,
+    action: u8, // 0: 取消, 1: 设置
+) -> Result<String, String> {
+    // 构建施工标记协议数据域 (18字节)
+    let mut data = Vec::new();
+    data.push(marker_id);                               // 施工点ID (1字节)
+    data.extend_from_slice(&position_x.to_le_bytes());  // 位置X (8字节, DOUBLE)
+    data.extend_from_slice(&position_y.to_le_bytes());  // 位置Y (8字节, DOUBLE)  
+    data.push(action);                                  // 动作 (1字节)
+    
+    let connections = app.state::<socket::ConnectionManager>();
+    let sent_count = socket::SocketServer::broadcast_message(&connections, 0x1008, &data);
+    
+    let action_name = if action == 1 { "设置" } else { "取消" };
+    info!("广播施工标记 - ID: {}, 位置: ({:.3}, {:.3}), 动作: {} ({})", 
+          marker_id, position_x, position_y, action, action_name);
+    
+    Ok(format!("已广播给{}辆车", sent_count))
+}
+
 #[tauri::command]
 async fn get_connected_vehicles(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
     let connections = app.state::<socket::ConnectionManager>();
@@ -1000,6 +1026,7 @@ pub fn run() {
             send_sandbox_control,
             is_sandbox_connected,
             broadcast_message,
+            broadcast_construction_marker,
             get_connected_vehicles,
             get_vehicle_connections,
             create_vehicle_connection,

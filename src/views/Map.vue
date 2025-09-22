@@ -155,6 +155,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ElMessage } from 'element-plus';
 import CarList from '@/components/CarList.vue';
 import CarButton from '@/components/CarButton.vue';
 import Scene3D from '@/components/Scene3D/index.vue';
@@ -162,6 +163,7 @@ import VehicleTimeChart from '@/components/VehicleTimeChart.vue';
 import DrivingBehaviorChart from '@/components/DrivingBehaviorChart.vue';
 import { socketManager } from '@/utils/socketManager.js';
 import { startPoseSelectionMode, stopPoseSelectionMode, startPointSelectionMode, stopPointSelectionMode, createConstructionMarkerAt, removeConstructionMarker } from '@/components/Scene3D/index.js';
+import { SEND_MESSAGE_TYPES, CONSTRUCTION_MARKER_PROTOCOL } from '@/constants/messageTypes.js';
 
 // 实时数据
 const networkDelay = ref(12);
@@ -293,9 +295,35 @@ const startConstructionMark = () => {
     });
 };
 
-const confirmConstructionPoint = () => {
+const confirmConstructionPoint = async () => {
+    try {
+        if (constructionSelected.value.id != null) {
+            // 广播施工标记设置消息
+            const { invoke } = await import('@tauri-apps/api/core');
+            const result = await invoke('broadcast_construction_marker', {
+                markerId: constructionSelected.value.id,
+                positionX: constructionSelected.value.x,
+                positionY: constructionSelected.value.z, // 注意：3D场景中的z对应协议中的y
+                action: CONSTRUCTION_MARKER_PROTOCOL.ACTION_SET // 1: 设置
+            });
+            
+            // 显示成功消息
+            ElMessage({
+                message: result,
+                type: 'success',
+                duration: 3000
+            });
+        }
+    } catch (error) {
+        console.error('广播施工标记失败:', error);
+        ElMessage({
+            message: '广播施工标记失败: ' + error,
+            type: 'error',
+            duration: 3000
+        });
+    }
+    
     constructionDialogVisible.value = false;
-    // 已经创建了标记，直接退出
 };
 
 const reselectConstructionPoint = () => {

@@ -85,6 +85,8 @@ import LogViewer from '@/components/LogViewer.vue';
 import Map from '@/views/Map.vue';
 import { error as jsError } from '@tauri-apps/plugin-log';
 import { getConstructionMarkersDetails, removeConstructionMarker } from '@/components/Scene3D/index.js';
+import { CONSTRUCTION_MARKER_PROTOCOL } from '@/constants/messageTypes.js';
+import { ElMessage } from 'element-plus';
 
 // 实时状态数据
 const currentTime = ref('');
@@ -184,11 +186,41 @@ const toggleConstructionList = () => {
 
 const deleteConstructionMarker = async (markerId) => {
     try {
+        // 首先从场景中获取标记信息
+        const markers = getConstructionMarkersDetails();
+        const marker = markers.find(m => m.id === markerId);
+        
+        if (!marker) {
+            console.warn(`施工标记 ${markerId} 不存在`);
+            return;
+        }
+        
+        // 广播取消施工标记消息
+        const { invoke } = await import('@tauri-apps/api/core');
+        const result = await invoke('broadcast_construction_marker', {
+            markerId: markerId,
+            positionX: marker.x,
+            positionY: marker.z, // 注意：3D场景中的z对应协议中的y
+            action: CONSTRUCTION_MARKER_PROTOCOL.ACTION_CANCEL // 0: 取消
+        });
+        
+        // 从场景中移除标记
         const success = removeConstructionMarker(markerId);
         if (success) {
             updateConstructionMarkersList();
+            // 显示成功消息
+            ElMessage({
+                message: result,
+                type: 'success',
+                duration: 3000
+            });
         } else {
             console.warn(`删除施工标记 ${markerId} 失败`);
+            ElMessage({
+                message: `删除施工标记 ${markerId} 失败`,
+                type: 'error',
+                duration: 3000
+            });
         }
     } catch (error) {
         console.error('删除施工标记时出错:', error);

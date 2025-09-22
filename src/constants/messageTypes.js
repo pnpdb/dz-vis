@@ -17,6 +17,7 @@ export const SEND_MESSAGE_TYPES = {
     AVP_PICKUP: 0x1005,              // AVP取车
     VEHICLE_FUNCTION_SETTING: 0x1006, // 车辆功能设置
     VEHICLE_PATH_DISPLAY: 0x1007,    // 车辆路径显示控制
+    CONSTRUCTION_MARKER: 0x1008,     // 施工标记
 };
 
 // 车辆信息协议数据域定义 (54字节)
@@ -171,6 +172,25 @@ export const VEHICLE_PATH_DISPLAY_PROTOCOL = {
     PATH_ENABLE: 1,                  // 车端开启发送路径数据
 };
 
+// 施工标记协议数据域定义 (18字节)
+export const CONSTRUCTION_MARKER_PROTOCOL = {
+    ID_OFFSET: 0,                    // 施工点ID偏移 (1字节, UINT8)
+    POSITION_X_OFFSET: 1,            // 位置X偏移 (8字节, DOUBLE)
+    POSITION_Y_OFFSET: 9,            // 位置Y偏移 (8字节, DOUBLE)
+    ACTION_OFFSET: 17,               // 动作偏移 (1字节, UINT8)
+    TOTAL_SIZE: 18,                  // 总大小 18字节
+    
+    // 动作类型定义
+    ACTION_CANCEL: 0,                // 取消施工标记
+    ACTION_SET: 1,                   // 设置施工标记
+    
+    // 动作名称映射
+    ACTION_NAMES: {
+        0: '取消',
+        1: '设置'
+    }
+};
+
 // 协议常量
 export const PROTOCOL_CONSTANTS = {
     HEADER: [0xEF, 0xEF, 0xEF, 0xEF],        // 帧头
@@ -230,6 +250,7 @@ export default {
     AVP_PICKUP_PROTOCOL,
     VEHICLE_FUNCTION_SETTING_PROTOCOL,
     VEHICLE_PATH_DISPLAY_PROTOCOL,
+    CONSTRUCTION_MARKER_PROTOCOL,
     PROTOCOL_CONSTANTS,
     MessageTypeUtils
 };

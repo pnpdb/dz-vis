@@ -1246,7 +1246,7 @@ export const getSandboxDimensionsInfo = () => {
 let constructionMarkers = new Map(); // id -> Sprite
 let nextConstructionId = 1;
 let constructionTexture = null;
-let constructionTextureAspect = 0.75; // 默认宽高比，纹理加载后更新（width/height）
+let constructionTextureAspect = 1.0; // 默认宽高比，纹理加载后更新（width/height）
 let constructionMarkerScale = 0.3; // 全局尺寸缩放（1为基准，0.5为缩小一半）
 
 const ensureConstructionTexture = () => {
@@ -1257,8 +1257,11 @@ const ensureConstructionTexture = () => {
             try {
                 if (tex?.image?.width && tex?.image?.height) {
                     constructionTextureAspect = tex.image.width / tex.image.height;
+                    console.log(`🚧 施工标记纹理加载完成 - 尺寸: ${tex.image.width}x${tex.image.height}, 宽高比: ${constructionTextureAspect.toFixed(3)}`);
                 }
-            } catch (_) {}
+            } catch (e) {
+                console.warn('读取施工标记纹理尺寸失败:', e);
+            }
         });
         constructionTexture.generateMipmaps = false;
         constructionTexture.minFilter = LinearFilter;
@@ -1285,19 +1288,20 @@ export const createConstructionMarkerAt = (x, z, options = {}) => {
     const sprite = new Sprite(material);
     // 底部中点对齐所选点
     sprite.center.set(0.5, 0.0);
-    // 适配尺寸（根据沙盘尺寸做一个相对适中的大小）
-    // 基于沙盘尺寸的自适应高度，然后按全局缩放系数缩放，宽度按纹理宽高比计算
-    let baseHeight = 1.6; // 基准高度（世界单位）
-    let heightScale = 1.0;
+    // 基于沙盘尺寸的自适应宽度，然后按全局缩放系数缩放，高度按纹理宽高比计算
+    let baseWidth = 1.2; // 基准宽度（世界单位）
+    let widthScale = 1.0;
     try {
         const dims = getSandboxDimensionsInfo();
         if (dims) {
             const base = Math.max(dims.scaled.width, dims.scaled.depth);
-            heightScale = Math.max(0.6, Math.min(2.0, base / 120));
+            widthScale = Math.max(0.6, Math.min(2.0, base / 120));
         }
     } catch (_) {}
-    const height = baseHeight * heightScale * constructionMarkerScale;
-    const width = height * constructionTextureAspect;
+    const width = baseWidth * widthScale * constructionMarkerScale;
+    // 高度 = 宽度 / 宽高比，防范除零错误
+    const aspectRatio = constructionTextureAspect > 0 ? constructionTextureAspect : 1.0;
+    const height = width / aspectRatio;
     sprite.scale.set(width, height, 1);
     sprite.position.set(x, 0.05, z);
     sprite.name = 'ConstructionMarker';
@@ -1419,8 +1423,10 @@ const onMouseDown = (event) => {
             startPosition.y = 0;
             currentPosition = startPosition.clone();
             
-            // 创建位置标记
-            createPositionMarker(startPosition);
+            // 只在位姿选择模式下创建位置标记（点选择模式不需要）
+            if (isPoseSelectionMode) {
+                createPositionMarker(startPosition);
+            }
             
             // 禁用相机控制
             if (controls) controls.enabled = false;

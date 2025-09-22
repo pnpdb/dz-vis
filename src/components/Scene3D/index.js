@@ -1306,6 +1306,14 @@ export const createConstructionMarkerAt = (x, z, options = {}) => {
 
     const id = nextConstructionId++;
     constructionMarkers.set(id, sprite);
+    
+    // 分发施工标记添加事件
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('construction-marker-added', {
+            detail: { id, x, z }
+        }));
+    }
+    
     return { id, x, z };
 };
 
@@ -1322,11 +1330,42 @@ export const removeConstructionMarker = (id) => {
     }
     if (sprite.material) sprite.material.dispose();
     constructionMarkers.delete(id);
+    
+    // 分发施工标记删除事件
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('construction-marker-removed', {
+            detail: { id }
+        }));
+    }
+    
     return true;
 };
 
 export const listConstructionMarkers = () => {
     return Array.from(constructionMarkers.keys());
+};
+
+export const getConstructionMarkersDetails = () => {
+    const markers = [];
+    constructionMarkers.forEach((sprite, id) => {
+        if (sprite && sprite.position) {
+            markers.push({
+                id: id,
+                x: sprite.position.x,
+                z: sprite.position.z
+            });
+        }
+    });
+    return markers;
+};
+
+export const getConstructionMarkersCount = () => {
+    return constructionMarkers.size;
+};
+
+export const clearAllConstructionMarkers = () => {
+    const ids = Array.from(constructionMarkers.keys());
+    ids.forEach(id => removeConstructionMarker(id));
 };
 
 // 尺寸控制接口（对外暴露）

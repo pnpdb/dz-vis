@@ -25,6 +25,35 @@
         
         <!-- HUD状态指示器 -->
         <div class="hud-overlay">
+            <!-- 施工标记列表 - FPS左侧 -->
+            <div v-if="constructionMarkers.length > 0" class="status-indicator top-right-construction">
+                <div class="construction-list">
+                    <div class="construction-header" @click.stop="toggleConstructionList">
+                        <fa icon="hard-hat" class="construction-list-icon" />
+                        <span>施工标记 ({{ constructionMarkers.length }})</span>
+                        <fa :icon="constructionListCollapsed ? 'chevron-right' : 'chevron-down'" class="collapse-icon" />
+                    </div>
+                    <div v-show="!constructionListCollapsed" class="construction-items">
+                        <div 
+                            v-for="marker in constructionMarkers" 
+                            :key="marker.id"
+                            class="construction-item"
+                        >
+                            <div class="marker-info">
+                                <span class="marker-id">ID: {{ marker.id }}</span>
+                                <span class="marker-coords">{{ marker.x.toFixed(2) }}, {{ marker.z.toFixed(2) }}</span>
+                            </div>
+                            <span 
+                                class="delete-text" 
+                                @click.stop="deleteConstructionMarker(marker.id)"
+                                title="删除施工标记"
+                            >
+                                删除
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <!-- FPS显示 - 右上角时间左侧 -->
             <div class="status-indicator top-right-fps">
                 <div class="performance-monitor">
@@ -55,6 +84,7 @@ import Header from '@/components/Header.vue';
 import LogViewer from '@/components/LogViewer.vue';
 import Map from '@/views/Map.vue';
 import { error as jsError } from '@tauri-apps/plugin-log';
+import { getConstructionMarkersDetails, removeConstructionMarker } from '@/components/Scene3D/index.js';
 
 // 实时状态数据
 const currentTime = ref('');
@@ -65,6 +95,10 @@ const networkStatus = ref({
     icon: 'signal',
     connected: false
 });
+
+// 施工标记列表状态
+const constructionMarkers = ref([]);
+const constructionListCollapsed = ref(false);
 
 // 更新时间
 const updateTime = () => {
@@ -133,6 +167,34 @@ const checkNetworkStatus = async () => {
     }
 };
 
+// 施工标记列表管理
+const updateConstructionMarkersList = () => {
+    try {
+        const markers = getConstructionMarkersDetails();
+        constructionMarkers.value = markers;
+    } catch (error) {
+        console.warn('获取施工标记列表失败:', error);
+        constructionMarkers.value = [];
+    }
+};
+
+const toggleConstructionList = () => {
+    constructionListCollapsed.value = !constructionListCollapsed.value;
+};
+
+const deleteConstructionMarker = async (markerId) => {
+    try {
+        const success = removeConstructionMarker(markerId);
+        if (success) {
+            updateConstructionMarkersList();
+        } else {
+            console.warn(`删除施工标记 ${markerId} 失败`);
+        }
+    } catch (error) {
+        console.error('删除施工标记时出错:', error);
+    }
+};
+
 
 let timeInterval = null;
 let networkInterval = null;
@@ -161,6 +223,13 @@ onMounted(() => {
     window.addEventListener('toggle-log-viewer', (e) => {
         showLogViewer.value = !!(e?.detail?.visible);
     });
+    
+    // 初始化施工标记列表
+    updateConstructionMarkersList();
+    
+    // 监听施工标记变化事件
+    window.addEventListener('construction-marker-added', updateConstructionMarkersList);
+    window.addEventListener('construction-marker-removed', updateConstructionMarkersList);
 });
 
 onBeforeUnmount(() => {
@@ -173,6 +242,8 @@ onBeforeUnmount(() => {
     window.removeEventListener('online', checkNetworkStatus);
     window.removeEventListener('offline', checkNetworkStatus);
     window.removeEventListener('toggle-log-viewer', () => {});
+    window.removeEventListener('construction-marker-added', updateConstructionMarkersList);
+    window.removeEventListener('construction-marker-removed', updateConstructionMarkersList);
 });
 </script>
 
@@ -358,6 +429,7 @@ onBeforeUnmount(() => {
         0 4px 16px rgba(0, 0, 0, 0.3),
         0 0 10px rgba(0, 240, 255, 0.2);
     animation: hudPulse 4s ease-in-out infinite;
+    pointer-events: auto; /* 恢复点击事件 */
 }
 
 @keyframes hudPulse {
@@ -376,6 +448,7 @@ onBeforeUnmount(() => {
 .top-left { top: 120px; left: 20px; }
 .top-right { top: 120px; right: 450px; }
 .top-right-fps { top: 120px; right: 570px; } /* FPS显示在时间左侧 */
+.top-right-construction { top: 120px; right: 760px; } /* 施工标记列表在FPS左侧 */
 .bottom-left { bottom: 20px; left: 20px; }
 .bottom-right { bottom: 20px; right: 450px; }
 
@@ -454,6 +527,10 @@ onBeforeUnmount(() => {
     .top-right-fps {
         right: 510px;
     }
+    
+    .top-right-construction {
+        right: 690px;
+    }
 }
 
 @media (max-width: 1200px) {
@@ -469,6 +546,10 @@ onBeforeUnmount(() => {
     
     .top-right-fps {
         right: 470px;
+    }
+    
+    .top-right-construction {
+        right: 630px;
     }
 }
 
@@ -826,5 +907,156 @@ onBeforeUnmount(() => {
 .fade-leave-to {
     opacity: 0;
     transform: translateX(-50px) scale(0.95);
+}
+
+/* 施工标记列表样式 */
+.construction-list {
+    min-width: 180px;
+    max-width: 250px;
+}
+
+.construction-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 0;
+    transition: all 0.3s ease;
+    border-radius: 6px;
+    user-select: none;
+    font-family: 'Orbitron', monospace;
+    font-size: 14px;
+    font-weight: 500;
+    min-height: 20px; /* 与FPS区域高度保持一致 */
+}
+
+.construction-header:hover {
+    background: rgba(255, 165, 0, 0.1);
+    transform: translateY(-1px);
+}
+
+.construction-list-icon {
+    color: #ffa500;
+    font-size: 14px; /* 与文字大小保持一致 */
+}
+
+.collapse-icon {
+    margin-left: auto;
+    font-size: 12px;
+    color: #ffa500;
+    transition: transform 0.3s ease;
+}
+
+.construction-header:hover .collapse-icon {
+    color: #ffb84d;
+}
+
+/* 施工标记列表容器特殊样式调整 */
+.top-right-construction .status-indicator {
+    padding: 12px 16px; /* 减少左右padding，与FPS区域保持一致 */
+    min-width: auto; /* 取消最小宽度限制 */
+    font-size: 14px; /* 与FPS区域字号一致 */
+    font-weight: 500; /* 与FPS区域字重一致 */
+}
+
+.construction-items {
+    margin-top: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    border-top: 1px solid rgba(255, 165, 0, 0.2);
+    padding-top: 8px;
+}
+
+.construction-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    margin-bottom: 4px;
+    background: rgba(255, 165, 0, 0.05);
+    border: 1px solid rgba(255, 165, 0, 0.2);
+    border-radius: 6px;
+    transition: all 0.3s ease;
+}
+
+.construction-item:hover {
+    background: rgba(255, 165, 0, 0.1);
+    border-color: rgba(255, 165, 0, 0.4);
+    transform: translateY(-1px);
+}
+
+.marker-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+}
+
+.marker-id {
+    font-size: 12px;
+    font-weight: 600;
+    color: #ffa500;
+    font-family: 'Orbitron', monospace;
+}
+
+.marker-coords {
+    font-size: 12px;
+    color: #b0b0b0;
+    font-family: 'Courier New', monospace;
+}
+
+.delete-text {
+    font-size: 11px;
+    color: #dc3545;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: all 0.3s ease;
+    user-select: none;
+    font-weight: 500;
+}
+
+.delete-text:hover {
+    color: #ffffff;
+    background: rgba(220, 53, 69, 0.8);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(220, 53, 69, 0.3);
+}
+
+/* 滚动条样式 */
+.construction-items::-webkit-scrollbar {
+    width: 4px;
+}
+
+.construction-items::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+}
+
+.construction-items::-webkit-scrollbar-thumb {
+    background: rgba(255, 165, 0, 0.5);
+    border-radius: 2px;
+}
+
+.construction-items::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 165, 0, 0.7);
+}
+
+/* 响应式调整 */
+@media (max-width: 1400px) {
+    .construction-list {
+        min-width: 160px;
+        max-width: 200px;
+    }
+    
+    .construction-item {
+        padding: 4px 6px;
+    }
+}
+
+@media (max-width: 1200px) {
+    .top-right-construction {
+        display: none; /* 小屏幕时隐藏施工列表，避免拥挤 */
+    }
 }
 </style>

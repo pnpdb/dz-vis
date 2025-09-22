@@ -82,7 +82,12 @@ import {
     faServer,
     faTimesCircle,
     faQuestionCircle,
-    faSpinner
+    faSpinner,
+    faChevronRight,
+    faChevronDown,
+    faHardHat,
+    faTrash,
+    faRedo
 } from '@fortawesome/free-solid-svg-icons'
 
 // 将图标添加到库中
@@ -168,5 +173,10 @@ library.add(
     faServer,
     faTimesCircle,
     faQuestionCircle,
-    faSpinner
+    faSpinner,
+    faChevronRight,
+    faChevronDown,
+    faHardHat,
+    faTrash,
+    faRedo
 )

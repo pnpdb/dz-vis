@@ -1,7 +1,7 @@
 [package]
 name = "dz-viz"
 version = "0.1.0"
-description = "DZ智能车辆管理系统"
+description = "智能车辆管理系统"
 authors = ["DZ Technologies"]
 license = "MIT"
 edition = "2021"
@@ -48,4 +48,7 @@ urlencoding = "2.1"
 tempfile = "3.8"
 once_cell = "1.19"
 log = "0.4.28"
+
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-autostart = "2.0.0-rc.1"
 

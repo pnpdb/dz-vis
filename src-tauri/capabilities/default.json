@@ -23,6 +23,9 @@
     "core:menu:default",
     "core:tray:default",
     "opener:default",
-    "log:default"
+    "log:default",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled"
   ]
 }

@@ -165,6 +165,9 @@
                 <el-tab-pane label="基本设置" name="basic">
                     <el-form label-width="120px" label-position="left" class="basic-settings-form">
                         
+                        <el-form-item label="开机启动">
+                            <el-switch v-model="settings.autoStart" />
+                        </el-form-item>
                         <el-form-item label="调试模式">
                             <el-switch v-model="settings.debugMode" />
                         </el-form-item>
@@ -535,6 +538,7 @@ const settings = ref({
     animations: true,
     showGrid: false,
     frameRate: 60,
+    autoStart: false,
     debugMode: false,
     logLevel: 'INFO',
     cacheSize: 1000
@@ -817,6 +821,7 @@ const handleLogin = async () => {
 const saveSettings = async () => {
     try {
         const payload = {
+            auto_start: settings.value.autoStart,
             debug_model: settings.value.debugMode,
             log_level: settings.value.logLevel,
             cache_size: settings.value.cacheSize
@@ -845,6 +850,7 @@ const resetSettings = () => {
         animations: true,
         showGrid: false,
         frameRate: 60,
+        autoStart: false,
         debugMode: false,
         logLevel: 'info',
         cacheSize: 1000
@@ -998,6 +1004,7 @@ onMounted(() => {
     // 加载应用设置
     invoke('get_app_settings').then((res) => {
         if (res) {
+            settings.value.autoStart = !!res.auto_start;
             settings.value.debugMode = !!res.debug_model;
             settings.value.logLevel = (res.log_level || 'INFO').toUpperCase();
             settings.value.cacheSize = Number(res.cache_size ?? 1000);

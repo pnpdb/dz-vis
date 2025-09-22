@@ -1,7 +1,7 @@
 use tauri::Manager;
 use std::process::Command;
 use local_ip_address::local_ip;
-use tauri_plugin_log::{Target, TargetKind};
+use tauri_plugin_log;
 use log::{info, warn, error, debug};
 
 mod socket;
@@ -935,20 +935,48 @@ async fn get_app_settings(app: tauri::AppHandle) -> Result<serde_json::Value, St
 async fn update_app_settings(app: tauri::AppHandle, request: crate::database::models::UpdateAppSettingsRequest) -> Result<serde_json::Value, String> {
     if let Err(e) = request.validate() { return Err(e); }
     let db = app.state::<VehicleDatabase>();
-    match db.update_app_settings(request).await {
-        Ok(settings) => Ok(serde_json::to_value(settings).unwrap()),
+    match db.update_app_settings(request.clone()).await {
+        Ok(settings) => {
+            // 如果包含自动启动设置的更新，同步更新系统的自动启动状态
+            #[cfg(desktop)]
+            if let Some(auto_start) = request.auto_start {
+                use tauri_plugin_autostart::ManagerExt;
+                let autostart_manager = app.autolaunch();
+                
+                if auto_start {
+                    match autostart_manager.enable() {
+                        Ok(_) => info!("✅ 开机启动已启用"),
+                        Err(e) => warn!("⚠️ 启用开机启动失败: {}", e),
+                    }
+                } else {
+                    match autostart_manager.disable() {
+                        Ok(_) => info!("🔄 开机启动已禁用"),
+                        Err(e) => warn!("⚠️ 禁用开机启动失败: {}", e),
+                    }
+                }
+                
+                // 检查并记录当前状态
+                match autostart_manager.is_enabled() {
+                    Ok(enabled) => info!("📋 开机启动状态更新为: {}", if enabled { "已启用" } else { "已禁用" }),
+                    Err(e) => warn!("⚠️ 无法检查开机启动状态: {}", e),
+                }
+            }
+            
+            Ok(serde_json::to_value(settings).unwrap())
+        },
         Err(e) => Err(format!("更新应用设置失败: {}", e))
     }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // 预读取数据库中的应用设置，用于在日志插件初始化之前配置日志级别与最大文件大小
+    // 预读取数据库中的应用设置，用于在日志插件初始化之前配置日志级别、最大文件大小和开机启动
     // 注意：此处需要阻塞式获取，因为插件在 Builder 构建时即完成初始化
-    let (initial_log_level, initial_max_file_size_bytes) = {
-        // 默认值：INFO 级别，512MB
+    let (initial_log_level, initial_max_file_size_bytes, initial_auto_start) = {
+        // 默认值：INFO 级别，512MB，不启用开机启动
         let mut level = log::LevelFilter::Info;
         let mut max_bytes: u64 = 512 * 1024 * 1024;
+        let mut auto_start = false;
 
         if let Ok(rt) = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -979,10 +1007,13 @@ pub fn run() {
                 // 缓存大小（界面单位MB）→ 字节
                 let cache_mb = settings.cache_size.max(1) as u64;
                 max_bytes = cache_mb.saturating_mul(1024 * 1024);
+                
+                // 开机启动设置
+                auto_start = settings.auto_start;
             }
         }
-        debug!("🔄 初始化日志级别: {:?}, 初始化缓存大小(bytes): {:?}", level, max_bytes);
-        (level, max_bytes)
+        debug!("🔄 初始化日志级别: {:?}, 初始化缓存大小(bytes): {:?}, 开机启动: {:?}", level, max_bytes, auto_start);
+        (level, max_bytes, auto_start)
     };
 
     // 在 Linux 平台禁用 WebKit 复合渲染以修复 SVG/Icon 渲染问题
@@ -1065,9 +1096,55 @@ pub fn run() {
             get_app_settings,
             update_app_settings
         ])
-        .setup(|app| {
+        .setup(move |app| {
             info!("Tauri 应用启动: {}", env!("CARGO_PKG_NAME"));
-            debug!("插件初始化完成: logging/opener/dialog");
+            #[cfg(desktop)]
+            {
+                use tauri_plugin_autostart::MacosLauncher;
+                use tauri_plugin_autostart::ManagerExt;
+
+                // 初始化自动启动插件
+                let _ = app.handle().plugin(tauri_plugin_autostart::init(
+                    MacosLauncher::LaunchAgent,
+                    Some(vec!["--autostart"]), // 可选的启动参数
+                ));
+
+                // 获取自动启动管理器并根据设置启用或禁用
+                let autostart_manager = app.autolaunch();
+                
+                if initial_auto_start {
+                    // 启用自动启动
+                    match autostart_manager.enable() {
+                        Ok(_) => {
+                            info!("✅ 开机启动已启用");
+                        }
+                        Err(e) => {
+                            warn!("⚠️ 启用开机启动失败: {}", e);
+                        }
+                    }
+                } else {
+                    // 禁用自动启动
+                    match autostart_manager.disable() {
+                        Ok(_) => {
+                            info!("🔄 开机启动已禁用");
+                        }
+                        Err(e) => {
+                            warn!("⚠️ 禁用开机启动失败: {}", e);
+                        }
+                    }
+                }
+                
+                // 检查并记录当前状态
+                match autostart_manager.is_enabled() {
+                    Ok(enabled) => {
+                        info!("📋 开机启动状态: {}", if enabled { "已启用" } else { "已禁用" });
+                    }
+                    Err(e) => {
+                        warn!("⚠️ 无法检查开机启动状态: {}", e);
+                    }
+                }
+            }
+            
             // 克隆app handle用于不同任务
             let app_handle_db = app.handle().clone();
             let app_handle_udp = app.handle().clone();
@@ -1077,10 +1154,10 @@ pub fn run() {
                 match VehicleDatabase::new().await {
                     Ok(db) => {
                         app_handle_db.manage(db);
-                        info!("✅ 车辆数据库初始化成功");
+                        info!("✅ 数据库初始化成功");
                     }
                     Err(e) => {
-                        error!("❌ 车辆数据库初始化失败: {}", e);
+                        error!("❌ 数据库初始化失败: {}", e);
                     }
                 }
             });

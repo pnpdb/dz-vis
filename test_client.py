@@ -308,36 +308,36 @@ def parse_vehicle_path_display_message(data):
 
 
 def parse_construction_marker_message(data):
-    """解析施工标记协议"""
-    if len(data) < 18:
-        print(" 施工标记数据长度不足")
+    """解析施工标记协议 - 新格式：所有施工点坐标"""
+    data_length = len(data)
+    
+    # 检查数据长度是否为16的倍数（每个施工点16字节：8字节X + 8字节Y）
+    if data_length % 16 != 0:
+        print(f" 施工标记数据长度错误: {data_length} 字节，应为16的倍数")
         return None
     
+    marker_count = data_length // 16
+    
     try:
-        # 解析施工点ID (1字节, UINT8)
-        marker_id = data[0]
-        
-        # 解析位置X (8字节, DOUBLE)
-        position_x = struct.unpack('<d', data[1:9])[0]
-        
-        # 解析位置Y (8字节, DOUBLE)
-        position_y = struct.unpack('<d', data[9:17])[0]
-        
-        # 解析动作 (1字节, UINT8)
-        action = data[17]
-        
-        # 动作名称映射
-        action_names = {
-            0: '取消',
-            1: '设置'
-        }
+        markers = []
+        for i in range(marker_count):
+            offset = i * 16
+            
+            # 解析位置X (8字节, DOUBLE)
+            position_x = struct.unpack('<d', data[offset:offset+8])[0]
+            
+            # 解析位置Y (8字节, DOUBLE)
+            position_y = struct.unpack('<d', data[offset+8:offset+16])[0]
+            
+            markers.append({
+                'index': i + 1,  # 从1开始编号
+                'position_x': position_x,
+                'position_y': position_y
+            })
         
         return {
-            'marker_id': marker_id,
-            'position_x': position_x,
-            'position_y': position_y,
-            'action': action,
-            'action_name': action_names.get(action, f'未知动作({action})')
+            'marker_count': marker_count,
+            'markers': markers
         }
         
     except Exception as e:
@@ -728,19 +728,21 @@ class TestClient:
                     print(f"路径显示指令目标车辆({path_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
                     
         elif message_type == SEND_MESSAGE_TYPES['CONSTRUCTION_MARKER']:
-            # 解析施工标记指令
+            # 解析施工标记指令 - 新格式：所有施工点坐标
             marker_info = parse_construction_marker_message(data_domain)
             if marker_info:
                 print(f"施工标记指令:")
-                print(f"   标记ID: {marker_info['marker_id']}")
-                print(f"   位置坐标: ({marker_info['position_x']:.3f}, {marker_info['position_y']:.3f})")
-                print(f"   动作: {marker_info['action_name']} ({marker_info['action']})")
+                print(f"   施工点数量: {marker_info['marker_count']} 个")
+                
+                if marker_info['marker_count'] == 0:
+                    print(f"   所有施工点已清除")
+                else:
+                    print(f"   当前所有施工点坐标:")
+                    for marker in marker_info['markers']:
+                        print(f"     施工点{marker['index']}: ({marker['position_x']:.3f}, {marker['position_y']:.3f})")
                 
                 # 模拟执行施工标记操作
-                if marker_info['action'] == 1:
-                    print(f" 添加施工标记 ID={marker_info['marker_id']} 到位置({marker_info['position_x']:.3f}, {marker_info['position_y']:.3f})")
-                else:
-                    print(f" 取消施工标记 ID={marker_info['marker_id']} 从位置({marker_info['position_x']:.3f}, {marker_info['position_y']:.3f})")
+                print(f" 已更新本地施工点列表，共 {marker_info['marker_count']} 个施工点")
         else:
             print(f"   未知消息类型: 0x{message_type:04X}")
             print(f"   数据: {data_domain.hex()}")

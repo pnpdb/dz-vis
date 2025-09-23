@@ -182,6 +182,7 @@ pub fn run() {
             is_sandbox_connected,
             broadcast_message,
             broadcast_construction_marker,
+            broadcast_all_construction_markers,
             get_connected_vehicles,
             get_vehicle_connections,
             create_vehicle_connection,

@@ -79,6 +79,37 @@ pub async fn broadcast_construction_marker(
     Ok(format!("已广播给{}辆车", sent_count))
 }
 
+/// 广播所有施工标记信息 (0x1008) - 新协议格式
+#[tauri::command]
+pub async fn broadcast_all_construction_markers(
+    app: tauri::AppHandle,
+    markers: Vec<serde_json::Value>
+) -> Result<String, String> {
+    // 构建新的施工标记协议数据域 (每个施工点16字节：8字节X + 8字节Y)
+    let mut data = Vec::new();
+    
+    for marker in &markers {
+        if let (Some(x), Some(y)) = (marker.get("x"), marker.get("z")) {
+            if let (Some(position_x), Some(position_y)) = (x.as_f64(), y.as_f64()) {
+                data.extend_from_slice(&position_x.to_le_bytes());  // 位置X (8字节, DOUBLE)
+                data.extend_from_slice(&position_y.to_le_bytes());  // 位置Y (8字节, DOUBLE)
+            }
+        }
+    }
+    
+    let connections = app.state::<ConnectionManager>();
+    let sent_count = socket::SocketServer::broadcast_message(&connections, 0x1008, &data);
+    
+    info!("广播所有施工标记 - 共{}个施工点，数据长度: {}字节", markers.len(), data.len());
+    for (index, marker) in markers.iter().enumerate() {
+        if let (Some(x), Some(z)) = (marker.get("x").and_then(|v| v.as_f64()), marker.get("z").and_then(|v| v.as_f64())) {
+            info!("  施工点{}: ({:.3}, {:.3})", index + 1, x, z);
+        }
+    }
+    
+    Ok(format!("已广播{}个施工点给{}辆车", markers.len(), sent_count))
+}
+
 /// 获取已连接的车辆
 #[tauri::command]
 pub async fn get_connected_vehicles(app: tauri::AppHandle) -> Result<serde_json::Value, String> {

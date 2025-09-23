@@ -186,28 +186,19 @@ const toggleConstructionList = () => {
 
 const deleteConstructionMarker = async (markerId) => {
     try {
-        // 首先从场景中获取标记信息
-        const markers = getConstructionMarkersDetails();
-        const marker = markers.find(m => m.id === markerId);
-        
-        if (!marker) {
-            console.warn(`施工标记 ${markerId} 不存在`);
-            return;
-        }
-        
-        // 广播取消施工标记消息
-        const { invoke } = await import('@tauri-apps/api/core');
-        const result = await invoke('broadcast_construction_marker', {
-            markerId: markerId,
-            positionX: marker.x,
-            positionY: marker.z, // 注意：3D场景中的z对应协议中的y
-            action: CONSTRUCTION_MARKER_PROTOCOL.ACTION_CANCEL // 0: 取消
-        });
-        
         // 从场景中移除标记
         const success = removeConstructionMarker(markerId);
         if (success) {
             updateConstructionMarkersList();
+            
+            // 获取删除后剩余的所有施工标记并广播
+            const { invoke } = await import('@tauri-apps/api/core');
+            const remainingMarkers = getConstructionMarkersDetails();
+            
+            const result = await invoke('broadcast_all_construction_markers', {
+                markers: remainingMarkers
+            });
+            
             // 显示成功消息
             ElMessage({
                 message: result,
@@ -224,6 +215,11 @@ const deleteConstructionMarker = async (markerId) => {
         }
     } catch (error) {
         console.error('删除施工标记时出错:', error);
+        ElMessage({
+            message: '删除施工标记失败: ' + error,
+            type: 'error',
+            duration: 3000
+        });
     }
 };
 

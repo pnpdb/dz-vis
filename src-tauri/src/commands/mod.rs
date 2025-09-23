@@ -19,6 +19,7 @@ pub use settings::{
 
 pub use vehicle::{
     start_socket_server, send_to_vehicle, broadcast_message, broadcast_construction_marker,
+    broadcast_all_construction_markers,
     get_connected_vehicles, get_vehicle_connections, create_vehicle_connection,
     update_vehicle_connection, delete_vehicle_connection, get_active_vehicle_connections,
     get_socket_server_status, broadcast_taxi_order, send_taxi_order_to_vehicle, send_avp_parking, send_avp_pickup,

@@ -162,7 +162,7 @@ import Scene3D from '@/components/Scene3D/index.vue';
 import VehicleTimeChart from '@/components/VehicleTimeChart.vue';
 import DrivingBehaviorChart from '@/components/DrivingBehaviorChart.vue';
 import { socketManager } from '@/utils/socketManager.js';
-import { startPoseSelectionMode, stopPoseSelectionMode, startPointSelectionMode, stopPointSelectionMode, createConstructionMarkerAt, removeConstructionMarker } from '@/components/Scene3D/index.js';
+import { startPoseSelectionMode, stopPoseSelectionMode, startPointSelectionMode, stopPointSelectionMode, createConstructionMarkerAt, removeConstructionMarker, getConstructionMarkersDetails } from '@/components/Scene3D/index.js';
 import { SEND_MESSAGE_TYPES, CONSTRUCTION_MARKER_PROTOCOL } from '@/constants/messageTypes.js';
 
 // 实时数据
@@ -298,13 +298,12 @@ const startConstructionMark = () => {
 const confirmConstructionPoint = async () => {
     try {
         if (constructionSelected.value.id != null) {
-            // 广播施工标记设置消息
+            // 获取所有施工标记信息并广播
             const { invoke } = await import('@tauri-apps/api/core');
-            const result = await invoke('broadcast_construction_marker', {
-                markerId: constructionSelected.value.id,
-                positionX: constructionSelected.value.x,
-                positionY: constructionSelected.value.z, // 注意：3D场景中的z对应协议中的y
-                action: CONSTRUCTION_MARKER_PROTOCOL.ACTION_SET // 1: 设置
+            const allMarkers = getConstructionMarkersDetails();
+            
+            const result = await invoke('broadcast_all_construction_markers', {
+                markers: allMarkers
             });
             
             // 显示成功消息
@@ -315,9 +314,9 @@ const confirmConstructionPoint = async () => {
             });
         }
     } catch (error) {
-        console.error('广播施工标记失败:', error);
+        console.error('广播所有施工标记失败:', error);
         ElMessage({
-            message: '广播施工标记失败: ' + error,
+            message: '广播所有施工标记失败: ' + error,
             type: 'error',
             duration: 3000
         });

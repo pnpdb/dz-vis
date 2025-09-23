@@ -33,6 +33,8 @@ import {
     Sprite,
     ConeGeometry,
     CanvasTexture,
+    CylinderGeometry,
+    Quaternion,
 } from 'three';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 
@@ -1693,29 +1695,41 @@ const updateDirectionLine = (start, end) => {
         if (angleLabel.material) angleLabel.material.dispose();
     }
     
-    // 创建新的线 - 起始点从小圆点中心开始
-    const points = [
-        new Vector3(start.x, 0.1, start.z), // 与小圆点中心对齐 (圆点在y=0.1)
-        new Vector3(end.x, 0.1, end.z)
-    ];
+    // 创建粗射线 - 使用圆柱体几何来实现真正的粗线
+    const startPos = new Vector3(start.x, 0.1, start.z);
+    const endPos = new Vector3(end.x, 0.1, end.z);
+    const direction = new Vector3().subVectors(endPos, startPos);
+    const length = direction.length();
     
-    const geometry = new BufferGeometry().setFromPoints(points);
-    const material = new LineBasicMaterial({ color: 0x65d36c, linewidth: 10 }); // 增加线条粗细
-    directionLine = new Line(geometry, material);
+    // 创建圆柱体作为粗线（半径0.03，即直径0.06，相当于线宽增加约6倍的视觉效果）
+    const lineGeometry = new CylinderGeometry(0.03, 0.03, length, 8);
+    const lineMaterial = new MeshBasicMaterial({ color: 0x65d36c });
+    directionLine = new Mesh(lineGeometry, lineMaterial);
+    
+    // 设置圆柱体位置和朝向 - 修复方向计算
+    const cylinderMidPoint = new Vector3().addVectors(startPos, endPos).multiplyScalar(0.5);
+    directionLine.position.copy(cylinderMidPoint);
+    
+    // 计算旋转让圆柱体指向正确方向
+    direction.normalize();
+    const quaternion = new Quaternion();
+    quaternion.setFromUnitVectors(new Vector3(0, 1, 0), direction); // 从Y轴向上到目标方向
+    directionLine.setRotationFromQuaternion(quaternion);
+    
     scene.add(directionLine);
     
-    // 创建箭头
-    const direction = new Vector3().subVectors(end, start).normalize();
-    const arrowGeometry = new ConeGeometry(0.08, 0.2, 8); // 半径0.08，高度0.2，8个分段
+    // 创建箭头 - 尺寸调整为2倍
+    const arrowDirection = new Vector3().subVectors(end, start).normalize();
+    const arrowGeometry = new ConeGeometry(0.16, 0.4, 8); // 半径和高度都是2倍：0.08->0.16, 0.2->0.4
     const arrowMaterial = new MeshBasicMaterial({ color: 0x65d36c });
     directionArrow = new Mesh(arrowGeometry, arrowMaterial);
     
     // 设置箭头位置和旋转
     directionArrow.position.set(end.x, 0.1, end.z);
     directionArrow.lookAt(
-        end.x + direction.x,
-        0.1 + direction.y,
-        end.z + direction.z
+        end.x + arrowDirection.x,
+        0.1 + arrowDirection.y,
+        end.z + arrowDirection.z
     );
     // 将箭头旋转90度，使其指向正确方向
     directionArrow.rotateX(Math.PI / 2);
@@ -2101,8 +2115,8 @@ export const createStartPointMarker = (x, z) => {
     // 底部中点对齐所选点
     sprite.center.set(0.5, 0.0);
     
-    // 计算标记尺寸 - 保持原始宽高比
-    let baseWidth = 1.5; // 起点标记稍大一些
+    // 计算标记尺寸 - 保持原始宽高比  
+    let baseWidth = 2; // 起点标记2倍大小
     let widthScale = 1.0;
     try {
         const dims = getSandboxDimensionsInfo();
@@ -2149,7 +2163,7 @@ export const createEndPointMarker = (x, z) => {
     sprite.center.set(0.5, 0.0);
     
     // 计算标记尺寸 - 保持原始宽高比
-    let baseWidth = 1.5; // 终点标记稍大一些
+    let baseWidth = 2; // 终点标记2倍大小
     let widthScale = 1.0;
     try {
         const dims = getSandboxDimensionsInfo();

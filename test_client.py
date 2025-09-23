@@ -39,8 +39,7 @@ CONTROL_COMMANDS = {
     1: '启动',
     2: '停止',
     3: '紧急制动',
-    4: '空载模式',
-    5: '初始化位姿'
+    4: '初始化位姿'
 }
 
 def crc16_ibm_sdlc(data):
@@ -83,7 +82,7 @@ def build_message(message_type, data):
 def parse_vehicle_control_message(data):
     """解析车辆控制指令"""
     if len(data) < 2:
-        print("❌ 车辆控制数据长度不足")
+        print(" 车辆控制数据长度不足")
         return None
     
     try:
@@ -99,10 +98,10 @@ def parse_vehicle_control_message(data):
             'command_name': CONTROL_COMMANDS.get(control_command, f'未知指令({control_command})')
         }
         
-        # 如果是初始化位姿指令(5)，解析位置数据
-        if control_command == 5:
+        # 如果是初始化位姿指令(4)，解析位置数据
+        if control_command == 4:
             if len(data) < 26:  # 2 + 8 + 8 + 8 = 26字节
-                print("❌ 初始化位姿指令数据长度不足")
+                print(" 初始化位姿指令数据长度不足")
                 return None
                 
             # 解析位置X (DOUBLE, 小端序)
@@ -123,14 +122,14 @@ def parse_vehicle_control_message(data):
         return result
         
     except Exception as e:
-        print(f"❌ 解析车辆控制指令失败: {e}")
+        print(f" 解析车辆控制指令失败: {e}")
         return None
 
 
 def parse_data_recording_message(data):
     """解析数据记录控制指令"""
     if len(data) < 2:
-        print("❌ 数据记录控制数据长度不足")
+        print(" 数据记录控制数据长度不足")
         return None
     
     try:
@@ -150,14 +149,14 @@ def parse_data_recording_message(data):
         }
         
     except Exception as e:
-        print(f"❌ 解析数据记录指令失败: {e}")
+        print(f" 解析数据记录指令失败: {e}")
         return None
 
 
 def parse_taxi_order_message(data):
     """解析出租车订单协议（新格式：去掉订单号）"""
     if len(data) < 33:  # 1 + 8 + 8 + 8 + 8 = 33字节
-        print("❌ 出租车订单数据长度不足")
+        print(" 出租车订单数据长度不足")
         return None
     
     try:
@@ -185,14 +184,14 @@ def parse_taxi_order_message(data):
         }
         
     except Exception as e:
-        print(f"❌ 解析出租车订单失败: {e}")
+        print(f" 解析出租车订单失败: {e}")
         return None
 
 
 def parse_avp_parking_message(data):
     """解析AVP自主代客泊车协议"""
     if len(data) < 2:
-        print("❌ AVP泊车数据长度不足")
+        print(" AVP泊车数据长度不足")
         return None
     
     try:
@@ -208,14 +207,14 @@ def parse_avp_parking_message(data):
         }
         
     except Exception as e:
-        print(f"❌ 解析AVP泊车指令失败: {e}")
+        print(f" 解析AVP泊车指令失败: {e}")
         return None
 
 
 def parse_avp_pickup_message(data):
     """解析AVP取车协议"""
     if len(data) < 1:
-        print("❌ AVP取车数据长度不足")
+        print(" AVP取车数据长度不足")
         return None
     
     try:
@@ -227,14 +226,14 @@ def parse_avp_pickup_message(data):
         }
         
     except Exception as e:
-        print(f"❌ 解析AVP取车指令失败: {e}")
+        print(f" 解析AVP取车指令失败: {e}")
         return None
 
 
 def parse_vehicle_function_setting_message(data):
     """解析车辆功能设置协议"""
     if len(data) < 3:
-        print("❌ 车辆功能设置数据长度不足")
+        print(" 车辆功能设置数据长度不足")
         return None
     
     try:
@@ -274,14 +273,14 @@ def parse_vehicle_function_setting_message(data):
         }
         
     except Exception as e:
-        print(f"❌ 解析车辆功能设置指令失败: {e}")
+        print(f" 解析车辆功能设置指令失败: {e}")
         return None
 
 
 def parse_vehicle_path_display_message(data):
     """解析车辆路径显示协议"""
     if len(data) < 2:
-        print("❌ 车辆路径显示数据长度不足")
+        print(" 车辆路径显示数据长度不足")
         return None
     
     try:
@@ -304,14 +303,14 @@ def parse_vehicle_path_display_message(data):
         }
         
     except Exception as e:
-        print(f"❌ 解析车辆路径显示指令失败: {e}")
+        print(f" 解析车辆路径显示指令失败: {e}")
         return None
 
 
 def parse_construction_marker_message(data):
     """解析施工标记协议"""
     if len(data) < 18:
-        print("❌ 施工标记数据长度不足")
+        print(" 施工标记数据长度不足")
         return None
     
     try:
@@ -342,25 +341,25 @@ def parse_construction_marker_message(data):
         }
         
     except Exception as e:
-        print(f"❌ 解析施工标记指令失败: {e}")
+        print(f" 解析施工标记指令失败: {e}")
         return None
 
 
 def parse_received_message(data):
     """解析接收到的完整协议消息"""
     if len(data) < 25:  # 最小协议长度
-        print("❌ 接收数据长度不足")
+        print(" 接收数据长度不足")
         return None
     
     try:
         # 检查帧头
         if data[:4] != HEADER:
-            print("❌ 帧头不正确")
+            print(" 帧头不正确")
             return None
         
         # 检查帧尾
         if data[-4:] != FOOTER:
-            print("❌ 帧尾不正确")
+            print(" 帧尾不正确")
             return None
         
         # 解析协议头
@@ -399,7 +398,7 @@ def parse_received_message(data):
         }
         
     except Exception as e:
-        print(f"❌ 解析协议消息失败: {e}")
+        print(f" 解析协议消息失败: {e}")
         return None
 
 force_parallel_until = 0
@@ -464,8 +463,8 @@ def create_vehicle_info_data(vehicle_id=1):
     gyro_status = random.choice([0, 1])
     data.extend(struct.pack('<B', gyro_status))
     
-    print(f"🚗 车辆信息 - ID: {vehicle_id}, 速度: {speed:.3f}m/s, 位置: ({position_x:.2f}, {position_y:.2f}), 朝向: {orientation:.1f}°, 电量: {battery:.1f}%, 档位: {gear}, 方向盘: {steering_angle:.1f}°, 导航状态码: {nav_status}")
-    print(f"📊 传感器状态 - 相机: {'正常' if camera_status else '异常'}, 雷达: {'正常' if lidar_status else '异常'}, 陀螺仪: {'正常' if gyro_status else '异常'}")
+    print(f" 车辆信息 - ID: {vehicle_id}, 速度: {speed:.3f}m/s, 位置: ({position_x:.2f}, {position_y:.2f}), 朝向: {orientation:.1f}°, 电量: {battery:.1f}%, 档位: {gear}, 方向盘: {steering_angle:.1f}°, 导航状态码: {nav_status}")
+    print(f" 传感器状态 - 相机: {'正常' if camera_status else '异常'}, 雷达: {'正常' if lidar_status else '异常'}, 陀螺仪: {'正常' if gyro_status else '异常'}")
     
     return bytes(data)
 
@@ -483,10 +482,10 @@ class TestClient:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.socket.connect((self.server_host, self.server_port))
             self.running = True
-            print(f"✅ 成功连接到服务器 {self.server_host}:{self.server_port}")
+            print(f" 成功连接到服务器 {self.server_host}:{self.server_port}")
             return True
         except Exception as e:
-            print(f"❌ 连接失败: {e}")
+            print(f" 连接失败: {e}")
             return False
     
     def disconnect(self):
@@ -494,12 +493,12 @@ class TestClient:
         self.running = False
         if self.socket:
             self.socket.close()
-            print("🔌 已断开连接")
+            print(" 已断开连接")
     
     def send_message(self, message_type, data):
         """发送消息"""
         if not self.socket:
-            print("❌ 未连接到服务器")
+            print(" 未连接到服务器")
             return False
             
         try:
@@ -519,10 +518,10 @@ class TestClient:
                         break
             if not type_name:
                 type_name = f"0x{message_type:04X}"
-            print(f"📤 发送消息: {type_name}, 数据长度: {len(data)} 字节")
+            print(f" 发送消息: {type_name}, 数据长度: {len(data)} 字节")
             return True
         except Exception as e:
-            print(f"❌ 发送消息失败: {e}")
+            print(f" 发送消息失败: {e}")
             return False
     
     def start_heartbeat(self, interval=5):
@@ -535,7 +534,7 @@ class TestClient:
         
         thread = threading.Thread(target=heartbeat_loop, daemon=True)
         thread.start()
-        print(f"💓 心跳发送已启动 (间隔: {interval}秒)")
+        print(f" 心跳发送已启动 (间隔: {interval}秒)")
     
     def start_data_simulation(self):
         """启动数据模拟发送"""
@@ -551,7 +550,7 @@ class TestClient:
         
         thread = threading.Thread(target=data_simulation_loop, daemon=True)
         thread.start()
-        print("🎲 数据模拟发送已启动")
+        print(" 数据模拟发送已启动")
     
     def listen_for_commands(self):
         """监听服务器命令"""
@@ -565,7 +564,7 @@ class TestClient:
                         break
                     
                     buffer.extend(data)
-                    print(f"📥 收到服务器数据: {len(data)} 字节")
+                    print(f" 收到服务器数据: {len(data)} 字节")
                     
                     # 尝试解析完整的协议消息
                     while len(buffer) >= 25:  # 最小协议长度
@@ -603,12 +602,12 @@ class TestClient:
                     
                 except Exception as e:
                     if self.running:
-                        print(f"❌ 接收数据错误: {e}")
+                        print(f" 接收数据错误: {e}")
                     break
         
         thread = threading.Thread(target=listen_loop, daemon=True)
         thread.start()
-        print("👂 开始监听服务器命令")
+        print(" 开始监听服务器命令")
     
     def handle_received_message(self, message):
         """处理接收到的协议消息"""
@@ -616,7 +615,7 @@ class TestClient:
         data_domain = message['data_domain']
         timestamp_dt = datetime.fromtimestamp(message['timestamp'] / 1000)
         
-        print(f"\n📨 收到协议消息:")
+        print(f"\n收到协议消息:")
         print(f"   消息类型: 0x{message_type:04X}")
         print(f"   时间戳: {timestamp_dt}")
         print(f"   数据长度: {message['data_length']} 字节")
@@ -634,67 +633,67 @@ class TestClient:
             # 解析车辆控制指令
             control_info = parse_vehicle_control_message(data_domain)
             if control_info:
-                print(f"🚗 车辆控制指令:")
+                print(f" 车辆控制指令:")
                 print(f"   目标车辆: {control_info['vehicle_id']}")
                 print(f"   控制指令: {control_info['command_name']} ({control_info['control_command']})")
                 
-                if control_info['control_command'] == 5:  # 初始化位姿
+                if control_info['control_command'] == 4:  # 初始化位姿
                     print(f"   位置X: {control_info['position_x']:.3f}")
                     print(f"   位置Y: {control_info['position_y']:.3f}")
                     print(f"   朝向: {control_info['orientation']:.3f}")
                 
                 # 模拟执行指令
-                print(f"✅ 车辆{control_info['vehicle_id']}执行{control_info['command_name']}指令")
+                print(f" 车辆{control_info['vehicle_id']}执行{control_info['command_name']}指令")
                 
         elif message_type == SEND_MESSAGE_TYPES['DATA_RECORDING']:
             # 解析数据记录控制指令
             recording_info = parse_data_recording_message(data_domain)
             if recording_info:
-                print(f"📊 数据记录控制指令:")
+                print(f" 数据记录控制指令:")
                 print(f"   目标车辆: {recording_info['vehicle_id']}")
                 print(f"   记录状态: {recording_info['status_name']} ({recording_info['recording_status']})")
                 
                 # 模拟执行指令
-                print(f"✅ 车辆{recording_info['vehicle_id']}数据记录{recording_info['status_name']}")
+                print(f" 车辆{recording_info['vehicle_id']}数据记录{recording_info['status_name']}")
                 
         elif message_type == SEND_MESSAGE_TYPES['TAXI_ORDER']:
             # 解析出租车订单指令
             taxi_info = parse_taxi_order_message(data_domain)
             if taxi_info:
-                print(f"🚕 出租车订单:")
+                print(f"出租车订单:")
                 print(f"   目标车辆: {taxi_info['vehicle_id']}")
                 print(f"   起点: ({taxi_info['start_x']:.3f}, {taxi_info['start_y']:.3f})")
                 print(f"   终点: ({taxi_info['end_x']:.3f}, {taxi_info['end_y']:.3f})")
                 
                 # 模拟接单处理
-                print(f"✅ 车辆{self.vehicle_id}收到出租车订单，目标车辆: {taxi_info['vehicle_id']}")
+                print(f" 车辆{self.vehicle_id}收到出租车订单，目标车辆: {taxi_info['vehicle_id']}")
                 
         elif message_type == SEND_MESSAGE_TYPES['AVP_PARKING']:
             # 解析AVP泊车指令
             parking_info = parse_avp_parking_message(data_domain)
             if parking_info:
-                print(f"🅿️ AVP自主代客泊车指令:")
+                print(f" AVP自主代客泊车指令:")
                 print(f"   目标车辆: {parking_info['vehicle_id']}")
                 print(f"   停车位: {parking_info['parking_spot']}号车位")
                 
                 # 模拟执行泊车
                 if parking_info['vehicle_id'] == self.vehicle_id:
-                    print(f"✅ 车辆{self.vehicle_id}开始执行AVP泊车，目标车位: {parking_info['parking_spot']}号")
+                    print(f" 车辆{self.vehicle_id}开始执行AVP泊车，目标车位: {parking_info['parking_spot']}号")
                 else:
-                    print(f"⚠️ 泊车指令目标车辆({parking_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
+                    print(f" 泊车指令目标车辆({parking_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
                     
         elif message_type == SEND_MESSAGE_TYPES['AVP_PICKUP']:
             # 解析AVP取车指令
             pickup_info = parse_avp_pickup_message(data_domain)
             if pickup_info:
-                print(f"🚗 AVP取车指令:")
+                print(f" AVP取车指令:")
                 print(f"   目标车辆: {pickup_info['vehicle_id']}")
                 
                 # 模拟执行取车
                 if pickup_info['vehicle_id'] == self.vehicle_id:
-                    print(f"✅ 车辆{self.vehicle_id}开始执行AVP取车操作")
+                    print(f" 车辆{self.vehicle_id}开始执行AVP取车操作")
                 else:
-                    print(f"⚠️ 取车指令目标车辆({pickup_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
+                    print(f" 取车指令目标车辆({pickup_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
                     
         elif message_type == SEND_MESSAGE_TYPES['VEHICLE_FUNCTION_SETTING']:
             # 解析车辆功能设置指令
@@ -707,9 +706,9 @@ class TestClient:
                 
                 # 模拟执行功能设置
                 if function_info['vehicle_id'] == self.vehicle_id:
-                    print(f"✅ 车辆{self.vehicle_id}执行功能设置: {function_info['function_name']} -> {function_info['status_name']}")
+                    print(f" 车辆{self.vehicle_id}执行功能设置: {function_info['function_name']} -> {function_info['status_name']}")
                 else:
-                    print(f"⚠️ 功能设置指令目标车辆({function_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
+                    print(f" 功能设置指令目标车辆({function_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
                     
         elif message_type == SEND_MESSAGE_TYPES['VEHICLE_PATH_DISPLAY']:
             # 解析车辆路径显示控制指令
@@ -722,28 +721,28 @@ class TestClient:
                 # 模拟执行路径显示控制
                 if path_info['vehicle_id'] == self.vehicle_id:
                     if path_info['display_path'] == 1:
-                        print(f"✅ 车辆{self.vehicle_id}开始发送路径数据到服务端")
+                        print(f" 车辆{self.vehicle_id}开始发送路径数据到服务端")
                     else:
-                        print(f"✅ 车辆{self.vehicle_id}停止发送路径数据到服务端")
+                        print(f" 车辆{self.vehicle_id}停止发送路径数据到服务端")
                 else:
-                    print(f"⚠️ 路径显示指令目标车辆({path_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
+                    print(f"路径显示指令目标车辆({path_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
                     
         elif message_type == SEND_MESSAGE_TYPES['CONSTRUCTION_MARKER']:
             # 解析施工标记指令
             marker_info = parse_construction_marker_message(data_domain)
             if marker_info:
-                print(f"🚧 施工标记指令:")
+                print(f"施工标记指令:")
                 print(f"   标记ID: {marker_info['marker_id']}")
                 print(f"   位置坐标: ({marker_info['position_x']:.3f}, {marker_info['position_y']:.3f})")
                 print(f"   动作: {marker_info['action_name']} ({marker_info['action']})")
                 
                 # 模拟执行施工标记操作
                 if marker_info['action'] == 1:
-                    print(f"✅ 添加施工标记 ID={marker_info['marker_id']} 到位置({marker_info['position_x']:.3f}, {marker_info['position_y']:.3f})")
+                    print(f" 添加施工标记 ID={marker_info['marker_id']} 到位置({marker_info['position_x']:.3f}, {marker_info['position_y']:.3f})")
                 else:
-                    print(f"✅ 取消施工标记 ID={marker_info['marker_id']} 从位置({marker_info['position_x']:.3f}, {marker_info['position_y']:.3f})")
+                    print(f" 取消施工标记 ID={marker_info['marker_id']} 从位置({marker_info['position_x']:.3f}, {marker_info['position_y']:.3f})")
         else:
-            print(f"❓ 未知消息类型: 0x{message_type:04X}")
+            print(f"   未知消息类型: 0x{message_type:04X}")
             print(f"   数据: {data_domain.hex()}")
         
         print()  # 添加空行便于阅读
@@ -757,10 +756,10 @@ def main():
         try:
             vehicle_id = int(sys.argv[1])
         except ValueError:
-            print("❌ 车辆ID必须是数字")
+            print(" 车辆ID必须是数字")
             sys.exit(1)
     
-    print(f"🚗 Socket客户端测试程序 - 车辆ID: {vehicle_id}")
+    print(f" Socket客户端测试程序 - 车辆ID: {vehicle_id}")
     print("=" * 50)
     
     # 创建测试客户端
@@ -780,11 +779,11 @@ def main():
         # 监听服务器命令
         client.listen_for_commands()
         
-        print(f"\n📋 测试客户端已启动 (车辆ID: {vehicle_id})，按 Ctrl+C 停止")
+        print(f"\n 测试客户端已启动 (车辆ID: {vehicle_id})，按 Ctrl+C 停止")
         print("正在发送以下类型的数据:")
         print("- 心跳包 (每10秒)")
         print("- 车辆信息协议 (每2秒)")
-        print("\n📊 车辆信息协议数据域 (54字节):")
+        print("\n 车辆信息协议数据域 (54字节):")
         print("- 车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 朝向(8) + 电量(8)")
         print("- 档位(1) + 方向盘转角(8) + 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1)")
         
@@ -793,7 +792,7 @@ def main():
             time.sleep(1)
             
     except KeyboardInterrupt:
-        print("\n🛑 用户中断，正在退出...")
+        print("\n用户中断，正在退出...")
     finally:
         client.disconnect()
 

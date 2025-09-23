@@ -442,14 +442,14 @@ div.car-control-floating .form-label {
 }
 
 .vehicle-time-chart-floating {
-    top: 525px; /* 大幅向下移动避免重叠 */
+    top: 490px; /* 大幅向下移动避免重叠 */
     left: 20px;
     width: 220px; /* 与上面元素宽度一致 */
     padding: 0; /* 图表组件自己有padding */
 }
 
 .driving-behavior-chart-floating {
-    top: 700px; /* 大幅向下移动避免重叠 */
+    top: 665px; /* 大幅向下移动避免重叠 */
     left: 20px;
     width: 220px; /* 与上面元素宽度一致 */
     padding: 0; /* 图表组件自己有padding */

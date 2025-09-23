@@ -63,9 +63,9 @@ export const NAV_STATUS_TEXTS = {
 export const VEHICLE_CONTROL_PROTOCOL = {
     VEHICLE_ID_OFFSET: 0,            // 车辆编号偏移 (1字节)
     CONTROL_COMMAND_OFFSET: 1,       // 控制指令偏移 (1字节)
-    POSITION_X_OFFSET: 2,            // 位置X偏移 (8字节, DOUBLE) - 仅当控制指令=5时存在
-    POSITION_Y_OFFSET: 10,           // 位置Y偏移 (8字节, DOUBLE) - 仅当控制指令=5时存在
-    ORIENTATION_OFFSET: 18,          // 朝向偏移 (8字节, DOUBLE) - 仅当控制指令=5时存在
+    POSITION_X_OFFSET: 2,            // 位置X偏移 (8字节, DOUBLE) - 仅当控制指令=4时存在
+    POSITION_Y_OFFSET: 10,           // 位置Y偏移 (8字节, DOUBLE) - 仅当控制指令=4时存在
+    ORIENTATION_OFFSET: 18,          // 朝向偏移 (8字节, DOUBLE) - 仅当控制指令=4时存在
     
     // 数据大小定义
     BASE_SIZE: 2,                    // 基础大小：车辆编号(1) + 控制指令(1) = 2字节
@@ -77,16 +77,14 @@ export const VEHICLE_CONTROL_PROTOCOL = {
     COMMAND_START: 1,                // 启动
     COMMAND_STOP: 2,                 // 停止
     COMMAND_EMERGENCY_BRAKE: 3,      // 紧急制动
-    COMMAND_EMPTY_MODE: 4,           // 切换空载模式
-    COMMAND_INIT_POSE: 5,            // 初始化位姿（需要位置数据）
+    COMMAND_INIT_POSE: 4,            // 初始化位姿（需要位置数据）
     
     // 指令名称映射
     COMMAND_NAMES: {
         1: '启动',
         2: '停止',
         3: '紧急制动',
-        4: '空载模式',
-        5: '初始化位姿'
+        4: '初始化位姿'
     }
 };
 

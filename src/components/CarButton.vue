@@ -10,9 +10,6 @@
                 <fa icon="stop" /> 停止车辆
             </button>
 
-            <button class="btn control-btn btn-outline" @click="emptyMode()">
-                <fa icon="car" /> 空载模式
-            </button>
             <button class="btn control-btn btn-secondary" @click="initPose()">
                 <fa icon="refresh" /> 初始化位姿
             </button>
@@ -192,25 +189,6 @@ const stopCar = async () => {
     }
 };
 
-const emptyMode = async () => {
-    const vehicleId = currentCarId.value;
-    if (!vehicleId) {
-        showMsg(false, '请先选择车辆');
-        return;
-    }
-
-    if (!checkVehicleOnline(vehicleId)) {
-        return;
-    }
-
-    try {
-        await socketManager.setEmptyMode(vehicleId);
-        showMsg(true, `车辆${vehicleId}空载模式指令发送成功`);
-    } catch (error) {
-        console.error('切换空载模式失败:', error);
-        showMsg(false, '切换空载模式失败: ' + error.message);
-    }
-};
 
 const initPose = async () => {
     const vehicleId = currentCarId.value;

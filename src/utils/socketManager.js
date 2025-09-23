@@ -432,15 +432,15 @@ class SocketManager {
     /**
      * 发送车辆控制指令
      * @param {number} vehicleId - 车辆ID
-     * @param {number} command - 控制指令 (1:启动，2:停止，3:紧急制动，4:空载模式，5:初始化位姿)
-     * @param {Object} positionData - 位置数据 (仅当指令为5时需要) {x: number, y: number, orientation: number}
+     * @param {number} command - 控制指令 (1:启动，2:停止，3:紧急制动，4:初始化位姿)
+     * @param {Object} positionData - 位置数据 (仅当指令为4时需要) {x: number, y: number, orientation: number}
      */
     async sendVehicleControl(vehicleId, command, positionData = null) {
         try {
             socketLogger.debug(`sendVehicleControl - 车辆: ${vehicleId}, 指令: ${command}`);
             
             // 验证指令
-            if (command < 1 || command > 5) {
+            if (command < 1 || command > 4) {
                 throw new Error(`无效的控制指令: ${command}`);
             }
 
@@ -526,12 +526,6 @@ class SocketManager {
         return await this.sendVehicleControl(vehicleId, VEHICLE_CONTROL_PROTOCOL.COMMAND_EMERGENCY_BRAKE);
     }
 
-    /**
-     * 便捷方法：切换空载模式
-     */
-    async setEmptyMode(vehicleId) {
-        return await this.sendVehicleControl(vehicleId, VEHICLE_CONTROL_PROTOCOL.COMMAND_EMPTY_MODE);
-    }
 
     /**
      * 便捷方法：初始化位姿

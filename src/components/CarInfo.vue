@@ -4,8 +4,8 @@
             <fa icon="bars-staggered" /> 车辆参数
         </label>
         
-        <!-- 普通模式的车辆参数布局 -->
-        <div class="info-grid" v-show="!parallelDrivingMode">
+        <!-- 车辆参数布局 -->
+        <div class="info-grid">
             <Dashboard :speedValue="speedValue" :hasSpeed="hasSpeed" />
             
             <div class="right-column">
@@ -58,52 +58,12 @@
             </div>
         </div>
 
-        <!-- 平行驾驶模式的车辆参数布局 -->
-        <div class="info-grid" v-show="parallelDrivingMode">
-            <Dashboard :speedValue="speedValue" :hasSpeed="hasSpeed" />
-            
-            <div class="steering-wheel-container">
-                <SteeringWheel :angle="steeringAngle" />
-            </div>
-            
-            <div class="info-card">
-                <div class="info-title">
-                    <fa icon="gear" />
-                    档位
-                </div>
-                <div :class="['info-value', 'gear-indicator']">{{ currentGear }}</div>
-            </div>
-            <div class="info-card">
-                <div class="info-title">
-                    <fa icon="battery-three-quarters" />
-                    电量
-                </div>
-                <div
-                    :class="[
-                        'info-value',
-                        { 'info-value_low': batteryValue < 20 },
-                    ]"
-                >
-                    {{ batteryValue }}%
-                </div>
-                <div class="battery-container">
-                    <div
-                        :class="[
-                            'battery-level',
-                            { 'battery-level_low': batteryValue < 20 },
-                        ]"
-                        :style="{ '--battery-level': batteryValue + '%' }"
-                    ></div>
-                </div>
-            </div>
-        </div>
     </div>
 </template>
 
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import Dashboard from '@/components/Dashboard.vue';
-import SteeringWheel from '@/components/SteeringWheel.vue';
 
 const props = defineProps({
     carInfo: {
@@ -124,10 +84,7 @@ const navStatus = ref({
     text: '未导航'
 });
 
-// 平行驾驶模式相关数据
-const parallelDrivingMode = ref(false);
-const steeringAngle = ref(0); // 方向盘转角 (-360 到 360 度)
-const currentGear = ref('P'); // 当前档位 P/R/N/D
+// 移除平行驾驶模式相关数据
 
 // 用于确定是否显示该车辆的信息
 const currentVehicleId = ref(null);
@@ -198,24 +155,7 @@ const handleVehicleInfoUpdate = (event) => {
         hasSpeed.value = true;
         isOnline.value = true;
         
-        // 更新平行驾驶相关参数（若存在）
-        if (vehicleInfo.steeringAngle != null) {
-            const angle = Number(vehicleInfo.steeringAngle);
-            // 保留一位小数
-            steeringAngle.value = Number.isFinite(angle) ? Number(angle.toFixed(1)) : 0;
-        }
-        if (vehicleInfo.gear != null) {
-            const toGearLabel = (code) => {
-                switch (code) {
-                    case 1: return 'P';
-                    case 2: return 'R';
-                    case 3: return 'N';
-                    case 4: return 'D';
-                    default: return 'P';
-                }
-            };
-            currentGear.value = toGearLabel(vehicleInfo.gear);
-        }
+        // 移除平行驾驶相关参数处理
         
         console.debug(`更新车辆${props.carInfo}信息:`, vehicleInfo);
     }
@@ -257,19 +197,14 @@ watch(() => props.carInfo, (newVehicleId, oldVehicleId) => {
     }
 }, { immediate: true });
 
-// 处理平行驾驶模式切换事件
-const handleParallelDrivingModeChange = (event) => {
-    parallelDrivingMode.value = event.detail.mode;
-    console.debug(`🎮 CarInfo平行驾驶模式切换: ${parallelDrivingMode.value ? '开启' : '关闭'}`);
-};
+// 移除平行驾驶模式事件处理函数
 
 onMounted(() => {
     // 监听车辆信息更新事件
     window.addEventListener('vehicle-info-update', handleVehicleInfoUpdate);
     // 监听车辆连接状态变化事件
     window.addEventListener('vehicle-connection-status', handleVehicleConnectionStatus);
-    // 监听平行驾驶模式切换事件
-    window.addEventListener('parallel-driving-mode-change', handleParallelDrivingModeChange);
+    // 移除平行驾驶模式监听器
     
     // 初始检查车辆状态
     checkAndUpdateVehicleStatus();
@@ -278,7 +213,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
     window.removeEventListener('vehicle-info-update', handleVehicleInfoUpdate);
     window.removeEventListener('vehicle-connection-status', handleVehicleConnectionStatus);
-    window.removeEventListener('parallel-driving-mode-change', handleParallelDrivingModeChange);
 });
 </script>
 
@@ -295,21 +229,7 @@ onBeforeUnmount(() => {
     gap: 8px;
 }
 
-/* 方向盘容器样式 */
-.steering-wheel-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100px;
-}
-
-/* 档位指示器样式 */
-.gear-indicator {
-    font-size: 2rem !important;
-    font-weight: bold;
-    color: #00ff88 !important;
-    text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
-}
+/* 移除平行驾驶模式相关样式 */
 
 .info-card {
     min-width: 120px;

@@ -403,7 +403,7 @@ const cancelConstructionPoint = () => {
 .car-control-floating {
     position: absolute;
     pointer-events: auto;
-    top: 140px;
+    top: 170px;
     left: 20px;
     width: 220px;
     z-index: 1000; /* 提高层级确保下拉列表显示在最上层 */
@@ -442,14 +442,14 @@ div.car-control-floating .form-label {
 }
 
 .vehicle-time-chart-floating {
-    top: 490px; /* 大幅向下移动避免重叠 */
+    top: 520px; /* 大幅向下移动避免重叠 */
     left: 20px;
     width: 220px; /* 与上面元素宽度一致 */
     padding: 0; /* 图表组件自己有padding */
 }
 
 .driving-behavior-chart-floating {
-    top: 665px; /* 大幅向下移动避免重叠 */
+    top: 695px; /* 大幅向下移动避免重叠 */
     left: 20px;
     width: 220px; /* 与上面元素宽度一致 */
     padding: 0; /* 图表组件自己有padding */

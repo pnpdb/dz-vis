@@ -1,30 +1,16 @@
 <template>
     <!-- 顶部导航栏 -->
     <header class="header" style="overflow: visible !important;">
-        <div class="logo">
-            <div class="logo-icon">
-                <fa icon="car" />
-            </div>
-            <div class="logo-text">DZ CAR MANAGER</div>
+        <!-- 左侧占位区域 -->
+        <div class="placeholder-section left-placeholder"></div>
+
+        <!-- 标题区域 - 居中 -->
+        <div class="title-section">
+            <div class="title-text">渡众智能沙盘云控平台</div>
         </div>
 
-        <div class="nav-tabs">
-            <TransitionGroup name="fade">
-                <button
-                    v-for="item in tabs"
-                    :key="item.id"
-                    :class="{
-                        active: selectedTab === item.path,
-                        'nav-btn': true,
-                    }"
-                    @click="selected(item)"
-                >
-                    <fa :icon="item.icon" /> {{ item.name }}
-                </button>
-            </TransitionGroup>
-        </div>
-
-        <div class="user-section">
+        <!-- 用户操作区域 - 右侧 -->
+        <div class="user-section right-section">
             <el-popover
                 class="center"
                 title="文件查看器"
@@ -64,6 +50,25 @@
                 </template>
             </el-popover>
         </div>
+    </header>
+
+    <!-- 菜单导航栏 -->
+    <nav class="nav-section" style="display: flex !important; visibility: visible !important; opacity: 1 !important;">
+        <div class="nav-tabs" style="display: flex !important; visibility: visible !important;">
+            <button
+                v-for="item in tabs"
+                :key="item.id"
+                :class="{
+                    active: selectedTab === item.path,
+                    'nav-btn': true,
+                }"
+                @click="selected(item)"
+                style="display: flex !important; visibility: visible !important;"
+            >
+                <fa :icon="item.icon" /> {{ item.name }}
+            </button>
+        </div>
+    </nav>
         
         <!-- 登录模态框 -->
         <el-dialog
@@ -462,7 +467,6 @@
                 </div>
             </template>
         </el-dialog>
-    </header>
 </template>
 
 <script setup>
@@ -1023,150 +1027,234 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
-/* 顶部导航栏 */
-
+/* 顶部标题栏 */
 .header {
-    margin-bottom: 0;
-    background: transparent;
-    border-radius: 0;
-    box-shadow: none;
-    padding: 15px 30px;
-    overflow: visible !important; /* 确保对话框不被裁剪 */
+    position: relative;
+    z-index: 99;
+    height: 60px;
+    width: 100%;
+    background: url('/Image/header2.png') no-repeat center;
+    background-size: cover;
+    color: #fff;
+    text-align: center;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    position: relative;
+    padding: 0 40px;
+    margin-bottom: 0;
+    overflow: visible !important;
     border: none;
-    backdrop-filter: none;
-    flex-shrink: 0;
+    box-shadow: none;
     
     /* 启用窗口拖动 */
     -webkit-app-region: drag;
 }
 
-.header::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
+/* 菜单导航栏 */
+.nav-section {
     width: 100%;
-    height: 2px;
-    background: linear-gradient(
-        90deg,
-        transparent,
-        var(--primary),
-        transparent
-    );
+    padding: 10px 0;
+    background: rgba(0, 15, 30, 0.6);
+    backdrop-filter: blur(10px);
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+    margin-top: -2px;
+    border-bottom: 1px solid rgba(0, 240, 255, 0.3);
+    min-height: 60px;
+    z-index: 900;
+    position: relative;
+    
+    /* 启用窗口拖动 */
+    -webkit-app-region: drag;
 }
 
-.logo {
+/* 标题区域样式 */
+.title-section {
     display: flex;
     align-items: center;
-    gap: 15px;
-    cursor: pointer;
+    justify-content: center;
+    flex: 1;
     
     /* 禁用拖动以允许点击 */
     -webkit-app-region: no-drag;
 }
 
-.logo-icon {
-    width: 42px;
-    height: 42px;
-    background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--dark-bg);
-    font-size: 24px;
-    box-shadow: 0 0 15px rgba(0, 240, 255, 0.5);
+.title-text {
+    line-height: 1.2;
+    font-size: 25px;
+    letter-spacing: 2px;
+    font-weight: 600;
+    color: #fff;
+    text-shadow: 2px 2px 4px rgba(0, 240, 255, 0.8);
+    white-space: nowrap;
+    font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+    transform: translateY(8px);
 }
 
-.logo-text {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 22px;
-    font-weight: 800;
-    background: linear-gradient(90deg, var(--primary), var(--primary-dark));
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    text-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+/* 右侧用户区域样式 */
+.right-section {
+    justify-content: flex-end;
+}
+
+/* 左侧占位区域 */
+.left-placeholder {
+    width: 150px;
+    flex-shrink: 0;
+}
+
+/* 占位区域 */
+.placeholder-section {
+    width: 150px;
+    flex-shrink: 0;
+}
+
+/* 响应式设计 */
+@media (max-width: 1400px) {
+    .title-text {
+        font-size: 22px;
+        letter-spacing: 1.5px;
+    }
+    
+    .logo-img {
+        height: 36px;
+        left: -45px;
+    }
+    
+    .nav-btn {
+        width: 120px;
+        height: 36px;
+        padding: 8px 20px;
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 1200px) {
+    .title-text {
+        font-size: 20px;
+        letter-spacing: 1px;
+    }
+    
+    .logo-img {
+        height: 32px;
+        left: -40px;
+    }
+    
+    .nav-btn {
+        width: 100px;
+        padding: 8px 15px;
+        font-size: 13px;
+    }
+}
+
+@media (max-width: 900px) {
+    .title-text {
+        font-size: 18px;
+    }
+    
+    .logo-img {
+        height: 28px;
+        left: -35px;
+    }
+    
+    .nav-btn {
+        width: 80px;
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+    
+    .notification-btn,
+    .user-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 16px;
+    }
 }
 
 .nav-tabs {
-    display: flex;
-    gap: 5px;
-    background: var(--darker-card);
-    padding: 6px;
-    border-radius: 12px;
-    border: 1px solid var(--dark-border);
+    display: flex !important;
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+    min-height: 40px;
+    width: 100%;
     
     /* 禁用拖动以允许点击 */
     -webkit-app-region: no-drag;
 }
 
 .nav-btn {
-    padding: 10px 24px;
-    border-radius: 10px;
-    background: transparent;
-    border: none;
-    font-weight: 600;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    position: relative;
-    overflow: hidden;
-    user-select: none;
-    transform: translateZ(0);
-    will-change: transform;
+    padding: 12px 24px !important;
+    width: 140px !important;
+    height: 40px !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: #fff !important;
+    cursor: pointer !important;
+    transition: all 0.2s linear !important;
+    user-select: none !important;
+    border: 1px solid rgba(0, 240, 255, 0.4) !important;
+    background: rgba(0, 15, 30, 0.8) !important;
+    border-radius: 8px !important;
+    margin: 0 4px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    position: relative !important;
+    text-shadow: 0px 0px 3px rgba(0, 240, 255, 0.8) !important;
+    backdrop-filter: blur(8px) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+    z-index: 1000 !important;
+}
+
+/* 强制覆盖图标颜色 */
+.nav-btn svg {
+    color: #fff !important;
+}
+
+.nav-btn:hover svg {
+    color: #fff !important;
 }
 
 .nav-btn:hover {
-    color: white;
-    transform: translateY(-2px) scale(1.02);
-}
-
-.nav-btn::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
-        135deg,
-        var(--primary) 0%,
-        var(--primary-dark) 100%
-    );
-    opacity: 0;
-    transition: var(--transition);
-    z-index: -1;
-}
-
-.nav-btn:hover::before {
-    opacity: 0.2;
+    background: rgba(0, 240, 255, 0.2) !important;
+    border-color: rgba(0, 240, 255, 0.6) !important;
+    text-shadow: 0px 0px 4px rgba(0, 240, 255, 1) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 12px rgba(0, 240, 255, 0.2) !important;
 }
 
 .nav-btn.active {
-    background: linear-gradient(
-        135deg,
-        var(--primary) 0%,
-        var(--primary-dark) 100%
-    );
-    color: var(--dark-bg);
-    box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+    background: linear-gradient(135deg, rgba(0, 240, 255, 0.4), rgba(0, 200, 255, 0.3)) !important;
+    border-color: rgba(0, 240, 255, 1) !important;
+    text-shadow: 0px 0px 5px rgba(0, 240, 255, 1) !important;
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.4) !important;
 }
 
 .nav-btn.active i {
-    color: var(--dark-bg);
+    color: #fff !important;
+}
+
+.nav-btn.active svg {
+    color: #fff !important;
+}
+
+/* Transition动画 */
+.fade-enter-active, .fade-leave-active {
+    transition: opacity 0.3s ease;
+}
+
+.fade-enter-from, .fade-leave-to {
+    opacity: 0;
 }
 
 .user-section {
     display: flex;
     align-items: center;
     gap: 15px;
+    width: 150px;
+    flex-shrink: 0;
     
     /* 禁用拖动以允许点击 */
     -webkit-app-region: no-drag;

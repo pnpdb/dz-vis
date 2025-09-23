@@ -365,20 +365,17 @@ onBeforeUnmount(() => {
 /* 悬浮导航栏 */
 .floating-header {
     position: fixed;
-    top: 20px;
-    left: 20px;
-    right: 20px;
+    top: 0;
+    left: 0;
+    right: 0;
     z-index: 1000;
-    backdrop-filter: blur(20px);
-    background: rgba(0, 15, 30, 0.8);
-    border: 1px solid rgba(0, 240, 255, 0.3);
-    border-radius: 20px;
-    box-shadow: 
-        0 8px 32px rgba(0, 0, 0, 0.5),
-        0 0 20px rgba(0, 240, 255, 0.2),
-        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: none;
     margin: 0;
-    animation: headerFloat 6s ease-in-out infinite;
+    padding: 0;
 }
 
 @keyframes headerFloat {
@@ -408,7 +405,7 @@ onBeforeUnmount(() => {
 /* 悬浮控制面板 */
 .floating-panels {
     position: fixed;
-    top: 120px;
+    top: 150px;
     bottom: 20px;
     right: 20px;
     z-index: 100;
@@ -477,10 +474,10 @@ onBeforeUnmount(() => {
     }
 }
 
-.top-left { top: 120px; left: 20px; }
-.top-right { top: 120px; right: 450px; }
-.top-right-fps { top: 120px; right: 570px; } /* FPS显示在时间左侧 */
-.top-right-construction { top: 120px; right: 760px; } /* 施工标记列表在FPS左侧 */
+.top-left { top: 150px; left: 20px; }
+.top-right { top: 150px; right: 450px; }
+.top-right-fps { top: 150px; right: 570px; } /* FPS显示在时间左侧 */
+.top-right-construction { top: 150px; right: 760px; } /* 施工标记列表在FPS左侧 */
 .bottom-left { bottom: 20px; left: 20px; }
 .bottom-right { bottom: 20px; right: 450px; }
 

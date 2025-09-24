@@ -13,6 +13,7 @@ mod udp_video;
 
 use commands::*;
 use database::VehicleDatabase;
+use config::{get_app_config, get_port_config};
 use std::sync::Arc;
 
 /// 获取网络状态信息
@@ -192,6 +193,8 @@ pub fn run() {
             get_active_vehicle_connections,
             get_network_status,
             get_socket_server_status,
+            get_app_config,
+            get_port_config,
             get_traffic_light_settings,
             update_traffic_light_settings,
             broadcast_taxi_order,

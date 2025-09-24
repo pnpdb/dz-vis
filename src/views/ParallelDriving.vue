@@ -149,6 +149,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log'
 import { ElMessage } from 'element-plus'
+import { parseVehicleId, compareVehicleId } from '@/utils/vehicleTypes.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -157,17 +158,7 @@ const appTitle = ref('渡众智能沙盘云控平台')
 // 从路由参数获取车辆ID，确保类型一致性
 const currentVehicleId = ref(1)
 
-// 安全的车辆ID解析函数
-const parseVehicleId = (id) => {
-  if (typeof id === 'number') return id
-  if (typeof id === 'string') {
-    const parsed = parseInt(id, 10)
-    return isNaN(parsed) ? 1 : parsed
-  }
-  return 1
-}
-
-// 初始化车辆ID
+// 初始化车辆ID - 使用统一的解析函数
 currentVehicleId.value = parseVehicleId(route.query.vehicleId)
 
 // 仪表盘数据
@@ -246,12 +237,12 @@ const gearMap = {
 const handleVehicleInfoUpdate = (event) => {
   const vehicleInfo = event.detail
   
-  // 安全的车辆ID匹配（统一类型比较）
+  // 使用统一的车辆ID比较函数
   const targetId = currentVehicleId.value
-  const infoVehicleId = parseVehicleId(vehicleInfo.vehicleId)
-  const infoCarId = parseVehicleId(vehicleInfo.carId)
+  const matchesVehicleId = compareVehicleId(vehicleInfo.vehicleId, targetId)
+  const matchesCarId = compareVehicleId(vehicleInfo.carId, targetId)
   
-  if (infoVehicleId !== targetId && infoCarId !== targetId) {
+  if (!matchesVehicleId && !matchesCarId) {
     return
   }
   

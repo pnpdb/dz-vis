@@ -64,6 +64,7 @@
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import Dashboard from '@/components/Dashboard.vue';
+import { compareVehicleId, parseVehicleId } from '@/utils/vehicleTypes.js';
 
 const props = defineProps({
     carInfo: {
@@ -133,15 +134,10 @@ const handleSpeedValue = (value) => {
 const handleVehicleInfoUpdate = (event) => {
     const vehicleInfo = event.detail;
     
-    // 根据当前选择的车辆信息来匹配
-    // 支持多种匹配方式：数字、字符串、字母映射
-    const isCurrentVehicle = vehicleInfo.carId === props.carInfo || 
-                           vehicleInfo.vehicleId === props.carInfo ||
-                           vehicleInfo.carId == props.carInfo ||   // 松散比较
-                           vehicleInfo.vehicleId == props.carInfo || // 松散比较
-                           // 向后兼容：如果carInfo是字母，转换为数字ID
-                           (typeof props.carInfo === 'string' && 
-                            vehicleInfo.vehicleId === getVehicleIdFromLetter(props.carInfo));
+    // 使用统一的车辆ID比较函数
+    const matchesCarId = compareVehicleId(vehicleInfo.carId, props.carInfo);
+    const matchesVehicleId = compareVehicleId(vehicleInfo.vehicleId, props.carInfo);
+    const isCurrentVehicle = matchesCarId || matchesVehicleId;
     
     console.debug(`🎯 CarInfo匹配: 车辆${vehicleInfo.vehicleId} vs 当前${props.carInfo} = ${isCurrentVehicle}`);
     
@@ -161,11 +157,7 @@ const handleVehicleInfoUpdate = (event) => {
     }
 };
 
-// 向后兼容：字母ID转数字ID的映射
-const getVehicleIdFromLetter = (letter) => {
-    const letterMap = { 'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 5 };
-    return letterMap[letter.toUpperCase()] || null;
-};
+// 旧的辅助函数已移除，现在使用统一的vehicleTypes工具
 
 // 处理车辆连接状态变化事件
 const handleVehicleConnectionStatus = (event) => {

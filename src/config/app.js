@@ -32,7 +32,7 @@ const detectTauriEnvironment = () => {
 // 应用信息
 export const APP_CONFIG = {
     name: 'DZ Car Manager',
-    version: '0.1.0',
+    version: '1.100',
     description: '智能车辆管理系统',
     
     // 开发者信息
@@ -121,7 +121,7 @@ export const UI_CONFIG = {
     }
 };
 
-// 网络配置
+// 网络配置 - 将从Rust配置中动态获取
 export const NETWORK_CONFIG = {
     timeout: 10000, // 10秒
     retryCount: 3,
@@ -133,13 +133,91 @@ export const NETWORK_CONFIG = {
         timeout: 5000
     },
     
-    // Socket服务器配置
+    // Socket服务器配置 - 这些值将被Rust配置覆盖
     socket: {
-        defaultPort: 8888,
+        defaultPort: 8888, // 默认值，实际将从Rust获取
         heartbeatInterval: 10000, // 10秒
         connectionTimeout: 30000, // 30秒
         maxConnections: 100
     }
+};
+
+// 配置获取函数 - 从Rust后端获取统一配置
+let cachedConfig = null;
+
+export const getAppConfig = async () => {
+    if (cachedConfig) {
+        return cachedConfig;
+    }
+    
+    try {
+        // 检查是否在Tauri环境中
+        if (APP_CONFIG.isTauri) {
+            const { invoke } = await import('@tauri-apps/api/core');
+            const rustConfig = await invoke('get_app_config');
+            
+            // 合并配置，Rust配置优先
+            cachedConfig = {
+                ...APP_CONFIG,
+                ports: rustConfig.ports,
+                performance: {
+                    ...PERFORMANCE_CONFIG,
+                    ...rustConfig.performance
+                },
+                network: {
+                    ...NETWORK_CONFIG,
+                    timeout: rustConfig.network.timeout,
+                    retryCount: rustConfig.network.retry_count,
+                    retryDelay: rustConfig.network.retry_delay,
+                    socket: {
+                        ...NETWORK_CONFIG.socket,
+                        defaultPort: rustConfig.ports.socket_server,
+                        heartbeatInterval: rustConfig.network.heartbeat_interval
+                    }
+                }
+            };
+        } else {
+            // Web环境使用默认配置
+            cachedConfig = {
+                ...APP_CONFIG,
+                performance: PERFORMANCE_CONFIG,
+                network: NETWORK_CONFIG
+            };
+        }
+        
+        return cachedConfig;
+    } catch (error) {
+        console.warn('获取Rust配置失败，使用默认配置:', error);
+        
+        // 失败时使用默认配置
+        cachedConfig = {
+            ...APP_CONFIG,
+            performance: PERFORMANCE_CONFIG,
+            network: NETWORK_CONFIG
+        };
+        
+        return cachedConfig;
+    }
+};
+
+// 获取端口配置的快捷函数
+export const getPortConfig = async () => {
+    try {
+        if (APP_CONFIG.isTauri) {
+            const { invoke } = await import('@tauri-apps/api/core');
+            return await invoke('get_port_config');
+        }
+    } catch (error) {
+        console.warn('获取端口配置失败，使用默认配置:', error);
+    }
+    
+    // 返回默认端口配置
+    return {
+        socket_server: 8888,
+        udp_video_server: 8080,
+        video_stream_server: 9001,
+        hls_server: 9002
+    };
 };
 
 // 存储配置
@@ -169,8 +247,8 @@ export const LOG_CONFIG = {
         ERROR: 3
     },
     
-    // 当前日志级别
-    currentLevel: import.meta.env.DEV ? 0 : 2, // 开发环境DEBUG，生产环境WARN
+    // 初始日志级别（会被SQLite配置覆盖）
+    currentLevel: import.meta.env.DEV ? 0 : 2, // 开发环境DEBUG，生产环境WARN（仅作为初始值）
     
     // 日志格式
     format: {

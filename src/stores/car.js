@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { VehicleConnectionAPI } from '@/utils/vehicleAPI.js';
+import { normalizeVehicleList, parseVehicleId } from '@/utils/vehicleTypes.js';
 
 const filePath = localStorage.getItem('filePath') || '';
 
@@ -70,7 +71,7 @@ export const useCarStore = defineStore('car', {
     },
     actions: {
         changeCarId(id) {
-            this.selectedCarId = id;
+            this.selectedCarId = parseVehicleId(id);
         },
         
         // 从数据库加载车辆列表
@@ -79,29 +80,12 @@ export const useCarStore = defineStore('car', {
             try {
                 const result = await VehicleConnectionAPI.getAllConnections();
                 if (result.success) {
-                    // 转换数据库数据为store格式
-                    this.carList = result.data.map(connection => ({
-                        id: connection.vehicle_id,
-                        name: connection.name,
-                        value: connection.vehicle_id, // 保持兼容性
-                        vehicleId: connection.vehicle_id,
-                        ipAddress: connection.ip_address,
-                        port: connection.port,
-                        description: connection.description,
-                        isActive: connection.is_active,
-                        online: connection.is_active,
-                        // 默认属性
-                        position: { x: 0, y: 0 },
-                        angle: 0,
-                        speed: 0,
-                        batteryValue: 0,
-                        isNav: false,
-                        loop: 0,
-                    }));
+                    // 使用统一的车辆数据标准化函数
+                    this.carList = normalizeVehicleList(result.data);
                     
                     // 如果没有选中车辆且有车辆列表，选择第一个
                     if (!this.selectedCarId && this.carList.length > 0) {
-                        this.selectedCarId = this.carList[0].id;
+                        this.selectedCarId = this.carList[0].vehicleId;
                     }
                     
                     console.log('✅ Store加载车辆列表成功:', this.carList);

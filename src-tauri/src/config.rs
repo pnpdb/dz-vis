@@ -1,6 +1,8 @@
 // 应用配置模块
+use serde::{Deserialize, Serialize};
 
 /// 默认端口配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppPorts {
     /// Socket服务器端口（用于车辆通信）
     pub socket_server: u16,
@@ -67,15 +69,70 @@ impl AppPorts {
 }
 
 /// 全局应用配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     /// 端口配置
     pub ports: AppPorts,
+    /// 性能配置
+    pub performance: PerformanceConfig,
+    /// 网络配置  
+    pub network: NetworkConfig,
+}
+
+/// 性能配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PerformanceConfig {
+    /// 目标帧率
+    pub target_fps: u32,
+    /// 低帧率阈值
+    pub low_fps_threshold: u32,
+    /// 高帧率阈值
+    pub high_fps_threshold: u32,
+    /// 最大缓存大小（字节）
+    pub max_cache_size: u64,
+}
+
+/// 网络配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkConfig {
+    /// 连接超时时间（毫秒）
+    pub timeout: u32,
+    /// 重试次数
+    pub retry_count: u32,
+    /// 重试延迟（毫秒）
+    pub retry_delay: u32,
+    /// 心跳间隔（毫秒）
+    pub heartbeat_interval: u32,
+}
+
+impl Default for PerformanceConfig {
+    fn default() -> Self {
+        Self {
+            target_fps: 60,
+            low_fps_threshold: 20,
+            high_fps_threshold: 50,
+            max_cache_size: 100 * 1024 * 1024, // 100MB
+        }
+    }
+}
+
+impl Default for NetworkConfig {
+    fn default() -> Self {
+        Self {
+            timeout: 10000,
+            retry_count: 3,
+            retry_delay: 1000,
+            heartbeat_interval: 10000,
+        }
+    }
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
             ports: AppPorts::from_env(), // 优先从环境变量加载
+            performance: PerformanceConfig::default(),
+            network: NetworkConfig::default(),
         }
     }
 }
@@ -92,4 +149,16 @@ impl AppConfig {
             once_cell::sync::Lazy::new(|| AppConfig::new());
         &CONFIG
     }
+}
+
+// Tauri命令：获取应用配置
+#[tauri::command]
+pub fn get_app_config() -> AppConfig {
+    AppConfig::global().clone()
+}
+
+// Tauri命令：获取端口配置
+#[tauri::command] 
+pub fn get_port_config() -> AppPorts {
+    AppConfig::global().ports.clone()
 }

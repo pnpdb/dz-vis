@@ -40,6 +40,8 @@ import { ElMessage } from 'element-plus';
 import { useCarStore } from '@/stores/car.js';
 import { useRouter } from 'vue-router';
 import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log';
+import { debounce } from '@/utils/performance.js';
+import { videoProcessor } from '@/utils/videoProcessor.js';
 
 const carStore = useCarStore();
 const router = useRouter();
@@ -189,8 +191,8 @@ const checkVideoTimeout = () => {
     }, VIDEO_TIMEOUT);
 };
 
-// 处理接收到的视频帧
-const handleVideoFrame = (frame) => {
+// 处理接收到的视频帧 - 使用Rust优化处理
+const handleVideoFrame = async (frame) => {
     // 检查是否是当前选中的车辆
     if (frame.vehicle_id !== currentVehicleId.value) {
         return; // 不是当前车辆的视频，忽略
@@ -217,11 +219,27 @@ const handleVideoFrame = (frame) => {
         const binaryString = atob(frame.jpeg_data);
         const uint8Array = Uint8Array.from(binaryString, char => char.charCodeAt(0));
         
-        // 验证JPEG文件头
-        if (uint8Array.length >= 2 && uint8Array[0] === 0xFF && uint8Array[1] === 0xD8) {
-            // 创建Blob URL
-            const blob = new Blob([uint8Array], { type: 'image/jpeg' });
+        // 使用Rust后端验证和处理视频帧
+        const processingResult = await videoProcessor.processVideoFrame(
+            frame.vehicle_id, 
+            frame.jpeg_data, 
+            frame.frame_id
+        );
+        
+        if (processingResult.success && processingResult.frame) {
+            // 使用处理后的Base64数据创建Blob
+            const processedBase64 = processingResult.frame.jpeg_base64;
+            const processedBinary = atob(processedBase64);
+            const processedArray = Uint8Array.from(processedBinary, char => char.charCodeAt(0));
+            const blob = new Blob([processedArray], { type: 'image/jpeg' });
             const blobUrl = URL.createObjectURL(blob);
+            
+            // 记录性能信息（仅在开发模式下）
+            if (import.meta.env.DEV && processingResult.stats.total_time_us > 5000) {
+                console.debug(`🎥 视频帧处理 (车辆${frame.vehicle_id}): ` +
+                    `总耗时 ${(processingResult.stats.total_time_us / 1000).toFixed(2)}ms, ` +
+                    `帧大小 ${(processingResult.frame.raw_size / 1024).toFixed(1)}KB`);
+            }
             
             // 预加载避免闪烁
             if (videoImg.value) {
@@ -247,10 +265,15 @@ const handleVideoFrame = (frame) => {
                 }
                 videoSrc.value = blobUrl;
             }
+        } else {
+            // Rust处理失败，记录错误
+            try { plWarn(`Rust视频帧处理失败: ${processingResult.error}`).catch(() => {}); } catch (_) {}
+            return;
         }
     } catch (error) {
-        // 保持静默，但关键异常记录到插件日志
-        try { plWarn(`UDP视频帧处理异常: ${error}`).catch(() => {}); } catch (_) {}
+        // 处理异常，记录到插件日志
+        try { plError(`视频帧处理异常: ${error.message}`).catch(() => {}); } catch (_) {}
+        return;
     }
     
     lastFrameTime.value = Date.now();
@@ -288,8 +311,9 @@ watch(cameraOn, (newVal) => {
     }
 });
 
-// 监听车辆切换
-watch(currentVehicleId, (newVehicleId, oldVehicleId) => {
+// 监听车辆切换 - 添加防抖以避免频繁切换时的性能问题
+
+const debouncedVehicleSwitch = debounce((newVehicleId, oldVehicleId) => {
     if (newVehicleId !== oldVehicleId) {
         // 清除当前视频
         if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
@@ -306,7 +330,9 @@ watch(currentVehicleId, (newVehicleId, oldVehicleId) => {
             videoTimeoutTimer = null;
         }
     }
-});
+}, 200); // 200ms防抖
+
+watch(currentVehicleId, debouncedVehicleSwitch);
 
 onMounted(() => {
     // 组件挂载时如果摄像头已开启，启动接收器

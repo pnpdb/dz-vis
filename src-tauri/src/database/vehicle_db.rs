@@ -36,8 +36,17 @@ impl VehicleDatabase {
         
         log::debug!("📁 数据库路径: {}", database_url);
         
-        // 创建连接池，使用简化的配置以避免类型问题
-        let pool = SqlitePool::connect(&database_url).await?;
+        // 创建连接池，优化配置以提升性能和稳定性
+        let options = sqlx::sqlite::SqliteConnectOptions::new()
+            .filename(&db_path)
+            .create_if_missing(true)
+            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
+            .synchronous(sqlx::sqlite::SqliteSynchronous::Normal)
+            .busy_timeout(std::time::Duration::from_secs(30))
+            .pragma("cache_size", "10000")  // 10MB缓存
+            .pragma("temp_store", "memory"); // 临时表存储在内存中
+        
+        let pool = SqlitePool::connect_with(options).await?;
         
         let db = Self { pool };
         

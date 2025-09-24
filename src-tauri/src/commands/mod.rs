@@ -6,6 +6,7 @@ pub mod settings;
 pub mod vehicle;
 pub mod sandbox;
 pub mod media;
+pub mod video_processing;
 
 // 导出命令供 lib.rs 使用
 pub use system::{
@@ -39,4 +40,11 @@ pub use media::{
     start_rtsp_conversion, stop_rtsp_conversion, get_hls_url, start_hls_server,
     start_udp_video_server, stop_udp_video_server, get_udp_video_server_stats,
     get_media_server_ports
+};
+
+// 导出视频处理命令
+pub use video_processing::{
+    process_video_frame, quick_validate_jpeg_base64, get_vehicle_video_stats, 
+    get_all_video_stats, clear_vehicle_video_stats, cleanup_stale_video_stats,
+    get_video_processing_summary, batch_process_video_frames, reset_all_video_stats,
 };

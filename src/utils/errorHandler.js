@@ -79,13 +79,38 @@ export class ErrorHandler {
 }
 
 export function setupGlobalErrorHandling() {
+    // 处理未捕获的Promise rejection
     window.addEventListener('unhandledrejection', (event) => {
-        ErrorHandler.handle(event.reason, { type: 'unhandledrejection' });
+        ErrorHandler.handle(event.reason, { 
+            type: 'unhandledrejection',
+            url: window.location.href,
+            userAgent: navigator.userAgent
+        });
+        // 防止控制台显示未处理的rejection错误
+        event.preventDefault();
     });
 
+    // 处理未捕获的JavaScript错误
     window.addEventListener('error', (event) => {
-        ErrorHandler.handle(event.error, { type: 'uncaughtError' });
+        ErrorHandler.handle(event.error, { 
+            type: 'uncaughtError',
+            filename: event.filename,
+            lineno: event.lineno,
+            colno: event.colno,
+            url: window.location.href
+        });
     });
+
+    // 处理资源加载错误
+    window.addEventListener('error', (event) => {
+        if (event.target !== window) {
+            ErrorHandler.handle(new Error(`资源加载失败: ${event.target.src || event.target.href}`), {
+                type: 'resourceError',
+                element: event.target.tagName,
+                source: event.target.src || event.target.href
+            });
+        }
+    }, true);
 }
 
 export default ErrorHandler;

@@ -10,6 +10,7 @@ mod rtsp_converter;
 mod rtsp_stream;
 mod socket;
 mod udp_video;
+mod video_processing;
 
 use commands::*;
 use database::VehicleDatabase;
@@ -45,9 +46,6 @@ async fn get_network_status() -> Result<serde_json::Value, String> {
         })),
     }
 }
-
-/// 获取Socket服务器状态
-// Socket服务器状态命令已移动到 commands/vehicle.rs
 
 /// 判断是否为私有IP地址
 fn is_private_ip(ip: &str) -> bool {
@@ -226,7 +224,17 @@ pub fn run() {
             get_app_settings,
             update_app_settings,
             get_vehicle_server_ports,
-            get_media_server_ports
+            get_media_server_ports,
+            // 视频处理命令
+            process_video_frame,
+            quick_validate_jpeg_base64,
+            get_vehicle_video_stats,
+            get_all_video_stats,
+            clear_vehicle_video_stats,
+            cleanup_stale_video_stats,
+            get_video_processing_summary,
+            batch_process_video_frames,
+            reset_all_video_stats
         ])
         .setup(move |app| {
             info!("应用启动: {}", env!("CARGO_PKG_NAME"));

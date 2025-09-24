@@ -140,8 +140,11 @@ impl UdpVideoServer {
                     }
                 }
             }
-            Err(_) => {
-                // 忽略解析失败的包
+            Err(e) => {
+                // 记录解析失败的包，便于问题排查
+                log::debug!("UDP视频包解析失败: {:?}, 数据长度: {}", e, packet_data.len());
+                // 可选：添加统计计数器
+                // self.error_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             }
         }
     }

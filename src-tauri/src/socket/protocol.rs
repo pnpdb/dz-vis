@@ -220,11 +220,15 @@ pub fn build_message(message_type: u16, data: &[u8]) -> Vec<u8> {
     // 协议版本
     packet.push(VERSION);
     
-    // 时间戳 (小端序)
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis() as u64;
+    // 时间戳 (小端序) - 安全处理系统时间异常
+    let timestamp = match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(duration) => duration.as_millis() as u64,
+        Err(_) => {
+            // 系统时间异常时使用0作为默认值
+            log::warn!("系统时间异常，使用默认时间戳");
+            0
+        }
+    };
     packet.extend_from_slice(&timestamp.to_le_bytes());
     
     // 消息类型 (小端序)

@@ -150,6 +150,7 @@ import { listen } from '@tauri-apps/api/event'
 import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log'
 import { ElMessage } from 'element-plus'
 import { parseVehicleId, compareVehicleId } from '@/utils/vehicleTypes.js'
+import { videoProcessor } from '@/utils/videoProcessor.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -369,8 +370,8 @@ const stopVideoReceiver = () => {
   cameraConnected.value = false
 }
 
-// 处理接收到的视频帧
-const handleVideoFrame = (frame) => {
+// 处理接收到的视频帧 - 使用Rust优化处理
+const handleVideoFrame = async (frame) => {
   // 安全的车辆ID匹配
   const frameVehicleId = parseVehicleId(frame.vehicle_id)
   if (frameVehicleId !== currentVehicleId.value) {
@@ -383,18 +384,19 @@ const handleVideoFrame = (frame) => {
   }
   
   try {
-    // 验证Base64数据格式
-    if (!/^[A-Za-z0-9+/]+=*$/.test(frame.jpeg_data)) {
-      try { plWarn('UDP视频帧Base64校验失败').catch(() => {}) } catch (_) {}
-      return
-    }
+    // 使用Rust后端处理视频帧
+    const result = await videoProcessor.processVideoFrame(
+      frame.vehicle_id,
+      frame.jpeg_data,
+      frame.frame_id
+    )
     
-    // 更高效的Base64解码
-    const binaryString = atob(frame.jpeg_data)
-    const uint8Array = Uint8Array.from(binaryString, char => char.charCodeAt(0))
-    
-    // 验证JPEG文件头
-    if (uint8Array.length >= 2 && uint8Array[0] === 0xFF && uint8Array[1] === 0xD8) {
+    if (result.success && result.frame) {
+      // 使用处理后的Base64数据
+      const processedBase64 = result.frame.jpeg_base64
+      const binaryString = atob(processedBase64)
+      const uint8Array = Uint8Array.from(binaryString, char => char.charCodeAt(0))
+      
       // 创建Blob URL
       const blob = new Blob([uint8Array], { type: 'image/jpeg' })
       
@@ -410,9 +412,19 @@ const handleVideoFrame = (frame) => {
       
       // 重置超时检查
       checkVideoTimeout()
+      
+      // 记录性能信息（仅在开发模式下）
+      if (import.meta.env.DEV && result.stats.total_time_us > 5000) {
+        console.debug(`🎥 平行驾驶视频处理 (车辆${frame.vehicle_id}): ` +
+          `总耗时 ${(result.stats.total_time_us / 1000).toFixed(2)}ms, ` +
+          `帧大小 ${(result.frame.raw_size / 1024).toFixed(1)}KB`)
+      }
+    } else {
+      // Rust处理失败，记录错误
+      try { plWarn(`Rust视频帧处理失败: ${result.error}`).catch(() => {}) } catch (_) {}
     }
   } catch (error) {
-    try { plError(`处理UDP视频帧失败: ${error}`).catch(() => {}) } catch (_) {}
+    try { plError(`处理UDP视频帧失败: ${error.message}`).catch(() => {}) } catch (_) {}
   }
 }
 

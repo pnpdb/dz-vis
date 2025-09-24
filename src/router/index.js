@@ -7,26 +7,31 @@ const router = createRouter({
     {
       path: '/',
       name: 'Cars',
+      component: () => import('@/views/MainLayout.vue'),
       meta: { layout: 'main' }
     },
     {
       path: '/auto-drive',
       name: 'AutoDrive',
+      component: () => import('@/views/MainLayout.vue'),
       meta: { layout: 'main' }
     },
     {
       path: '/control',
       name: 'Control',
+      component: () => import('@/views/MainLayout.vue'),
       meta: { layout: 'main' }
     },
     {
       path: '/settings',
       name: 'Settings',
+      component: () => import('@/views/MainLayout.vue'),
       meta: { layout: 'main' }
     },
     {
       path: '/parallel-driving',
       name: 'ParallelDriving',
+      component: () => import('@/views/ParallelDriving.vue'),
       meta: { layout: 'parallel' }
     },
     {

@@ -27,8 +27,8 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 
 const props = defineProps({
     carInfo: {
-        type: String,
-        default: 'A'
+        type: [String, Number], // 支持字符串和数字类型
+        default: 1
     },
     online: {
         type: Boolean,

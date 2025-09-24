@@ -115,7 +115,7 @@
             <div class="instrument-title">
               位置地图
               <span class="connection-indicator" :class="{ connected: vehicleConnected, disconnected: !vehicleConnected }">
-                <fa :icon="vehicleConnected ? 'circle' : 'circle'" />
+                <fa :icon="vehicleConnected ? 'circle' : 'times-circle'" />
               </span>
             </div>
             <div class="map-coordinates-header">

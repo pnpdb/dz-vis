@@ -1,58 +1,59 @@
 <template>
-    <!-- 顶部导航栏 -->
-    <header class="header" style="overflow: visible !important;">
-        <!-- 左侧占位区域 -->
-        <div class="placeholder-section left-placeholder"></div>
+    <div class="header-wrapper">
+        <!-- 顶部导航栏 -->
+        <header class="header" style="overflow: visible !important;">
+            <!-- 左侧占位区域 -->
+            <div class="placeholder-section left-placeholder"></div>
 
-        <!-- 标题区域 - 居中 -->
-        <div class="title-section">
-            <div class="title-text">{{ appTitle }}</div>
-        </div>
+            <!-- 标题区域 - 居中 -->
+            <div class="title-section">
+                <div class="title-text">{{ appTitle }}</div>
+            </div>
 
-        <!-- 用户操作区域 - 右侧 -->
-        <div class="user-section right-section">
-            <el-popover
-                class="center"
-                title="文件查看器"
-                content="选择并查看本地PDF/Word/Excel"
-                placement="bottom-end"
-            >
-                <template #reference>
-                    <button class="notification-btn btn-ripple" @click="openLocalDocument">
-                        <fa icon="folder-open" />
-                    </button>
-                </template>
-            </el-popover>
-            
-            <el-popover
-                class="center"
-                title="系统设置"
-                content="点击打开系统设置"
-                placement="bottom-end"
-            >
-                <template #reference>
-                    <button class="notification-btn btn-ripple" @click="showLogin">
-                        <fa icon="cog" />
-                    </button>
-                </template>
-            </el-popover>
-            
-            <el-popover
-                class="center"
-                title="关于软件"
-                content="点击查看软件信息"
-                placement="bottom-end"
-            >
-                <template #reference>
-                    <button class="notification-btn btn-ripple" @click="showAbout">
-                        <fa icon="info-circle" />
-                    </button>
-                </template>
-            </el-popover>
-        </div>
-    </header>
+            <!-- 用户操作区域 - 右侧 -->
+            <div class="user-section right-section">
+                <el-popover
+                    class="center"
+                    title="文件查看器"
+                    content="选择并查看本地PDF/Word/Excel"
+                    placement="bottom-end"
+                >
+                    <template #reference>
+                        <button class="notification-btn btn-ripple" @click="openLocalDocument">
+                            <fa icon="folder-open" />
+                        </button>
+                    </template>
+                </el-popover>
+                
+                <el-popover
+                    class="center"
+                    title="系统设置"
+                    content="点击打开系统设置"
+                    placement="bottom-end"
+                >
+                    <template #reference>
+                        <button class="notification-btn btn-ripple" @click="showLogin">
+                            <fa icon="cog" />
+                        </button>
+                    </template>
+                </el-popover>
+                
+                <el-popover
+                    class="center"
+                    title="关于软件"
+                    content="点击查看软件信息"
+                    placement="bottom-end"
+                >
+                    <template #reference>
+                        <button class="notification-btn btn-ripple" @click="showAbout">
+                            <fa icon="info-circle" />
+                        </button>
+                    </template>
+                </el-popover>
+            </div>
+        </header>
 
-    <!-- 菜单导航栏 -->
+        <!-- 菜单导航栏 -->
     <nav class="nav-section" style="display: flex !important; visibility: visible !important; opacity: 1 !important;">
         <div class="nav-tabs" style="display: flex !important; visibility: visible !important;">
             <button
@@ -477,6 +478,7 @@
                 </div>
             </template>
         </el-dialog>
+    </div>
 </template>
 
 <script setup>
@@ -1054,6 +1056,12 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
+/* Header包装器 - 确保单根节点不影响布局 */
+.header-wrapper {
+    width: 100%;
+    height: auto;
+}
+
 /* 顶部标题栏 */
 .header {
     position: relative;

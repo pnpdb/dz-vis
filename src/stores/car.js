@@ -7,7 +7,7 @@ const filePath = localStorage.getItem('filePath') || '';
 export const useCarStore = defineStore('car', {
     state: () => ({
         filePath,
-        selectedCarId: null,
+        selectedCarId: '',
         carList: [], // 从数据库加载的车辆列表
         defaultCarList: [ // 默认车辆列表（备用）
             {

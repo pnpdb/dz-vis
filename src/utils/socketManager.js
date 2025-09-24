@@ -436,6 +436,57 @@ class SocketManager {
      * @param {Object} positionData - 位置数据 (仅当指令为4时需要) {x: number, y: number, orientation: number}
      */
     async sendVehicleControl(vehicleId, command, positionData = null) {
+        // 尝试使用新的协议处理器
+        try {
+            const protocolProcessor = (await import('./protocolProcessor.js')).default;
+            
+            // 映射命令类型
+            const commandMap = {
+                1: 'Start',
+                2: 'Stop', 
+                3: 'EmergencyBrake',
+                4: 'InitPose'
+            };
+            
+            const commandType = commandMap[command];
+            if (!commandType) {
+                throw new Error(`不支持的命令类型: ${command}`);
+            }
+            
+            // 使用Rust协议处理器构建数据
+            const protocolData = await protocolProcessor.buildVehicleControl(
+                vehicleId, 
+                commandType, 
+                positionData
+            );
+            
+            // 解码Base64数据为字节数组
+            const binaryString = atob(protocolData);
+            const dataArray = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                dataArray[i] = binaryString.charCodeAt(i);
+            }
+            
+            // 通过Rust发送消息给指定车辆
+            const result = await invoke('send_to_vehicle', {
+                vehicleId: vehicleId,
+                messageType: SEND_MESSAGE_TYPES.VEHICLE_CONTROL,
+                data: Array.from(dataArray)
+            });
+            
+            const commandName = VEHICLE_CONTROL_PROTOCOL.COMMAND_NAMES[command];
+            socketLogger.info(`🚀 车辆控制指令发送成功 (Rust协议处理器) - 车辆: ${vehicleId}, 指令: ${commandName}, 数据大小: ${dataArray.length}字节`);
+            
+            return result;
+        } catch (rustError) {
+            socketLogger.warn(`Rust协议处理器失败，回退到原生实现: ${rustError.message}`);
+            // 回退到原来的实现
+            return this.sendVehicleControlLegacy(vehicleId, command, positionData);
+        }
+    }
+    
+    // 保留原来的实现作为回退
+    async sendVehicleControlLegacy(vehicleId, command, positionData = null) {
         try {
             socketLogger.debug(`sendVehicleControl - 车辆: ${vehicleId}, 指令: ${command}`);
             

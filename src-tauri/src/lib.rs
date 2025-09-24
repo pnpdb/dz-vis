@@ -11,11 +11,13 @@ mod rtsp_stream;
 mod socket;
 mod udp_video;
 mod video_processing;
+mod protocol_processing;
 
 use commands::*;
 use database::VehicleDatabase;
 use config::{get_app_config, get_port_config};
 use std::sync::Arc;
+use commands::protocol_processing::ProtocolProcessorState;
 
 /// 获取网络状态信息
 #[tauri::command]
@@ -225,16 +227,27 @@ pub fn run() {
             update_app_settings,
             get_vehicle_server_ports,
             get_media_server_ports,
-            // 视频处理命令
-            process_video_frame,
-            quick_validate_jpeg_base64,
-            get_vehicle_video_stats,
-            get_all_video_stats,
-            clear_vehicle_video_stats,
-            cleanup_stale_video_stats,
-            get_video_processing_summary,
-            batch_process_video_frames,
-            reset_all_video_stats
+        // 视频处理命令
+        process_video_frame,
+        quick_validate_jpeg_base64,
+        get_vehicle_video_stats,
+        get_all_video_stats,
+        clear_vehicle_video_stats,
+        cleanup_stale_video_stats,
+        get_video_processing_summary,
+        batch_process_video_frames,
+        reset_all_video_stats,
+        
+        // 协议处理命令
+        parse_protocol,
+        validate_protocol,
+        batch_process_protocols,
+        build_protocol,
+        get_protocol_stats,
+        reset_protocol_stats,
+        configure_batch_processor,
+        get_supported_message_types,
+        quick_validate_protocol_format
         ])
         .setup(move |app| {
             info!("应用启动: {}", env!("CARGO_PKG_NAME"));
@@ -307,6 +320,10 @@ pub fn run() {
                     }
                 }
             });
+            
+            // 初始化协议处理器状态
+            app.manage(ProtocolProcessorState::new());
+            info!("✅ 协议处理器初始化成功");
 
             // UDP视频服务器自动启动已移至媒体命令模块，可通过API手动启动
             

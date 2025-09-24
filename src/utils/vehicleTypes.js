@@ -82,6 +82,7 @@ export const normalizeVehicleData = (vehicleData) => {
   // 返回标准化的车辆数据对象
   return {
     vehicleId, // 统一使用vehicleId字段名
+    id: vehicleId, // 向后兼容性，保持id字段
     name: vehicleData.name || `车辆${vehicleId}`,
     ipAddress: vehicleData.ipAddress || vehicleData.ip_address,
     port: vehicleData.port,
@@ -111,6 +112,7 @@ export const normalizeVehicleList = (vehicleList) => {
   return vehicleList
     .map(normalizeVehicleData)
     .filter(Boolean) // 过滤掉无效的数据
+    .filter(vehicle => vehicle && typeof vehicle.vehicleId === 'number' && vehicle.vehicleId > 0) // 确保有有效的vehicleId
     .sort((a, b) => a.vehicleId - b.vehicleId); // 按ID排序
 };
 

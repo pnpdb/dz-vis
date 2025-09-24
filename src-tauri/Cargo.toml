@@ -1,7 +1,7 @@
 [package]
 name = "dz-viz"
 version = "0.1.0"
-description = "智能车辆管理系统"
+description = "智能沙盘云控平台"
 authors = ["DZ Technologies"]
 license = "MIT"
 edition = "2021"

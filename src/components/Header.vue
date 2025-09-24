@@ -6,7 +6,7 @@
 
         <!-- 标题区域 - 居中 -->
         <div class="title-section">
-            <div class="title-text">渡众智能沙盘云控平台</div>
+            <div class="title-text">{{ appTitle }}</div>
         </div>
 
         <!-- 用户操作区域 - 右侧 -->
@@ -169,6 +169,16 @@
             <el-tabs v-model="activeSettingsTab" type="border-card">
                 <el-tab-pane label="基本设置" name="basic">
                     <el-form label-width="120px" label-position="left" class="basic-settings-form">
+                        
+                        <el-form-item label="应用标题">
+                            <el-input 
+                                v-model="settings.appTitle" 
+                                placeholder="请输入应用标题"
+                                maxlength="30"
+                                show-word-limit
+                                style="width: 300px;"
+                            />
+                        </el-form-item>
                         
                         <el-form-item label="开机启动">
                             <el-switch v-model="settings.autoStart" />
@@ -545,8 +555,12 @@ const settings = ref({
     autoStart: false,
     debugMode: false,
     logLevel: 'INFO',
-    cacheSize: 1000
+    cacheSize: 1000,
+    appTitle: '渡众智能沙盘云控平台'
 });
+
+// 动态标题
+const appTitle = ref('渡众智能沙盘云控平台');
 
 // 模型设置
 const modelSettings = ref({
@@ -828,7 +842,8 @@ const saveSettings = async () => {
             auto_start: settings.value.autoStart,
             debug_model: settings.value.debugMode,
             log_level: settings.value.logLevel,
-            cache_size: settings.value.cacheSize
+            cache_size: settings.value.cacheSize,
+            app_title: settings.value.appTitle
         };
         const res = await invoke('update_app_settings', { request: payload });
         console.log('✅ 应用设置已保存:', res);
@@ -840,6 +855,10 @@ const saveSettings = async () => {
         }
         // 同步调试模式 → 日志查看器开关
         window.dispatchEvent(new CustomEvent('toggle-log-viewer', { detail: { visible: !!settings.value.debugMode } }));
+        
+        // 更新动态标题
+        appTitle.value = settings.value.appTitle;
+        
         settingsDialogVisible.value = false;
     } catch (e) {
         console.error('❌ 保存应用设置失败:', e);
@@ -856,8 +875,9 @@ const resetSettings = () => {
         frameRate: 60,
         autoStart: false,
         debugMode: false,
-        logLevel: 'info',
-        cacheSize: 1000
+        logLevel: 'INFO',
+        cacheSize: 1000,
+        appTitle: '渡众智能沙盘云控平台'
     };
     
     // 重置模型设置
@@ -1012,6 +1032,11 @@ onMounted(() => {
             settings.value.debugMode = !!res.debug_model;
             settings.value.logLevel = (res.log_level || 'INFO').toUpperCase();
             settings.value.cacheSize = Number(res.cache_size ?? 1000);
+            settings.value.appTitle = res.app_title || '渡众智能沙盘云控平台';
+            
+            // 同步动态标题
+            appTitle.value = settings.value.appTitle;
+            
             // 根据读取到的设置初始化前端日志级别
             if (settings.value?.logLevel) {
                 logger.setLevel(String(settings.value.logLevel).toUpperCase());
@@ -1019,6 +1044,8 @@ onMounted(() => {
             }
             // 根据调试模式显示/隐藏日志查看器
             window.dispatchEvent(new CustomEvent('toggle-log-viewer', { detail: { visible: !!res.debug_model } }));
+            
+            console.info(`[App] 应用标题已加载: ${appTitle.value}`);
         }
     }).catch((e) => {
         console.warn('加载应用设置失败:', e);

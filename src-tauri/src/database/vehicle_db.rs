@@ -265,6 +265,7 @@ impl VehicleDatabase {
                 log_level TEXT NOT NULL DEFAULT 'INFO',
                 cache_size INTEGER NOT NULL DEFAULT 512,
                 auto_start BOOLEAN NOT NULL DEFAULT 0,
+                app_title TEXT NOT NULL DEFAULT '渡众智能沙盘云控平台',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
@@ -275,12 +276,16 @@ impl VehicleDatabase {
         let _ = sqlx::query("ALTER TABLE app_settings ADD COLUMN auto_start BOOLEAN NOT NULL DEFAULT 0")
             .execute(&self.pool).await; // 忽略错误，字段可能已存在
         
+        // 为现有表添加app_title字段（如果不存在）
+        let _ = sqlx::query("ALTER TABLE app_settings ADD COLUMN app_title TEXT NOT NULL DEFAULT '渡众智能沙盘云控平台'")
+            .execute(&self.pool).await; // 忽略错误，字段可能已存在
+        
         // 初始化默认应用设置
         let cnt: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM app_settings").fetch_one(&self.pool).await?;
         if cnt == 0 {
             let now = Utc::now().to_rfc3339();
             sqlx::query(
-                r#"INSERT INTO app_settings (debug_model, log_level, cache_size, auto_start, created_at, updated_at) VALUES (0, 'INFO', 512, 0, ?, ?)"#
+                r#"INSERT INTO app_settings (debug_model, log_level, cache_size, auto_start, app_title, created_at, updated_at) VALUES (0, 'INFO', 512, 0, '渡众智能沙盘云控平台', ?, ?)"#
             ).bind(&now).bind(&now).execute(&self.pool).await?;
         }
         
@@ -341,6 +346,7 @@ impl VehicleDatabase {
             log_level: row.get("log_level"),
             cache_size: row.get("cache_size"),
             auto_start: row.get::<Option<i64>, _>("auto_start").unwrap_or(0) != 0,
+            app_title: row.get::<Option<String>, _>("app_title").unwrap_or("渡众智能沙盘云控平台".to_string()),
             created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at")).unwrap_or_default().with_timezone(&chrono::Utc),
             updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at")).unwrap_or_default().with_timezone(&chrono::Utc),
         })
@@ -356,12 +362,13 @@ impl VehicleDatabase {
             .to_uppercase();
         let cache_size = req.cache_size.unwrap_or(current.cache_size);
         let auto_start = req.auto_start.unwrap_or(current.auto_start);
+        let app_title = req.app_title.unwrap_or(current.app_title);
         let now = Utc::now().to_rfc3339();
 
         sqlx::query(
             r#"
             UPDATE app_settings 
-            SET debug_model = ?, log_level = ?, cache_size = ?, auto_start = ?, updated_at = ?
+            SET debug_model = ?, log_level = ?, cache_size = ?, auto_start = ?, app_title = ?, updated_at = ?
             WHERE id = (SELECT id FROM app_settings ORDER BY id DESC LIMIT 1)
             "#
         )
@@ -369,6 +376,7 @@ impl VehicleDatabase {
         .bind(&log_level)
         .bind(cache_size)
         .bind(if auto_start { 1 } else { 0 })
+        .bind(&app_title)
         .bind(&now)
         .execute(&self.pool)
         .await?;

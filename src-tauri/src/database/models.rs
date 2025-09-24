@@ -241,6 +241,7 @@ pub struct AppSettings {
     pub log_level: String,       // 日志级别: DEBUG/INFO/WARNING/ERROR
     pub cache_size: i32,         // 缓存大小(MB)
     pub auto_start: bool,        // 开机启动
+    pub app_title: String,       // 应用标题
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -252,6 +253,7 @@ pub struct UpdateAppSettingsRequest {
     pub log_level: Option<String>,
     pub cache_size: Option<i32>,
     pub auto_start: Option<bool>,
+    pub app_title: Option<String>,
 }
 
 impl UpdateAppSettingsRequest {
@@ -268,6 +270,16 @@ impl UpdateAppSettingsRequest {
                 return Err("缓存大小必须在0-10240MB之间".to_string());
             }
         }
+        
+        if let Some(title) = &self.app_title {
+            if title.trim().is_empty() {
+                return Err("应用标题不能为空".to_string());
+            }
+            if title.chars().count() > 30 {
+                return Err("应用标题长度不能超过30个字符".to_string());
+            }
+        }
+        
         Ok(())
     }
 }

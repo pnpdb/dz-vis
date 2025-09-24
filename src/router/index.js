@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import Cars from '../views/Cars.vue'
+import { pauseRendering, resumeRendering } from '@/components/Scene3D/index.js'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -7,35 +7,51 @@ const router = createRouter({
     {
       path: '/',
       name: 'Cars',
-      // route level code-splitting
-      // this generates a separate chunk (About.[hash].js) for this route
-      // which is lazy-loaded when the route is visited.
-      // component: () => import('../views/Cars.vue'),
-      component: Cars,
+      meta: { layout: 'main' }
     },
     {
       path: '/auto-drive',
       name: 'AutoDrive',
-      component: () => import('../views/AutoDrive.vue'),
+      meta: { layout: 'main' }
     },
     {
       path: '/control',
       name: 'Control',
-      component: () => import('../views/Control.vue'),
+      meta: { layout: 'main' }
     },
     {
       path: '/settings',
       name: 'Settings',
-      component: () => import('../views/Settings.vue'),
+      meta: { layout: 'main' }
+    },
+    {
+      path: '/parallel-driving',
+      name: 'ParallelDriving',
+      meta: { layout: 'parallel' }
     },
     {
       path: '/:pathMatch(.*)*',
-      redirect: {
-        name: 'Cars'
-      }
-      
+      redirect: { name: 'Cars' }
     }
   ],
+})
+
+// 路由守卫：智能控制Three.js渲染
+router.beforeEach((to, from, next) => {
+  try {
+    // 从主界面切换到平行驾驶：暂停渲染
+    if (from.meta?.layout === 'main' && to.meta?.layout === 'parallel') {
+      pauseRendering();
+    }
+    // 从平行驾驶切换到主界面：恢复渲染
+    else if (from.meta?.layout === 'parallel' && to.meta?.layout === 'main') {
+      resumeRendering();
+    }
+  } catch (error) {
+    console.error('渲染控制失败:', error);
+  }
+  
+  next();
 })
 
 export default router

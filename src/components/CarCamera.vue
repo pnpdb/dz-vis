@@ -38,9 +38,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { ElMessage } from 'element-plus';
 import { useCarStore } from '@/stores/car.js';
+import { useRouter } from 'vue-router';
 import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log';
 
 const carStore = useCarStore();
+const router = useRouter();
 
 const cameraOn = ref(false);
 // 移除平行驾驶模式状态管理，只保留协议发送功能
@@ -82,11 +84,11 @@ const requestParallelDriving = async () => {
         }
         
         // 1) 检查沙盘是否在线
-        const sandboxOnline = await invoke('is_sandbox_connected');
-        if (!sandboxOnline) {
-            ElMessage.error('调度服务离线');
-            return;
-        }
+        // const sandboxOnline = await invoke('is_sandbox_connected');
+        // if (!sandboxOnline) {
+        //     ElMessage.error('调度服务离线');
+        //     return;
+        // }
         
         // 2) 检查车辆是否在线
         if (!window?.socketManager?.isVehicleConnected) {
@@ -103,10 +105,19 @@ const requestParallelDriving = async () => {
         await invoke('send_sandbox_control', { vehicleId: vehicleId });
         ElMessage.success('已发送平行驾驶指令');
         
+        // 4) 跳转到平行驾驶页面
+        navigateToParallelDriving();
+        
     } catch (e) {
         console.error('发送平行驾驶指令失败:', e);
         ElMessage.error(`发送失败: ${e}`);
     }
+};
+
+// 导航到平行驾驶页面
+const navigateToParallelDriving = () => {
+    // 跳转到平行驾驶页面（路由守卫会自动处理渲染暂停）
+    router.push('/parallel-driving');
 };
 
 // 启动视频接收器

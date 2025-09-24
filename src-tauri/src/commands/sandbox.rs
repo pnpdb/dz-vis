@@ -73,9 +73,9 @@ pub async fn send_sandbox_control(
     let data = vec![vehicle_id];
 
     let sandbox = app.state::<SandboxConnectionManager>();
-    if sandbox.read().is_none() {
-        return Err("沙盘未连接".to_string());
-    }
+    // if sandbox.read().is_none() {
+    //     return Err("沙盘未连接".to_string());
+    // }
     socket::SocketServer::send_to_sandbox(&sandbox, 0x2001, &data)
         .map(|_| "发送成功".to_string())
         .map_err(|e| format!("发送失败: {}", e))

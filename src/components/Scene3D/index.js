@@ -50,6 +50,7 @@ let currentFPS = 60;
 // 性能优化相关
 let rafId = null;
 let shouldRender = true;
+let isPaused = false; // 渲染暂停状态
 let lastRenderTime = 0;
 const targetFPS = 60;
 const frameInterval = 1000 / targetFPS;
@@ -221,7 +222,12 @@ const initSceneCore = async () => {
         
         // 智能渲染循环
         animate = (currentTime) => {
-            if (!isVisible || !shouldRender) return;
+            if (!isVisible || !shouldRender || isPaused) {
+                if (!isPaused) {
+                    rafId = requestAnimationFrame(animate);
+                }
+                return;
+            }
             
             // 帧率控制
             if (currentTime - lastRenderTime < frameInterval) {
@@ -1419,6 +1425,28 @@ export const getConstructionMarkersDetails = () => {
         }
     });
     return markers;
+};
+
+// 暂停Three.js渲染
+export const pauseRendering = () => {
+    console.log('🛑 暂停Three.js渲染');
+    isPaused = true;
+    if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+    }
+    if (renderer) {
+        renderer.setAnimationLoop(null);
+    }
+};
+
+// 恢复Three.js渲染
+export const resumeRendering = () => {
+    console.log('▶️ 恢复Three.js渲染');
+    isPaused = false;
+    if (shouldRender && isVisible && animate) {
+        rafId = requestAnimationFrame(animate);
+    }
 };
 
 export const getConstructionMarkersCount = () => {

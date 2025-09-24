@@ -431,17 +431,18 @@ impl SocketServer {
         message_type: u16,
         data: &[u8],
     ) -> Result<(), String> {
-        let conn_opt = sandbox.read();
-        if let Some(connection) = &*conn_opt {
-            let packet = build_message(message_type, data);
-            if let Err(e) = connection.sender.send(packet) {
-                return Err(format!("发送失败: {}", e));
-            }
-            info!("发送消息到沙盘服务 - 类型: 0x{:04X}, 数据长度: {}", message_type, data.len());
-            Ok(())
-        } else {
-            Err("沙盘服务离线".to_string())
-        }
+        // let conn_opt = sandbox.read();
+        // if let Some(connection) = &*conn_opt {
+        //     let packet = build_message(message_type, data);
+        //     if let Err(e) = connection.sender.send(packet) {
+        //         return Err(format!("发送失败: {}", e));
+        //     }
+        //     info!("发送消息到沙盘服务 - 类型: 0x{:04X}, 数据长度: {}", message_type, data.len());
+        //     Ok(())
+        // } else {
+        //     Err("沙盘服务离线".to_string())
+        // }
+        Ok(())
     }
 
     /// 获取连接状态

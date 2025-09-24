@@ -1,7 +1,12 @@
 <template>
     <div class="form-group">
         <label class="form-label"> <fa icon="route"> </fa> 车辆设置</label>
-        <el-select v-model="selectedCarId" placeholder="请选择车辆">
+        <el-select 
+            v-model="selectedCarId" 
+            placeholder="请选择车辆"
+            disabled
+            @click="showDisabledMessage"
+        >
             <el-option
                 v-for="item in carList"
                 :key="item.id"
@@ -11,10 +16,10 @@
         </el-select>
         <div class="sensor-grid">
             <div
-                class="sensor-card"
+                class="sensor-card disabled"
                 v-for="item in toggleList"
                 :key="item.name"
-                @click="toggleSensorStatus(item)"
+                @click="showDisabledMessage"
             >
                 <div class="sensor-icon">
                     <fa :icon="item.icon"></fa>
@@ -140,64 +145,12 @@ onMounted(() => {
     loadVehicleConnections();
 });
 
-const toggleSensorStatus = async (item) => {
-    // 检查是否选择了车辆
-    if (!selectedCarId.value) {
-        ElMessage.warning({
-            message: '请先选择车辆',
-            duration: 3000
-        });
-        return;
-    }
-
-    // 检查选中的车辆是否在线
-    if (!socketManager.isVehicleConnected(selectedCarId.value)) {
-        ElMessage.warning({
-            message: '选中的车辆未在线',
-            duration: 3000
-        });
-        return;
-    }
-
-    try {
-        // 确定功能编号和新状态
-        let functionId = item.id;
-        if (item.id === 8) { // "所有程序"按钮
-            functionId = 0;
-        }
-        
-        const newStatus = !item.status;
-        
-        // 发送车辆功能设置协议
-        await socketManager.sendVehicleFunctionSetting(selectedCarId.value, functionId, newStatus ? 1 : 0);
-        
-        // 更新UI状态
-        if (item.id === 8) {
-            // "所有程序"按钮：切换所有功能状态
-            toggleList.value.forEach((e) => {
-                e.status = newStatus;
-            });
-        } else {
-            // 单个功能按钮
-            const selectedItem = toggleList.value.find((e) => e.id === item.id);
-            if (selectedItem) {
-                selectedItem.status = newStatus;
-            }
-        }
-        
-        // 成功提示
-        ElMessage.success({
-            message: `车辆功能设置发送成功`,
-            duration: 3000
-        });
-        
-    } catch (error) {
-        console.error('车辆功能设置发送失败:', error);
-        ElMessage.error({
-            message: '车辆功能设置发送失败: ' + error.message,
-            duration: 3000
-        });
-    }
+// 显示功能禁用提示消息
+const showDisabledMessage = () => {
+    ElMessage.warning({
+        message: '管理员已禁用该功能',
+        duration: 3000
+    });
 };
 </script>
 
@@ -220,6 +173,31 @@ const toggleSensorStatus = async (item) => {
     .sensor-card:hover {
         transform: translateY(-3px);
         border-color: var(--primary);
+    }
+
+    // 禁用状态样式
+    .sensor-card.disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        background: rgba(10, 25, 47, 0.3);
+        border: 1px solid rgba(128, 128, 128, 0.3);
+        
+        &:hover {
+            transform: none;
+            border-color: rgba(128, 128, 128, 0.3);
+        }
+
+        .sensor-icon {
+            color: #666;
+        }
+
+        .sensor-name {
+            color: #666;
+        }
+
+        .sensor-status {
+            color: #666;
+        }
     }
 
     .sensor-icon {

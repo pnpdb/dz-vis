@@ -420,11 +420,11 @@ def create_vehicle_info_data(vehicle_id=1):
     data.extend(struct.pack('<d', speed))
     
     # 位置X (8字节, DOUBLE)
-    position_x = random.uniform(-100.0, 100.0)
+    position_x = random.uniform(0.0, 1080.0)
     data.extend(struct.pack('<d', position_x))
     
     # 位置Y (8字节, DOUBLE)  
-    position_y = random.uniform(-100.0, 100.0)
+    position_y = random.uniform(0.0, 785.0)
     data.extend(struct.pack('<d', position_y))
     
     # 朝向 (8字节, DOUBLE) - 范围 0-360 度

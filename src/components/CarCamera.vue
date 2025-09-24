@@ -116,8 +116,11 @@ const requestParallelDriving = async () => {
 
 // 导航到平行驾驶页面
 const navigateToParallelDriving = () => {
-    // 跳转到平行驾驶页面（路由守卫会自动处理渲染暂停）
-    router.push('/parallel-driving');
+    // 跳转到平行驾驶页面，携带车辆ID参数
+    router.push({
+        name: 'ParallelDriving',
+        query: { vehicleId: currentVehicleId.value }
+    });
 };
 
 // 启动视频接收器

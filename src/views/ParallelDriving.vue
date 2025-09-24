@@ -112,20 +112,27 @@
         <!-- 位置地图 -->
         <div class="instrument-card map-card">
           <div class="map-header">
-            <div class="instrument-title">位置地图</div>
+            <div class="instrument-title">
+              位置地图
+              <span class="connection-indicator" :class="{ connected: vehicleConnected, disconnected: !vehicleConnected }">
+                <fa :icon="vehicleConnected ? 'circle' : 'circle'" />
+              </span>
+            </div>
             <div class="map-coordinates-header">
               [X: {{ vehicleCoords.x.toFixed(1) }}, Y: {{ vehicleCoords.y.toFixed(1) }}]
+              <span v-if="!vehicleConnected" class="disconnected-text">(断开连接)</span>
             </div>
           </div>
           <div class="minimap">
             <div class="map-background">
               <img src="/Image/map.jpg" alt="地图" class="map-image" />
               <div class="vehicle-marker" 
+                   :class="{ 'disconnected': !vehicleConnected }"
                    :style="{ 
                      left: vehiclePosition.x + '%', 
                      top: vehiclePosition.y + '%' 
                    }">
-                <div class="vehicle-dot"></div>
+                <div class="vehicle-dot" :class="{ 'disconnected': !vehicleConnected }"></div>
               </div>
             </div>
           </div>
@@ -146,15 +153,31 @@ const router = useRouter()
 const route = useRoute()
 const appTitle = ref('渡众智能沙盘云控平台')
 
-// 从路由参数获取车辆ID
-const currentVehicleId = ref(parseInt(route.query.vehicleId) || 1)
+// 从路由参数获取车辆ID，确保类型一致性
+const currentVehicleId = ref(1)
+
+// 安全的车辆ID解析函数
+const parseVehicleId = (id) => {
+  if (typeof id === 'number') return id
+  if (typeof id === 'string') {
+    const parsed = parseInt(id, 10)
+    return isNaN(parsed) ? 1 : parsed
+  }
+  return 1
+}
+
+// 初始化车辆ID
+currentVehicleId.value = parseVehicleId(route.query.vehicleId)
 
 // 仪表盘数据
 const currentSpeed = ref(0) // 当前速度 0-1 (协议原始值)
 const steeringAngle = ref(0) // 方向盘角度 度
 const batteryLevel = ref(85) // 电池电量百分比
 const currentGear = ref('P') // 当前档位
-const vehicleCoords = ref({ x: 2.95, y: 2.2 }) // 车辆坐标(米)
+const vehicleCoords = ref({ x: 540, y: 392.5 }) // 车辆坐标(像素)，默认地图中心
+
+// 连接状态管理
+const vehicleConnected = ref(false) // 车辆连接状态
 
 // 摄像头相关
 const videoSrc = ref('')
@@ -188,15 +211,15 @@ const speedAngle = computed(() => {
   return minAngle + (speed / maxSpeed) * (maxAngle - minAngle)
 })
 
-const speedMarks = computed(() => {
-  const marks = []
-  for (let i = 0; i <= 10; i += 2) {
-    const value = i / 10 // 0, 0.2, 0.4, 0.6, 0.8, 1.0
-    const angle = -135 + (value / 1.0) * 270
-    marks.push({ value: value.toFixed(1), angle })
-  }
-  return marks
-})
+// 预计算的速度刻度标记（避免重复计算）
+const speedMarks = [
+  { value: '0.0', angle: -135 },
+  { value: '0.2', angle: -81 },
+  { value: '0.4', angle: -27 },
+  { value: '0.6', angle: 27 },
+  { value: '0.8', angle: 81 },
+  { value: '1.0', angle: 135 }
+]
 
 const vehiclePosition = computed(() => {
   // 将车辆坐标转换为地图上的百分比位置
@@ -222,19 +245,45 @@ const gearMap = {
 const handleVehicleInfoUpdate = (event) => {
   const vehicleInfo = event.detail
   
-  // 检查是否是当前车辆的数据
-  if (vehicleInfo.vehicleId !== currentVehicleId.value && vehicleInfo.carId !== currentVehicleId.value) {
+  // 安全的车辆ID匹配（统一类型比较）
+  const targetId = currentVehicleId.value
+  const infoVehicleId = parseVehicleId(vehicleInfo.vehicleId)
+  const infoCarId = parseVehicleId(vehicleInfo.carId)
+  
+  if (infoVehicleId !== targetId && infoCarId !== targetId) {
     return
   }
   
-  // 更新仪表盘数据
-  currentSpeed.value = vehicleInfo.speed // 0-1范围
-  steeringAngle.value = vehicleInfo.steeringAngle // 方向盘角度
-  batteryLevel.value = Math.round(vehicleInfo.battery) // 电池电量整数
-  currentGear.value = gearMap[vehicleInfo.gear] || 'P' // 档位映射
-  vehicleCoords.value = {
-    x: vehicleInfo.position.x,
-    y: vehicleInfo.position.y
+  // 更新连接状态（数据到达说明连接正常）
+  vehicleConnected.value = true
+  
+  // 更新仪表盘数据（带数据验证）
+  if (typeof vehicleInfo.speed === 'number' && vehicleInfo.speed >= 0 && vehicleInfo.speed <= 1) {
+    currentSpeed.value = vehicleInfo.speed
+  }
+  
+  if (typeof vehicleInfo.steeringAngle === 'number') {
+    // 限制方向盘角度范围 -540° 到 540°
+    steeringAngle.value = Math.max(-540, Math.min(540, vehicleInfo.steeringAngle))
+  }
+  
+  if (typeof vehicleInfo.battery === 'number' && vehicleInfo.battery >= 0 && vehicleInfo.battery <= 100) {
+    batteryLevel.value = Math.round(vehicleInfo.battery)
+  }
+  
+  if (vehicleInfo.gear && gearMap[vehicleInfo.gear]) {
+    currentGear.value = gearMap[vehicleInfo.gear]
+  }
+  
+  if (vehicleInfo.position && 
+      typeof vehicleInfo.position.x === 'number' && 
+      typeof vehicleInfo.position.y === 'number' &&
+      vehicleInfo.position.x >= 0 && vehicleInfo.position.x <= 1080 &&
+      vehicleInfo.position.y >= 0 && vehicleInfo.position.y <= 785) {
+    vehicleCoords.value = {
+      x: vehicleInfo.position.x,
+      y: vehicleInfo.position.y
+    }
   }
   
   console.debug(`🚗 平行驾驶界面更新车辆${currentVehicleId.value}数据:`, {
@@ -245,6 +294,37 @@ const handleVehicleInfoUpdate = (event) => {
     position: vehicleCoords.value
   })
 }
+
+// 处理车辆连接状态变化事件
+const handleVehicleConnectionStatus = (event) => {
+  const { carId, isConnected } = event.detail
+  
+  // 安全的车辆ID匹配
+  const targetId = currentVehicleId.value
+  const eventCarId = parseVehicleId(carId)
+  
+  if (eventCarId !== targetId) {
+    return
+  }
+  
+  console.debug(`🔗 平行驾驶界面连接状态变化: 车辆${eventCarId}, 连接:${isConnected}`)
+  
+  const wasConnected = vehicleConnected.value
+  vehicleConnected.value = isConnected
+  
+  // 如果从连接变为断开，重置到合理的断开状态
+  if (wasConnected && !isConnected) {
+    console.warn(`🚗 车辆${currentVehicleId.value}连接断开，重置状态`)
+    
+    // 按照用户要求：断开后电池显示0%，档位显示P
+    currentSpeed.value = 0 // 速度归零
+    steeringAngle.value = 0 // 方向盘回正
+    batteryLevel.value = 0 // 电池显示0%
+    currentGear.value = 'P' // 档位显示P
+    // 位置保持最后已知位置，不归零到(0,0)
+  }
+}
+
 
 // 启动视频接收器
 const startVideoReceiver = async () => {
@@ -299,8 +379,9 @@ const stopVideoReceiver = () => {
 
 // 处理接收到的视频帧
 const handleVideoFrame = (frame) => {
-  // 检查是否是当前选中的车辆
-  if (frame.vehicle_id !== currentVehicleId.value) {
+  // 安全的车辆ID匹配
+  const frameVehicleId = parseVehicleId(frame.vehicle_id)
+  if (frameVehicleId !== currentVehicleId.value) {
     return // 不是当前车辆的视频，忽略
   }
   
@@ -377,13 +458,41 @@ const checkVideoTimeout = () => {
   }, VIDEO_TIMEOUT)
 }
 
-// 监听路由变化
-watch(() => route.query.vehicleId, (newVehicleId) => {
-  if (newVehicleId) {
-    currentVehicleId.value = parseInt(newVehicleId)
-    console.debug(`🔄 平行驾驶界面车辆切换: ${currentVehicleId.value}`)
+// 监听路由变化并重置状态
+watch(() => route.query.vehicleId, (newVehicleId, oldVehicleId) => {
+  if (newVehicleId !== oldVehicleId) {
+    const newId = parseVehicleId(newVehicleId)
+    if (newId !== currentVehicleId.value) {
+      currentVehicleId.value = newId
+      console.debug(`🔄 平行驾驶界面车辆切换: ${currentVehicleId.value}`)
+      
+      // 重置车辆相关状态
+      resetVehicleState()
+    }
   }
 })
+
+// 重置车辆状态函数（用于车辆切换）
+const resetVehicleState = () => {
+  currentSpeed.value = 0
+  steeringAngle.value = 0
+  batteryLevel.value = 0 // 切换车辆时电池显示0%
+  currentGear.value = 'P'
+  vehicleCoords.value = { x: 540, y: 392.5 } // 地图中心
+  
+  // 重置连接状态
+  vehicleConnected.value = false
+  
+  // 重置视频状态
+  if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
+    URL.revokeObjectURL(videoSrc.value)
+  }
+  videoSrc.value = ''
+  cameraConnected.value = false
+  lastFrameTime.value = 0
+  frameRate.value = 0
+  frameCount.value = 0
+}
 
 // 加载应用标题和初始化
 onMounted(async () => {
@@ -399,6 +508,9 @@ onMounted(async () => {
   // 监听车辆信息更新事件
   window.addEventListener('vehicle-info-update', handleVehicleInfoUpdate)
   
+  // 监听车辆连接状态变化事件
+  window.addEventListener('vehicle-connection-status', handleVehicleConnectionStatus)
+  
   // 启动视频接收器
   startVideoReceiver()
   
@@ -408,9 +520,16 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   // 清理事件监听器
   window.removeEventListener('vehicle-info-update', handleVehicleInfoUpdate)
+  window.removeEventListener('vehicle-connection-status', handleVehicleConnectionStatus)
   
   // 停止视频接收器
   stopVideoReceiver()
+  
+  // 清理剩余的Blob URL
+  if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
+    URL.revokeObjectURL(videoSrc.value)
+    videoSrc.value = ''
+  }
   
   console.debug('🚗 平行驾驶界面清理完成')
 })
@@ -1051,6 +1170,61 @@ const goBack = () => {
   
   .placeholder-icon {
     font-size: 40px;
+  }
+}
+
+/* 连接状态指示器样式 */
+.connection-indicator {
+  margin-left: 8px;
+  font-size: 8px;
+}
+
+.connection-indicator.connected {
+  color: #10b981;
+  animation: pulse-green 2s infinite;
+}
+
+.connection-indicator.disconnected {
+  color: #ef4444;
+  animation: pulse-red 2s infinite;
+}
+
+.disconnected-text {
+  color: #ef4444;
+  font-size: 12px;
+  margin-left: 8px;
+  opacity: 0.8;
+}
+
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* 车辆标记断开连接样式 */
+.vehicle-marker.disconnected {
+  opacity: 0.6;
+}
+
+.vehicle-dot.disconnected {
+  background: linear-gradient(135deg, #6b7280, #9ca3af);
+  border: 2px solid #ef4444;
+  animation: pulse-disconnected 2s infinite;
+}
+
+@keyframes pulse-disconnected {
+  0%, 100% { 
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.6;
+  }
+  50% { 
+    transform: translate(-50%, -50%) scale(1.1);
+    opacity: 0.3;
   }
 }
 </style>

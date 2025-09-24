@@ -197,10 +197,13 @@ impl UdpVideoServer {
             cleanup_interval.tick().await;
             
             let mut assemblers = assemblers.write().await;
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as u64;
+            let now = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+                Ok(duration) => duration.as_millis() as u64,
+                Err(_) => {
+                    log::warn!("系统时间异常，跳过清理任务");
+                    continue;
+                }
+            };
             
             // 移除超过5秒未完成的重组器
             assemblers.retain(|&(_vehicle_id, _frame_id), assembler| {

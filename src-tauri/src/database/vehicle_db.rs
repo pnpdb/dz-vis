@@ -36,7 +36,7 @@ impl VehicleDatabase {
         
         log::debug!("📁 数据库路径: {}", database_url);
         
-        // 创建连接池
+        // 创建连接池，使用简化的配置以避免类型问题
         let pool = SqlitePool::connect(&database_url).await?;
         
         let db = Self { pool };
@@ -175,6 +175,9 @@ impl VehicleDatabase {
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_vehicle_online_time_date ON vehicle_online_time(date)")
             .execute(&self.pool).await?;
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_vehicle_online_time_vehicle_id ON vehicle_online_time(vehicle_id)")
+            .execute(&self.pool).await?;
+        // 添加复合索引以优化按车辆和日期查询的性能
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_vehicle_online_time_composite ON vehicle_online_time(vehicle_id, date)")
             .execute(&self.pool).await?;
 
         // 创建沙盘服务设置表
@@ -386,7 +389,10 @@ impl VehicleDatabase {
     
     /// 获取所有车辆连接
     pub async fn get_all_vehicle_connections(&self) -> Result<Vec<VehicleConnection>, sqlx::Error> {
-        let rows = sqlx::query("SELECT * FROM vehicle_connections ORDER BY created_at DESC")
+        let rows = sqlx::query(
+            "SELECT id, vehicle_id, ip_address, name, description, is_active, created_at, updated_at 
+             FROM vehicle_connections ORDER BY created_at DESC"
+        )
             .fetch_all(&self.pool)
             .await?;
         

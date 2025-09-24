@@ -46,6 +46,7 @@ let performanceMode = 'auto'; // auto, high, low
 let frameCount = 0;
 let lastFPSCheck = 0;
 let currentFPS = 60;
+let isPerformanceAdjusting = false; // 防抖标志，避免频繁性能调整
 
 // 性能优化相关
 let rafId = null;
@@ -249,12 +250,20 @@ const initSceneCore = async () => {
                     detail: { fps: currentFPS } 
                 }));
                 
-                // 自动性能调节
+                // 自动性能调节 - 添加防抖机制避免频繁切换
                 if (performanceMode === 'auto') {
-                    if (currentFPS < 20) {
-                        switchToLowPerformance();
-                    } else if (currentFPS > 50) {
-                        switchToHighPerformance();
+                    if (currentFPS < 15 && !isPerformanceAdjusting) {
+                        isPerformanceAdjusting = true;
+                        setTimeout(() => {
+                            switchToLowPerformance();
+                            isPerformanceAdjusting = false;
+                        }, 2000); // 2秒后再次允许调整
+                    } else if (currentFPS > 55 && !isPerformanceAdjusting) {
+                        isPerformanceAdjusting = true;
+                        setTimeout(() => {
+                            switchToHighPerformance();
+                            isPerformanceAdjusting = false;
+                        }, 2000);
                     }
                 }
             }

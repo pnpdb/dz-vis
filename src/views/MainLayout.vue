@@ -214,6 +214,11 @@ const toggleConstructionList = () => {
     constructionListCollapsed.value = !constructionListCollapsed.value;
 };
 
+// 处理日志查看器切换事件
+const handleToggleLogViewer = (e) => {
+    showLogViewer.value = !!(e?.detail?.visible);
+};
+
 const deleteConstructionMarker = async (markerId) => {
     try {
         // 从场景中移除标记
@@ -276,9 +281,7 @@ onMounted(() => {
     window.addEventListener('resize', handleResize);
 
     // 根据设置动态控制日志查看器显示
-    window.addEventListener('toggle-log-viewer', (e) => {
-        showLogViewer.value = !!(e?.detail?.visible);
-    });
+    window.addEventListener('toggle-log-viewer', handleToggleLogViewer);
     
     // 初始化施工标记列表
     updateConstructionMarkersList();
@@ -297,7 +300,8 @@ onBeforeUnmount(() => {
     window.removeEventListener('resize', handleResize);
     window.removeEventListener('online', checkNetworkStatus);
     window.removeEventListener('offline', checkNetworkStatus);
-    window.removeEventListener('toggle-log-viewer', () => {});
+    // 移除toggle-log-viewer事件监听器（使用命名函数以确保正确移除）
+    window.removeEventListener('toggle-log-viewer', handleToggleLogViewer);
     window.removeEventListener('construction-marker-added', updateConstructionMarkersList);
     window.removeEventListener('construction-marker-removed', updateConstructionMarkersList);
 });

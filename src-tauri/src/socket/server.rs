@@ -221,7 +221,7 @@ impl SocketServer {
         }
         
         let mut parser = ProtocolParser::new();
-        let mut buffer = [0u8; 1024];
+        let mut buffer = [0u8; 4096]; // 增加缓冲区大小以处理更大的数据包
         
         loop {
             tokio::select! {

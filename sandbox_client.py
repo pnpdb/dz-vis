@@ -84,9 +84,11 @@ def main():
                 ts = datetime.fromtimestamp(msg['timestamp']/1000)
                 mt = msg['message_type']
                 data = msg['data']
-                if mt == 0x2001 and len(data) >= 1:
+                if mt == 0x2001 and len(data) >= 2:
                     vehicle_id = data[0]
-                    print(f"📨 {ts} 收到 0x2001 指令: 车辆{vehicle_id}, 请求切换为平行驾驶")
+                    action = data[1]
+                    action_text = "进入平行驾驶" if action == 1 else "退出平行驾驶"
+                    print(f"📨 {ts} 收到 0x2001 指令: 车辆{vehicle_id}, 动作: {action_text} ({action})")
                 elif mt == 0x2002 and len(data) >= 5:
                     light_id = data[0]
                     red_seconds = struct.unpack_from('<H', data, 1)[0]

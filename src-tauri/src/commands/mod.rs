@@ -27,7 +27,7 @@ pub use vehicle::{
 };
 
 pub use sandbox::{
-    send_sandbox_control, is_sandbox_connected, send_sandbox_traffic_light_duration,
+    send_sandbox_control, send_sandbox_exit_control, is_sandbox_connected, send_sandbox_traffic_light_duration,
     get_traffic_light_item, update_traffic_light_item, get_traffic_light_settings,
     update_traffic_light_settings, get_sandbox_service_settings, 
     create_or_update_sandbox_service_settings, delete_sandbox_service_settings,

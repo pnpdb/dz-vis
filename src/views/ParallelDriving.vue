@@ -148,6 +148,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log'
+import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 const route = useRoute()
@@ -316,12 +317,12 @@ const handleVehicleConnectionStatus = (event) => {
   if (wasConnected && !isConnected) {
     console.warn(`🚗 车辆${currentVehicleId.value}连接断开，重置状态`)
     
-    // 按照用户要求：断开后电池显示0%，档位显示P
+    // 断开后电池显示0%，档位显示P
     currentSpeed.value = 0 // 速度归零
     steeringAngle.value = 0 // 方向盘回正
     batteryLevel.value = 0 // 电池显示0%
     currentGear.value = 'P' // 档位显示P
-    // 位置保持最后已知位置，不归零到(0,0)
+    // 位置保持最后已知位置
   }
 }
 
@@ -535,9 +536,25 @@ onBeforeUnmount(() => {
 })
 
 // 返回主界面
-const goBack = () => {
-  // 路由跳转回主界面（路由守卫会自动处理渲染恢复）
-  router.push('/')
+const goBack = async () => {
+  try {
+    // 发送退出平行驾驶指令到沙盘
+    const vehicleId = Number(currentVehicleId.value ?? 1)
+    if (Number.isNaN(vehicleId)) {
+      ElMessage.error('无效的车辆ID')
+      return
+    }
+    
+    await invoke('send_sandbox_exit_control', { vehicleId: vehicleId })
+    ElMessage.success('已发送退出平行驾驶指令')
+    
+  } catch (e) {
+    console.error('发送退出平行驾驶指令失败:', e)
+    ElMessage.error(`发送退出指令失败: ${e}`)
+  } finally {
+    // 无论发送是否成功，都返回主界面（路由守卫会自动处理渲染恢复）
+    router.push('/')
+  }
 }
 </script>
 

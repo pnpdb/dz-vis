@@ -1,7 +1,6 @@
 // 沙盘相关命令
 use crate::socket::{self, SandboxConnectionManager};
 use crate::database::{VehicleDatabase, UpdateTrafficLightSettingsRequest, CreateOrUpdateSandboxServiceRequest, CreateSandboxCameraRequest, UpdateSandboxCameraRequest};
-use log::info;
 use tauri::Manager;
 
 /// 发送红绿灯时长到沙盘（0x2002）
@@ -69,13 +68,31 @@ pub async fn send_sandbox_control(
     app: tauri::AppHandle,
     vehicle_id: u8,
 ) -> Result<String, String> {
-    // 构建数据域: 车辆编号(1)
-    let data = vec![vehicle_id];
+    // 构建数据域: 车辆编号(1) + 动作(1) - 动作1表示进入平行驾驶
+    let data = vec![vehicle_id, 1];
 
     let sandbox = app.state::<SandboxConnectionManager>();
-    // if sandbox.read().is_none() {
-    //     return Err("沙盘未连接".to_string());
-    // }
+    if sandbox.read().is_none() {
+        return Err("沙盘未连接".to_string());
+    }
+    socket::SocketServer::send_to_sandbox(&sandbox, 0x2001, &data)
+        .map(|_| "发送成功".to_string())
+        .map_err(|e| format!("发送失败: {}", e))
+}
+
+/// 发送退出平行驾驶指令（0x2001）
+#[tauri::command]
+pub async fn send_sandbox_exit_control(
+    app: tauri::AppHandle,
+    vehicle_id: u8,
+) -> Result<String, String> {
+    // 构建数据域: 车辆编号(1) + 动作(1) - 动作0表示退出平行驾驶
+    let data = vec![vehicle_id, 0];
+
+    let sandbox = app.state::<SandboxConnectionManager>();
+    if sandbox.read().is_none() {
+        return Err("沙盘未连接".to_string());
+    }
     socket::SocketServer::send_to_sandbox(&sandbox, 0x2001, &data)
         .map(|_| "发送成功".to_string())
         .map_err(|e| format!("发送失败: {}", e))

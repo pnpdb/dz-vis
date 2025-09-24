@@ -179,6 +179,7 @@ pub fn run() {
             start_socket_server,
             send_to_vehicle,
             send_sandbox_control,
+            send_sandbox_exit_control,
             is_sandbox_connected,
             broadcast_message,
             broadcast_construction_marker,

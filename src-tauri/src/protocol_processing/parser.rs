@@ -108,6 +108,7 @@ impl ProtocolParser {
         let camera_status = data[ProtocolConstants::VEHICLE_INFO_CAMERA_STATUS_OFFSET] != 0;
         let lidar_status = data[ProtocolConstants::VEHICLE_INFO_LIDAR_STATUS_OFFSET] != 0;
         let gyro_status = data[ProtocolConstants::VEHICLE_INFO_GYRO_STATUS_OFFSET] != 0;
+        let parking_slot = data[ProtocolConstants::VEHICLE_INFO_PARKING_SLOT_OFFSET];
         
         // 数据验证
         if self.strict_validation {
@@ -143,6 +144,7 @@ impl ProtocolParser {
                 lidar: lidar_status,
                 gyro: gyro_status,
             },
+            parking_slot,
         };
         
         self.stats.conversion_time_us = current_timestamp_us() - conversion_start;

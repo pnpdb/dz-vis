@@ -25,6 +25,8 @@ pub struct VehicleInfo {
     pub nav_status: u8,
     /// 传感器状态
     pub sensors: SensorStatus,
+    /// 车位占用状态
+    pub parking_slot: u8,
 }
 
 /// 传感器状态
@@ -240,7 +242,8 @@ impl ProtocolConstants {
     pub const VEHICLE_INFO_CAMERA_STATUS_OFFSET: usize = 51;
     pub const VEHICLE_INFO_LIDAR_STATUS_OFFSET: usize = 52;
     pub const VEHICLE_INFO_GYRO_STATUS_OFFSET: usize = 53;
-    pub const VEHICLE_INFO_TOTAL_SIZE: usize = 54;
+    pub const VEHICLE_INFO_PARKING_SLOT_OFFSET: usize = 54;
+    pub const VEHICLE_INFO_TOTAL_SIZE: usize = 55;
     
     /// 车辆控制协议偏移量
     pub const VEHICLE_CONTROL_VEHICLE_ID_OFFSET: usize = 0;

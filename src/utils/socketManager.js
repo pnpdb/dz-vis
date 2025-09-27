@@ -270,6 +270,9 @@ class SocketManager {
         });
         
         socketLogger.info(`车辆连接状态更新 - 车辆: ${carId}, 状态: ${isConnected ? '连接' : '断开'}, 在线数量: ${this.getOnlineVehicleCount()}`);
+        if (!isConnected) {
+            this.vehicleParkingSlots.delete(carId);
+        }
     }
 
     /**
@@ -379,7 +382,7 @@ class SocketManager {
             const cameraStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.CAMERA_STATUS_OFFSET);
             const lidarStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.LIDAR_STATUS_OFFSET);
             const gyroStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.GYRO_STATUS_OFFSET);
-            const parkingSlotStatus = Number.isFinite(view.getUint8(VEHICLE_INFO_PROTOCOL.PARKING_SLOT_OFFSET)) ? view.getUint8(VEHICLE_INFO_PROTOCOL.PARKING_SLOT_OFFSET) : 0;
+            const parkingSlotStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.PARKING_SLOT_OFFSET);
             
             // 数据验证
             const clampedSpeed = Math.max(VEHICLE_INFO_PROTOCOL.MIN_SPEED, 

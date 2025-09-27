@@ -151,6 +151,7 @@ impl DataConverter {
                 lidar: raw.lidar_status != 0,
                 gyro: raw.gyro_status != 0,
             },
+            parking_slot: raw.parking_slot,
         }
     }
     
@@ -286,6 +287,7 @@ pub struct VehicleInfoRaw {
     pub camera_status: u8,
     pub lidar_status: u8,
     pub gyro_status: u8,
+    pub parking_slot: u8,
 }
 
 /// 高效的数据流处理器

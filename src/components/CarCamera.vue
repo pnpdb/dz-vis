@@ -72,17 +72,26 @@ const unsubscribeVideo = () => {
   }
   videoSrc.value = ''
   lastFrameTime.value = 0
-  frameRate.value = 0
 }
 
-const handleVideoFrame = ({ blobUrl }) => {
+const handleVideoFrame = ({ blobUrl, frame }) => {
   const img = videoImg.value
-  if (!cameraEnabled.value || !isRouteVisible.value || !img) {
+  const targetVehicleId = Number(currentVehicleId.value)
+  const frameVehicleId = Number(frame?.vehicle_id ?? frame?.vehicleId)
+
+  if (!cameraEnabled.value || !isRouteVisible.value || !img || !blobUrl) {
+    if (typeof blobUrl === 'string') {
+      URL.revokeObjectURL(blobUrl)
+    }
+    return
+  }
+
+  if (Number.isFinite(frameVehicleId) && Number.isFinite(targetVehicleId) && frameVehicleId !== targetVehicleId) {
     URL.revokeObjectURL(blobUrl)
     return
   }
 
-    if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
+  if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
     URL.revokeObjectURL(videoSrc.value)
   }
 

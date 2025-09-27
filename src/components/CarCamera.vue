@@ -82,7 +82,7 @@ const handleVideoFrame = ({ blobUrl }) => {
     return
   }
 
-  if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
+    if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
     URL.revokeObjectURL(videoSrc.value)
   }
 

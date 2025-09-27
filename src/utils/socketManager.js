@@ -22,6 +22,7 @@ class SocketManager {
         this.connectedVehicles = new Map();
         this.sandboxConnected = false;
         this.vehicleReady = new Map();
+        this.vehicleParkingSlots = new Map();
         this.messageHandlers = new Map();
         
         // 设置默认消息处理器
@@ -257,15 +258,15 @@ class SocketManager {
         // 触发车辆连接状态变化事件
         eventBus.emit(EVENTS.VEHICLE_CONNECTION_STATUS, {
             carId,
-            isConnected,
-            timestamp: Date.now()
+                isConnected,
+                timestamp: Date.now()
         });
 
         // 触发在线车辆数量变化事件
         eventBus.emit(EVENTS.ONLINE_VEHICLES_COUNT_CHANGED, {
-            count: this.getOnlineVehicleCount(),
-            vehicleIds: this.getOnlineVehicleIds(),
-            timestamp: Date.now()
+                count: this.getOnlineVehicleCount(),
+                vehicleIds: this.getOnlineVehicleIds(),
+                timestamp: Date.now()
         });
         
         socketLogger.info(`车辆连接状态更新 - 车辆: ${carId}, 状态: ${isConnected ? '连接' : '断开'}, 在线数量: ${this.getOnlineVehicleCount()}`);
@@ -306,15 +307,15 @@ class SocketManager {
         socketLogger.debug('SocketManager.setupStatusRequestHandler 已设置');
         eventBus.on(EVENTS.REQUEST_VEHICLE_STATUS, ({ vehicleId }) => {
             const isConnected = this.isVehicleConnected(vehicleId);
-
+            
             socketLogger.debug(`SocketManager收到状态请求 - 车辆: ${vehicleId}, 连接状态: ${isConnected}`);
-
+            
             eventBus.emit(EVENTS.VEHICLE_CONNECTION_STATUS, {
-                carId: vehicleId,
-                isConnected,
-                timestamp: Date.now()
+                    carId: vehicleId,
+                    isConnected,
+                    timestamp: Date.now()
             });
-
+            
             socketLogger.debug(`SocketManager发送状态响应 - 车辆: ${vehicleId}, 连接: ${isConnected}`);
         });
     }
@@ -378,7 +379,7 @@ class SocketManager {
             const cameraStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.CAMERA_STATUS_OFFSET);
             const lidarStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.LIDAR_STATUS_OFFSET);
             const gyroStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.GYRO_STATUS_OFFSET);
-            const parkingSlotStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.PARKING_SLOT_OFFSET);
+            const parkingSlotStatus = Number.isFinite(view.getUint8(VEHICLE_INFO_PROTOCOL.PARKING_SLOT_OFFSET)) ? view.getUint8(VEHICLE_INFO_PROTOCOL.PARKING_SLOT_OFFSET) : 0;
             
             // 数据验证
             const clampedSpeed = Math.max(VEHICLE_INFO_PROTOCOL.MIN_SPEED, 
@@ -426,6 +427,12 @@ class SocketManager {
             // 根据导航状态自动切换平行驾驶模式
             const isParallelDriving = navCode === 15;
             eventBus.emit(EVENTS.PARALLEL_DRIVING_MODE_CHANGE, { mode: isParallelDriving });
+            
+            if (parkingSlotStatus > 0) {
+                this.vehicleParkingSlots.set(vehicleId, parkingSlotStatus);
+            } else {
+                this.vehicleParkingSlots.delete(vehicleId);
+            }
             
         } catch (error) {
             socketLogger.error(`解析车辆信息失败 - 车辆: ${carId}:`, error);
@@ -790,6 +797,10 @@ class SocketManager {
             }
         }
         return 0
+    }
+
+    getVehicleParkingSlot(vehicleId) {
+        return this.vehicleParkingSlots.get(vehicleId) || 0;
     }
 }
 

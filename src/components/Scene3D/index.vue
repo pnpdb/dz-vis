@@ -63,15 +63,22 @@ const initSceneAsync = async (container) => {
         isLoading.value = false;
         
         // 继续监听模型加载进度，但不再阻塞交互
-        const modelProgressHandler = (event) => {
-          const progress = event.detail || 0;
-          if (progress === 100) {
-            console.log('所有模型加载完成');
-            eventBus.off(EVENTS.SCENE3D_PROGRESS, modelProgressHandler);
-          } else {
-            console.log(`模型加载进度: ${progress}%`);
-          }
-        };
+        const modelProgressHandler = (() => {
+          let lastProgress = -1;
+          return (event) => {
+            const progress = event?.detail ?? 0;
+            if (progress <= lastProgress || progress === 0) {
+              return;
+            }
+            lastProgress = progress;
+            if (progress === 100) {
+              console.log('所有模型加载完成');
+              eventBus.off(EVENTS.SCENE3D_PROGRESS, modelProgressHandler);
+            } else {
+              console.log(`模型加载进度: ${progress}%`);
+            }
+          };
+        })();
         
         // 移除旧的监听器
         eventBus.off(EVENTS.SCENE3D_PROGRESS, progressHandler);

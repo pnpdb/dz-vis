@@ -258,7 +258,7 @@ const initSceneCore = async () => {
                 }
             });
 
-            // 更新场景进度
+            // 更新场景进度 (仅在初始化阶段)
             eventBus.emit(EVENTS.SCENE3D_PROGRESS, Math.min(100, Math.round((currentTime / 1000) * 10)));
 
             if (stats) {

@@ -19,7 +19,7 @@
         <CarCamera />
 
         <!-- 车辆信息 -->
-        <CarInfo :carInfo="selectedCar" />
+        <CarInfo :carInfo="selectedCar" :online="vehicleStatus === 'online'" />
 
         <!-- 传感器 -->
         <Sensor :carInfo="selectedCar" :online="vehicleStatus === 'online'" />

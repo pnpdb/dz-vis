@@ -3,91 +3,95 @@
         <label class="form-label">
             <fa icon="bars-staggered" /> 车辆参数
         </label>
-        
-        <!-- 车辆参数布局 -->
         <div class="info-grid">
-            <Dashboard :speedValue="speedValue" :hasSpeed="hasSpeed" />
-            
+            <Dashboard :speedValue="displaySpeed" :hasSpeed="displayHasSpeed" />
             <div class="right-column">
                 <div class="info-card info-card-h">
                     <div class="info-title">
                         <fa icon="compass" />
                         位置
                     </div>
-                    <div class="info-value">X: {{ positionX.toFixed(2) }}</div>
-                    <div class="info-value">Y: {{ positionY.toFixed(2) }}</div>
+                    <div class="info-value">X: {{ displayPositionX }}</div>
+                    <div class="info-value">Y: {{ displayPositionY }}</div>
                 </div>
                 <div class="info-card info-card-h">
                     <div class="info-title">
                         <fa icon="battery-three-quarters" />
                         电量
                     </div>
-                    <div
-                        :class="[
-                            'info-value',
-                            { 'info-value_low': batteryValue < 20 },
-                        ]"
-                    >
-                        {{ batteryValue }}%
+                    <div :class="['info-value', { 'info-value_low': isBatteryLow }]">
+                        {{ displayBattery }}
                     </div>
                     <div class="battery-container">
-                        <div
-                            :class="[
-                                'battery-level',
-                                { 'battery-level_low': batteryValue < 20 },
-                            ]"
-                            :style="{ '--battery-level': batteryValue + '%' }"
-                        ></div>
+                        <div :class="['battery-level', { 'battery-level_low': isBatteryLow }]" :style="batteryLevelStyle"></div>
                     </div>
                 </div>
             </div>
-            
             <div class="info-card">
                 <div class="info-title">
                     <fa icon="wifi" />
                     在线状态
                 </div>
-                <div :class="['info-value', getOnlineStatusClass()]">{{ getOnlineStatusText() }}</div>
+                <div :class="['info-value', online ? 'status-normal' : 'status-error']">
+                    {{ online ? '在线' : '离线' }}
+                </div>
             </div>
             <div class="info-card">
                 <div class="info-title">
                     <fa icon="route" />
                     导航状态
                 </div>
-                <div class="info-value">{{ navStatus.text }}</div>
+                <div class="info-value">{{ displayNavStatus }}</div>
             </div>
         </div>
-
     </div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import Dashboard from '@/components/Dashboard.vue';
 import { compareVehicleId, parseVehicleId } from '@/utils/vehicleTypes.js';
-import eventBus, { EVENTS } from '@/utils/eventBus.js'
-import logHelper from '@/utils/logHelper.js'
+import eventBus, { EVENTS } from '@/utils/eventBus.js';
+import logHelper from '@/utils/logHelper.js';
+
+const offlinePlaceholder = '--';
 
 const props = defineProps({
     carInfo: {
         type: [String, Number],
-        default: 1
-    }
+        default: 1,
+    },
+    online: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const batteryValue = ref(82);
 const speedValue = ref(0);
 const hasSpeed = ref(false);
-const positionX = ref(116.40);
-const positionY = ref(39.90);
-const isOnline = ref(false);
+const positionX = ref(116.4);
+const positionY = ref(39.9);
 const navStatus = ref({
     code: 0,
-    text: '未导航'
+    text: '未导航',
 });
-const vehicleInfo = ref(null);
 
+const vehicleInfo = ref(null);
 const currentVehicleId = ref(parseVehicleId(props.carInfo));
+
+const displaySpeed = computed(() => (props.online ? speedValue.value : 0));
+const displayHasSpeed = computed(() => props.online && hasSpeed.value);
+const displayPositionX = computed(() => (props.online ? positionX.value.toFixed(2) : offlinePlaceholder));
+const displayPositionY = computed(() => (props.online ? positionY.value.toFixed(2) : offlinePlaceholder));
+const displayBattery = computed(() => (props.online ? `${batteryValue.value}%` : offlinePlaceholder));
+const isBatteryLow = computed(() => props.online && batteryValue.value < 20);
+const batteryLevelStyle = computed(() => ({
+    '--battery-level': props.online ? `${Math.max(0, Math.min(100, batteryValue.value))}%` : '0%',
+}));
+const displayNavStatus = computed(() =>
+    props.online ? navStatus.value?.text ?? offlinePlaceholder : offlinePlaceholder,
+);
 
 const resetToDefaultState = () => {
     speedValue.value = 0;
@@ -95,16 +99,12 @@ const resetToDefaultState = () => {
     batteryValue.value = 0;
     positionX.value = 0;
     positionY.value = 0;
-    isOnline.value = false;
     navStatus.value = {
         code: 0,
-        text: '未导航'
+        text: offlinePlaceholder,
     };
     vehicleInfo.value = null;
 };
-
-const getOnlineStatusText = () => isOnline.value ? '在线' : '离线';
-const getOnlineStatusClass = () => isOnline.value ? 'status-normal' : 'status-error';
 
 const checkAndUpdateVehicleStatus = () => {
     eventBus.emit(EVENTS.REQUEST_VEHICLE_STATUS, { vehicleId: currentVehicleId.value });
@@ -124,7 +124,6 @@ const handleVehicleInfoUpdate = (data) => {
     positionY.value = data.position?.y ?? 0;
     batteryValue.value = typeof data.battery === 'number' ? Math.round(data.battery) : 0;
     navStatus.value = data.navigation ?? { code: 0, text: '未导航' };
-    isOnline.value = true;
     vehicleInfo.value = data;
 };
 
@@ -134,23 +133,29 @@ const handleVehicleConnectionStatus = ({ carId, vehicleId, isConnected }) => {
         return;
     }
 
-    const previous = isOnline.value;
-    isOnline.value = Boolean(isConnected);
     logHelper.debug('CarInfo', '更新连接状态', {
         carId: incomingId,
         isConnected,
-        previous,
-        current: isOnline.value
+        previous: props.online,
+        current: props.online,
     });
+
+    if (!isConnected) {
+        resetToDefaultState();
+    }
 };
 
-watch(() => props.carInfo, (newVehicleId, oldVehicleId) => {
-    if (newVehicleId !== oldVehicleId) {
-        currentVehicleId.value = parseVehicleId(newVehicleId);
-        resetToDefaultState();
-        checkAndUpdateVehicleStatus();
-    }
-}, { immediate: true });
+watch(
+    () => props.carInfo,
+    (newVehicleId, oldVehicleId) => {
+        if (newVehicleId !== oldVehicleId) {
+            currentVehicleId.value = parseVehicleId(newVehicleId);
+            resetToDefaultState();
+            checkAndUpdateVehicleStatus();
+        }
+    },
+    { immediate: true },
+);
 
 onMounted(() => {
     eventBus.on(EVENTS.VEHICLE_INFO_UPDATE, handleVehicleInfoUpdate);

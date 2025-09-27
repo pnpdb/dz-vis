@@ -7,12 +7,12 @@
                 <div class="sensor-icon"><fa icon="compass" /></div>
                 <div class="sensor-name">陀螺仪</div>
                 <div :class="getClass(sensorData.imuState)">{{ getDesc(sensorData.imuState) }}</div>
-                        </div>
+            </div>
             <div class="sensor-card">
                 <div class="sensor-icon"><fa icon="signal" /></div>
                 <div class="sensor-name">激光雷达</div>
                 <div :class="getClass(sensorData.lidarState)">{{ getDesc(sensorData.lidarState) }}</div>
-                        </div>
+            </div>
             <div class="sensor-card">
                 <div class="sensor-icon"><fa icon="camera" /></div>
                 <div class="sensor-name">相机</div>
@@ -23,87 +23,96 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import eventBus, { EVENTS } from '@/utils/eventBus.js'
+import { defineProps, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import eventBus, { EVENTS } from '@/utils/eventBus.js';
+
+const OFFLINE_TEXT = '--';
 
 const props = defineProps({
     carInfo: {
-        type: [String, Number], // 支持字符串和数字类型
-        default: 1
+        type: [String, Number],
+        default: 1,
     },
     online: {
         type: Boolean,
-        default: true
-    }
+        default: false,
+    },
 });
 
 const sensorData = ref({
-    imuState: 1,
-    lidarState: 1,
-    cameraState: 1
+    imuState: 0,
+    lidarState: 0,
+    cameraState: 0,
 });
 
-// 重置传感器状态为默认状态
 const resetSensorData = () => {
     sensorData.value = {
-        imuState: 0,  // 未连接时显示异常
+        imuState: 0,
         lidarState: 0,
-        cameraState: 0
+        cameraState: 0,
     };
-    console.debug(`🔄 重置车辆${props.carInfo}传感器状态为默认状态`);
 };
 
 const getDesc = (val) => {
-    return !props.online || val !== 1 ? '异常' : '正常';
+    if (!props.online) return OFFLINE_TEXT;
+    return val === 1 ? '正常' : '异常';
 };
 
 const getClass = (val) => {
-    return !props.online || val !== 1
-        ? 'sensor-state status-error'
-        : 'sensor-state status-normal';
+    if (!props.online) return 'sensor-state status-offline';
+    return val === 1 ? 'sensor-state status-normal' : 'sensor-state status-error';
 };
 
-// 处理车辆信息更新事件
-const handleVehicleInfoUpdate = (vehicleInfo) => {
-    if (!vehicleInfo || typeof vehicleInfo !== 'object') return
+const getVehicleIdFromLetter = (letter) => {
+    const letterMap = { A: 1, B: 2, C: 3, D: 4, E: 5 };
+    return letterMap[letter.toUpperCase()] || null;
+};
 
-    const isCurrentVehicle = vehicleInfo.carId === props.carInfo ||
+const handleVehicleInfoUpdate = (vehicleInfo) => {
+    if (!vehicleInfo || typeof vehicleInfo !== 'object') return;
+
+    const isCurrentVehicle =
+        vehicleInfo.carId === props.carInfo ||
         vehicleInfo.vehicleId === props.carInfo ||
         (typeof props.carInfo === 'string' &&
-            vehicleInfo.vehicleId === getVehicleIdFromLetter(props.carInfo))
+            vehicleInfo.vehicleId === getVehicleIdFromLetter(props.carInfo));
 
     if (isCurrentVehicle) {
         sensorData.value = {
             imuState: vehicleInfo.sensors.gyro?.status ? 1 : 0,
             lidarState: vehicleInfo.sensors.lidar?.status ? 1 : 0,
-            cameraState: vehicleInfo.sensors.camera?.status ? 1 : 0
-        }
-        console.debug(`更新车辆${props.carInfo}传感器状态:`, sensorData.value)
+            cameraState: vehicleInfo.sensors.camera?.status ? 1 : 0,
+        };
     }
-}
-
-// 向后兼容：字母ID转数字ID的映射
-const getVehicleIdFromLetter = (letter) => {
-    const letterMap = { 'A': 1, 'B': 2, 'C': 3, 'D': 4, 'E': 5 };
-    return letterMap[letter.toUpperCase()] || null;
 };
 
-// 监听车辆切换
-watch(() => props.carInfo, (newVehicleId, oldVehicleId) => {
-    if (newVehicleId !== oldVehicleId) {
-        console.debug(`🔄 Sensor车辆切换: ${oldVehicleId} → ${newVehicleId}`);
-        resetSensorData();
-    }
-}, { immediate: true });
+watch(
+    () => props.carInfo,
+    (newVehicleId, oldVehicleId) => {
+        if (newVehicleId !== oldVehicleId) {
+            resetSensorData();
+        }
+    },
+    { immediate: true },
+);
+
+watch(
+    () => props.online,
+    (online) => {
+        if (!online) {
+            resetSensorData();
+        }
+    },
+);
 
 onMounted(() => {
-    eventBus.on(EVENTS.VEHICLE_INFO_UPDATE, handleVehicleInfoUpdate)
-    eventBus.emit(EVENTS.REQUEST_VEHICLE_STATUS, { vehicleId: props.carInfo })
-})
+    eventBus.on(EVENTS.VEHICLE_INFO_UPDATE, handleVehicleInfoUpdate);
+    eventBus.emit(EVENTS.REQUEST_VEHICLE_STATUS, { vehicleId: props.carInfo });
+});
 
 onBeforeUnmount(() => {
-    eventBus.off(EVENTS.VEHICLE_INFO_UPDATE, handleVehicleInfoUpdate)
-})
+    eventBus.off(EVENTS.VEHICLE_INFO_UPDATE, handleVehicleInfoUpdate);
+});
 </script>
 
 <style lang="scss" scoped>
@@ -128,15 +137,24 @@ onBeforeUnmount(() => {
 }
 
 .sensor-name {
-        font-size: 12px;
-        color: #a0b3d0;
+    font-size: 12px;
+    color: #a0b3d0;
     margin-bottom: 2px;
-    }
-
-    .sensor-state {
-        font-size: 12px;
 }
 
-.status-normal { color: var(--success, #00ff00); }
-.status-error { color: var(--danger, #ff4444); }
+.sensor-state {
+    font-size: 12px;
+}
+
+.status-normal {
+    color: var(--success, #00ff00);
+}
+
+.status-error {
+    color: var(--danger, #ff4444);
+}
+
+.status-offline {
+    color: #a0b3d0;
+}
 </style>

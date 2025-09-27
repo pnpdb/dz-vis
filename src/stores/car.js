@@ -49,6 +49,7 @@ export const useCarStore = defineStore('car', {
         count: 0,
         name: 'Eduardo',
         loading: false,
+        cameraEnabled: false,
         // 出租车状态管理
         taxi: {
             startPoint: '',
@@ -72,6 +73,10 @@ export const useCarStore = defineStore('car', {
     actions: {
         changeCarId(id) {
             this.selectedCarId = parseVehicleId(id);
+        },
+
+        setCameraEnabled(enabled) {
+            this.cameraEnabled = Boolean(enabled);
         },
         
         // 从数据库加载车辆列表

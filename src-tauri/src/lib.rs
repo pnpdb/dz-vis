@@ -6,18 +6,19 @@ use tauri_plugin_log;
 mod commands;
 mod config;
 mod database;
+mod protocol_processing;
 mod rtsp_converter;
 mod rtsp_stream;
+mod services;
 mod socket;
 mod udp_video;
 mod video_processing;
-mod protocol_processing;
 
-use commands::*;
-use database::VehicleDatabase;
-use config::{get_app_config, get_port_config};
-use std::sync::Arc;
 use commands::protocol_processing::ProtocolProcessorState;
+use commands::*;
+use config::{get_app_config, get_port_config};
+use database::VehicleDatabase;
+use std::sync::Arc;
 
 /// 获取网络状态信息
 #[tauri::command]
@@ -26,15 +27,15 @@ async fn get_network_status() -> Result<serde_json::Value, String> {
         Ok(ip) => {
             let ip_str = ip.to_string();
             let is_private = is_private_ip(&ip_str);
-            
+
             Ok(serde_json::json!({
                 "connected": true,
                 "ip": ip_str,
                 "is_private": is_private,
-                "text": if is_private { 
-                    format!("局域网已连接 {}", ip_str) 
-                } else { 
-                    format!("公网已连接 {}", ip_str) 
+                "text": if is_private {
+                    format!("局域网已连接 {}", ip_str)
+                } else {
+                    format!("公网已连接 {}", ip_str)
                 },
                 "icon": "signal"
             }))
@@ -53,28 +54,28 @@ async fn get_network_status() -> Result<serde_json::Value, String> {
 fn is_private_ip(ip: &str) -> bool {
     if let Ok(addr) = ip.parse::<std::net::Ipv4Addr>() {
         let octets = addr.octets();
-        
+
         // 10.0.0.0 - 10.255.255.255
         if octets[0] == 10 {
             return true;
         }
-        
+
         // 172.16.0.0 - 172.31.255.255
         if octets[0] == 172 && octets[1] >= 16 && octets[1] <= 31 {
             return true;
         }
-        
+
         // 192.168.0.0 - 192.168.255.255
         if octets[0] == 192 && octets[1] == 168 {
             return true;
         }
-        
+
         // 169.254.0.0 - 169.254.255.255 (APIPA)
         if octets[0] == 169 && octets[1] == 254 {
             return true;
         }
     }
-    
+
     false
 }
 
@@ -149,19 +150,19 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()
-        .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
-        .max_file_size(initial_max_file_size_bytes as u128 /* bytes */)
-        .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(10))
-        .level(initial_log_level)
-        .level_for("sqlx::query", log::LevelFilter::Warn)
-        .format(|out, message, record| {
-            out.finish(format_args!(
-              "[{} {}] {}",
-              record.level(),
-              record.target(),
-              message
-            ))
-          })
+                .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
+                .max_file_size(initial_max_file_size_bytes as u128 /* bytes */)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(10))
+                .level(initial_log_level)
+                .level_for("sqlx::query", log::LevelFilter::Warn)
+                .format(|out, message, record| {
+                    out.finish(format_args!(
+                        "[{} {}] {}",
+                        record.level(),
+                        record.target(),
+                        message
+                    ))
+                })
                 .build(),
         )
         .plugin(tauri_plugin_opener::init())
@@ -227,31 +228,34 @@ pub fn run() {
             update_app_settings,
             get_vehicle_server_ports,
             get_media_server_ports,
-        // 视频处理命令
-        process_video_frame,
-        quick_validate_jpeg_base64,
-        get_vehicle_video_stats,
-        get_all_video_stats,
-        clear_vehicle_video_stats,
-        cleanup_stale_video_stats,
-        get_video_processing_summary,
-        batch_process_video_frames,
-        reset_all_video_stats,
-        
-        // 协议处理命令
-        parse_protocol,
-        validate_protocol,
-        batch_process_protocols,
-        build_protocol,
-        get_protocol_stats,
-        reset_protocol_stats,
-        configure_batch_processor,
-        get_supported_message_types,
-        quick_validate_protocol_format
+            build_vehicle_control_payload,
+            build_data_recording_payload,
+            build_vehicle_function_setting_payload,
+            build_vehicle_path_display_payload,
+            // 视频处理命令
+            process_video_frame,
+            quick_validate_jpeg_base64,
+            get_vehicle_video_stats,
+            get_all_video_stats,
+            clear_vehicle_video_stats,
+            cleanup_stale_video_stats,
+            get_video_processing_summary,
+            batch_process_video_frames,
+            reset_all_video_stats,
+            // 协议处理命令
+            parse_protocol,
+            validate_protocol,
+            batch_process_protocols,
+            build_protocol,
+            get_protocol_stats,
+            reset_protocol_stats,
+            configure_batch_processor,
+            get_supported_message_types,
+            quick_validate_protocol_format
         ])
         .setup(move |app| {
             info!("应用启动: {}", env!("CARGO_PKG_NAME"));
-            
+
             // 输出端口配置信息
             config::AppConfig::global().ports.log_config();
             #[cfg(desktop)]
@@ -307,7 +311,7 @@ pub fn run() {
             // 克隆app handle用于不同任务
             let app_handle_db = app.handle().clone();
             // UDP视频服务器句柄不再需要，已移至媒体模块
-            
+
             // 初始化数据库
             tauri::async_runtime::spawn(async move {
                 match VehicleDatabase::new().await {
@@ -320,13 +324,13 @@ pub fn run() {
                     }
                 }
             });
-            
+
             // 初始化协议处理器状态
             app.manage(ProtocolProcessorState::new());
             info!("✅ 协议处理器初始化成功");
 
             // UDP视频服务器自动启动已移至媒体命令模块，可通过API手动启动
-            
+
             #[cfg(debug_assertions)]
             {
                 let window = app.get_webview_window("main").unwrap();

@@ -23,7 +23,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import eventBus, { EVENTS } from '@/utils/eventBus.js'
 
 const props = defineProps({
     carInfo: {
@@ -63,27 +64,23 @@ const getClass = (val) => {
 };
 
 // 处理车辆信息更新事件
-const handleVehicleInfoUpdate = (event) => {
-    const vehicleInfo = event.detail;
-    
-    // 根据当前选择的车辆信息来匹配
-    const isCurrentVehicle = vehicleInfo.carId === props.carInfo || 
-                           vehicleInfo.vehicleId === props.carInfo ||
-                           // 向后兼容：如果carInfo是字母，转换为数字ID
-                           (typeof props.carInfo === 'string' && 
-                            vehicleInfo.vehicleId === getVehicleIdFromLetter(props.carInfo));
-    
+const handleVehicleInfoUpdate = (vehicleInfo) => {
+    if (!vehicleInfo || typeof vehicleInfo !== 'object') return
+
+    const isCurrentVehicle = vehicleInfo.carId === props.carInfo ||
+        vehicleInfo.vehicleId === props.carInfo ||
+        (typeof props.carInfo === 'string' &&
+            vehicleInfo.vehicleId === getVehicleIdFromLetter(props.carInfo))
+
     if (isCurrentVehicle) {
-        // 更新传感器状态
         sensorData.value = {
             imuState: vehicleInfo.sensors.gyro?.status ? 1 : 0,
             lidarState: vehicleInfo.sensors.lidar?.status ? 1 : 0,
             cameraState: vehicleInfo.sensors.camera?.status ? 1 : 0
-        };
-        
-        console.debug(`更新车辆${props.carInfo}传感器状态:`, sensorData.value);
+        }
+        console.debug(`更新车辆${props.carInfo}传感器状态:`, sensorData.value)
     }
-};
+}
 
 // 向后兼容：字母ID转数字ID的映射
 const getVehicleIdFromLetter = (letter) => {
@@ -100,13 +97,13 @@ watch(() => props.carInfo, (newVehicleId, oldVehicleId) => {
 }, { immediate: true });
 
 onMounted(() => {
-    // 监听车辆信息更新事件
-    window.addEventListener('vehicle-info-update', handleVehicleInfoUpdate);
-});
+    eventBus.on(EVENTS.VEHICLE_INFO_UPDATE, handleVehicleInfoUpdate)
+    eventBus.emit(EVENTS.REQUEST_VEHICLE_STATUS, { vehicleId: props.carInfo })
+})
 
 onBeforeUnmount(() => {
-    window.removeEventListener('vehicle-info-update', handleVehicleInfoUpdate);
-});
+    eventBus.off(EVENTS.VEHICLE_INFO_UPDATE, handleVehicleInfoUpdate)
+})
 </script>
 
 <style lang="scss" scoped>

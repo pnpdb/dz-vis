@@ -37,6 +37,7 @@ import {
     Quaternion,
 } from 'three';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
+import eventBus, { EVENTS } from '@/utils/eventBus.js'
 
 let scene, camera, container, renderer, controls, stats, clock;
 let models = new Map(); // 模型缓存
@@ -84,7 +85,7 @@ export const initScene = dom => {
     clock = new Clock();
 
     // 发送初始化开始事件
-    window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 0 }));
+    eventBus.emit(EVENTS.SCENE3D_PROGRESS, 0);
 
     // 异步初始化场景以避免阻塞主线程
     setTimeout(() => {
@@ -95,7 +96,7 @@ export const initScene = dom => {
 const initSceneCore = async () => {
     try {
         // 步骤1：创建基础场景 (10%)
-        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 10 }));
+        eventBus.emit(EVENTS.SCENE3D_PROGRESS, 10);
         await new Promise(resolve => setTimeout(resolve, 0));
         
         scene = new Scene();
@@ -118,7 +119,7 @@ const initSceneCore = async () => {
         createCoordinateAxes();
 
         // 步骤2：创建相机 (20%)
-        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 20 }));
+        eventBus.emit(EVENTS.SCENE3D_PROGRESS, 20);
         await new Promise(resolve => setTimeout(resolve, 0));
         
         camera = new PerspectiveCamera(
@@ -136,7 +137,7 @@ const initSceneCore = async () => {
         };
 
         // 步骤3：创建控制器 (30%)
-        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 30 }));
+        eventBus.emit(EVENTS.SCENE3D_PROGRESS, 30);
         await new Promise(resolve => setTimeout(resolve, 0));
         
         controls = new OrbitControls(camera, container);
@@ -149,7 +150,7 @@ const initSceneCore = async () => {
         controls.maxDistance = 200;
 
         // 步骤4：创建渲染器 (50%)
-        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 50 }));
+        eventBus.emit(EVENTS.SCENE3D_PROGRESS, 50);
         await new Promise(resolve => setTimeout(resolve, 0));
         
         renderer = new WebGLRenderer({
@@ -181,7 +182,7 @@ const initSceneCore = async () => {
         container.appendChild(renderer.domElement);
 
         // 步骤5：性能自适应和事件处理 (60%)
-        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 60 }));
+        eventBus.emit(EVENTS.SCENE3D_PROGRESS, 60);
         await new Promise(resolve => setTimeout(resolve, 0));
         
         // 性能自适应
@@ -207,8 +208,8 @@ const initSceneCore = async () => {
         setupMouseEventListeners();
 
         // 监听来自Map.vue的视角与标记事件
-        window.addEventListener('scene3d-topdown', handleTopDownView);
-        window.addEventListener('scene3d-default', handleDefaultView);
+        eventBus.on(EVENTS.SCENE3D_TOPDOWN, handleTopDownView)
+        eventBus.on(EVENTS.SCENE3D_DEFAULT, handleDefaultView)
         // 不再监听施工标记事件
 
         // 性能监控（开发环境）
@@ -218,46 +219,68 @@ const initSceneCore = async () => {
         }
 
         // 步骤6：启动渲染循环 (70%)
-        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 70 }));
+        eventBus.emit(EVENTS.SCENE3D_PROGRESS, 70);
         await new Promise(resolve => setTimeout(resolve, 0));
         
         // 智能渲染循环
-        animate = (currentTime) => {
-            if (!isVisible || !shouldRender || isPaused) {
-                if (!isPaused) {
-                    rafId = requestAnimationFrame(animate);
-                }
+        animate = (currentTime = performance.now()) => {
+            if (!shouldRender) {
+                rafId = requestAnimationFrame(animate);
                 return;
             }
-            
-            // 帧率控制
+
+            if (!renderer || !scene || !camera) {
+                lastRenderTime = currentTime;
+                lastFPSCheck = currentTime;
+                rafId = requestAnimationFrame(animate);
+                return;
+            }
+
             if (currentTime - lastRenderTime < frameInterval) {
                 rafId = requestAnimationFrame(animate);
                 return;
             }
-            
-            lastRenderTime = currentTime;
+
             frameCount++;
-            
-            // FPS 监控和自适应
-            if (currentTime - lastFPSCheck > 1000) {
+            lastRenderTime = currentTime;
+
+            renderer.render(scene, camera);
+
+            controls.update();
+
+            const delta = clock?.getDelta?.() ?? 0;
+            scene.traverse((object) => {
+                if (object.isMesh && object.material && object.material.uniforms) {
+                    const uTime = object.material.uniforms.uTime;
+                    if (uTime) {
+                        uTime.value += delta;
+                    }
+                }
+            });
+
+            // 更新场景进度
+            eventBus.emit(EVENTS.SCENE3D_PROGRESS, Math.min(100, Math.round((currentTime / 1000) * 10)));
+
+            if (stats) {
+                stats.update();
+            }
+
+            if (currentTime - lastFPSCheck >= 1000) {
                 currentFPS = Math.round((frameCount * 1000) / (currentTime - lastFPSCheck));
                 frameCount = 0;
                 lastFPSCheck = currentTime;
-                
-                // 发送FPS更新事件给全局
-                window.dispatchEvent(new CustomEvent('fps-update', { 
-                    detail: { fps: currentFPS } 
-                }));
-                
-                // 自动性能调节 - 添加防抖机制避免频繁切换
+
+                eventBus.emit(EVENTS.FPS_UPDATE, {
+                    fps: currentFPS,
+                });
+
                 if (performanceMode === 'auto') {
                     if (currentFPS < 15 && !isPerformanceAdjusting) {
                         isPerformanceAdjusting = true;
                         setTimeout(() => {
                             switchToLowPerformance();
                             isPerformanceAdjusting = false;
-                        }, 2000); // 2秒后再次允许调整
+                        }, 2000);
                     } else if (currentFPS > 55 && !isPerformanceAdjusting) {
                         isPerformanceAdjusting = true;
                         setTimeout(() => {
@@ -267,38 +290,20 @@ const initSceneCore = async () => {
                     }
                 }
             }
-            
-            // 更新时钟
-            const deltaTime = clock.getDelta();
-            
-            // 控制器更新（降频）
-            if (controls.enableDamping) {
-                controls.update();
-            }
-            
-            // 模型动画更新（如果有的话）
-            updateModelAnimations(deltaTime);
-            
-            // 渲染
-            renderer.render(scene, camera);
-            
-            if (stats) {
-                stats.update();
-            }
-            
+
             rafId = requestAnimationFrame(animate);
         };
 
         rafId = requestAnimationFrame(animate);
 
         // 步骤7：设置光照 (80%)
-        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 80 }));
+        eventBus.emit(EVENTS.SCENE3D_PROGRESS, 80);
         await new Promise(resolve => setTimeout(resolve, 0));
         
         setupLighting();
 
         // 步骤8：基础场景完成，开始异步加载资源 (70%)
-        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 70 }));
+        eventBus.emit(EVENTS.SCENE3D_PROGRESS, 70);
         
         // 异步加载环境贴图（不阻塞）
         loadEnvironment();
@@ -308,11 +313,11 @@ const initSceneCore = async () => {
         
         // 基础场景已完成，可以开始交互（即使模型未加载完）
         console.log('基础3D场景初始化完成，界面可交互');
-        window.dispatchEvent(new CustomEvent('scene3d-complete'));
+        eventBus.emit(EVENTS.SCENE3D_COMPLETE);
         
     } catch (error) {
         console.error('Scene3D 初始化失败:', error);
-        window.dispatchEvent(new CustomEvent('scene3d-complete'));
+        eventBus.emit(EVENTS.SCENE3D_COMPLETE);
     }
 };
 
@@ -385,7 +390,7 @@ const loadModelsWithProgress = async () => {
     const updateTotalProgress = () => {
         // 70% 基础场景 + 15% 小车模型 + 15% 沙盘模型 = 100%
         const totalProgress = 70 + (carsProgress * 0.15) + (finalProgress * 0.15);
-        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: Math.round(totalProgress) }));
+        eventBus.emit(EVENTS.SCENE3D_PROGRESS, Math.round(totalProgress));
     };
 
     // 异步加载小车模型
@@ -477,11 +482,11 @@ const loadModelsWithProgress = async () => {
         ]);
         
         console.info('所有模型加载完成');
-        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 100 }));
+        eventBus.emit(EVENTS.SCENE3D_PROGRESS, 100);
         
     } catch (error) {
         console.error('模型加载过程中出现错误:', error);
-        window.dispatchEvent(new CustomEvent('scene3d-progress', { detail: 100 }));
+        eventBus.emit(EVENTS.SCENE3D_PROGRESS, 100);
     }
 };
 
@@ -1385,11 +1390,10 @@ export const createConstructionMarkerAt = (x, z, options = {}) => {
     constructionMarkers.set(id, sprite);
     
     // 分发施工标记添加事件
-    if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('construction-marker-added', {
-            detail: { id, x, z }
-        }));
-    }
+    eventBus.emit(EVENTS.CONSTRUCTION_MARKER_ADDED, {
+        id,
+        position: sprite.position.clone()
+    });
     
     return { id, x, z };
 };
@@ -1409,11 +1413,7 @@ export const removeConstructionMarker = (id) => {
     constructionMarkers.delete(id);
     
     // 分发施工标记删除事件
-    if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('construction-marker-removed', {
-            detail: { id }
-        }));
-    }
+    eventBus.emit(EVENTS.CONSTRUCTION_MARKER_REMOVED, { id });
     
     return true;
 };
@@ -1969,8 +1969,8 @@ export const destroyScene = () => {
         resizeHandler = null;
     }
     // 移除自定义事件
-    window.removeEventListener('scene3d-topdown', handleTopDownView);
-    window.removeEventListener('scene3d-default', handleDefaultView);
+    eventBus.off(EVENTS.SCENE3D_TOPDOWN, handleTopDownView)
+    eventBus.off(EVENTS.SCENE3D_DEFAULT, handleDefaultView)
     // 无
     
     // 清理鼠标事件监听器

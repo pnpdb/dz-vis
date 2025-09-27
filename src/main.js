@@ -106,7 +106,7 @@ if (shouldStartSocket) {
     // 延迟启动Socket服务器，确保应用完全初始化
     setTimeout(async () => {
         try {
-            const result = await socketManager.startServer(8888);
+            const result = await socketManager.startServer();
         } catch (error) {
             await jsError('Socket服务器启动失败:', error);
             await jsError('错误详情:', error.stack || error);

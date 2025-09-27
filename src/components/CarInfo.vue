@@ -65,32 +65,30 @@
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import Dashboard from '@/components/Dashboard.vue';
 import { compareVehicleId, parseVehicleId } from '@/utils/vehicleTypes.js';
+import eventBus, { EVENTS } from '@/utils/eventBus.js'
+import logHelper from '@/utils/logHelper.js'
 
 const props = defineProps({
     carInfo: {
-        type: [String, Number], // 支持字符串和数字类型
+        type: [String, Number],
         default: 1
     }
 });
 
-// 车辆信息响应式数据
 const batteryValue = ref(82);
 const speedValue = ref(0);
 const hasSpeed = ref(false);
 const positionX = ref(116.40);
 const positionY = ref(39.90);
-const isOnline = ref(false); // 简单的在线/离线状态
+const isOnline = ref(false);
 const navStatus = ref({
     code: 0,
     text: '未导航'
 });
+const vehicleInfo = ref(null);
 
-// 移除平行驾驶模式相关数据
+const currentVehicleId = ref(parseVehicleId(props.carInfo));
 
-// 用于确定是否显示该车辆的信息
-const currentVehicleId = ref(null);
-
-// 重置车辆信息为默认状态
 const resetToDefaultState = () => {
     speedValue.value = 0;
     hasSpeed.value = false;
@@ -102,109 +100,67 @@ const resetToDefaultState = () => {
         code: 0,
         text: '未导航'
     };
-    console.log(`🔄 重置车辆${props.carInfo}信息为默认状态`);
+    vehicleInfo.value = null;
 };
 
-// 获取在线状态文本
-const getOnlineStatusText = () => {
-    return isOnline.value ? '在线' : '离线';
-};
+const getOnlineStatusText = () => isOnline.value ? '在线' : '离线';
+const getOnlineStatusClass = () => isOnline.value ? 'status-normal' : 'status-error';
 
-// 获取在线状态样式类
-const getOnlineStatusClass = () => {
-    return isOnline.value ? 'status-normal' : 'status-error';
-};
-
-// 检查车辆连接状态并更新UI
 const checkAndUpdateVehicleStatus = () => {
-    // 通过全局事件请求当前车辆的连接状态
-    console.log(`📤 CarInfo请求车辆状态: ${props.carInfo}`);
-    window.dispatchEvent(new CustomEvent('request-vehicle-status', {
-        detail: {
-            vehicleId: props.carInfo
-        }
-    }));
+    eventBus.emit(EVENTS.REQUEST_VEHICLE_STATUS, { vehicleId: currentVehicleId.value });
 };
 
-const handleSpeedValue = (value) => {
-    speedValue.value = value;
-};
+const handleVehicleInfoUpdate = (data) => {
+    if (!data || typeof data !== 'object') return;
 
-// 处理车辆信息更新事件
-const handleVehicleInfoUpdate = (event) => {
-    const vehicleInfo = event.detail;
-    
-    // 使用统一的车辆ID比较函数
-    const matchesCarId = compareVehicleId(vehicleInfo.carId, props.carInfo);
-    const matchesVehicleId = compareVehicleId(vehicleInfo.vehicleId, props.carInfo);
-    const isCurrentVehicle = matchesCarId || matchesVehicleId;
-    
-    console.debug(`🎯 CarInfo匹配: 车辆${vehicleInfo.vehicleId} vs 当前${props.carInfo} = ${isCurrentVehicle}`);
-    
-    if (isCurrentVehicle) {
-        // 更新车辆信息
-        speedValue.value = Number(vehicleInfo.speed.toFixed(3)); // 转换为数字类型
-        batteryValue.value = Math.round(vehicleInfo.battery);
-        positionX.value = vehicleInfo.position.x;
-        positionY.value = vehicleInfo.position.y;
-        navStatus.value = vehicleInfo.navigation;
-        hasSpeed.value = true;
-        isOnline.value = true;
-        
-        // 移除平行驾驶相关参数处理
-        
-        console.debug(`更新车辆${props.carInfo}信息:`, vehicleInfo);
+    const incomingId = data.vehicleId ?? data.carId;
+    if (!compareVehicleId(incomingId, currentVehicleId.value)) {
+        return;
     }
+
+    hasSpeed.value = typeof data.speed === 'number';
+    speedValue.value = hasSpeed.value ? data.speed : 0;
+    positionX.value = data.position?.x ?? 0;
+    positionY.value = data.position?.y ?? 0;
+    batteryValue.value = typeof data.battery === 'number' ? Math.round(data.battery) : 0;
+    navStatus.value = data.navigation ?? { code: 0, text: '未导航' };
+    isOnline.value = true;
+    vehicleInfo.value = data;
 };
 
-// 旧的辅助函数已移除，现在使用统一的vehicleTypes工具
-
-// 处理车辆连接状态变化事件
-const handleVehicleConnectionStatus = (event) => {
-    console.debug('📥 CarInfo收到vehicle-connection-status事件:', event.detail);
-    const { carId, isConnected } = event.detail;
-    
-    // 根据当前选择的车辆信息来匹配
-    const isCurrentVehicle = carId === props.carInfo || 
-                           carId == props.carInfo ||   // 松散比较
-                           // 向后兼容：如果carInfo是字母，转换为数字ID
-                           (typeof props.carInfo === 'string' && 
-                            carId === getVehicleIdFromLetter(props.carInfo));
-    
-    console.debug(`🔍 CarInfo车辆匹配: 事件车辆${carId} vs 当前${props.carInfo} = ${isCurrentVehicle}`);
-    
-    if (isCurrentVehicle) {
-        const oldStatus = isOnline.value;
-        isOnline.value = isConnected;
-        console.debug(`🔗 CarInfo状态更新: 车辆${carId}, 连接:${isConnected} → ${oldStatus} → ${isOnline.value}`);
+const handleVehicleConnectionStatus = ({ carId, vehicleId, isConnected }) => {
+    const incomingId = vehicleId ?? carId;
+    if (!compareVehicleId(incomingId, currentVehicleId.value)) {
+        return;
     }
+
+    const previous = isOnline.value;
+    isOnline.value = Boolean(isConnected);
+    logHelper.debug('CarInfo', '更新连接状态', {
+        carId: incomingId,
+        isConnected,
+        previous,
+        current: isOnline.value
+    });
 };
 
-// 监听车辆切换
 watch(() => props.carInfo, (newVehicleId, oldVehicleId) => {
     if (newVehicleId !== oldVehicleId) {
-        console.debug(`🔄 车辆切换: ${oldVehicleId} → ${newVehicleId}`);
+        currentVehicleId.value = parseVehicleId(newVehicleId);
         resetToDefaultState();
         checkAndUpdateVehicleStatus();
     }
 }, { immediate: true });
 
-// 移除平行驾驶模式事件处理函数
-
 onMounted(() => {
-    // 监听车辆信息更新事件
-    window.addEventListener('vehicle-info-update', handleVehicleInfoUpdate);
-    // 监听车辆连接状态变化事件
-    window.addEventListener('vehicle-connection-status', handleVehicleConnectionStatus);
-    // 移除平行驾驶模式监听器
-    
-    // 初始检查车辆状态
+    eventBus.on(EVENTS.VEHICLE_INFO_UPDATE, handleVehicleInfoUpdate);
+    eventBus.on(EVENTS.VEHICLE_CONNECTION_STATUS, handleVehicleConnectionStatus);
     checkAndUpdateVehicleStatus();
 });
 
 onBeforeUnmount(() => {
-    window.removeEventListener('vehicle-info-update', handleVehicleInfoUpdate);
-    window.removeEventListener('vehicle-connection-status', handleVehicleConnectionStatus);
+    eventBus.off(EVENTS.VEHICLE_INFO_UPDATE, handleVehicleInfoUpdate);
+    eventBus.off(EVENTS.VEHICLE_CONNECTION_STATUS, handleVehicleConnectionStatus);
 });
 </script>
 

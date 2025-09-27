@@ -103,6 +103,7 @@ impl ProtocolValidator {
             ParsedProtocolData::AvpPickup(pickup) => self.validate_avp_pickup(pickup, start_time, timeout),
             ParsedProtocolData::DataRecording(recording) => self.validate_data_recording(recording, start_time, timeout),
             ParsedProtocolData::ConstructionMarker(marker) => self.validate_construction_marker(marker, start_time, timeout),
+            ParsedProtocolData::VehicleFunctionSetting(_) | ParsedProtocolData::VehiclePathDisplay(_) => Ok(()),
         }
     }
     

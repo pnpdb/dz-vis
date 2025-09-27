@@ -164,6 +164,8 @@ import DrivingBehaviorChart from '@/components/DrivingBehaviorChart.vue';
 import { socketManager } from '@/utils/socketManager.js';
 import { startPoseSelectionMode, stopPoseSelectionMode, startPointSelectionMode, stopPointSelectionMode, createConstructionMarkerAt, removeConstructionMarker, getConstructionMarkersDetails } from '@/components/Scene3D/index.js';
 import { SEND_MESSAGE_TYPES, CONSTRUCTION_MARKER_PROTOCOL } from '@/constants/messageTypes.js';
+import vehicleBridge from '@/utils/vehicleBridge.js';
+import eventBus, { EVENTS } from '@/utils/eventBus.js'
 
 // 实时数据
 const networkDelay = ref(12);
@@ -232,48 +234,43 @@ const updateServerStatus = async () => {
 let serverStatusInterval = null;
 
 // 处理在线车辆数量变化事件
-const handleOnlineVehiclesCountChanged = (event) => {
-    const { count, vehicleIds } = event.detail;
-    onlineVehicles.value = count;
-    console.debug(`📊 主界面在线车辆数量更新: ${count}台, 车辆ID: [${vehicleIds.join(', ')}]`);
-};
+const handleOnlineVehiclesCountChanged = ({ count, vehicleIds }) => {
+    onlineVehicles.value = count
+    console.debug(`📊 主界面在线车辆数量更新: ${count}台, 车辆ID: [${vehicleIds.join(', ')}]`)
+}
 
 onMounted(() => {
-    updateData();
-    dataUpdateInterval = setInterval(updateData, 2000);
-    
-    // 启动服务状态检测
-    updateServerStatus();
-    serverStatusInterval = setInterval(updateServerStatus, 5000); // 每5秒检测一次服务状态
-    
-    // 监听在线车辆数量变化事件
-    window.addEventListener('online-vehicles-count-changed', handleOnlineVehiclesCountChanged);
-    
-    // 初始获取当前在线车辆数量
-    onlineVehicles.value = socketManager.getOnlineVehicleCount();
-    console.debug(`🚗 初始在线车辆数量: ${onlineVehicles.value}台`);
-});
+    updateData()
+    dataUpdateInterval = setInterval(updateData, 2000)
+
+    updateServerStatus()
+    serverStatusInterval = setInterval(updateServerStatus, 5000)
+
+    eventBus.on(EVENTS.ONLINE_VEHICLES_COUNT_CHANGED, handleOnlineVehiclesCountChanged)
+
+    onlineVehicles.value = socketManager.getOnlineVehicleCount()
+    console.debug(`🚗 初始在线车辆数量: ${onlineVehicles.value}台`)
+})
 
 onBeforeUnmount(() => {
     if (dataUpdateInterval) {
-        clearInterval(dataUpdateInterval);
+        clearInterval(dataUpdateInterval)
     }
     if (serverStatusInterval) {
-        clearInterval(serverStatusInterval);
+        clearInterval(serverStatusInterval)
     }
-    
-    // 移除事件监听器
-    window.removeEventListener('online-vehicles-count-changed', handleOnlineVehiclesCountChanged);
-});
+
+    eventBus.off(EVENTS.ONLINE_VEHICLES_COUNT_CHANGED, handleOnlineVehiclesCountChanged)
+})
 
 // 交互：发送事件给3D场景
 const setTopDownView = () => {
-    window.dispatchEvent(new CustomEvent('scene3d-topdown'));
-};
+    eventBus.emit(EVENTS.SCENE3D_TOPDOWN)
+}
 
 const setDefaultView = () => {
-    window.dispatchEvent(new CustomEvent('scene3d-default'));
-};
+    eventBus.emit(EVENTS.SCENE3D_DEFAULT)
+}
 
 // ============ 施工标记交互 ============
 const constructionDialogVisible = ref(false);
@@ -302,9 +299,7 @@ const confirmConstructionPoint = async () => {
             const { invoke } = await import('@tauri-apps/api/core');
             const allMarkers = getConstructionMarkersDetails();
             
-            const result = await invoke('broadcast_all_construction_markers', {
-                markers: allMarkers
-            });
+            const result = await vehicleBridge.broadcastAllConstructionMarkers(allMarkers);
             
             // 显示成功消息
             ElMessage({

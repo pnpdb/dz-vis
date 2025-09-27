@@ -30,17 +30,14 @@
             </Suspense>
         </div>
 
-        <!-- 浮动日志查看器（可拖拽） -->
-        <LogViewer v-model="showLogViewer" />
-        
         <!-- HUD状态指示器 -->
         <div class="hud-overlay">
             <!-- 施工标记列表 - FPS左侧 -->
-            <div v-if="constructionMarkers.length > 0" class="status-indicator top-right-construction">
+            <div v-if="constructionMarkers.length > 0" class="status-indicator top-right-construction" :class="{ collapsed: constructionListCollapsed }">
                 <div class="construction-list">
                     <div class="construction-header" @click.stop="toggleConstructionList">
                         <fa icon="hard-hat" class="construction-list-icon" />
-                        <span>施工标记 ({{ constructionMarkers.length }})</span>
+                        <span class="construction-title">施工标记 ({{ constructionMarkers.length }})</span>
                         <fa :icon="constructionListCollapsed ? 'chevron-right' : 'chevron-down'" class="collapse-icon" />
                     </div>
                     <div v-show="!constructionListCollapsed" class="construction-items">
@@ -92,10 +89,11 @@ import { ref, onMounted, onBeforeUnmount, computed, defineAsyncComponent, Suspen
 import { useRoute } from 'vue-router';
 import Header from '@/components/Header.vue';
 import Map from '@/views/Map.vue';
-import LogViewer from '@/components/LogViewer.vue';
 import { error as jsError } from '@tauri-apps/plugin-log';
 import { getConstructionMarkersDetails, removeConstructionMarker } from '@/components/Scene3D/index.js';
 import { ElMessage } from 'element-plus';
+import eventBus, { EVENTS } from '@/utils/eventBus.js';
+import vehicleBridge from '@/utils/vehicleBridge.js'
 
 // 懒加载组件 - 提升初始加载性能
 const Cars = defineAsyncComponent(() => import('@/views/Cars.vue'));
@@ -130,7 +128,6 @@ const networkStatus = ref({
 // 施工标记列表状态
 const constructionMarkers = ref([]);
 const constructionListCollapsed = ref(false);
-const showLogViewer = ref(false);
 
 // 更新时间
 const updateTime = () => {
@@ -152,18 +149,16 @@ const updateFPS = (fpsData) => {
 };
 
 // 监听3D场景的FPS事件
-const handleFPSUpdate = (event) => {
-    updateFPS(event.detail);
+const handleFPSUpdate = (payload) => {
+    updateFPS(payload);
 };
 
 // 窗口 resize 处理
 const handleResize = () => {
-    window.dispatchEvent(new CustomEvent('app-resize', {
-        detail: {
-            width: window.innerWidth,
-            height: window.innerHeight
-        }
-    }));
+    eventBus.emit(EVENTS.APP_RESIZE, {
+        width: window.innerWidth,
+        height: window.innerHeight
+    });
 };
 
 // 检测网络连接状态（使用Rust后端）
@@ -215,9 +210,6 @@ const toggleConstructionList = () => {
 };
 
 // 处理日志查看器切换事件
-const handleToggleLogViewer = (e) => {
-    showLogViewer.value = !!(e?.detail?.visible);
-};
 
 const deleteConstructionMarker = async (markerId) => {
     try {
@@ -227,12 +219,9 @@ const deleteConstructionMarker = async (markerId) => {
             updateConstructionMarkersList();
             
             // 获取删除后剩余的所有施工标记并广播
-            const { invoke } = await import('@tauri-apps/api/core');
             const remainingMarkers = getConstructionMarkersDetails();
             
-            const result = await invoke('broadcast_all_construction_markers', {
-                markers: remainingMarkers
-            });
+            const result = await vehicleBridge.broadcastAllConstructionMarkers(remainingMarkers);
             
             // 显示成功消息
             ElMessage({
@@ -275,20 +264,17 @@ onMounted(() => {
     window.addEventListener('offline', checkNetworkStatus);
     
     // 监听FPS更新事件
-    window.addEventListener('fps-update', handleFPSUpdate);
+    eventBus.on(EVENTS.FPS_UPDATE, handleFPSUpdate);
     
     // 绑定resize事件
     window.addEventListener('resize', handleResize);
 
-    // 根据设置动态控制日志查看器显示
-    window.addEventListener('toggle-log-viewer', handleToggleLogViewer);
-    
     // 初始化施工标记列表
     updateConstructionMarkersList();
     
     // 监听施工标记变化事件
-    window.addEventListener('construction-marker-added', updateConstructionMarkersList);
-    window.addEventListener('construction-marker-removed', updateConstructionMarkersList);
+    eventBus.on(EVENTS.CONSTRUCTION_MARKER_ADDED, updateConstructionMarkersList);
+    eventBus.on(EVENTS.CONSTRUCTION_MARKER_REMOVED, updateConstructionMarkersList);
 });
 
 onBeforeUnmount(() => {
@@ -296,14 +282,12 @@ onBeforeUnmount(() => {
     if (timeInterval) clearInterval(timeInterval);
     if (networkInterval) clearInterval(networkInterval);
     
-    window.removeEventListener('fps-update', handleFPSUpdate);
+    eventBus.off(EVENTS.FPS_UPDATE, handleFPSUpdate);
     window.removeEventListener('resize', handleResize);
     window.removeEventListener('online', checkNetworkStatus);
     window.removeEventListener('offline', checkNetworkStatus);
-    // 移除toggle-log-viewer事件监听器（使用命名函数以确保正确移除）
-    window.removeEventListener('toggle-log-viewer', handleToggleLogViewer);
-    window.removeEventListener('construction-marker-added', updateConstructionMarkersList);
-    window.removeEventListener('construction-marker-removed', updateConstructionMarkersList);
+    eventBus.off(EVENTS.CONSTRUCTION_MARKER_ADDED, updateConstructionMarkersList);
+    eventBus.off(EVENTS.CONSTRUCTION_MARKER_REMOVED, updateConstructionMarkersList);
 });
 </script>
 

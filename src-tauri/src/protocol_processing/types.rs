@@ -133,6 +133,10 @@ pub enum ParsedProtocolData {
     DataRecording(DataRecordingData),
     /// 施工标记
     ConstructionMarker(ConstructionMarkerData),
+    /// 车辆功能设置
+    VehicleFunctionSetting(VehicleFunctionSettingData),
+    /// 车辆路径显示
+    VehiclePathDisplay(VehiclePathDisplayData),
 }
 
 /// 出租车订单数据
@@ -163,6 +167,21 @@ pub struct AvpPickupData {
 pub struct DataRecordingData {
     pub vehicle_id: u8,
     pub action: u8,
+}
+
+/// 车辆功能设置数据
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VehicleFunctionSettingData {
+    pub vehicle_id: u8,
+    pub function_id: u8,
+    pub enable_status: u8,
+}
+
+/// 车辆路径显示数据
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VehiclePathDisplayData {
+    pub vehicle_id: u8,
+    pub display_path: u8,
 }
 
 /// 施工标记数据

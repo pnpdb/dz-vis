@@ -237,7 +237,6 @@ impl CreateOrUpdateSandboxServiceRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct AppSettings {
     pub id: i64,
-    pub debug_model: bool,       // 调试模型开关
     pub log_level: String,       // 日志级别: DEBUG/INFO/WARNING/ERROR
     pub cache_size: i32,         // 缓存大小(MB)
     pub auto_start: bool,        // 开机启动
@@ -249,7 +248,6 @@ pub struct AppSettings {
 /// 更新/创建应用基本设置请求
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateAppSettingsRequest {
-    pub debug_model: Option<bool>,
     pub log_level: Option<String>,
     pub cache_size: Option<i32>,
     pub auto_start: Option<bool>,

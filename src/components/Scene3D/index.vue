@@ -14,6 +14,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick } from "vue";
 import { destroyScene, initScene } from "./index.js";
+import eventBus, { EVENTS } from '@/utils/eventBus.js'
 
 const isLoading = ref(true);
 const loadingProgress = ref(0);
@@ -66,24 +67,24 @@ const initSceneAsync = async (container) => {
           const progress = event.detail || 0;
           if (progress === 100) {
             console.log('所有模型加载完成');
-            window.removeEventListener('scene3d-progress', modelProgressHandler);
+            eventBus.off(EVENTS.SCENE3D_PROGRESS, modelProgressHandler);
           } else {
             console.log(`模型加载进度: ${progress}%`);
           }
         };
         
         // 移除旧的监听器
-        window.removeEventListener('scene3d-progress', progressHandler);
-        window.removeEventListener('scene3d-complete', completeHandler);
+        eventBus.off(EVENTS.SCENE3D_PROGRESS, progressHandler);
+        eventBus.off(EVENTS.SCENE3D_COMPLETE, completeHandler);
         
         // 添加新的模型进度监听器
-        window.addEventListener('scene3d-progress', modelProgressHandler);
+        eventBus.on(EVENTS.SCENE3D_PROGRESS, modelProgressHandler);
         
         resolve();
       };
       
-      window.addEventListener('scene3d-progress', progressHandler);
-      window.addEventListener('scene3d-complete', completeHandler);
+      eventBus.on(EVENTS.SCENE3D_PROGRESS, progressHandler);
+      eventBus.on(EVENTS.SCENE3D_COMPLETE, completeHandler);
       
       // 启动3D场景初始化
       initScene(container);

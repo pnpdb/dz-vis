@@ -5,10 +5,13 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import vehicleBridge from '@/utils/vehicleBridge.js';
+import eventBus, { EVENTS } from '@/utils/eventBus.js';
 import { SEND_MESSAGE_TYPES, RECEIVE_MESSAGE_TYPES, VEHICLE_INFO_PROTOCOL, VEHICLE_CONTROL_PROTOCOL, DATA_RECORDING_PROTOCOL, TAXI_ORDER_PROTOCOL, AVP_PARKING_PROTOCOL, AVP_PICKUP_PROTOCOL, VEHICLE_FUNCTION_SETTING_PROTOCOL, VEHICLE_PATH_DISPLAY_PROTOCOL, MessageTypeUtils, NAV_STATUS_TEXTS } from '@/constants/messageTypes.js';
 import { ElMessage } from 'element-plus';
 import { createLogger, logger } from '@/utils/logger.js';
 import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log';
+import logHelper from '@/utils/logHelper.js'
 
 const socketLogger = createLogger('SocketManager');
 
@@ -17,7 +20,6 @@ class SocketManager {
         this.isServerRunning = false;
         this.connectedVehicles = new Map();
         this.messageHandlers = new Map();
-        this.defaultPort = 8888;
         
         // 设置默认消息处理器
         this.setupDefaultHandlers();
@@ -29,16 +31,16 @@ class SocketManager {
     /**
      * 启动Socket服务器
      */
-    async startServer(port = this.defaultPort) {
+    async startServer() {
         try {
-            socketLogger.debug('SocketManager.startServer 被调用, 端口:', port);
+            logHelper.debug('SocketManager', 'startServer called')
             
             if (this.isServerRunning) {
                 socketLogger.warn('Socket服务器已在运行');
                 return;
             }
 
-            const result = await invoke('start_socket_server', { port });
+            const result = await invoke('start_socket_server');
             socketLogger.debug('Tauri invoke 返回结果:', result);
             
             this.isServerRunning = true;
@@ -241,22 +243,18 @@ class SocketManager {
         }
         
         // 触发车辆连接状态变化事件
-        window.dispatchEvent(new CustomEvent('vehicle-connection-status', {
-            detail: {
-                carId: carId, // 确保使用正确的carId
-                isConnected,
-                timestamp: Date.now()
-            }
-        }));
+        eventBus.emit(EVENTS.VEHICLE_CONNECTION_STATUS, {
+            carId,
+            isConnected,
+            timestamp: Date.now()
+        });
 
         // 触发在线车辆数量变化事件
-        window.dispatchEvent(new CustomEvent('online-vehicles-count-changed', {
-            detail: {
-                count: this.getOnlineVehicleCount(),
-                vehicleIds: this.getOnlineVehicleIds(),
-                timestamp: Date.now()
-            }
-        }));
+        eventBus.emit(EVENTS.ONLINE_VEHICLES_COUNT_CHANGED, {
+            count: this.getOnlineVehicleCount(),
+            vehicleIds: this.getOnlineVehicleIds(),
+            timestamp: Date.now()
+        });
         
         socketLogger.info(`车辆连接状态更新 - 车辆: ${carId}, 状态: ${isConnected ? '连接' : '断开'}, 在线数量: ${this.getOnlineVehicleCount()}`);
     }
@@ -294,21 +292,17 @@ class SocketManager {
      */
     setupStatusRequestHandler() {
         socketLogger.debug('SocketManager.setupStatusRequestHandler 已设置');
-        window.addEventListener('request-vehicle-status', (event) => {
-            const { vehicleId } = event.detail;
+        eventBus.on(EVENTS.REQUEST_VEHICLE_STATUS, ({ vehicleId }) => {
             const isConnected = this.isVehicleConnected(vehicleId);
-            
+
             socketLogger.debug(`SocketManager收到状态请求 - 车辆: ${vehicleId}, 连接状态: ${isConnected}`);
-            
-            // 立即响应车辆连接状态
-            window.dispatchEvent(new CustomEvent('vehicle-connection-status', {
-                detail: {
-                    carId: vehicleId,
-                    isConnected,
-                    timestamp: Date.now()
-                }
-            }));
-            
+
+            eventBus.emit(EVENTS.VEHICLE_CONNECTION_STATUS, {
+                carId: vehicleId,
+                isConnected,
+                timestamp: Date.now()
+            });
+
             socketLogger.debug(`SocketManager发送状态响应 - 车辆: ${vehicleId}, 连接: ${isConnected}`);
         });
     }
@@ -413,15 +407,11 @@ class SocketManager {
             ], { throttle: true, throttleKey: `vinfo-ok-${vehicleId}`, interval: 500 });
             
             // 发送到UI更新
-            window.dispatchEvent(new CustomEvent('vehicle-info-update', {
-                detail: vehicleInfo
-            }));
+            eventBus.emit(EVENTS.VEHICLE_INFO_UPDATE, vehicleInfo);
 
             // 根据导航状态自动切换平行驾驶模式
             const isParallelDriving = navCode === 15;
-            window.dispatchEvent(new CustomEvent('parallel-driving-mode-change', {
-                detail: { mode: isParallelDriving }
-            }));
+            eventBus.emit(EVENTS.PARALLEL_DRIVING_MODE_CHANGE, { mode: isParallelDriving });
             
         } catch (error) {
             socketLogger.error(`解析车辆信息失败 - 车辆: ${carId}:`, error);
@@ -436,53 +426,7 @@ class SocketManager {
      * @param {Object} positionData - 位置数据 (仅当指令为4时需要) {x: number, y: number, orientation: number}
      */
     async sendVehicleControl(vehicleId, command, positionData = null) {
-        // 尝试使用新的协议处理器
-        try {
-            const protocolProcessor = (await import('./protocolProcessor.js')).default;
-            
-            // 映射命令类型
-            const commandMap = {
-                1: 'Start',
-                2: 'Stop', 
-                3: 'EmergencyBrake',
-                4: 'InitPose'
-            };
-            
-            const commandType = commandMap[command];
-            if (!commandType) {
-                throw new Error(`不支持的命令类型: ${command}`);
-            }
-            
-            // 使用Rust协议处理器构建数据
-            const protocolData = await protocolProcessor.buildVehicleControl(
-                vehicleId, 
-                commandType, 
-                positionData
-            );
-            
-            // 解码Base64数据为字节数组
-            const binaryString = atob(protocolData);
-            const dataArray = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) {
-                dataArray[i] = binaryString.charCodeAt(i);
-            }
-            
-            // 通过Rust发送消息给指定车辆
-            const result = await invoke('send_to_vehicle', {
-                vehicleId: vehicleId,
-                messageType: SEND_MESSAGE_TYPES.VEHICLE_CONTROL,
-                data: Array.from(dataArray)
-            });
-            
-            const commandName = VEHICLE_CONTROL_PROTOCOL.COMMAND_NAMES[command];
-            socketLogger.info(`🚀 车辆控制指令发送成功 (Rust协议处理器) - 车辆: ${vehicleId}, 指令: ${commandName}, 数据大小: ${dataArray.length}字节`);
-            
-            return result;
-        } catch (rustError) {
-            socketLogger.warn(`Rust协议处理器失败，回退到原生实现: ${rustError.message}`);
-            // 回退到原来的实现
-            return this.sendVehicleControlLegacy(vehicleId, command, positionData);
-        }
+        return vehicleBridge.sendVehicleControl(vehicleId, command, positionData);
     }
     
     // 保留原来的实现作为回退
@@ -560,21 +504,21 @@ class SocketManager {
      * 便捷方法：启动车辆
      */
     async startVehicle(vehicleId) {
-        return await this.sendVehicleControl(vehicleId, VEHICLE_CONTROL_PROTOCOL.COMMAND_START);
+        return vehicleBridge.sendVehicleControl(vehicleId, VEHICLE_CONTROL_PROTOCOL.COMMAND_START);
     }
 
     /**
      * 便捷方法：停止车辆
      */
     async stopVehicle(vehicleId) {
-        return await this.sendVehicleControl(vehicleId, VEHICLE_CONTROL_PROTOCOL.COMMAND_STOP);
+        return vehicleBridge.sendVehicleControl(vehicleId, VEHICLE_CONTROL_PROTOCOL.COMMAND_STOP);
     }
 
     /**
      * 便捷方法：紧急制动
      */
     async emergencyBrake(vehicleId) {
-        return await this.sendVehicleControl(vehicleId, VEHICLE_CONTROL_PROTOCOL.COMMAND_EMERGENCY_BRAKE);
+        return vehicleBridge.sendVehicleControl(vehicleId, VEHICLE_CONTROL_PROTOCOL.COMMAND_EMERGENCY_BRAKE);
     }
 
 
@@ -582,7 +526,7 @@ class SocketManager {
      * 便捷方法：初始化位姿
      */
     async initializePose(vehicleId, x = 0.0, y = 0.0, orientation = 0.0) {
-        return await this.sendVehicleControl(vehicleId, VEHICLE_CONTROL_PROTOCOL.COMMAND_INIT_POSE, {
+        return vehicleBridge.sendVehicleControl(vehicleId, VEHICLE_CONTROL_PROTOCOL.COMMAND_INIT_POSE, {
             x, y, orientation
         });
     }
@@ -601,32 +545,10 @@ class SocketManager {
 
             socketLogger.debug(`SocketManager.sendDataRecording - 车辆ID: ${vehicleId}, 启用: ${enabled}`);
 
-            // 构建数据域 (2字节)
-            const dataBuffer = new ArrayBuffer(DATA_RECORDING_PROTOCOL.TOTAL_SIZE);
-            const dataView = new DataView(dataBuffer);
-
-            // 写入车辆编号 (UINT8)
-            dataView.setUint8(DATA_RECORDING_PROTOCOL.VEHICLE_ID_OFFSET, vehicleId);
-            
-            // 写入记录状态 (UINT8)
             const recordingStatus = enabled ? DATA_RECORDING_PROTOCOL.RECORDING_ON : DATA_RECORDING_PROTOCOL.RECORDING_OFF;
-            dataView.setUint8(DATA_RECORDING_PROTOCOL.RECORDING_STATUS_OFFSET, recordingStatus);
-
-            // 转换为字节数组
-            const dataArray = new Uint8Array(dataBuffer);
-
-            // 通过Rust发送消息给指定车辆
-            socketLogger.debug(`准备发送数据记录指令 - vehicleId: ${vehicleId}, enabled: ${enabled}, messageType: ${SEND_MESSAGE_TYPES.DATA_RECORDING}, data长度: ${dataArray.length}`);
-            const result = await invoke('send_to_vehicle', {
-                vehicleId: vehicleId,
-                messageType: SEND_MESSAGE_TYPES.DATA_RECORDING,
-                data: Array.from(dataArray)
-            });
-            socketLogger.debug(`数据记录指令发送成功, 结果:`, result);
-
+            const result = await vehicleBridge.sendDataRecording(vehicleId, recordingStatus);
             const statusName = DATA_RECORDING_PROTOCOL.STATUS_NAMES[recordingStatus];
             socketLogger.info(`数据记录指令发送成功 - 车辆: ${vehicleId}, 状态: ${statusName}`);
-
             return result;
         } catch (error) {
             const statusName = enabled ? '开启' : '关闭';
@@ -655,13 +577,7 @@ class SocketManager {
             socketLogger.info(`发送出租车订单 - 订单: ${orderId}, 起点: (${actualStartX}, ${actualStartY}), 终点: (${actualEndX}, ${actualEndY})`);
 
             // 调用Rust后端进行广播和数据库保存
-            const result = await invoke('broadcast_taxi_order', {
-                orderId: orderId,
-                startX: actualStartX,
-                startY: actualStartY,
-                endX: actualEndX,
-                endY: actualEndY
-            });
+            const result = await vehicleBridge.broadcastTaxiOrder(orderId, actualStartX, actualStartY, actualEndX, actualEndY);
 
             socketLogger.info(`出租车订单发送成功 - 订单: ${orderId}`);
             return result;
@@ -686,14 +602,7 @@ class SocketManager {
             socketLogger.info(`发送出租车订单给指定车辆 - 订单: ${orderId}, 车辆: ${vehicleId}, 起点: (${startX}, ${startY}), 终点: (${endX}, ${endY})`);
 
             // 调用Rust后端发送给指定车辆并保存到数据库
-            const result = await invoke('send_taxi_order_to_vehicle', {
-                orderId: orderId,
-                vehicleId: vehicleId,
-                startX: startX,
-                startY: startY,
-                endX: endX,
-                endY: endY
-            });
+            const result = await vehicleBridge.sendTaxiOrderToVehicle(orderId, vehicleId, startX, startY, endX, endY);
 
             socketLogger.info(`出租车订单发送成功 - 订单: ${orderId}, 车辆: ${vehicleId}`);
             return result;
@@ -735,9 +644,7 @@ class SocketManager {
             socketLogger.info(`发送AVP泊车指令 - 车辆: ${vehicleId}, 车位: ${actualParkingSpot}`);
 
             // 调用Rust后端进行发送和数据库保存
-            const result = await invoke('send_avp_parking', {
-                vehicleId: vehicleId
-            });
+            const result = await vehicleBridge.sendAvpParking(vehicleId);
 
             socketLogger.info(`AVP泊车指令发送成功 - 车辆: ${vehicleId}, 车位: ${actualParkingSpot}`);
             return result;
@@ -761,9 +668,7 @@ class SocketManager {
             socketLogger.info(`发送AVP取车指令 - 车辆: ${vehicleId}`);
 
             // 调用Rust后端进行发送和数据库保存
-            const result = await invoke('send_avp_pickup', {
-                vehicleId: vehicleId
-            });
+            const result = await vehicleBridge.sendAvpPickup(vehicleId);
 
             socketLogger.info(`AVP取车指令发送成功 - 车辆: ${vehicleId}`);
             return result;
@@ -793,20 +698,8 @@ class SocketManager {
 
             socketLogger.debug(`发送车辆功能设置指令 - 车辆: ${vehicleId}, 功能: ${functionId}, 状态: ${enableStatus}`);
 
-            // 构建数据域 (3字节)
-            const data = new Uint8Array(VEHICLE_FUNCTION_SETTING_PROTOCOL.TOTAL_SIZE);
-            data[VEHICLE_FUNCTION_SETTING_PROTOCOL.VEHICLE_ID_OFFSET] = vehicleId;
-            data[VEHICLE_FUNCTION_SETTING_PROTOCOL.FUNCTION_ID_OFFSET] = functionId;
-            data[VEHICLE_FUNCTION_SETTING_PROTOCOL.ENABLE_STATUS_OFFSET] = enableStatus;
-
-            // 调用Rust后端发送到指定车辆
-            const result = await invoke('send_to_vehicle', {
-                vehicleId: vehicleId,
-                messageType: SEND_MESSAGE_TYPES.VEHICLE_FUNCTION_SETTING,
-                data: Array.from(data)
-            });
-
-            socketLogger.info(`车辆功能设置指令发送成功 - 车辆: ${vehicleId}, 功能: ${functionId}, 状态: ${enableStatus}, 数据大小: ${data.length}字节`);
+            const result = await vehicleBridge.sendVehicleFunctionSetting(vehicleId, functionId, enableStatus);
+            socketLogger.info(`车辆功能设置指令发送成功 - 车辆: ${vehicleId}, 功能: ${functionId}, 状态: ${enableStatus}`);
             return result;
         } catch (error) {
             socketLogger.error(`发送车辆功能设置指令失败 - 车辆: ${vehicleId}:`, error);
@@ -830,19 +723,8 @@ class SocketManager {
 
             socketLogger.debug(`发送车辆路径显示控制指令 - 车辆: ${vehicleId}, 显示路径: ${displayPath ? '开启' : '关闭'}`);
 
-            // 构建数据域 (2字节)
-            const data = new Uint8Array(VEHICLE_PATH_DISPLAY_PROTOCOL.TOTAL_SIZE);
-            data[VEHICLE_PATH_DISPLAY_PROTOCOL.VEHICLE_ID_OFFSET] = vehicleId;
-            data[VEHICLE_PATH_DISPLAY_PROTOCOL.DISPLAY_PATH_OFFSET] = displayPath;
-
-            // 调用Rust后端发送到指定车辆
-            const result = await invoke('send_to_vehicle', {
-                vehicleId: vehicleId,
-                messageType: SEND_MESSAGE_TYPES.VEHICLE_PATH_DISPLAY,
-                data: Array.from(data)
-            });
-
-            socketLogger.info(`车辆路径显示控制指令发送成功 - 车辆: ${vehicleId}, 显示路径: ${displayPath ? '开启' : '关闭'}, 数据大小: ${data.length}字节`);
+            const result = await vehicleBridge.sendVehiclePathDisplay(vehicleId, displayPath);
+            socketLogger.info(`车辆路径显示控制指令发送成功 - 车辆: ${vehicleId}, 显示路径: ${displayPath ? '开启' : '关闭'}`);
             return result;
         } catch (error) {
             socketLogger.error(`发送车辆路径显示控制指令失败 - 车辆: ${vehicleId}:`, error);

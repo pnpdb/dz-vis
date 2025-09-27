@@ -273,7 +273,6 @@ impl VehicleDatabase {
             r#"
             CREATE TABLE IF NOT EXISTS app_settings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                debug_model BOOLEAN NOT NULL DEFAULT 0,
                 log_level TEXT NOT NULL DEFAULT 'INFO',
                 cache_size INTEGER NOT NULL DEFAULT 512,
                 auto_start BOOLEAN NOT NULL DEFAULT 0,
@@ -297,7 +296,7 @@ impl VehicleDatabase {
         if cnt == 0 {
             let now = Utc::now().to_rfc3339();
             sqlx::query(
-                r#"INSERT INTO app_settings (debug_model, log_level, cache_size, auto_start, app_title, created_at, updated_at) VALUES (0, 'INFO', 512, 0, '渡众智能沙盘云控平台', ?, ?)"#
+                r#"INSERT INTO app_settings (log_level, cache_size, auto_start, app_title, created_at, updated_at) VALUES ('INFO', 512, 0, '渡众智能沙盘云控平台', ?, ?)"#
             ).bind(&now).bind(&now).execute(&self.pool).await?;
         }
         
@@ -354,7 +353,6 @@ impl VehicleDatabase {
             .await?;
         Ok(AppSettings {
             id: row.get("id"),
-            debug_model: row.get::<i64, _>("debug_model") != 0,
             log_level: row.get("log_level"),
             cache_size: row.get("cache_size"),
             auto_start: row.get::<Option<i64>, _>("auto_start").unwrap_or(0) != 0,
@@ -367,7 +365,6 @@ impl VehicleDatabase {
     pub async fn update_app_settings(&self, req: UpdateAppSettingsRequest) -> Result<AppSettings, sqlx::Error> {
         // 读取当前设置并合并
         let current = self.get_app_settings().await?;
-        let debug_model = req.debug_model.unwrap_or(current.debug_model);
         let log_level = req
             .log_level
             .unwrap_or(current.log_level)
@@ -380,11 +377,10 @@ impl VehicleDatabase {
         sqlx::query(
             r#"
             UPDATE app_settings 
-            SET debug_model = ?, log_level = ?, cache_size = ?, auto_start = ?, app_title = ?, updated_at = ?
+            SET log_level = ?, cache_size = ?, auto_start = ?, app_title = ?, updated_at = ?
             WHERE id = (SELECT id FROM app_settings ORDER BY id DESC LIMIT 1)
             "#
         )
-        .bind(if debug_model { 1 } else { 0 })
         .bind(&log_level)
         .bind(cache_size)
         .bind(if auto_start { 1 } else { 0 })

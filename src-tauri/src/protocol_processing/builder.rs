@@ -121,6 +121,31 @@ impl ProtocolBuilder {
         self.update_stats(start_time);
         self.buffer.clone()
     }
+
+    /// 构建车辆功能设置协议
+    pub fn build_vehicle_function_setting(&mut self, setting: &VehicleFunctionSettingData) -> Vec<u8> {
+        let start_time = current_timestamp_us();
+        self.buffer.clear();
+
+        self.buffer.push(setting.vehicle_id);
+        self.buffer.push(setting.function_id);
+        self.buffer.push(setting.enable_status);
+
+        self.update_stats(start_time);
+        self.buffer.clone()
+    }
+
+    /// 构建车辆路径显示协议
+    pub fn build_vehicle_path_display(&mut self, path: &VehiclePathDisplayData) -> Vec<u8> {
+        let start_time = current_timestamp_us();
+        self.buffer.clear();
+
+        self.buffer.push(path.vehicle_id);
+        self.buffer.push(path.display_path);
+
+        self.update_stats(start_time);
+        self.buffer.clone()
+    }
     
     /// 批量构建协议
     pub fn batch_build(&mut self, commands: &[ParsedProtocolData]) -> Vec<Vec<u8>> {
@@ -135,7 +160,9 @@ impl ProtocolBuilder {
                 ParsedProtocolData::AvpPickup(pickup) => self.build_avp_pickup(pickup),
                 ParsedProtocolData::DataRecording(recording) => self.build_data_recording(recording),
                 ParsedProtocolData::ConstructionMarker(marker) => self.build_construction_marker(marker),
-                _ => continue, // 跳过不支持构建的类型
+                ParsedProtocolData::VehicleFunctionSetting(setting) => self.build_vehicle_function_setting(setting),
+                ParsedProtocolData::VehiclePathDisplay(path) => self.build_vehicle_path_display(path),
+                _ => continue,
             };
             results.push(data);
         }

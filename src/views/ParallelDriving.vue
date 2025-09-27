@@ -151,6 +151,7 @@ import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } fr
 import { ElMessage } from 'element-plus'
 import { parseVehicleId, compareVehicleId } from '@/utils/vehicleTypes.js'
 import { videoProcessor } from '@/utils/videoProcessor.js'
+import eventBus, { EVENTS } from '@/utils/eventBus.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -500,42 +501,36 @@ const resetVehicleState = () => {
 
 // 加载应用标题和初始化
 onMounted(async () => {
-  try {
-    const res = await invoke('get_app_settings')
-    if (res && res.app_title) {
-      appTitle.value = res.app_title
-    }
-  } catch (error) {
-    console.error('加载应用设置失败:', error)
+  const { vehicleId } = route.query
+
+  if (vehicleId) {
+    currentVehicleId.value = parseVehicleId(vehicleId)
   }
-  
-  // 监听车辆信息更新事件
-  window.addEventListener('vehicle-info-update', handleVehicleInfoUpdate)
-  
-  // 监听车辆连接状态变化事件
-  window.addEventListener('vehicle-connection-status', handleVehicleConnectionStatus)
-  
-  // 启动视频接收器
-  startVideoReceiver()
-  
-  console.debug(`🚗 平行驾驶界面初始化，车辆ID: ${currentVehicleId.value}`)
+
+  const url = new URL(window.location.href)
+  url.searchParams.set('vehicleId', currentVehicleId.value)
+
+  history.replaceState(null, '', url)
+
+  unlistenVideoFrame = await listen(`vehicle-${currentVehicleId.value}-video-frame`, handleVideoFrame)
+
+  eventBus.on(EVENTS.VEHICLE_INFO_UPDATE, handleVehicleInfoUpdate)
+  eventBus.on(EVENTS.VEHICLE_CONNECTION_STATUS, handleVehicleConnectionStatus)
+  eventBus.emit(EVENTS.REQUEST_VEHICLE_STATUS, { vehicleId: currentVehicleId.value })
+
+  startVideoTimers()
 })
 
 onBeforeUnmount(() => {
-  // 清理事件监听器
-  window.removeEventListener('vehicle-info-update', handleVehicleInfoUpdate)
-  window.removeEventListener('vehicle-connection-status', handleVehicleConnectionStatus)
-  
-  // 停止视频接收器
-  stopVideoReceiver()
-  
-  // 清理剩余的Blob URL
-  if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
-    URL.revokeObjectURL(videoSrc.value)
-    videoSrc.value = ''
+  stopVideoTimers()
+
+  if (unlistenVideoFrame) {
+    unlistenVideoFrame()
+    unlistenVideoFrame = null
   }
-  
-  console.debug('🚗 平行驾驶界面清理完成')
+
+  eventBus.off(EVENTS.VEHICLE_INFO_UPDATE, handleVehicleInfoUpdate)
+  eventBus.off(EVENTS.VEHICLE_CONNECTION_STATUS, handleVehicleConnectionStatus)
 })
 
 // 返回主界面

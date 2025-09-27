@@ -33,6 +33,7 @@ import Sensor from '@/components/Sensor.vue';
 import CarInfo from '@/components/CarInfo.vue';
 import StatusIndicator from '@/components/StatusIndicator.vue';
 import { useCarStore } from '@/stores/car.js';
+import eventBus, { EVENTS } from '@/utils/eventBus.js';
 
 const carStore = useCarStore();
 
@@ -49,9 +50,8 @@ const vehicleStatusText = computed(() => {
 });
 
 // 处理车辆连接状态变化事件
-const handleVehicleConnectionStatus = (event) => {
-    console.debug('📥 Cars页面收到vehicle-connection-status事件:', event.detail);
-    const { carId, isConnected } = event.detail;
+const handleVehicleConnectionStatus = ({ carId, isConnected }) => {
+    console.debug('📥 Cars页面收到vehicle-connection-status事件:', { carId, isConnected });
     
     // 根据当前选择的车辆信息来匹配
     const isCurrentVehicle = carId === selectedCar.value || 
@@ -83,24 +83,17 @@ watch(selectedCar, (newVehicleId, oldVehicleId) => {
         
         // 请求新车辆的连接状态
         console.debug(`📤 Cars页面请求车辆状态: ${newVehicleId}`);
-        window.dispatchEvent(new CustomEvent('request-vehicle-status', {
-            detail: {
-                vehicleId: newVehicleId
-            }
-        }));
+        eventBus.emit(EVENTS.REQUEST_VEHICLE_STATUS, { vehicleId: newVehicleId });
     }
 }, { immediate: true });
 
 onMounted(() => {
-    // 监听车辆连接状态变化事件
-    window.addEventListener('vehicle-connection-status', handleVehicleConnectionStatus);
-    // 启动状态监控（现在只是日志输出）
+    eventBus.on(EVENTS.VEHICLE_CONNECTION_STATUS, handleVehicleConnectionStatus);
     startVehicleStatusMonitoring();
 });
 
 onBeforeUnmount(() => {
-    // 清理事件监听器
-    window.removeEventListener('vehicle-connection-status', handleVehicleConnectionStatus);
+    eventBus.off(EVENTS.VEHICLE_CONNECTION_STATUS, handleVehicleConnectionStatus);
 });
 </script>
 

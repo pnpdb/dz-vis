@@ -55,7 +55,6 @@ export const APP_CONFIG = {
         animations: true,
         showGrid: false,
         frameRate: 60,
-        debugMode: false,
         logLevel: 'info',
         cacheSize: 1000
     }

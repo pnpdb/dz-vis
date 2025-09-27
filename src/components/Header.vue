@@ -184,9 +184,6 @@
                         <el-form-item label="开机启动">
                             <el-switch v-model="settings.autoStart" />
                         </el-form-item>
-                        <el-form-item label="调试模式">
-                            <el-switch v-model="settings.debugMode" />
-                        </el-form-item>
                         <el-form-item label="日志级别">
                             <el-select 
                                 v-model="settings.logLevel" 
@@ -493,6 +490,8 @@ import SandboxSettingsManager from '@/components/SandboxSettingsManager.vue';
 import { toggleAxesVisibility, toggleGridVisibility, getSandboxDimensionsInfo } from '@/components/Scene3D/index.js';
 // 使用后端命令，避免前端插件导入问题
 import { convertFileSrc } from '@tauri-apps/api/core';
+import eventBus, { EVENTS } from '@/utils/eventBus.js'
+import logHelper from '@/utils/logHelper.js'
 
 const router = useRouter();
 const route = useRoute();
@@ -555,7 +554,6 @@ const settings = ref({
     showGrid: false,
     frameRate: 60,
     autoStart: false,
-    debugMode: false,
     logLevel: 'INFO',
     cacheSize: 1000,
     appTitle: '渡众智能沙盘云控平台'
@@ -790,6 +788,7 @@ const onDialogClosed = () => {
 
 // 显示登录框 - 简化版本
 const showLogin = () => {
+    logHelper.debug('Header', '设置按钮被点击，显示登录框')
     // 简单调试保留即可
     console.debug('设置按钮被点击，显示登录框');
     
@@ -806,6 +805,7 @@ const showLogin = () => {
 
 // 显示关于弹窗
 const showAbout = () => {
+    logHelper.debug('Header', '关于按钮被点击，显示关于弹窗')
     console.debug('关于按钮被点击，显示关于弹窗');
     aboutDialogVisible.value = true;
 };
@@ -842,7 +842,6 @@ const saveSettings = async () => {
     try {
         const payload = {
             auto_start: settings.value.autoStart,
-            debug_model: settings.value.debugMode,
             log_level: settings.value.logLevel,
             cache_size: settings.value.cacheSize,
             app_title: settings.value.appTitle
@@ -855,8 +854,7 @@ const saveSettings = async () => {
             logger.setLevel(String(settings.value.logLevel).toUpperCase());
             console.info(`[Logger] 前端日志级别已更新为: ${String(settings.value.logLevel).toUpperCase()}`);
         }
-        // 同步调试模式 → 日志查看器开关
-        window.dispatchEvent(new CustomEvent('toggle-log-viewer', { detail: { visible: !!settings.value.debugMode } }));
+        // 调试模式已移除，不再切换日志查看器
         
         // 更新动态标题
         appTitle.value = settings.value.appTitle;
@@ -876,7 +874,6 @@ const resetSettings = () => {
         showGrid: false,
         frameRate: 60,
         autoStart: false,
-        debugMode: false,
         logLevel: 'INFO',
         cacheSize: 1000,
         appTitle: '渡众智能沙盘云控平台'
@@ -1031,7 +1028,6 @@ onMounted(() => {
     invoke('get_app_settings').then((res) => {
         if (res) {
             settings.value.autoStart = !!res.auto_start;
-            settings.value.debugMode = !!res.debug_model;
             settings.value.logLevel = (res.log_level || 'INFO').toUpperCase();
             settings.value.cacheSize = Number(res.cache_size ?? 1000);
             settings.value.appTitle = res.app_title || '渡众智能沙盘云控平台';
@@ -1044,8 +1040,6 @@ onMounted(() => {
                 logger.setLevel(String(settings.value.logLevel).toUpperCase());
                 console.info(`[Logger] 启动时应用前端日志级别: ${String(settings.value.logLevel).toUpperCase()}`);
             }
-            // 根据调试模式显示/隐藏日志查看器
-            window.dispatchEvent(new CustomEvent('toggle-log-viewer', { detail: { visible: !!res.debug_model } }));
             
             console.info(`[App] 应用标题已加载: ${appTitle.value}`);
         }
@@ -1799,7 +1793,7 @@ onMounted(() => {
     height: 32px;
 }
 
-/* 提升“日志级别”下拉弹层层级，防止被对话框或HUD遮挡 */
+/* 提升"日志级别"下拉弹层层级，防止被对话框或HUD遮挡 */
 ::v-deep(.settings-select-popper) {
     z-index: 4000 !important;
 }
@@ -2590,7 +2584,7 @@ html .el-message-box.sandbox-dimensions-dialog {
 </style>
 
 <style>
-/* 全局：提升“日志级别”下拉弹层层级，确保不被遮罩/对话框覆盖 */
+/* 全局：提升"日志级别"下拉弹层层级，确保不被遮罩/对话框覆盖 */
 .settings-select-popper {
     z-index: 100010 !important; /* 高于手动设置的 overlay(99998) 与 dialog(99999) */
 }

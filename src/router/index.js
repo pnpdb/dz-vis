@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { pauseRendering, resumeRendering } from '@/components/Scene3D/index.js'
+import { ElMessage } from 'element-plus'
+import { invoke } from '@tauri-apps/api/core'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -42,8 +44,36 @@ const router = createRouter({
 })
 
 // 路由守卫：智能控制Three.js渲染
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   try {
+    if (to.name === 'ParallelDriving') {
+      const sandboxOk = window.socketManager?.isSandboxConnected?.()
+      if (!sandboxOk) {
+        ElMessage.error('云服务离线')
+        return next(false)
+      }
+
+      const vehicleId = Number(to.query.vehicleId || window?.socketManager?.getSelectedVehicleId?.() || 0)
+      if (!vehicleId) {
+        ElMessage.error('车辆离线')
+        return next(false)
+      }
+
+      const vehicleOnline = window.socketManager?.isVehicleConnected?.(vehicleId)
+      if (!vehicleOnline) {
+        ElMessage.error(`车辆${vehicleId}离线`)
+        return next(false)
+      }
+
+      try {
+        await invoke('send_sandbox_control', { vehicleId })
+      } catch (error) {
+        ElMessage.error(`发送进入平行驾驶指令失败: ${error}`)
+        return next(false)
+      }
+
+      window.socketManager.setVehicleReady?.(vehicleId, true)
+    }
     // 从主界面切换到平行驾驶：暂停渲染
     if (from.meta?.layout === 'main' && to.meta?.layout === 'parallel') {
       // 确保pauseRendering函数存在且可调用

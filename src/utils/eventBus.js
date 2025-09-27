@@ -13,7 +13,10 @@ export const EVENTS = {
     SCENE3D_TOPDOWN: 'scene3d-topdown',
     SCENE3D_DEFAULT: 'scene3d-default',
     SCENE3D_PROGRESS: 'scene3d-progress',
-    SCENE3D_COMPLETE: 'scene3d-complete'
+    SCENE3D_COMPLETE: 'scene3d-complete',
+    VIDEO_FPS_UPDATE: 'video-fps-update',
+    VIDEO_STREAM_TIMEOUT: 'video-stream-timeout',
+    SANDBOX_CONNECTION_STATUS: 'sandbox-connection-status'
 };
 
 const eventBus = {

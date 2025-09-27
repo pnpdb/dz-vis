@@ -280,7 +280,7 @@ const callTaxi = async () => {
         
         // 6. 发送成功，显示成功Toast
         ElMessage({
-            message: `🚕 出租车订单已发送给${assignedVehicleId}号车，请等待车辆响应`,
+            message: `出租车订单已发送给${assignedVehicleId}号车，请等待车辆响应`,
             type: 'success',
             duration: 3000
         });

@@ -3,22 +3,19 @@
             <div class="flex">
             <label class="form-label"><fa icon="camera" /> 车载摄像头</label>
             <el-switch
-                :model-value="cameraOn"
-                @change="handleCameraToggle"
+                :model-value="cameraEnabled"
+                @change="toggleCamera"
                 active-color="#13ce66"
                 inactive-color="#ff4949"
             ></el-switch>
         </div>
 
-        <div class="camera-preview" :class="{ 'has-video': cameraOn && videoSrc }">
+        <div class="camera-preview" :class="{ 'has-video': cameraEnabled && videoSrc }">
             <!-- 双缓冲图片，避免闪烁 -->
-            <img v-show="cameraOn && videoSrc" ref="videoImg" class="video-stream" alt="车载摄像头画面" />
-            <div v-show="!cameraOn || !videoSrc">
+            <img v-show="cameraEnabled && videoSrc" ref="videoImg" class="video-stream" alt="车载摄像头画面" />
+            <div v-show="!cameraEnabled || !videoSrc">
             <fa icon="camera" class="camera-icon" />
-                <div class="camera-desc">{{ cameraOn ? '等待视频信号...' : '摄像头已关闭' }}</div>
-            </div>
-            <div v-if="cameraOn && lastFrameTime" class="camera-overlay">
-                车辆{{ currentVehicleId }} | {{ frameRate }} FPS
+                <div class="camera-desc">{{ cameraEnabled ? '等待视频信号...' : '摄像头已关闭' }}</div>
             </div>
         </div>
         <div class="camera-controls">
@@ -34,304 +31,117 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-import { ElMessage } from 'element-plus';
-import { useRouter } from 'vue-router';
-import { useCarStore } from '@/stores/car.js';
-import { warn as plWarn, error as plError } from '@tauri-apps/plugin-log';
-import { debounce } from '@/utils/performance.js';
-import { videoProcessor } from '@/utils/videoProcessor.js';
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
+import { useCarStore } from '@/stores/car.js'
+import eventBus, { EVENTS } from '@/utils/eventBus.js'
+import { videoStreamManager } from '@/utils/videoStreamManager.js'
 
-const carStore = useCarStore();
-const router = useRouter();
+const carStore = useCarStore()
+const router = useRouter()
 
-const videoSrc = ref('');
-const lastFrameTime = ref(0);
-const frameRate = ref(0);
-const frameCount = ref(0);
-const lastFrameCountTime = ref(Date.now());
-const videoImg = ref(null);
+const videoSrc = ref('')
+const lastFrameTime = ref(0)
+const videoImg = ref(null)
+const aspectRatio = ref(4 / 3)
 
-const cameraOn = ref(false);
-const isRouteVisible = ref(true);
-const currentRouteName = computed(() => router.currentRoute.value?.name);
-const currentVehicleId = computed(() => carStore.selectedCarId);
+const cameraEnabled = computed(() => carStore.cameraEnabled)
+const currentRouteName = computed(() => router.currentRoute.value?.name)
+const currentVehicleId = computed(() => carStore.selectedCarId)
 
-let unlistenVideoFrame = null;
-let frameRateTimer = null;
-let videoTimeoutTimer = null;
-let udpServerPromise = null;
+const isRouteVisible = computed(() => currentRouteName.value === 'Cars')
 
-const VIDEO_TIMEOUT = 3000;
 
-const requestParallelDriving = async () => {
-    try {
-        const vehicleId = Number(currentVehicleId.value ?? 1);
-        if (Number.isNaN(vehicleId)) {
-            ElMessage.error('无效的车辆ID');
-            return;
-        }
+const updateVideoReceiver = () => {
+  if (cameraEnabled.value && isRouteVisible.value) {
+    subscribeVideo()
+  } else {
+    unsubscribeVideo()
+  }
+}
 
-        const sandboxOnline = await invoke('is_sandbox_connected');
-        if (!sandboxOnline) {
-            ElMessage.error('调度服务离线');
-            return;
-        }
+const subscribeVideo = () => {
+  videoStreamManager.subscribe(currentVehicleId.value, handleVideoFrame)
+}
 
-        if (!window?.socketManager?.isVehicleConnected) {
-            ElMessage.error('车辆管理器未初始化');
-            return;
-        }
-        const carOnline = window.socketManager.isVehicleConnected(vehicleId);
-        if (!carOnline) {
-            ElMessage.error('车辆离线');
-            return;
-        }
+const unsubscribeVideo = () => {
+  videoStreamManager.unsubscribe(currentVehicleId.value, handleVideoFrame)
+  if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
+    URL.revokeObjectURL(videoSrc.value)
+  }
+  videoSrc.value = ''
+  lastFrameTime.value = 0
+  frameRate.value = 0
+}
 
-        await invoke('send_sandbox_control', { vehicleId });
-        ElMessage.success('已发送平行驾驶指令');
+const handleVideoFrame = ({ blobUrl }) => {
+  const img = videoImg.value
+  if (!cameraEnabled.value || !isRouteVisible.value || !img) {
+    URL.revokeObjectURL(blobUrl)
+    return
+  }
 
-        router.push({
-            name: 'ParallelDriving',
-            query: { vehicleId: currentVehicleId.value },
-        });
-    } catch (e) {
-        console.error('发送平行驾驶指令失败:', e);
-        ElMessage.error(`发送失败: ${e}`);
+  if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
+    URL.revokeObjectURL(videoSrc.value)
+  }
+
+  videoSrc.value = blobUrl
+  img.src = blobUrl
+  lastFrameTime.value = Date.now()
+
+  nextTick(() => {
+    if (img.naturalWidth && img.naturalHeight) {
+      aspectRatio.value = img.naturalWidth / img.naturalHeight
     }
-};
+  })
+}
 
-const startFrameRateCalculator = () => {
-    if (frameRateTimer) {
-        clearInterval(frameRateTimer);
-        frameRateTimer = null;
-    }
+const toggleCamera = () => {
+  carStore.setCameraEnabled(!carStore.cameraEnabled)
+}
 
-    if (!cameraOn.value || !isRouteVisible.value) {
-        return;
-    }
+const handleTimeout = ({ vehicleId }) => {
+  if (Number(vehicleId) === Number(currentVehicleId.value)) {
+    videoSrc.value = ''
+    lastFrameTime.value = 0
+  }
+}
 
-    frameRateTimer = setInterval(() => {
-        const now = Date.now();
-        const timeDiff = now - lastFrameCountTime.value;
+const requestParallelDriving = () => {
+  if (!currentVehicleId.value) {
+    ElMessage.error('请先选择车辆')
+    return
+  }
+  router.push({
+    name: 'ParallelDriving',
+    query: { vehicleId: currentVehicleId.value }
+  })
+}
 
-        if (timeDiff >= 1000) {
-            frameRate.value = Math.round((frameCount.value * 1000) / timeDiff);
-            frameCount.value = 0;
-            lastFrameCountTime.value = now;
-        }
-    }, 1000);
-};
-
-const checkVideoTimeout = () => {
-    if (videoTimeoutTimer) {
-        clearTimeout(videoTimeoutTimer);
-    }
-
-    if (!cameraOn.value || !isRouteVisible.value) {
-        return;
-    }
-
-    videoTimeoutTimer = setTimeout(() => {
-        if (cameraOn.value && isRouteVisible.value && videoSrc.value) {
-            videoSrc.value = '';
-            lastFrameTime.value = 0;
-            frameRate.value = 0;
-        }
-    }, VIDEO_TIMEOUT);
-};
-
-const startVideoReceiver = async () => {
-    if (!cameraOn.value || !isRouteVisible.value || unlistenVideoFrame) {
-        return;
-    }
-
-    try {
-        if (!udpServerPromise) {
-            udpServerPromise = invoke('start_udp_video_server', { port: 8080 }).catch((error) => {
-                udpServerPromise = null;
-                throw error;
-            });
-        }
-        await udpServerPromise;
-
-        unlistenVideoFrame = await listen('udp-video-frame', (event) => {
-            handleVideoFrame(event.payload);
-        });
-
-        startFrameRateCalculator();
-    } catch (error) {
-        try {
-            await plError(`启动UDP视频接收器失败: ${error}`);
-        } catch (_) {}
-    }
-};
-
-const stopVideoReceiver = () => {
-    if (unlistenVideoFrame) {
-        unlistenVideoFrame();
-        unlistenVideoFrame = null;
-    }
-
-    if (frameRateTimer) {
-        clearInterval(frameRateTimer);
-        frameRateTimer = null;
-    }
-
-    if (videoTimeoutTimer) {
-        clearTimeout(videoTimeoutTimer);
-        videoTimeoutTimer = null;
-    }
-
-    if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
-        URL.revokeObjectURL(videoSrc.value);
-    }
-
-    videoSrc.value = '';
-    lastFrameTime.value = 0;
-    frameRate.value = 0;
-    frameCount.value = 0;
-};
-
-const updateReceiverState = () => {
-    if (cameraOn.value && isRouteVisible.value) {
-        startVideoReceiver();
-    } else {
-        stopVideoReceiver();
-    }
-};
-
-const handleVideoFrame = async (frame) => {
-    if (frame.vehicle_id !== currentVehicleId.value || !cameraOn.value || !isRouteVisible.value || !videoImg.value) {
-        return;
-    }
-
-    if (!frame.jpeg_data || frame.jpeg_data.length === 0) {
-        return;
-    }
-
-    try {
-        if (!/^[A-Za-z0-9+/]+=*$/.test(frame.jpeg_data)) {
-            try {
-                plWarn('UDP视频帧Base64校验失败').catch(() => {});
-            } catch (_) {}
-            return;
-        }
-
-        const processingResult = await videoProcessor.processVideoFrame(
-            frame.vehicle_id,
-            frame.jpeg_data,
-            frame.frame_id,
-        );
-
-        if (!processingResult.success || !processingResult.frame?.jpeg_base64) {
-            try {
-                plWarn(`Rust视频帧处理失败: ${processingResult.error || '未知错误'}`).catch(() => {});
-            } catch (_) {}
-            return;
-        }
-
-        const processedBinary = atob(processingResult.frame.jpeg_base64);
-        const processedArray = Uint8Array.from(processedBinary, (char) => char.charCodeAt(0));
-        const blob = new Blob([processedArray], { type: 'image/jpeg' });
-        const blobUrl = URL.createObjectURL(blob);
-
-        const targetImg = videoImg.value;
-        if (!cameraOn.value || !isRouteVisible.value || !targetImg) {
-            URL.revokeObjectURL(blobUrl);
-            return;
-        }
-
-        const newImg = new Image();
-        newImg.onload = () => {
-            const img = videoImg.value;
-            if (!cameraOn.value || !isRouteVisible.value || !img) {
-                URL.revokeObjectURL(blobUrl);
-                return;
-            }
-
-            if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
-                URL.revokeObjectURL(videoSrc.value);
-            }
-
-            videoSrc.value = blobUrl;
-            img.src = blobUrl;
-        };
-        newImg.onerror = () => {
-            URL.revokeObjectURL(blobUrl);
-            try {
-                plWarn('UDP视频帧Blob预加载失败').catch(() => {});
-            } catch (_) {}
-        };
-        newImg.src = blobUrl;
-    } catch (error) {
-        try {
-            plError(`视频帧处理异常: ${error.message}`).catch(() => {});
-        } catch (_) {}
-        return;
-    }
-
-    lastFrameTime.value = Date.now();
-    checkVideoTimeout();
-    frameCount.value++;
-};
-
-const handleCameraToggle = (value) => {
-    carStore.setCameraEnabled(Boolean(value));
-};
-
-const debouncedVehicleSwitch = debounce((newVehicleId, oldVehicleId) => {
-    if (newVehicleId !== oldVehicleId) {
-        if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
-            URL.revokeObjectURL(videoSrc.value);
-        }
-        videoSrc.value = '';
-        frameCount.value = 0;
-        lastFrameTime.value = 0;
-        frameRate.value = 0;
-
-        if (videoTimeoutTimer) {
-            clearTimeout(videoTimeoutTimer);
-            videoTimeoutTimer = null;
-        }
-    }
-}, 200);
-
-watch(currentVehicleId, debouncedVehicleSwitch);
-
-watch(
-    () => carStore.cameraEnabled,
-    (enabled) => {
-        cameraOn.value = Boolean(enabled);
-        updateReceiverState();
-    },
-    { immediate: true },
-);
-
-watch(
-    currentRouteName,
-    (name) => {
-        isRouteVisible.value = name === 'Cars';
-        updateReceiverState();
-    },
-    { immediate: true },
-);
+watch(cameraEnabled, updateVideoReceiver)
+watch(isRouteVisible, updateVideoReceiver)
+watch(currentVehicleId, () => {
+  unsubscribeVideo()
+  if (cameraEnabled.value && isRouteVisible.value) {
+    subscribeVideo()
+  }
+})
 
 onMounted(() => {
-    updateReceiverState();
-});
+  updateVideoReceiver()
+  eventBus.on(EVENTS.VIDEO_STREAM_TIMEOUT, handleTimeout)
+})
 
 onBeforeUnmount(() => {
-    stopVideoReceiver();
-});
+  unsubscribeVideo()
+  eventBus.off(EVENTS.VIDEO_STREAM_TIMEOUT, handleTimeout)
+})
 </script>
 
 <style lang="scss" scoped>
 .camera-preview {
     width: 100%;
-    height: 140px;
     background: linear-gradient(45deg, #1a1f25, #2c3e50);
     border-radius: 8px;
     display: flex;
@@ -345,8 +155,9 @@ onBeforeUnmount(() => {
 
 .video-stream {
     width: 100%;
-    height: 100%;
-    object-fit: cover;
+    height: auto;
+    aspect-ratio: v-bind(aspectRatio);
+    object-fit: contain;
     border-radius: 8px;
     background-color: #2c3e50; /* 防止加载时闪白 */
     transition: none; /* 移除可能的过渡效果 */

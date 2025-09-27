@@ -146,389 +146,204 @@
 import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
-import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log'
 import { ElMessage } from 'element-plus'
 import { parseVehicleId, compareVehicleId } from '@/utils/vehicleTypes.js'
-import { videoProcessor } from '@/utils/videoProcessor.js'
 import eventBus, { EVENTS } from '@/utils/eventBus.js'
+import { useCarStore } from '@/stores/car.js'
+import { videoStreamManager } from '@/utils/videoStreamManager.js'
 
 const router = useRouter()
 const route = useRoute()
+const carStore = useCarStore()
 const appTitle = ref('渡众智能沙盘云控平台')
 
-// 从路由参数获取车辆ID，确保类型一致性
-const currentVehicleId = ref(1)
+const deriveVehicleId = () => {
+  const queryId = parseVehicleId(route.query.vehicleId)
+  if (queryId) {
+    return queryId
+  }
+  if (carStore.selectedCarId) {
+    return parseVehicleId(carStore.selectedCarId)
+  }
+  if (Array.isArray(carStore.carList) && carStore.carList.length) {
+    const candidate = carStore.carList[0]
+    if (candidate?.vehicleId) {
+      return parseVehicleId(candidate.vehicleId)
+    }
+  }
+  if (Array.isArray(carStore.defaultCarList) && carStore.defaultCarList.length) {
+    const candidate = carStore.defaultCarList[0]
+    if (candidate?.vehicleId) {
+      return parseVehicleId(candidate.vehicleId)
+    }
+  }
+  return 1
+}
 
-// 初始化车辆ID - 使用统一的解析函数
-currentVehicleId.value = parseVehicleId(route.query.vehicleId)
+const currentVehicleId = ref(deriveVehicleId())
+const currentRouteName = computed(() => router.currentRoute.value?.name)
+const isRouteVisible = computed(() => currentRouteName.value === 'ParallelDriving')
 
-// 仪表盘数据
-const currentSpeed = ref(0) // 当前速度 0-1 (协议原始值)
-const steeringAngle = ref(0) // 方向盘角度 度
-const batteryLevel = ref(85) // 电池电量百分比
-const currentGear = ref('P') // 当前档位
-const vehicleCoords = ref({ x: 540, y: 392.5 }) // 车辆坐标(像素)，默认地图中心
-
-// 连接状态管理
-const vehicleConnected = ref(false) // 车辆连接状态
-
-// 摄像头相关
 const videoSrc = ref('')
-const cameraConnected = ref(false)
 const lastFrameTime = ref(0)
 const frameRate = ref(0)
-const frameCount = ref(0)
-const lastFrameCountTime = ref(Date.now())
-const videoImg = ref(null)
+const vehicleConnected = ref(false)
 
-// 事件监听器
-let unlistenVideoFrame = null
-let frameRateTimer = null
-let videoTimeoutTimer = null
-
-// 视频流超时时间（毫秒）
-const VIDEO_TIMEOUT = 3000
-
-// 计算属性
-const displaySpeed = computed(() => {
-  // 显示协议原始值：0-1范围，保留2位小数
-  return currentSpeed.value.toFixed(2)
+const currentSpeed = ref(0)
+const steeringAngle = ref(0)
+const batteryLevel = ref(0)
+const currentGear = ref('P')
+const vehicleCoords = ref({ x: 540, y: 392.5 })
+const vehiclePosition = computed(() => {
+  const mapWidth = 1080
+  const mapHeight = 785
+  return {
+    x: (vehicleCoords.value.x / mapWidth) * 100,
+    y: 100 - (vehicleCoords.value.y / mapHeight) * 100,
+  }
 })
 
+const displaySpeed = computed(() => currentSpeed.value.toFixed(2))
 const speedAngle = computed(() => {
-  // 速度仪表盘角度：0-1 对应 -135 到 135 度
-  const maxSpeed = 1.0
+  const maxSpeed = 1
   const minAngle = -135
   const maxAngle = 135
-  const speed = Math.min(currentSpeed.value, maxSpeed)
-  return minAngle + (speed / maxSpeed) * (maxAngle - minAngle)
+  return minAngle + Math.min(currentSpeed.value, maxSpeed) * (maxAngle - minAngle)
 })
 
-// 预计算的速度刻度标记（避免重复计算）
 const speedMarks = [
   { value: '0.0', angle: -135 },
   { value: '0.2', angle: -81 },
   { value: '0.4', angle: -27 },
   { value: '0.6', angle: 27 },
   { value: '0.8', angle: 81 },
-  { value: '1.0', angle: 135 }
+  { value: '1.0', angle: 135 },
 ]
 
-const vehiclePosition = computed(() => {
-  // 将车辆坐标转换为地图上的百分比位置
-  // 地图像素尺寸：1080x785，左下角为(0,0)，右上角为(1080,785)
-  // X: 0-1080 (向右为正), Y: 0-785 (向上为正)
-  const mapWidth = 1080
-  const mapHeight = 785
-  return {
-    x: (vehicleCoords.value.x / mapWidth) * 100, // X坐标百分比
-    y: 100 - (vehicleCoords.value.y / mapHeight) * 100 // Y坐标百分比（翻转，因为CSS从上开始）
+const resetVideoState = () => {
+  if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
+    URL.revokeObjectURL(videoSrc.value)
   }
-})
-
-// 档位映射
-const gearMap = {
-  1: 'P',
-  2: 'R', 
-  3: 'N',
-  4: 'D'
+  videoSrc.value = ''
+  lastFrameTime.value = 0
+  frameRate.value = 0
 }
 
-// 处理车辆信息更新事件
-const handleVehicleInfoUpdate = (event) => {
-  const vehicleInfo = event.detail
-  
-  // 使用统一的车辆ID比较函数
-  const targetId = currentVehicleId.value
-  const matchesVehicleId = compareVehicleId(vehicleInfo.vehicleId, targetId)
-  const matchesCarId = compareVehicleId(vehicleInfo.carId, targetId)
-  
-  if (!matchesVehicleId && !matchesCarId) {
+const updateVideoSubscription = () => {
+  if (isRouteVisible.value) {
+    videoStreamManager.subscribe(currentVehicleId.value, handleVideoFrame)
+  } else {
+    videoStreamManager.unsubscribe(currentVehicleId.value, handleVideoFrame)
+    resetVideoState()
+  }
+}
+
+const handleVideoFrame = ({ blobUrl, timeout, frame, stats, fps }) => {
+  if (timeout) {
+    resetVideoState()
     return
   }
-  
-  // 更新连接状态（数据到达说明连接正常）
+
+  if (typeof blobUrl !== 'string') {
+    return
+  }
+
+  const targetId = currentVehicleId.value
+  if (frame?.vehicle_id && !compareVehicleId(frame.vehicle_id, targetId)) {
+    URL.revokeObjectURL(blobUrl)
+    return
+  }
+
+  if (frame?.vehicleId && !compareVehicleId(frame.vehicleId, targetId)) {
+    URL.revokeObjectURL(blobUrl)
+    return
+  }
+
+  if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
+    URL.revokeObjectURL(videoSrc.value)
+  }
+
+  videoSrc.value = blobUrl
+  lastFrameTime.value = Date.now()
+  if (typeof fps === 'number') {
+    frameRate.value = Math.max(0, Math.round(fps))
+  } else if (stats?.fps) {
+    frameRate.value = Math.max(0, Math.round(stats.fps))
+  }
+}
+
+const handleVehicleInfoUpdate = (payload) => {
+  const detail = payload?.detail ?? payload
+  if (!detail) {
+    return
+  }
+
+  const targetId = currentVehicleId.value
+  if (!compareVehicleId(detail.vehicleId, targetId) && !compareVehicleId(detail.carId, targetId)) {
+    return
+  }
   vehicleConnected.value = true
-  
-  // 更新仪表盘数据（带数据验证）
-  if (typeof vehicleInfo.speed === 'number' && vehicleInfo.speed >= 0 && vehicleInfo.speed <= 1) {
-    currentSpeed.value = vehicleInfo.speed
+  if (typeof detail.speed === 'number') {
+    currentSpeed.value = Math.max(0, Math.min(1, detail.speed))
   }
-  
-  if (typeof vehicleInfo.steeringAngle === 'number') {
-    // 限制方向盘角度范围 -540° 到 540°
-    steeringAngle.value = Math.max(-540, Math.min(540, vehicleInfo.steeringAngle))
+  if (typeof detail.steeringAngle === 'number') {
+    steeringAngle.value = Math.max(-540, Math.min(540, detail.steeringAngle))
   }
-  
-  if (typeof vehicleInfo.battery === 'number' && vehicleInfo.battery >= 0 && vehicleInfo.battery <= 100) {
-    batteryLevel.value = Math.round(vehicleInfo.battery)
+  if (typeof detail.battery === 'number') {
+    batteryLevel.value = Math.max(0, Math.min(100, Math.round(detail.battery)))
   }
-  
-  if (vehicleInfo.gear && gearMap[vehicleInfo.gear]) {
-    currentGear.value = gearMap[vehicleInfo.gear]
+  currentGear.value = detail.gear ?? 'P'
+  if (detail.position?.x !== undefined && detail.position?.y !== undefined) {
+    vehicleCoords.value = { x: detail.position.x, y: detail.position.y }
   }
-  
-  if (vehicleInfo.position && 
-      typeof vehicleInfo.position.x === 'number' && 
-      typeof vehicleInfo.position.y === 'number' &&
-      vehicleInfo.position.x >= 0 && vehicleInfo.position.x <= 1080 &&
-      vehicleInfo.position.y >= 0 && vehicleInfo.position.y <= 785) {
-    vehicleCoords.value = {
-      x: vehicleInfo.position.x,
-      y: vehicleInfo.position.y
-    }
-  }
-  
-  console.debug(`🚗 平行驾驶界面更新车辆${currentVehicleId.value}数据:`, {
-    speed: displaySpeed.value,
-    steering: steeringAngle.value,
-    battery: batteryLevel.value,
-    gear: currentGear.value,
-    position: vehicleCoords.value
-  })
 }
 
-// 处理车辆连接状态变化事件
-const handleVehicleConnectionStatus = (event) => {
-  const { carId, isConnected } = event.detail
-  
-  // 安全的车辆ID匹配
+const handleVehicleConnectionStatus = (payload) => {
+  const detail = payload?.detail ?? payload
+  if (!detail) {
+    return
+  }
   const targetId = currentVehicleId.value
-  const eventCarId = parseVehicleId(carId)
-  
-  if (eventCarId !== targetId) {
+  if (!compareVehicleId(detail.carId, targetId)) {
     return
   }
-  
-  console.debug(`🔗 平行驾驶界面连接状态变化: 车辆${eventCarId}, 连接:${isConnected}`)
-  
-  const wasConnected = vehicleConnected.value
-  vehicleConnected.value = isConnected
-  
-  // 如果从连接变为断开，重置到合理的断开状态
-  if (wasConnected && !isConnected) {
-    console.warn(`🚗 车辆${currentVehicleId.value}连接断开，重置状态`)
-    
-    // 断开后电池显示0%，档位显示P
-    currentSpeed.value = 0 // 速度归零
-    steeringAngle.value = 0 // 方向盘回正
-    batteryLevel.value = 0 // 电池显示0%
-    currentGear.value = 'P' // 档位显示P
-    // 位置保持最后已知位置
+  vehicleConnected.value = Boolean(detail?.isConnected)
+  if (!vehicleConnected.value) {
+    currentSpeed.value = 0
+    steeringAngle.value = 0
+    batteryLevel.value = 0
+    currentGear.value = 'P'
   }
 }
 
-
-// 启动视频接收器
-const startVideoReceiver = async () => {
-  try {
-    // 启动UDP视频服务器（如果尚未启动）
-    await invoke('start_udp_video_server', { port: 8080 })
-    
-    // 监听UDP视频帧事件
-    if (!unlistenVideoFrame) {
-      unlistenVideoFrame = await listen('udp-video-frame', (event) => {
-        handleVideoFrame(event.payload)
-      })
-    }
-    
-    // 启动帧率计算器
-    startFrameRateCalculator()
-    
-    console.debug(`📹 平行驾驶界面启动视频接收器，车辆ID: ${currentVehicleId.value}`)
-  } catch (error) {
-    try { await plError(`启动UDP视频接收器失败: ${error}`) } catch (_) {}
-  }
-}
-
-// 停止视频接收器
-const stopVideoReceiver = () => {
-  if (unlistenVideoFrame) {
-    unlistenVideoFrame()
-    unlistenVideoFrame = null
-  }
-  
-  if (frameRateTimer) {
-    clearInterval(frameRateTimer)
-    frameRateTimer = null
-  }
-  
-  if (videoTimeoutTimer) {
-    clearTimeout(videoTimeoutTimer)
-    videoTimeoutTimer = null
-  }
-  
-  // 清理blob URL
-  if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
-    URL.revokeObjectURL(videoSrc.value)
-  }
-  
-  videoSrc.value = ''
-  lastFrameTime.value = 0
-  frameRate.value = 0
-  frameCount.value = 0
-  cameraConnected.value = false
-}
-
-// 处理接收到的视频帧 - 使用Rust优化处理
-const handleVideoFrame = async (frame) => {
-  // 安全的车辆ID匹配
-  const frameVehicleId = parseVehicleId(frame.vehicle_id)
-  if (frameVehicleId !== currentVehicleId.value) {
-    return // 不是当前车辆的视频，忽略
-  }
-  
-  // 验证数据有效性
-  if (!frame.jpeg_data || frame.jpeg_data.length === 0) {
-    return
-  }
-  
-  try {
-    // 使用Rust后端处理视频帧
-    const result = await videoProcessor.processVideoFrame(
-      frame.vehicle_id,
-      frame.jpeg_data,
-      frame.frame_id
-    )
-    
-    if (result.success && result.frame) {
-      // 使用处理后的Base64数据
-      const processedBase64 = result.frame.jpeg_base64
-      const binaryString = atob(processedBase64)
-      const uint8Array = Uint8Array.from(binaryString, char => char.charCodeAt(0))
-      
-      // 创建Blob URL
-      const blob = new Blob([uint8Array], { type: 'image/jpeg' })
-      
-      // 清理之前的blob URL
-      if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
-        URL.revokeObjectURL(videoSrc.value)
-      }
-      
-      videoSrc.value = URL.createObjectURL(blob)
-      lastFrameTime.value = Date.now()
-      frameCount.value++
-      cameraConnected.value = true
-      
-      // 重置超时检查
-      checkVideoTimeout()
-      
-      // 记录性能信息（仅在开发模式下）
-      if (import.meta.env.DEV && result.stats.total_time_us > 5000) {
-        console.debug(`🎥 平行驾驶视频处理 (车辆${frame.vehicle_id}): ` +
-          `总耗时 ${(result.stats.total_time_us / 1000).toFixed(2)}ms, ` +
-          `帧大小 ${(result.frame.raw_size / 1024).toFixed(1)}KB`)
-      }
-    } else {
-      // Rust处理失败，记录错误
-      try { plWarn(`Rust视频帧处理失败: ${result.error}`).catch(() => {}) } catch (_) {}
-    }
-  } catch (error) {
-    try { plError(`处理UDP视频帧失败: ${error.message}`).catch(() => {}) } catch (_) {}
-  }
-}
-
-// 启动帧率计算器
-const startFrameRateCalculator = () => {
-  if (frameRateTimer) {
-    clearInterval(frameRateTimer)
-  }
-  
-  frameRateTimer = setInterval(() => {
-    const now = Date.now()
-    const timeDiff = now - lastFrameCountTime.value
-    
-    if (timeDiff >= 1000) { // 每秒计算一次
-      frameRate.value = Math.round((frameCount.value * 1000) / timeDiff)
-      frameCount.value = 0
-      lastFrameCountTime.value = now
-    }
-  }, 1000)
-}
-
-// 检查视频流超时
-const checkVideoTimeout = () => {
-  if (videoTimeoutTimer) {
-    clearTimeout(videoTimeoutTimer)
-  }
-  
-  videoTimeoutTimer = setTimeout(() => {
-    if (videoSrc.value) {
-      videoSrc.value = ''
-      lastFrameTime.value = 0
-      frameRate.value = 0
-      cameraConnected.value = false
-    }
-  }, VIDEO_TIMEOUT)
-}
-
-// 监听路由变化并重置状态
-watch(() => route.query.vehicleId, (newVehicleId, oldVehicleId) => {
-  if (newVehicleId !== oldVehicleId) {
-    const newId = parseVehicleId(newVehicleId)
-    if (newId !== currentVehicleId.value) {
-      currentVehicleId.value = newId
-      console.debug(`🔄 平行驾驶界面车辆切换: ${currentVehicleId.value}`)
-      
-      // 重置车辆相关状态
-      resetVehicleState()
-    }
+watch(isRouteVisible, updateVideoSubscription)
+watch(() => carStore.selectedCarId, (newId) => {
+  const parsedId = parseVehicleId(newId)
+  if (parsedId && parsedId !== currentVehicleId.value) {
+    currentVehicleId.value = parsedId
   }
 })
 
-// 重置车辆状态函数（用于车辆切换）
-const resetVehicleState = () => {
-  currentSpeed.value = 0
-  steeringAngle.value = 0
-  batteryLevel.value = 0 // 切换车辆时电池显示0%
-  currentGear.value = 'P'
-  vehicleCoords.value = { x: 540, y: 392.5 } // 地图中心
-  
-  // 重置连接状态
-  vehicleConnected.value = false
-  
-  // 重置视频状态
-  if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
-    URL.revokeObjectURL(videoSrc.value)
+watch(currentVehicleId, (vehicleId, prevVehicleId) => {
+  if (prevVehicleId !== undefined) {
+    videoStreamManager.unsubscribe(prevVehicleId, handleVideoFrame)
   }
-  videoSrc.value = ''
-  cameraConnected.value = false
-  lastFrameTime.value = 0
-  frameRate.value = 0
-  frameCount.value = 0
-}
-
-// 加载应用标题和初始化
-onMounted(async () => {
-  const { vehicleId } = route.query
-
-  if (vehicleId) {
-    currentVehicleId.value = parseVehicleId(vehicleId)
+  resetVideoState()
+  if (isRouteVisible.value) {
+    videoStreamManager.subscribe(vehicleId, handleVideoFrame)
   }
+  eventBus.emit(EVENTS.REQUEST_VEHICLE_STATUS, { vehicleId })
+})
 
-  const url = new URL(window.location.href)
-  url.searchParams.set('vehicleId', currentVehicleId.value)
-
-  history.replaceState(null, '', url)
-
-  unlistenVideoFrame = await listen(`vehicle-${currentVehicleId.value}-video-frame`, handleVideoFrame)
-
+onMounted(() => {
+  updateVideoSubscription()
   eventBus.on(EVENTS.VEHICLE_INFO_UPDATE, handleVehicleInfoUpdate)
   eventBus.on(EVENTS.VEHICLE_CONNECTION_STATUS, handleVehicleConnectionStatus)
   eventBus.emit(EVENTS.REQUEST_VEHICLE_STATUS, { vehicleId: currentVehicleId.value })
-
-  startVideoTimers()
 })
 
 onBeforeUnmount(() => {
-  stopVideoTimers()
-
-  if (unlistenVideoFrame) {
-    unlistenVideoFrame()
-    unlistenVideoFrame = null
-  }
-
+  videoStreamManager.unsubscribe(currentVehicleId.value, handleVideoFrame)
   eventBus.off(EVENTS.VEHICLE_INFO_UPDATE, handleVehicleInfoUpdate)
   eventBus.off(EVENTS.VEHICLE_CONNECTION_STATUS, handleVehicleConnectionStatus)
 })

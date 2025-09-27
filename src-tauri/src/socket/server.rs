@@ -104,6 +104,12 @@ impl SocketServer {
                     if configured_ip == remote_ip {
                         is_sandbox = true;
                         info!("沙盘连接已识别");
+                        if let Err(e) = app_handle.emit("sandbox-connect", serde_json::json!({
+                            "ip": remote_ip,
+                            "addr": addr.to_string()
+                        })) {
+                            error!("通知前端沙盘连接失败: {}", e);
+                        }
                     } else {
                         debug!("沙盘IP不匹配: 配置={}, 实际={}", configured_ip, remote_ip);
                     }
@@ -248,12 +254,14 @@ impl SocketServer {
                             }
                         }
                         Err(e) => {
+                            warn!("{} 连接异常: {}", vehicle_name, e);
                             if is_sandbox {
-                                error!("读取数据错误 (沙盘) {}: {}", addr, e);
-                            } else {
-                                error!("读取数据错误 {} (车辆ID: {}): {}", addr, vehicle_id, e);
-                                // 发送断开连接事件到前端
-                                Self::send_disconnect_event(vehicle_id, &vehicle_name, &app_handle).await;
+                                let mut sandbox = sandbox_manager.write();
+                                *sandbox = None;
+                                let _ = app_handle.emit("sandbox-disconnect", serde_json::json!({
+                                    "ip": addr.ip().to_string(),
+                                    "addr": addr.to_string()
+                                }));
                             }
                             break;
                         }
@@ -295,7 +303,13 @@ impl SocketServer {
         // Clean up connections
         if is_sandbox {
             let mut sandbox = sandbox_manager.write();
-            sandbox.take();
+            *sandbox = None;
+            if let Err(e) = app_handle.emit("sandbox-disconnect", serde_json::json!({
+                "ip": addr.ip().to_string(),
+                "addr": addr.to_string()
+            })) {
+                error!("通知前端沙盘断开失败: {}", e);
+            }
             info!("沙盘服务连接已清理");
         } else {
             let mut conns = connections.write();

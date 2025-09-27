@@ -12,6 +12,7 @@ import { ElMessage } from 'element-plus';
 import { createLogger, logger } from '@/utils/logger.js';
 import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log';
 import logHelper from '@/utils/logHelper.js'
+import { normalizeVehicleList, parseVehicleId } from '@/utils/vehicleTypes.js'
 
 const socketLogger = createLogger('SocketManager');
 
@@ -19,6 +20,8 @@ class SocketManager {
     constructor() {
         this.isServerRunning = false;
         this.connectedVehicles = new Map();
+        this.sandboxConnected = false;
+        this.vehicleReady = new Map();
         this.messageHandlers = new Map();
         
         // 设置默认消息处理器
@@ -76,6 +79,15 @@ class SocketManager {
             // 监听车辆断开连接事件
             await listen('vehicle-disconnect', (event) => {
                 this.handleVehicleDisconnect(event.payload);
+            });
+
+            // 监听沙盘客户端连接事件
+            await listen('sandbox-connect', (event) => {
+                this.handleSandboxConnect(event.payload)
+            });
+
+            await listen('sandbox-disconnect', (event) => {
+                this.handleSandboxDisconnect(event.payload)
             });
             
             socketLogger.info('开始监听Socket消息和断开连接事件');
@@ -738,6 +750,44 @@ class SocketManager {
     handleUnknownMessage(carId, messageType, data, timestamp) {
         socketLogger.warn(`未知消息类型 0x${messageType.toString(16)} - 车辆: ${carId}, 数据长度: ${data.length}`);
         // TODO: 处理未知消息类型
+    }
+
+    handleSandboxConnect(payload) {
+        socketLogger.info('沙盘客户端连接', payload)
+        this.sandboxConnected = true
+        eventBus.emit(EVENTS.SANDBOX_CONNECTION_STATUS, { isConnected: true, payload })
+    }
+
+    handleSandboxDisconnect(payload) {
+        socketLogger.warn('沙盘客户端断开', payload)
+        this.sandboxConnected = false
+        eventBus.emit(EVENTS.SANDBOX_CONNECTION_STATUS, { isConnected: false, payload })
+    }
+
+    isSandboxConnected() {
+        return this.sandboxConnected
+    }
+
+    setVehicleReady(vehicleId, ready) {
+        if (ready) {
+            this.vehicleReady.set(vehicleId, true)
+        } else {
+            this.vehicleReady.delete(vehicleId)
+        }
+    }
+
+    isVehicleReady(vehicleId) {
+        return this.vehicleReady.get(vehicleId) === true
+    }
+
+    getSelectedVehicleId() {
+        if (typeof window !== 'undefined') {
+            const carStore = window.__pinia?.stores?.car || null
+            if (carStore?.selectedCarId) {
+                return parseVehicleId(carStore.selectedCarId)
+            }
+        }
+        return 0
     }
 }
 

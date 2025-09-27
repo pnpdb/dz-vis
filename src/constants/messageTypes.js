@@ -20,7 +20,7 @@ export const SEND_MESSAGE_TYPES = {
     CONSTRUCTION_MARKER: 0x1008,     // 施工标记
 };
 
-// 车辆信息协议数据域定义 (54字节)
+// 车辆信息协议数据域定义 (55字节)
 export const VEHICLE_INFO_PROTOCOL = {
     VEHICLE_ID_OFFSET: 0,            // 车辆编号偏移 (1字节)
     SPEED_OFFSET: 1,                 // 车速偏移 (8字节, DOUBLE)
@@ -34,7 +34,8 @@ export const VEHICLE_INFO_PROTOCOL = {
     CAMERA_STATUS_OFFSET: 51,        // 相机状态偏移 (1字节)
     LIDAR_STATUS_OFFSET: 52,         // 激光雷达状态偏移 (1字节)
     GYRO_STATUS_OFFSET: 53,          // 陀螺仪状态偏移 (1字节)
-    TOTAL_SIZE: 54,                  // 总大小 54字节
+    PARKING_SLOT_OFFSET: 54,         // 停车位偏移 (1字节)
+    TOTAL_SIZE: 55,                  // 总大小 55字节
     
     // 车速范围 (0-1 m/s)
     MIN_SPEED: 0.0,

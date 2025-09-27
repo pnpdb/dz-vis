@@ -43,6 +43,15 @@
                 </div>
                 <div class="info-value">{{ displayNavStatus }}</div>
             </div>
+            <div class="info-card">
+                <div class="info-title">
+                    <fa icon="parking" />
+                    车位占用
+                </div>
+                <div class="info-value">
+                    {{ parkingSlotText }}
+                </div>
+            </div>
         </div>
     </div>
 </template>
@@ -77,7 +86,8 @@ const navStatus = ref({
     text: '未导航',
 });
 
-const vehicleInfo = ref(null);
+const parkingSlot = ref(0);
+const vehicleInfo = ref({ parkingSlot: 0 });
 const currentVehicleId = ref(parseVehicleId(props.carInfo));
 
 const displaySpeed = computed(() => (props.online ? speedValue.value : 0));
@@ -92,6 +102,12 @@ const batteryLevelStyle = computed(() => ({
 const displayNavStatus = computed(() =>
     props.online ? navStatus.value?.text ?? offlinePlaceholder : offlinePlaceholder,
 );
+const parkingSlotText = computed(() => {
+    if (!props.online) {
+        return offlinePlaceholder;
+    }
+    return parkingSlot.value > 0 ? `${parkingSlot.value}号车位` : '未占用';
+});
 
 const resetToDefaultState = () => {
     speedValue.value = 0;
@@ -103,6 +119,7 @@ const resetToDefaultState = () => {
         code: 0,
         text: offlinePlaceholder,
     };
+    parkingSlot.value = 0;
     vehicleInfo.value = null;
 };
 
@@ -124,6 +141,7 @@ const handleVehicleInfoUpdate = (data) => {
     positionY.value = data.position?.y ?? 0;
     batteryValue.value = typeof data.battery === 'number' ? Math.round(data.battery) : 0;
     navStatus.value = data.navigation ?? { code: 0, text: '未导航' };
+    parkingSlot.value = Number.isFinite(data.parkingSlot) ? Number(data.parkingSlot) : 0;
     vehicleInfo.value = data;
 };
 

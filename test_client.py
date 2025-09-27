@@ -462,8 +462,12 @@ def create_vehicle_info_data(vehicle_id=1):
     # 陀螺仪状态 (1字节, UINT8) - 0:异常, 1:正常
     gyro_status = random.choice([0, 1])
     data.extend(struct.pack('<B', gyro_status))
-    
-    print(f" 车辆信息 - ID: {vehicle_id}, 速度: {speed:.3f}m/s, 位置: ({position_x:.2f}, {position_y:.2f}), 朝向: {orientation:.1f}°, 电量: {battery:.1f}%, 档位: {gear}, 方向盘: {steering_angle:.1f}°, 导航状态码: {nav_status}")
+
+    # 车位占用状态 (1字节, UINT8) - 0:未占用，其它为车位编号
+    parking_slot = random.choice([0, 0, 0, 1, 2, 3])
+    data.extend(struct.pack('<B', parking_slot))
+
+    print(f" 车辆信息 - ID: {vehicle_id}, 速度: {speed:.3f}m/s, 位置: ({position_x:.2f}, {position_y:.2f}), 朝向: {orientation:.1f}°, 电量: {battery:.1f}%, 档位: {gear}, 方向盘: {steering_angle:.1f}°, 导航状态码: {nav_status}, 车位占用: {parking_slot}")
     print(f" 传感器状态 - 相机: {'正常' if camera_status else '异常'}, 雷达: {'正常' if lidar_status else '异常'}, 陀螺仪: {'正常' if gyro_status else '异常'}")
     
     return bytes(data)

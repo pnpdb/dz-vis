@@ -77,13 +77,13 @@ const handleVehicleInfoUpdate = (vehicleInfo) => {
         (typeof props.carInfo === 'string' &&
             vehicleInfo.vehicleId === getVehicleIdFromLetter(props.carInfo));
 
-    console.debug('📥 Sensor收到车辆信息事件:', {
-        incomingId: vehicleInfo.vehicleId ?? vehicleInfo.carId,
-        target: props.carInfo,
-        isCurrentVehicle,
-        online: props.online,
-        sensors: vehicleInfo.sensors,
-    });
+    // console.debug('📥 Sensor收到车辆信息事件:', {
+    //     incomingId: vehicleInfo.vehicleId ?? vehicleInfo.carId,
+    //     target: props.carInfo,
+    //     isCurrentVehicle,
+    //     online: props.online,
+    //     sensors: vehicleInfo.sensors,
+    // });
 
     if (isCurrentVehicle) {
         sensorData.value = {
@@ -91,7 +91,7 @@ const handleVehicleInfoUpdate = (vehicleInfo) => {
             lidarState: vehicleInfo.sensors.lidar?.status ? 1 : 0,
             cameraState: vehicleInfo.sensors.camera?.status ? 1 : 0,
         };
-        console.debug('✅ Sensor状态更新:', sensorData.value);
+        // console.debug('✅ Sensor状态更新:', sensorData.value);
     }
 };
 

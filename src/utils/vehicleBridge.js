@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { SEND_MESSAGE_TYPES, VEHICLE_CONTROL_PROTOCOL } from '@/constants/messageTypes.js';
+import { VEHICLE_CONTROL_PROTOCOL } from '@/constants/messageTypes.js';
 
 const commandMap = {
     [VEHICLE_CONTROL_PROTOCOL.COMMAND_START]: 'Start',
@@ -14,50 +14,19 @@ const sendVehicleControl = async (vehicleId, command, positionData = null) => {
         throw new Error(`不支持的命令类型: ${command}`);
     }
 
-    const payload = await invoke('build_vehicle_control_payload', { vehicleId, command: commandType, positionData });
-
-    return invoke('send_to_vehicle', {
-        vehicleId,
-        messageType: SEND_MESSAGE_TYPES.VEHICLE_CONTROL,
-        data: payload
-    });
+    return invoke('send_vehicle_control_command', { vehicleId, command: commandType, positionData });
 };
 
 const sendDataRecording = async (vehicleId, recordingStatus) => {
-    const payload = await invoke('build_data_recording_payload', { vehicleId, recordingStatus });
-
-    return invoke('send_to_vehicle', {
-        vehicleId,
-        messageType: SEND_MESSAGE_TYPES.DATA_RECORDING,
-        data: payload
-    });
+    return invoke('send_data_recording_command', { vehicleId, recordingStatus });
 };
 
 const sendVehicleFunctionSetting = async (vehicleId, functionId, enableStatus) => {
-    const payload = await invoke('build_vehicle_function_setting_payload', {
-        vehicleId,
-        functionId,
-        enableStatus
-    });
-
-    return invoke('send_to_vehicle', {
-        vehicleId,
-        messageType: SEND_MESSAGE_TYPES.VEHICLE_FUNCTION_SETTING,
-        data: payload
-    });
+    return invoke('send_vehicle_function_setting_command', { vehicleId, functionId, enableStatus });
 };
 
 const sendVehiclePathDisplay = async (vehicleId, displayPath) => {
-    const payload = await invoke('build_vehicle_path_display_payload', {
-        vehicleId,
-        displayPath
-    });
-
-    return invoke('send_to_vehicle', {
-        vehicleId,
-        messageType: SEND_MESSAGE_TYPES.VEHICLE_PATH_DISPLAY,
-        data: payload
-    });
+    return invoke('send_vehicle_path_display_command', { vehicleId, displayPath });
 };
 
 const broadcastTaxiOrder = (orderId, startX, startY, endX, endY) => {
@@ -68,17 +37,12 @@ const sendTaxiOrderToVehicle = (orderId, vehicleId, startX, startY, endX, endY) 
     return invoke('send_taxi_order_to_vehicle', { orderId, vehicleId, startX, startY, endX, endY });
 };
 
-const sendAvpParking = (vehicleId) => invoke('send_avp_parking', { vehicleId });
+const sendAvpParking = (vehicleId, parkingSpot = 1) => invoke('send_avp_parking', { vehicleId, parkingSpot });
 
 const sendAvpPickup = (vehicleId) => invoke('send_avp_pickup', { vehicleId });
 
 const broadcastConstructionMarker = (markerId, positionX, positionY, action) => {
-    return invoke('broadcast_construction_marker', {
-        markerId,
-        positionX,
-        positionY,
-        action,
-    });
+    return invoke('broadcast_construction_marker', { markerId, positionX, positionY, action });
 };
 
 const broadcastAllConstructionMarkers = (markers) => {

@@ -26,8 +26,8 @@ pub use vehicle::{
     update_vehicle_connection, delete_vehicle_connection, get_active_vehicle_connections,
     get_socket_server_status, broadcast_taxi_order, send_taxi_order_to_vehicle, send_avp_parking, send_avp_pickup,
     get_vehicle_online_stats, get_driving_behavior_stats, get_vehicle_server_ports,
-    build_vehicle_control_payload, build_data_recording_payload,
-    build_vehicle_function_setting_payload, build_vehicle_path_display_payload
+    send_vehicle_control_command, send_data_recording_command,
+    send_vehicle_function_setting_command, send_vehicle_path_display_command
 };
 
 pub use sandbox::{

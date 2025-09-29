@@ -1,7 +1,6 @@
 use super::protocol::{build_message, ProtocolParser, SocketMessage};
 use crate::database::VehicleDatabase;
-use crate::protocol_processing::types::{MessageTypes, VehicleInfo};
-use crate::protocol_processing::converter::DataConverter;
+use crate::protocol_processing::types::{MessageTypes, VehicleInfo, ProtocolConstants};
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -343,28 +342,27 @@ impl SocketServer {
 
         let mut parsed_payload: Option<serde_json::Value> = None;
 
-        if message.message_type == MessageTypes::VEHICLE_INFO {
-            let mut converter = DataConverter::new();
-            match converter.safe_convert_vehicle_info(&message.data) {
-                Ok(raw) => {
-                    let info = converter.convert_raw_to_vehicle_info(&raw);
-                    let car_id = info.vehicle_id;
-                    let mut cache = vehicle_state.write();
-                    if let Some(previous) = cache.get(&car_id) {
-                        if vehicle_info_equal(previous, &info) {
-                            debug!("车辆 {} (ID: {}) 数据未变化，跳过更新", vehicle_name, vehicle_id);
-                            return;
-                        }
-                    }
-                    cache.insert(car_id, info.clone());
-                    parsed_payload = Some(serde_json::to_value(&info).unwrap_or_default());
-                }
-                Err(err) => {
-                    warn!("解析车辆信息失败 - 车辆: {} (ID: {}): {}", vehicle_name, vehicle_id, err);
-                }
+        if message.message_type == MessageTypes::HEARTBEAT {
+            parsed_payload = Some(serde_json::json!({
+                "type": "heartbeat",
+                "vehicle_id": vehicle_id,
+                "timestamp": message.timestamp,
+            }));
+        } else if message.message_type == MessageTypes::VEHICLE_INFO {
+            if message.data.len() < ProtocolConstants::VEHICLE_INFO_TOTAL_SIZE {
+                warn!(
+                    "车辆信息数据长度不足 - 车辆: {} (ID: {}), 长度: {}",
+                    vehicle_name,
+                    vehicle_id,
+                    message.data.len()
+                );
+            } else if let Some(info_json) = parse_vehicle_info_payload(&message.data, &vehicle_state, vehicle_id, vehicle_name) {
+                parsed_payload = Some(info_json);
+            } else {
+                return;
             }
         }
-
+ 
         let mut frontend_message = serde_json::json!({
             "type": "socket_message",
             "vehicle_id": vehicle_id,
@@ -373,7 +371,7 @@ impl SocketServer {
             "timestamp": message.timestamp,
             "data": message.data
         });
-
+ 
         if let Some(parsed) = parsed_payload {
             frontend_message["parsed"] = parsed;
         }
@@ -533,4 +531,119 @@ fn vehicle_info_equal(a: &VehicleInfo, b: &VehicleInfo) -> bool {
         && a.sensors.lidar == b.sensors.lidar
         && a.sensors.gyro == b.sensors.gyro
         && a.parking_slot == b.parking_slot
+}
+
+fn parse_vehicle_info_payload(
+    data: &[u8],
+    vehicle_state: &Arc<RwLock<HashMap<u8, VehicleInfo>>>,
+    vehicle_id_i32: i32,
+    vehicle_name: &str,
+) -> Option<serde_json::Value> {
+    use crate::protocol_processing::types::ProtocolConstants;
+
+    let view = &data;
+    let vehicle_id = view[ProtocolConstants::VEHICLE_INFO_VEHICLE_ID_OFFSET];
+
+    let read_f64 = |offset: usize| -> f64 {
+        let mut bytes = [0u8; 8];
+        bytes.copy_from_slice(&view[offset..offset + 8]);
+        f64::from_le_bytes(bytes)
+    };
+
+    let speed = read_f64(ProtocolConstants::VEHICLE_INFO_SPEED_OFFSET);
+    let position_x = read_f64(ProtocolConstants::VEHICLE_INFO_POSITION_X_OFFSET);
+    let position_y = read_f64(ProtocolConstants::VEHICLE_INFO_POSITION_Y_OFFSET);
+    let orientation = read_f64(ProtocolConstants::VEHICLE_INFO_ORIENTATION_OFFSET);
+    let battery = read_f64(ProtocolConstants::VEHICLE_INFO_BATTERY_OFFSET);
+    let gear = view[ProtocolConstants::VEHICLE_INFO_GEAR_OFFSET];
+    let steering_angle = read_f64(ProtocolConstants::VEHICLE_INFO_STEERING_ANGLE_OFFSET);
+    let nav_status = view[ProtocolConstants::VEHICLE_INFO_NAV_STATUS_OFFSET];
+    let camera_status = view[ProtocolConstants::VEHICLE_INFO_CAMERA_STATUS_OFFSET] != 0;
+    let lidar_status = view[ProtocolConstants::VEHICLE_INFO_LIDAR_STATUS_OFFSET] != 0;
+    let gyro_status = view[ProtocolConstants::VEHICLE_INFO_GYRO_STATUS_OFFSET] != 0;
+    let parking_slot = view[ProtocolConstants::VEHICLE_INFO_PARKING_SLOT_OFFSET];
+
+    let info = VehicleInfo {
+        vehicle_id,
+        speed,
+        position_x,
+        position_y,
+        orientation,
+        battery,
+        gear,
+        steering_angle,
+        nav_status,
+        sensors: crate::protocol_processing::types::SensorStatus {
+            camera: camera_status,
+            lidar: lidar_status,
+            gyro: gyro_status,
+        },
+        parking_slot,
+    };
+
+    let mut cache = vehicle_state.write();
+    if let Some(previous) = cache.get(&vehicle_id) {
+        if vehicle_info_equal(previous, &info) {
+            debug!(
+                "车辆 {} (ID: {}) 数据未变化，跳过更新",
+                vehicle_name,
+                vehicle_id_i32
+            );
+            return None;
+        }
+    }
+    cache.insert(vehicle_id, info.clone());
+
+    Some(serde_json::json!({
+        "vehicle_id": info.vehicle_id,
+        "speed": info.speed,
+        "position": {
+            "x": info.position_x,
+            "y": info.position_y
+        },
+        "orientation": info.orientation,
+        "battery": info.battery,
+        "gear": info.gear,
+        "steeringAngle": info.steering_angle,
+        "navigation": {
+            "code": info.nav_status,
+            "text": nav_status_text(info.nav_status)
+        },
+        "sensors": {
+            "camera": {
+                "status": camera_status,
+                "text": if camera_status { "正常" } else { "异常" }
+            },
+            "lidar": {
+                "status": lidar_status,
+                "text": if lidar_status { "正常" } else { "异常" }
+            },
+            "gyro": {
+                "status": gyro_status,
+                "text": if gyro_status { "正常" } else { "异常" }
+            }
+        },
+        "parkingSlot": info.parking_slot
+    }))
+}
+
+fn nav_status_text(code: u8) -> &'static str {
+    match code {
+        1 => "正常行驶中（空载模式倒车入库）",
+        2 => "正常行驶中（空载模式不倒车入库）",
+        3 => "接客模式，去起点接客",
+        4 => "接客模式，去终点送客",
+        5 => "去往充电车位",
+        6 => "充电中",
+        7 => "去往定车位路上",
+        8 => "车位停车中",
+        9 => "到达接客起点",
+        10 => "到达接客终点",
+        11 => "正在倒车入库",
+        12 => "正在出库中",
+        13 => "正在倒车入库",
+        14 => "出库完成",
+        15 => "平行驾驶模式",
+        _ => "未知状态",
+    }
 }

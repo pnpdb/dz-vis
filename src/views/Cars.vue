@@ -51,26 +51,25 @@ const vehicleStatusText = computed(() => {
 
 // 处理车辆连接状态变化事件
 const handleVehicleConnectionStatus = ({ carId, isConnected }) => {
-    console.debug('📥 Cars页面收到vehicle-connection-status事件:', { carId, isConnected });
+    // console.debug('📥 Cars页面收到vehicle-connection-status事件:', { carId, isConnected });
     
     // 根据当前选择的车辆信息来匹配
     const isCurrentVehicle = carId === selectedCar.value || 
                            carId == selectedCar.value;   // 松散比较
     
-    console.debug(`🔍 Cars页面车辆匹配: 事件车辆${carId} vs 当前选中${selectedCar.value} = ${isCurrentVehicle}`);
+    // console.debug(`🔍 Cars页面车辆匹配: 事件车辆${carId} vs 当前选中${selectedCar.value} = ${isCurrentVehicle}`);
     
     if (isCurrentVehicle) {
         const oldStatus = vehicleStatus.value;
         vehicleStatus.value = isConnected ? 'online' : 'offline';
-        console.debug(`🚗 Cars页面状态更新: 车辆${carId}, 连接:${isConnected} → ${oldStatus} → ${vehicleStatus.value}`);
-        console.debug(`🎨 StatusIndicator应该显示: ${vehicleStatus.value}`);
+        // console.debug(`🚗 Cars页面状态更新: 车辆${carId}, 连接:${isConnected} → ${oldStatus} → ${vehicleStatus.value}`);
     }
 };
 
 // 移除模拟状态监控，使用真实的连接状态
 const startVehicleStatusMonitoring = () => {
     // 不再需要模拟状态变化，状态由实际连接事件驱动
-    console.debug('🎯 车辆状态监控已启动（基于真实连接状态）');
+    // console.debug('🎯 车辆状态监控已启动（基于真实连接状态）');
     console.debug('🔍 当前vehicleStatus:', vehicleStatus.value);
 };
 
@@ -82,7 +81,7 @@ watch(selectedCar, (newVehicleId, oldVehicleId) => {
         vehicleStatus.value = 'offline';
         
         // 请求新车辆的连接状态
-        console.debug(`📤 Cars页面请求车辆状态: ${newVehicleId}`);
+        // console.debug(`📤 Cars页面请求车辆状态: ${newVehicleId}`);
         eventBus.emit(EVENTS.REQUEST_VEHICLE_STATUS, { vehicleId: newVehicleId });
     }
 }, { immediate: true });

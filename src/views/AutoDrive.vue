@@ -328,12 +328,12 @@ const startParking = async () => {
         
         // 4. 发送成功，显示成功Toast
         ElMessage({
-            message: '🅿️ AVP泊车指令发送成功，车辆正在执行泊车',
+            message: 'AVP泊车指令发送成功，车辆正在执行泊车',
             type: 'success',
             duration: 3000
         });
         
-        console.debug(`🅿️ AVP泊车指令发送成功 - 车辆: ${parking.value.car}, 结果: ${result}`);
+        console.debug(`AVP泊车指令发送成功 - 车辆: ${parking.value.car}, 结果: ${result}`);
         
     } catch (error) {
         // 5. 发送失败，显示失败Toast

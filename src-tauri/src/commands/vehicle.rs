@@ -7,6 +7,7 @@ use crate::database::{
 use crate::protocol_processing::types::{
     AvpParkingData, AvpPickupData, ControlCommandType, DataRecordingData, PositionData,
     TaxiOrderData, VehicleControlCommand, VehicleFunctionSettingData, VehiclePathDisplayData,
+    MessageTypes,
 };
 use crate::services::vehicle::VehicleService;
 use crate::socket::{self, ConnectionManager, SandboxConnectionManager};
@@ -478,13 +479,13 @@ pub async fn get_vehicle_server_ports() -> Result<serde_json::Value, String> {
     }))
 }
 
-/// 构建车辆控制协议数据域
 #[tauri::command]
-pub async fn build_vehicle_control_payload(
+pub async fn send_vehicle_control_command(
+    app: tauri::AppHandle,
     vehicle_id: u8,
     command: String,
     position_data: Option<PositionData>,
-) -> Result<Vec<u8>, String> {
+) -> Result<String, String> {
     let command_type = match command.as_str() {
         "Start" => ControlCommandType::Start,
         "Stop" => ControlCommandType::Stop,
@@ -493,42 +494,46 @@ pub async fn build_vehicle_control_payload(
         _ => return Err(format!("不支持的控制指令: {}", command)),
     };
 
-    let service = VehicleService::new();
-    let payload = service.build_vehicle_control_payload(&VehicleControlCommand {
+    let payload = VehicleService::new().build_vehicle_control_payload(&VehicleControlCommand {
         vehicle_id,
         command: command_type,
         position_data,
     });
 
-    Ok(payload)
+    let connections = app.state::<ConnectionManager>();
+    socket::SocketServer::send_to_vehicle(&connections, vehicle_id as i32, MessageTypes::VEHICLE_CONTROL, &payload)
+        .map(|_| "车辆控制指令发送成功".to_string())
 }
 
-/// 构建数据记录协议数据域
+/// 发送数据记录协议
 #[tauri::command]
-pub async fn build_data_recording_payload(
+pub async fn send_data_recording_command(
+    app: tauri::AppHandle,
     vehicle_id: u8,
     recording_status: u8,
-) -> Result<Vec<u8>, String> {
+) -> Result<String, String> {
     if !matches!(recording_status, 0 | 1) {
         return Err(format!("无效的数据记录状态: {}", recording_status));
     }
 
-    let service = VehicleService::new();
-    let payload = service.build_data_recording_payload(&DataRecordingData {
+    let payload = VehicleService::new().build_data_recording_payload(&DataRecordingData {
         vehicle_id,
         action: recording_status,
     });
 
-    Ok(payload)
+    let connections = app.state::<ConnectionManager>();
+    socket::SocketServer::send_to_vehicle(&connections, vehicle_id as i32, 0x1002, &payload)
+        .map(|_| "数据记录指令发送成功".to_string())
 }
 
-/// 构建车辆功能设置协议数据域
+/// 发送车辆功能设置协议
 #[tauri::command]
-pub async fn build_vehicle_function_setting_payload(
+pub async fn send_vehicle_function_setting_command(
+    app: tauri::AppHandle,
     vehicle_id: u8,
     function_id: u8,
     enable_status: u8,
-) -> Result<Vec<u8>, String> {
+) -> Result<String, String> {
     if function_id > 7 {
         return Err(format!("功能编号无效: {}", function_id));
     }
@@ -536,33 +541,36 @@ pub async fn build_vehicle_function_setting_payload(
         return Err(format!("启用状态无效: {}", enable_status));
     }
 
-    let service = VehicleService::new();
-    let payload = service.build_vehicle_function_setting_payload(&VehicleFunctionSettingData {
+    let payload = VehicleService::new().build_vehicle_function_setting_payload(&VehicleFunctionSettingData {
         vehicle_id,
         function_id,
         enable_status,
     });
 
-    Ok(payload)
+    let connections = app.state::<ConnectionManager>();
+    socket::SocketServer::send_to_vehicle(&connections, vehicle_id as i32, 0x1006, &payload)
+        .map(|_| "车辆功能设置指令发送成功".to_string())
 }
 
-/// 构建车辆路径显示协议数据域
+/// 发送车辆路径显示协议
 #[tauri::command]
-pub async fn build_vehicle_path_display_payload(
+pub async fn send_vehicle_path_display_command(
+    app: tauri::AppHandle,
     vehicle_id: u8,
     display_path: u8,
-) -> Result<Vec<u8>, String> {
+) -> Result<String, String> {
     if !matches!(display_path, 0 | 1) {
         return Err(format!("显示路径状态无效: {}", display_path));
     }
 
-    let service = VehicleService::new();
-    let payload = service.build_vehicle_path_display_payload(&VehiclePathDisplayData {
+    let payload = VehicleService::new().build_vehicle_path_display_payload(&VehiclePathDisplayData {
         vehicle_id,
         display_path,
     });
 
-    Ok(payload)
+    let connections = app.state::<ConnectionManager>();
+    socket::SocketServer::send_to_vehicle(&connections, vehicle_id as i32, 0x1007, &payload)
+        .map(|_| "车辆路径显示指令发送成功".to_string())
 }
 
 // 其余命令维持原样。

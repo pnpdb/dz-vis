@@ -7,7 +7,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import vehicleBridge from '@/utils/vehicleBridge.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
-import { SEND_MESSAGE_TYPES, RECEIVE_MESSAGE_TYPES, VEHICLE_INFO_PROTOCOL, VEHICLE_CONTROL_PROTOCOL, DATA_RECORDING_PROTOCOL, TAXI_ORDER_PROTOCOL, AVP_PARKING_PROTOCOL, AVP_PICKUP_PROTOCOL, VEHICLE_FUNCTION_SETTING_PROTOCOL, VEHICLE_PATH_DISPLAY_PROTOCOL, MessageTypeUtils, NAV_STATUS_TEXTS } from '@/constants/messageTypes.js';
+import { RECEIVE_MESSAGE_TYPES, MessageTypeUtils, VEHICLE_CONTROL_PROTOCOL, SEND_MESSAGE_TYPES, AVP_PARKING_PROTOCOL } from '@/constants/messageTypes.js';
 import { ElMessage } from 'element-plus';
 import { createLogger, logger } from '@/utils/logger.js';
 import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log';
@@ -140,11 +140,10 @@ class SocketManager {
      * 处理接收到的消息
      */
     handleIncomingMessage(payload) {
-        const { vehicle_id, message_type, timestamp, data, parsed } = payload;
-        const dataArray = Array.isArray(data) ? data : Array.from(data ?? []);
-
-        socketLogger.debug(`收到消息 - 车辆: ${vehicle_id}, 类型: 0x${message_type.toString(16).toUpperCase()}, 数据长度: ${dataArray.length}`);
-        socketLogger.trace?.('socket-message payload', { ...payload, data: dataArray, parsed });
+        const { vehicle_id, message_type, timestamp, parsed } = payload;
+        
+        socketLogger.debug(`收到消息 - 车辆: ${vehicle_id}, 类型: 0x${message_type.toString(16).toUpperCase()}`);
+        socketLogger.trace?.('socket-message payload', { ...payload, parsed });
         
         // 更新车辆连接状态为在线
         this.updateVehicleStatus(vehicle_id, true);
@@ -156,7 +155,7 @@ class SocketManager {
         const handler = this.messageHandlers.get(message_type);
         if (handler) {
             try {
-                handler(vehicle_id, dataArray, timestamp, parsed);
+                handler(vehicle_id, parsed, timestamp);
             } catch (error) {
                 socketLogger.error(`处理消息类型 ${typeName} 失败:`, error);
                 plError(`处理消息类型 ${typeName} 失败: ${error}`).catch(() => {});
@@ -164,7 +163,7 @@ class SocketManager {
         } else {
             socketLogger.warn(`未找到消息类型 ${typeName} (0x${message_type.toString(16)}) 的处理器`);
             // 调用默认处理器
-            this.handleUnknownMessage(vehicle_id, message_type, data, timestamp);
+            this.handleUnknownMessage(vehicle_id, message_type, parsed, timestamp);
         }
     }
 
@@ -179,17 +178,62 @@ class SocketManager {
         });
 
         // 车辆信息协议处理
-        this.setMessageHandler(RECEIVE_MESSAGE_TYPES.VEHICLE_INFO, (carId, data, timestamp, parsed) => {
-            const dataArray = Array.isArray(data) ? data : Array.from(data ?? []);
-            socketLogger.info(`收到车辆信息 - 车辆: ${carId}, 数据长度: ${dataArray.length}`);
-            if (!parsed) {
-                socketLogger.debug(`车辆信息原始字节 (前16字节): ${bytesToHex(dataArray.slice(0, 16))}`);
-                socketLogger.debug(`车辆信息原始字节 (完整): ${bytesToHex(dataArray)}`);
-            } else {
-                socketLogger.debug(`车辆信息使用预解析数据: ${JSON.stringify(parsed)}`);
+        this.setMessageHandler(RECEIVE_MESSAGE_TYPES.VEHICLE_INFO, (carId, parsed, timestamp) => {
+            if (!parsed || typeof parsed !== 'object') {
+                socketLogger.warn(`收到的车辆信息缺少解析数据 - 车辆: ${carId}`);
+                return;
             }
-            this.parseVehicleInfo(carId, dataArray, timestamp, parsed);
+            socketLogger.info(`收到车辆信息 - 车辆: ${carId}`);
+            this.updateVehicleInfoFromParsed(carId, parsed, timestamp);
         });
+    }
+
+    updateVehicleInfoFromParsed(carId, parsed, timestamp) {
+        const vehicleId = Number(parsed.vehicle_id ?? parsed.carId ?? carId);
+        const speed = Number(parsed.speed ?? 0);
+        const position = parsed.position ?? { x: 0, y: 0 };
+        const orientation = Number(parsed.orientation ?? 0);
+        const battery = Number(parsed.battery ?? 0);
+        const gear = Number(parsed.gear ?? 0);
+        const steeringAngle = Number(parsed.steeringAngle ?? 0);
+        const navigation = parsed.navigation ?? { code: 0, text: '未知状态' };
+        const sensors = parsed.sensors ?? {};
+        const parkingSlot = Number(parsed.parkingSlot ?? 0);
+
+        const vehicleInfo = {
+            carId,
+            vehicleId,
+            speed,
+            position,
+            orientation,
+            battery,
+            gear,
+            steeringAngle,
+            navigation,
+            sensors,
+            parkingSlot,
+            timestamp,
+        };
+
+        if (!this.isVehicleStateChanged(vehicleId, vehicleInfo)) {
+            socketLogger.debug(`车辆 ${vehicleId} 数据未变化，跳过UI更新`);
+            return;
+        }
+
+        const store = this.ensureCarStore();
+        store?.updateVehicleState(vehicleId, vehicleInfo);
+
+        logger.outputToPlugin('DEBUG', 'SocketManager.vehicleInfoUpdate', [
+            `车辆:${vehicleId} 速:${speed.toFixed(3)} 位置:(${position.x?.toFixed?.(2) ?? position.x},${position.y?.toFixed?.(2) ?? position.y}) 电:${battery.toFixed?.(1) ?? battery}%`
+        ], { throttle: true, throttleKey: `vinfo-ok-${vehicleId}`, interval: 500 });
+
+        eventBus.emit(EVENTS.VEHICLE_INFO_UPDATE, vehicleInfo);
+
+        if (parkingSlot > 0) {
+            this.vehicleParkingSlots.set(vehicleId, parkingSlot);
+        } else {
+            this.vehicleParkingSlots.delete(vehicleId);
+        }
     }
 
     isVehicleStateChanged(vehicleId, nextState) {
@@ -405,125 +449,6 @@ class SocketManager {
     // ============ 数据域解析方法 ============
 
     /**
-     * 解析车辆信息协议数据域 (54字节)
-     * 协议格式：车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 朝向(8) + 电量(8) + 档位(1) + 方向盘转角(8) + 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1)
-     */
-    parseVehicleInfo(carId, data, timestamp, parsed = null) {
-        logger.outputToPlugin('DEBUG', 'SocketManager.parseVehicleInfo', [`车:${carId} 数据:${data.length}`], { throttle: true, throttleKey: `vinfo-${carId}`, interval: 300 });
-        
-        // 验证数据长度
-        if (data.length !== VEHICLE_INFO_PROTOCOL.TOTAL_SIZE) {
-            socketLogger.error(`车辆信息数据长度错误 - 期望: ${VEHICLE_INFO_PROTOCOL.TOTAL_SIZE}, 实际: ${data.length}`);
-            socketLogger.error(`车辆信息原始数据(hex): ${bytesToHex(Array.from(data))}`);
-            plWarn(`车辆信息数据长度错误 - 期望: ${VEHICLE_INFO_PROTOCOL.TOTAL_SIZE}, 实际: ${data.length}`).catch(() => {});
-            return;
-        }
-        
-        try {
-            const view = new DataView(new Uint8Array(data).buffer);
-            
-            // 解析数据域
-            const vehicleId = view.getUint8(VEHICLE_INFO_PROTOCOL.VEHICLE_ID_OFFSET);
-            const speed = view.getFloat64(VEHICLE_INFO_PROTOCOL.SPEED_OFFSET, true);  // 小端序
-            const positionX = view.getFloat64(VEHICLE_INFO_PROTOCOL.POSITION_X_OFFSET, true);
-            const positionY = view.getFloat64(VEHICLE_INFO_PROTOCOL.POSITION_Y_OFFSET, true);
-            const orientation = view.getFloat64(VEHICLE_INFO_PROTOCOL.ORIENTATION_OFFSET, true);
-            const battery = view.getFloat64(VEHICLE_INFO_PROTOCOL.BATTERY_OFFSET, true);
-            const gear = view.getUint8(VEHICLE_INFO_PROTOCOL.GEAR_OFFSET);
-            const steeringAngle = view.getFloat64(VEHICLE_INFO_PROTOCOL.STEERING_ANGLE_OFFSET, true);
-            const navCode = view.getUint8(VEHICLE_INFO_PROTOCOL.NAV_STATUS_OFFSET);
-            const cameraStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.CAMERA_STATUS_OFFSET);
-            const lidarStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.LIDAR_STATUS_OFFSET);
-            const gyroStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.GYRO_STATUS_OFFSET);
-            const parkingSlotStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.PARKING_SLOT_OFFSET);
-
-            socketLogger.debug('车辆信息字段解析', {
-                carId,
-                rawVehicleId: vehicleId,
-                speed,
-                positionX,
-                positionY,
-                orientation,
-                battery,
-                gear,
-                steeringAngle,
-                navCode,
-                cameraStatus,
-                lidarStatus,
-                gyroStatus,
-                parkingSlotStatus
-            });
-            
-            // 数据验证
-            const clampedSpeed = Math.max(VEHICLE_INFO_PROTOCOL.MIN_SPEED, 
-                                        Math.min(VEHICLE_INFO_PROTOCOL.MAX_SPEED, speed));
-            const clampedBattery = Math.max(0, Math.min(100, battery));
-            
-            const vehicleInfo = {
-                carId: carId,
-                vehicleId,
-                speed: clampedSpeed,
-                position: { x: positionX, y: positionY },
-                orientation,
-                battery: clampedBattery,
-                gear,
-                steeringAngle,
-                navigation: {
-                    code: navCode,
-                    text: NAV_STATUS_TEXTS[navCode] || `未知状态(${navCode})`
-                },
-                sensors: {
-                    camera: {
-                        status: cameraStatus === 1,
-                        text: cameraStatus === 1 ? '正常' : '异常'
-                    },
-                    lidar: {
-                        status: lidarStatus === 1,
-                        text: lidarStatus === 1 ? '正常' : '异常'
-                    },
-                    gyro: {
-                        status: gyroStatus === 1,
-                        text: gyroStatus === 1 ? '正常' : '异常'
-                    }
-                },
-                parkingSlot: parkingSlotStatus,
-                timestamp
-            };
-            
-            if (!this.isVehicleStateChanged(vehicleId, vehicleInfo)) {
-                socketLogger.debug(`车辆 ${vehicleId} 数据未变化，跳过UI更新`);
-                return;
-            }
-
-            const store = this.ensureCarStore();
-            store?.updateVehicleState(vehicleId, vehicleInfo);
-
-            logger.outputToPlugin('DEBUG', 'SocketManager.parseVehicleInfo', [
-                `车辆:${vehicleId} 速:${clampedSpeed.toFixed(3)} 位置:(${positionX.toFixed(2)},${positionY.toFixed(2)}) 电:${clampedBattery.toFixed(1)}%`
-            ], { throttle: true, throttleKey: `vinfo-ok-${vehicleId}`, interval: 500 });
-            
-            // 发送到UI更新
-            socketLogger.debug(`向前端广播 VEHICLE_INFO_UPDATE - 车辆: ${vehicleId}, 车速: ${clampedSpeed.toFixed(3)}, 档位: ${gear}, 车位: ${parkingSlotStatus}`);
-            eventBus.emit(EVENTS.VEHICLE_INFO_UPDATE, vehicleInfo);
-
-            // 根据导航状态自动切换平行驾驶模式
-            const isParallelDriving = navCode === 15;
-            eventBus.emit(EVENTS.PARALLEL_DRIVING_MODE_CHANGE, { mode: isParallelDriving });
-            
-            if (parkingSlotStatus > 0) {
-                this.vehicleParkingSlots.set(vehicleId, parkingSlotStatus);
-            } else {
-                this.vehicleParkingSlots.delete(vehicleId);
-            }
-            
-        } catch (error) {
-            socketLogger.error(`解析车辆信息失败 - 车辆: ${carId}:`, error);
-            socketLogger.error(`解析失败原始数据(hex): ${bytesToHex(Array.from(data))}`);
-            plError(`解析车辆信息失败 - 车辆: ${carId}: ${error}`).catch(() => {});
-        }
-    }
-
-    /**
      * 发送车辆控制指令
      * @param {number} vehicleId - 车辆ID
      * @param {number} command - 控制指令 (1:启动，2:停止，3:紧急制动，4:初始化位姿)
@@ -536,70 +461,41 @@ class SocketManager {
     // 保留原来的实现作为回退
     async sendVehicleControlLegacy(vehicleId, command, positionData = null) {
         try {
-            socketLogger.debug(`sendVehicleControl - 车辆: ${vehicleId}, 指令: ${command}`);
+            socketLogger.debug(`sendVehicleControlLegacy - 车辆: ${vehicleId}, 指令: ${command}`);
             
-            // 验证指令
             if (command < 1 || command > 4) {
                 throw new Error(`无效的控制指令: ${command}`);
             }
 
-            // 确定数据域大小
-            const needsPosition = command === VEHICLE_CONTROL_PROTOCOL.COMMAND_INIT_POSE;
-            const dataSize = needsPosition ? 
-                VEHICLE_CONTROL_PROTOCOL.TOTAL_SIZE_WITH_POSITION : 
-                VEHICLE_CONTROL_PROTOCOL.TOTAL_SIZE_WITHOUT_POSITION;
-            
-            socketLogger.debug(`needsPosition: ${needsPosition}, dataSize: ${dataSize}`);
+            const needsPosition = command === 4;
+            const dataSize = needsPosition ? 26 : 2;
 
-            // 创建数据域
             const dataBuffer = new ArrayBuffer(dataSize);
             const dataView = new DataView(dataBuffer);
 
-            // 写入车辆编号
-            dataView.setUint8(VEHICLE_CONTROL_PROTOCOL.VEHICLE_ID_OFFSET, vehicleId);
+            dataView.setUint8(0, vehicleId);
+            dataView.setUint8(1, command);
             
-            // 写入控制指令
-            dataView.setUint8(VEHICLE_CONTROL_PROTOCOL.CONTROL_COMMAND_OFFSET, command);
-
-            // 如果是初始化位姿指令，写入位置数据
             if (needsPosition) {
                 if (!positionData) {
                     throw new Error('初始化位姿指令需要提供位置数据');
                 }
-                
-                // 写入位置X (DOUBLE, 小端序)
-                dataView.setFloat64(VEHICLE_CONTROL_PROTOCOL.POSITION_X_OFFSET, positionData.x, true);
-                
-                // 写入位置Y (DOUBLE, 小端序)
-                dataView.setFloat64(VEHICLE_CONTROL_PROTOCOL.POSITION_Y_OFFSET, positionData.y, true);
-                
-                // 写入朝向 (DOUBLE, 小端序)
-                dataView.setFloat64(VEHICLE_CONTROL_PROTOCOL.ORIENTATION_OFFSET, positionData.orientation, true);
+                dataView.setFloat64(2, positionData.x, true);
+                dataView.setFloat64(10, positionData.y, true);
+                dataView.setFloat64(18, positionData.orientation, true);
             }
 
-            // 转换为字节数组
             const dataArray = new Uint8Array(dataBuffer);
-
-            // 通过Rust发送消息给指定车辆
-            socketLogger.debug(`准备调用invoke - vehicleId: ${vehicleId}, messageType: ${SEND_MESSAGE_TYPES.VEHICLE_CONTROL}, data长度: ${dataArray.length}`);
             const result = await invoke('send_to_vehicle', {
-                vehicleId: vehicleId,
+                vehicleId,
                 messageType: SEND_MESSAGE_TYPES.VEHICLE_CONTROL,
                 data: Array.from(dataArray)
             });
-            socketLogger.debug(`invoke调用成功, 结果:`, result);
-
-            const commandName = VEHICLE_CONTROL_PROTOCOL.COMMAND_NAMES[command];
-            socketLogger.info(`车辆控制指令发送成功 - 车辆: ${vehicleId}, 指令: ${commandName}, 数据大小: ${dataSize}字节`);
             
-            if (needsPosition) {
-                socketLogger.debug(`位置数据 - X: ${positionData.x}, Y: ${positionData.y}, 朝向: ${positionData.orientation}`);
-            }
-
+            socketLogger.info(`fallback 车辆控制指令发送成功 - 车辆: ${vehicleId}, 指令: ${command}, 数据大小: ${dataSize}字节`);
             return result;
         } catch (error) {
-            const commandName = VEHICLE_CONTROL_PROTOCOL.COMMAND_NAMES[command] || `未知指令(${command})`;
-            socketLogger.error(`发送车辆控制指令失败 - 车辆: ${vehicleId}, 指令: ${commandName}:`, error);
+            socketLogger.error(`fallback 发送车辆控制指令失败 - 车辆: ${vehicleId}, 指令: ${command}:`, error);
             throw error;
         }
     }
@@ -747,8 +643,7 @@ class SocketManager {
 
             socketLogger.info(`发送AVP泊车指令 - 车辆: ${vehicleId}, 车位: ${actualParkingSpot}`);
 
-            // 调用Rust后端进行发送和数据库保存
-            const result = await vehicleBridge.sendAvpParking(vehicleId);
+            const result = await vehicleBridge.sendAvpParking(vehicleId, actualParkingSpot);
 
             socketLogger.info(`AVP泊车指令发送成功 - 车辆: ${vehicleId}, 车位: ${actualParkingSpot}`);
             return result;
@@ -839,8 +734,11 @@ class SocketManager {
     /**
      * 处理未知消息类型
      */
-    handleUnknownMessage(carId, messageType, data, timestamp) {
-        socketLogger.warn(`未知消息类型 0x${messageType.toString(16)} - 车辆: ${carId}, 数据长度: ${data.length}`);
+    handleUnknownMessage(carId, messageType, parsed, timestamp) {
+        socketLogger.warn(`未知消息类型 0x${messageType.toString(16)} - 车辆: ${carId}, 数据长度: ${parsed?.length ?? 0}`);
+        if (parsed) {
+            socketLogger.debug('未知消息类型使用parsed数据:', parsed);
+        }
         // TODO: 处理未知消息类型
     }
 

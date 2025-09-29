@@ -327,17 +327,19 @@ pub enum ProtocolError {
 pub struct MessageTypes;
 
 impl MessageTypes {
-    pub const VEHICLE_INFO: u16 = 0x0001;
-    pub const VEHICLE_CONTROL: u16 = 0x0002;
-    pub const TAXI_ORDER: u16 = 0x0003;
-    pub const AVP_PARKING: u16 = 0x0004;
-    pub const AVP_PICKUP: u16 = 0x0005;
-    pub const DATA_RECORDING: u16 = 0x0006;
-    pub const CONSTRUCTION_MARKER: u16 = 0x0007;
+    pub const HEARTBEAT: u16 = 0x0001;
+    pub const VEHICLE_INFO: u16 = 0x0002;
+    pub const VEHICLE_CONTROL: u16 = 0x0003;
+    pub const TAXI_ORDER: u16 = 0x0004;
+    pub const AVP_PARKING: u16 = 0x0005;
+    pub const AVP_PICKUP: u16 = 0x0006;
+    pub const DATA_RECORDING: u16 = 0x0007;
+    pub const CONSTRUCTION_MARKER: u16 = 0x0008;
     
     /// 获取消息类型名称
     pub fn get_name(message_type: u16) -> &'static str {
         match message_type {
+            Self::HEARTBEAT => "心跳",
             Self::VEHICLE_INFO => "车辆信息",
             Self::VEHICLE_CONTROL => "车辆控制",
             Self::TAXI_ORDER => "出租车订单",
@@ -351,10 +353,16 @@ impl MessageTypes {
     
     /// 验证消息类型是否有效
     pub fn is_valid(message_type: u16) -> bool {
-        matches!(message_type, 
-            Self::VEHICLE_INFO | Self::VEHICLE_CONTROL | Self::TAXI_ORDER |
-            Self::AVP_PARKING | Self::AVP_PICKUP | Self::DATA_RECORDING |
-            Self::CONSTRUCTION_MARKER
+        matches!(
+            message_type,
+            Self::HEARTBEAT
+                | Self::VEHICLE_INFO
+                | Self::VEHICLE_CONTROL
+                | Self::TAXI_ORDER
+                | Self::AVP_PARKING
+                | Self::AVP_PICKUP
+                | Self::DATA_RECORDING
+                | Self::CONSTRUCTION_MARKER
         )
     }
 }

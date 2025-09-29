@@ -1,5 +1,7 @@
-use super::protocol::{ProtocolParser, SocketMessage, build_message};
+use super::protocol::{build_message, ProtocolParser, SocketMessage};
 use crate::database::VehicleDatabase;
+use crate::protocol_processing::types::{MessageTypes, VehicleInfo};
+use crate::protocol_processing::converter::DataConverter;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -31,6 +33,7 @@ pub struct SocketServer {
     connections: ConnectionManager,
     sandbox: SandboxConnectionManager,
     app_handle: tauri::AppHandle,
+    vehicle_state: Arc<RwLock<HashMap<u8, VehicleInfo>>>,
 }
 
 impl SocketServer {
@@ -40,6 +43,7 @@ impl SocketServer {
             connections: Arc::new(RwLock::new(HashMap::new())),
             sandbox: Arc::new(RwLock::new(None)),
             app_handle,
+            vehicle_state: Arc::new(RwLock::new(HashMap::new())),
         }
     }
     
@@ -49,6 +53,7 @@ impl SocketServer {
             connections,
             sandbox,
             app_handle,
+            vehicle_state: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -68,8 +73,10 @@ impl SocketServer {
                     let app_handle = self.app_handle.clone();
                     let sandbox = self.sandbox.clone();
                     
+                    let vehicle_state = self.vehicle_state.clone();
+
                     let handle = tokio::spawn(async move {
-                        if let Err(e) = Self::handle_client(stream, addr, connections, app_handle, sandbox).await {
+                        if let Err(e) = Self::handle_client(stream, addr, connections, app_handle, sandbox, vehicle_state).await {
                             error!("客户端处理错误 {}: {}", addr, e);
                         }
                     });
@@ -90,6 +97,7 @@ impl SocketServer {
         connections: ConnectionManager,
         app_handle: tauri::AppHandle,
         sandbox_manager: SandboxConnectionManager,
+        vehicle_state: Arc<RwLock<HashMap<u8, VehicleInfo>>>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
         
@@ -251,7 +259,7 @@ impl SocketServer {
                                 parser.feed_data(&buffer[..n]);
                                 // 尝试解析消息（沙盘连接不进行解析）
                                 while let Ok(Some(message)) = parser.try_parse_message() {
-                                    Self::handle_message(message, vehicle_id, &vehicle_name, &app_handle).await;
+                                    Self::handle_message(message, vehicle_id, &vehicle_name, &app_handle, vehicle_state.clone()).await;
                                 }
                             }
                         }
@@ -323,12 +331,41 @@ impl SocketServer {
     }
 
     /// 处理接收到的消息
-    async fn handle_message(message: SocketMessage, vehicle_id: i32, vehicle_name: &str, app_handle: &tauri::AppHandle) {
-        info!("收到消息 - 车辆: {} (ID: {}), 类型: 0x{:04X}, 数据长度: {}",
+    async fn handle_message(
+        message: SocketMessage,
+        vehicle_id: i32,
+        vehicle_name: &str,
+        app_handle: &tauri::AppHandle,
+        vehicle_state: Arc<RwLock<HashMap<u8, VehicleInfo>>>,
+    ) {
+        debug!("收到消息 - 车辆: {} (ID: {}), 类型: 0x{:04X}, 数据长度: {}",
                 vehicle_name, vehicle_id, message.message_type, message.data.len());
-        
-        // 发送到前端进行数据域解析
-        let frontend_message = serde_json::json!({
+
+        let mut parsed_payload: Option<serde_json::Value> = None;
+
+        if message.message_type == MessageTypes::VEHICLE_INFO {
+            let mut converter = DataConverter::new();
+            match converter.safe_convert_vehicle_info(&message.data) {
+                Ok(raw) => {
+                    let info = converter.convert_raw_to_vehicle_info(&raw);
+                    let car_id = info.vehicle_id;
+                    let mut cache = vehicle_state.write();
+                    if let Some(previous) = cache.get(&car_id) {
+                        if vehicle_info_equal(previous, &info) {
+                            debug!("车辆 {} (ID: {}) 数据未变化，跳过更新", vehicle_name, vehicle_id);
+                            return;
+                        }
+                    }
+                    cache.insert(car_id, info.clone());
+                    parsed_payload = Some(serde_json::to_value(&info).unwrap_or_default());
+                }
+                Err(err) => {
+                    warn!("解析车辆信息失败 - 车辆: {} (ID: {}): {}", vehicle_name, vehicle_id, err);
+                }
+            }
+        }
+
+        let mut frontend_message = serde_json::json!({
             "type": "socket_message",
             "vehicle_id": vehicle_id,
             "vehicle_name": vehicle_name,
@@ -336,6 +373,10 @@ impl SocketServer {
             "timestamp": message.timestamp,
             "data": message.data
         });
+
+        if let Some(parsed) = parsed_payload {
+            frontend_message["parsed"] = parsed;
+        }
         
         match app_handle.emit("socket-message", frontend_message) {
             Ok(_) => {
@@ -472,4 +513,24 @@ impl SocketServer {
             })
         }).collect()
     }
+}
+
+fn floats_close(a: f64, b: f64, epsilon: f64) -> bool {
+    (a - b).abs() <= epsilon
+}
+
+fn vehicle_info_equal(a: &VehicleInfo, b: &VehicleInfo) -> bool {
+    a.vehicle_id == b.vehicle_id
+        && floats_close(a.speed, b.speed, 1e-6)
+        && floats_close(a.position_x, b.position_x, 1e-6)
+        && floats_close(a.position_y, b.position_y, 1e-6)
+        && floats_close(a.orientation, b.orientation, 1e-6)
+        && floats_close(a.battery, b.battery, 1e-6)
+        && a.gear == b.gear
+        && floats_close(a.steering_angle, b.steering_angle, 1e-6)
+        && a.nav_status == b.nav_status
+        && a.sensors.camera == b.sensors.camera
+        && a.sensors.lidar == b.sensors.lidar
+        && a.sensors.gyro == b.sensors.gyro
+        && a.parking_slot == b.parking_slot
 }

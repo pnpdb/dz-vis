@@ -42,17 +42,18 @@ CONTROL_COMMANDS = {
     4: '初始化位姿'
 }
 
-def crc16_ibm_sdlc(data):
-    """计算CRC16-IBM-SDLC校验码"""
+def crc16_ccitt_false(data: bytes) -> int:
+    """计算 CRC16-CCITT-FALSE 校验码"""
     crc = 0xFFFF
     for byte in data:
-        crc ^= byte
+        crc ^= (byte << 8)
         for _ in range(8):
-            if crc & 1:
-                crc = (crc >> 1) ^ 0x8408
+            if crc & 0x8000:
+                crc = (crc << 1) ^ 0x1021
             else:
-                crc >>= 1
-    return crc ^ 0xFFFF
+                crc <<= 1
+            crc &= 0xFFFF
+    return crc & 0xFFFF
 
 def build_message(message_type, data):
     """构建协议消息"""
@@ -68,7 +69,7 @@ def build_message(message_type, data):
     message_body.extend(data)  # 数据域
     
     # 计算CRC (从版本字节开始)
-    crc = crc16_ibm_sdlc(message_body)
+    crc = crc16_ccitt_false(message_body)
     
     # 构建完整数据包
     packet = bytearray()

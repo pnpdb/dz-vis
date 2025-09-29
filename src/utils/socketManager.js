@@ -13,6 +13,7 @@ import { createLogger, logger } from '@/utils/logger.js';
 import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log';
 import logHelper from '@/utils/logHelper.js'
 import { normalizeVehicleList, parseVehicleId } from '@/utils/vehicleTypes.js'
+import { useCarStore } from '@/stores/car.js'
 
 const socketLogger = createLogger('SocketManager');
 const bytesToHex = (bytes) => Array.from(bytes || [], (b) => b.toString(16).padStart(2, '0')).join(' ');
@@ -25,12 +26,24 @@ class SocketManager {
         this.vehicleReady = new Map();
         this.vehicleParkingSlots = new Map();
         this.messageHandlers = new Map();
+        this.carStore = null;
         
         // 设置默认消息处理器
         this.setupDefaultHandlers();
         
         // 监听车辆状态请求事件
         this.setupStatusRequestHandler();
+    }
+
+    ensureCarStore() {
+        if (!this.carStore) {
+            try {
+                this.carStore = useCarStore();
+            } catch (error) {
+                socketLogger.warn('获取carStore失败:', error);
+            }
+        }
+        return this.carStore;
     }
 
     /**
@@ -127,11 +140,11 @@ class SocketManager {
      * 处理接收到的消息
      */
     handleIncomingMessage(payload) {
-        const { vehicle_id, message_type, timestamp, data } = payload;
+        const { vehicle_id, message_type, timestamp, data, parsed } = payload;
         const dataArray = Array.isArray(data) ? data : Array.from(data ?? []);
 
         socketLogger.debug(`收到消息 - 车辆: ${vehicle_id}, 类型: 0x${message_type.toString(16).toUpperCase()}, 数据长度: ${dataArray.length}`);
-        socketLogger.trace?.('socket-message payload', { ...payload, data: dataArray });
+        socketLogger.trace?.('socket-message payload', { ...payload, data: dataArray, parsed });
         
         // 更新车辆连接状态为在线
         this.updateVehicleStatus(vehicle_id, true);
@@ -143,7 +156,7 @@ class SocketManager {
         const handler = this.messageHandlers.get(message_type);
         if (handler) {
             try {
-                handler(vehicle_id, data, timestamp);
+                handler(vehicle_id, dataArray, timestamp, parsed);
             } catch (error) {
                 socketLogger.error(`处理消息类型 ${typeName} 失败:`, error);
                 plError(`处理消息类型 ${typeName} 失败: ${error}`).catch(() => {});
@@ -160,19 +173,52 @@ class SocketManager {
      */
     setupDefaultHandlers() {
         // 心跳包处理
-        this.setMessageHandler(RECEIVE_MESSAGE_TYPES.HEARTBEAT, (carId, data, timestamp) => {
+        this.setMessageHandler(RECEIVE_MESSAGE_TYPES.HEARTBEAT, (carId) => {
             socketLogger.debug(`收到心跳包 - 车辆: ${carId}`);
             this.updateVehicleStatus(carId, true);
         });
 
         // 车辆信息协议处理
-        this.setMessageHandler(RECEIVE_MESSAGE_TYPES.VEHICLE_INFO, (carId, data, timestamp) => {
+        this.setMessageHandler(RECEIVE_MESSAGE_TYPES.VEHICLE_INFO, (carId, data, timestamp, parsed) => {
             const dataArray = Array.isArray(data) ? data : Array.from(data ?? []);
             socketLogger.info(`收到车辆信息 - 车辆: ${carId}, 数据长度: ${dataArray.length}`);
-            socketLogger.debug(`车辆信息原始字节 (前16字节): ${bytesToHex(dataArray.slice(0, 16))}`);
-            socketLogger.debug(`车辆信息原始字节 (完整): ${bytesToHex(dataArray)}`);
-            this.parseVehicleInfo(carId, dataArray, timestamp);
+            if (!parsed) {
+                socketLogger.debug(`车辆信息原始字节 (前16字节): ${bytesToHex(dataArray.slice(0, 16))}`);
+                socketLogger.debug(`车辆信息原始字节 (完整): ${bytesToHex(dataArray)}`);
+            } else {
+                socketLogger.debug(`车辆信息使用预解析数据: ${JSON.stringify(parsed)}`);
+            }
+            this.parseVehicleInfo(carId, dataArray, timestamp, parsed);
         });
+    }
+
+    isVehicleStateChanged(vehicleId, nextState) {
+        const store = this.ensureCarStore();
+        if (!store) return true;
+        const previous = store.getVehicleState(vehicleId);
+        if (!previous) return true;
+
+        try {
+            const epsilon = 1e-6;
+            const close = (a, b) => Math.abs(Number(a) - Number(b)) <= epsilon;
+
+            if (!close(previous.speed, nextState.speed)) return true;
+            if (!close(previous.position?.x, nextState.position?.x)) return true;
+            if (!close(previous.position?.y, nextState.position?.y)) return true;
+            if (!close(previous.orientation, nextState.orientation)) return true;
+            if (!close(previous.battery, nextState.battery)) return true;
+            if (Number(previous.gear) !== Number(nextState.gear)) return true;
+            if (!close(previous.steeringAngle, nextState.steeringAngle)) return true;
+            if (Number(previous.navigation?.code) !== Number(nextState.navigation?.code)) return true;
+            if ((previous.sensors?.camera?.status ?? false) !== (nextState.sensors?.camera?.status ?? false)) return true;
+            if ((previous.sensors?.lidar?.status ?? false) !== (nextState.sensors?.lidar?.status ?? false)) return true;
+            if ((previous.sensors?.gyro?.status ?? false) !== (nextState.sensors?.gyro?.status ?? false)) return true;
+            if (Number(previous.parkingSlot) !== Number(nextState.parkingSlot)) return true;
+            return false;
+        } catch (error) {
+            socketLogger.warn('比较车辆状态失败，默认更新:', error);
+            return true;
+        }
     }
 
     /**
@@ -362,7 +408,7 @@ class SocketManager {
      * 解析车辆信息协议数据域 (54字节)
      * 协议格式：车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 朝向(8) + 电量(8) + 档位(1) + 方向盘转角(8) + 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1)
      */
-    parseVehicleInfo(carId, data, timestamp) {
+    parseVehicleInfo(carId, data, timestamp, parsed = null) {
         logger.outputToPlugin('DEBUG', 'SocketManager.parseVehicleInfo', [`车:${carId} 数据:${data.length}`], { throttle: true, throttleKey: `vinfo-${carId}`, interval: 300 });
         
         // 验证数据长度
@@ -414,7 +460,7 @@ class SocketManager {
             const clampedBattery = Math.max(0, Math.min(100, battery));
             
             const vehicleInfo = {
-                carId: carId, // 使用传入的carId参数
+                carId: carId,
                 vehicleId,
                 speed: clampedSpeed,
                 position: { x: positionX, y: positionY },
@@ -444,6 +490,14 @@ class SocketManager {
                 timestamp
             };
             
+            if (!this.isVehicleStateChanged(vehicleId, vehicleInfo)) {
+                socketLogger.debug(`车辆 ${vehicleId} 数据未变化，跳过UI更新`);
+                return;
+            }
+
+            const store = this.ensureCarStore();
+            store?.updateVehicleState(vehicleId, vehicleInfo);
+
             logger.outputToPlugin('DEBUG', 'SocketManager.parseVehicleInfo', [
                 `车辆:${vehicleId} 速:${clampedSpeed.toFixed(3)} 位置:(${positionX.toFixed(2)},${positionY.toFixed(2)}) 电:${clampedBattery.toFixed(1)}%`
             ], { throttle: true, throttleKey: `vinfo-ok-${vehicleId}`, interval: 500 });

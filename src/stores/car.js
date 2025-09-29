@@ -50,6 +50,7 @@ export const useCarStore = defineStore('car', {
         name: 'Eduardo',
         loading: false,
         cameraEnabled: false,
+        vehicleStateMap: new Map(),
         // 出租车状态管理
         taxi: {
             startPoint: '',
@@ -78,7 +79,24 @@ export const useCarStore = defineStore('car', {
         setCameraEnabled(enabled) {
             this.cameraEnabled = Boolean(enabled);
         },
-        
+
+        updateVehicleState(vehicleId, state) {
+            if (vehicleId == null) return;
+            this.vehicleStateMap.set(vehicleId, state);
+        },
+
+        getVehicleState(vehicleId) {
+            return this.vehicleStateMap.get(vehicleId) || null;
+        },
+
+        clearVehicleState(vehicleId) {
+            this.vehicleStateMap.delete(vehicleId);
+        },
+
+        clearAllVehicleState() {
+            this.vehicleStateMap.clear();
+        },
+
         // 从数据库加载车辆列表
         async loadVehicleConnections() {
             this.loading = true;

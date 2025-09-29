@@ -1,0 +1,3 @@
+/Users/plum/Workspace/rust/dz-viz/test_udp/build/CMakeFiles/udp_video_sender.dir
+/Users/plum/Workspace/rust/dz-viz/test_udp/build/CMakeFiles/edit_cache.dir
+/Users/plum/Workspace/rust/dz-viz/test_udp/build/CMakeFiles/rebuild_cache.dir

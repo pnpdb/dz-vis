@@ -21,7 +21,7 @@ FRAME_TYPE_FRAGMENT_MIDDLE = 0x03
 FRAME_TYPE_FRAGMENT_LAST = 0x04
 
 # 包头大小
-HEADER_SIZE = 26
+HEADER_SIZE = 23
 
 # 最大UDP负载（考虑网络MTU）
 MAX_UDP_PAYLOAD = 1400
@@ -103,10 +103,10 @@ class UDPVideoSender:
             25字节的包头数据
         """
         return struct.pack(
-            '>BBIIHHQI',  # 大端序格式
+            '<BBBIHHQI',  # 小端序格式
             PROTOCOL_VERSION,      # version (1 byte)
             frame_type,           # frame_type (1 byte)
-            self.vehicle_id,      # vehicle_id (4 bytes)
+            self.vehicle_id & 0xFF,  # vehicle_id (1 byte)
             frame_id,             # frame_id (4 bytes)
             fragment_index,       # fragment_index (2 bytes)
             total_fragments,      # total_fragments (2 bytes)
@@ -125,7 +125,7 @@ class UDPVideoSender:
             发送是否成功
         """
         frame_id = self.frame_counter
-        timestamp = int(time.time() * 1000)  # 毫秒时间戳
+        timestamp = int(time.time() * 1000) & 0xFFFFFFFFFFFFFFFF
         
         # 计算每个分片的最大数据大小
         max_fragment_size = MAX_UDP_PAYLOAD - HEADER_SIZE

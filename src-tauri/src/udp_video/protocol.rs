@@ -37,8 +37,8 @@ pub struct VideoPacketHeader {
     /// 帧类型
     pub frame_type: FrameType,
     /// 车辆ID
-    pub vehicle_id: u32,
-    /// 帧序列号
+    pub vehicle_id: u8,
+    /// 帧ID
     pub frame_id: u32,
     /// 分片索引（从0开始）
     pub fragment_index: u16,
@@ -52,11 +52,11 @@ pub struct VideoPacketHeader {
 
 impl VideoPacketHeader {
     /// 包头长度（字节）
-    pub const HEADER_SIZE: usize = 26;
+    pub const HEADER_SIZE: usize = 23;
 
     /// 创建完整帧包头
     #[allow(dead_code)]
-    pub fn new_complete_frame(vehicle_id: u32, frame_id: u32, timestamp: u64, data_length: u32) -> Self {
+    pub fn new_complete_frame(vehicle_id: u8, frame_id: u32, timestamp: u64, data_length: u32) -> Self {
         Self {
             version: PROTOCOL_VERSION,
             frame_type: FrameType::Complete,
@@ -72,7 +72,7 @@ impl VideoPacketHeader {
     /// 创建分片帧包头
     #[allow(dead_code)]
     pub fn new_fragment_frame(
-        vehicle_id: u32,
+        vehicle_id: u8,
         frame_id: u32,
         fragment_index: u16,
         total_fragments: u16,
@@ -108,12 +108,12 @@ impl VideoPacketHeader {
         
         bytes.push(self.version);
         bytes.push(self.frame_type as u8);
-        bytes.extend_from_slice(&self.vehicle_id.to_be_bytes());
-        bytes.extend_from_slice(&self.frame_id.to_be_bytes());
-        bytes.extend_from_slice(&self.fragment_index.to_be_bytes());
-        bytes.extend_from_slice(&self.total_fragments.to_be_bytes());
-        bytes.extend_from_slice(&self.timestamp.to_be_bytes());
-        bytes.extend_from_slice(&self.data_length.to_be_bytes());
+        bytes.push(self.vehicle_id);
+        bytes.extend_from_slice(&self.frame_id.to_le_bytes());
+        bytes.extend_from_slice(&self.fragment_index.to_le_bytes());
+        bytes.extend_from_slice(&self.total_fragments.to_le_bytes());
+        bytes.extend_from_slice(&self.timestamp.to_le_bytes());
+        bytes.extend_from_slice(&self.data_length.to_le_bytes());
         
         bytes
     }
@@ -130,17 +130,16 @@ impl VideoPacketHeader {
         }
 
         let frame_type = FrameType::from(bytes[1]);
-        let vehicle_id = u32::from_be_bytes([bytes[2], bytes[3], bytes[4], bytes[5]]);
-        let frame_id = u32::from_be_bytes([bytes[6], bytes[7], bytes[8], bytes[9]]);
-        let fragment_index = u16::from_be_bytes([bytes[10], bytes[11]]);
-        let total_fragments = u16::from_be_bytes([bytes[12], bytes[13]]);
-        let timestamp = u64::from_be_bytes([
-            bytes[14], bytes[15], bytes[16], bytes[17],
-            bytes[18], bytes[19], bytes[20], bytes[21],
+        let vehicle_id = bytes[2];
+        let frame_id = u32::from_le_bytes([bytes[3], bytes[4], bytes[5], bytes[6]]);
+        let fragment_index = u16::from_le_bytes([bytes[7], bytes[8]]);
+        let total_fragments = u16::from_le_bytes([bytes[9], bytes[10]]);
+        let timestamp = u64::from_le_bytes([
+            bytes[11], bytes[12], bytes[13], bytes[14],
+            bytes[15], bytes[16], bytes[17], bytes[18],
         ]);
         
-        // data_length字段使用索引22-25（需要26字节总长度）
-        let data_length = u32::from_be_bytes([bytes[22], bytes[23], bytes[24], bytes[25]]);
+        let data_length = u32::from_le_bytes([bytes[19], bytes[20], bytes[21], bytes[22]]);
 
         Ok(Self {
             version,
@@ -199,7 +198,7 @@ pub struct FrameAssembler {
     pub fragments: std::collections::HashMap<u16, Vec<u8>>,
     pub expected_fragments: u16,
     pub frame_id: u32,
-    pub vehicle_id: u32,
+    pub vehicle_id: u8,
     pub timestamp: u64,
 }
 

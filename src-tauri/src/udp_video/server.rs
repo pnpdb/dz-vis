@@ -13,7 +13,7 @@ use super::protocol::{FrameAssembler, VideoPacket};
 /// 视频帧数据
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct VideoFrame {
-    pub vehicle_id: u32,
+    pub vehicle_id: u8,
     pub frame_id: u32,
     pub timestamp: u64,
     pub jpeg_data: String, // 直接使用base64字符串
@@ -23,7 +23,7 @@ pub struct VideoFrame {
 pub struct UdpVideoServer {
     socket: Arc<UdpSocket>,
     frame_sender: broadcast::Sender<VideoFrame>,
-    assemblers: Arc<RwLock<HashMap<(u32, u32), FrameAssembler>>>, // (vehicle_id, frame_id) -> FrameAssembler
+    assemblers: Arc<RwLock<HashMap<(u8, u32), FrameAssembler>>>, // (vehicle_id, frame_id) -> FrameAssembler
     running: Arc<RwLock<bool>>,
     app_handle: Option<tauri::AppHandle>,
 }
@@ -191,7 +191,7 @@ impl UdpVideoServer {
 
     /// 清理超时的重组器
     async fn cleanup_task(
-        assemblers: Arc<RwLock<HashMap<(u32, u32), FrameAssembler>>>,
+        assemblers: Arc<RwLock<HashMap<(u8, u32), FrameAssembler>>>,
         running: Arc<RwLock<bool>>,
     ) {
         let mut cleanup_interval = tokio::time::interval(Duration::from_secs(5));

@@ -8,20 +8,20 @@
 
 ## 数据包布局
 ```
-[包头 26 字节][帧数据 N 字节]
+[包头 23 字节][帧数据 N 字节]
 ```
 
-### 包头结构（26 字节）
+### 包头结构（23 字节）
 | 偏移 | 长度 | 字段 | 类型 | 说明 |
 |------|------|------|------|------|
 | 0    | 1    | version         | `u8`  | 协议版本，当前固定为 `1` |
 | 1    | 1    | frame_type      | `u8`  | 帧类型：`0x01` 完整帧、`0x02` 分片首帧、`0x03` 分片中间帧、`0x04` 分片尾帧 |
-| 2    | 4    | vehicle_id      | `u32` | 车辆 ID（大端序） |
-| 6    | 4    | frame_id        | `u32` | 帧序号（大端序），用于重组 |
-|10    | 2    | fragment_index  | `u16` | 分片索引，首片为 `0`（大端序）|
-|12    | 2    | total_fragments | `u16` | 总分片数（大端序），完整帧为 `1`|
-|14    | 8    | timestamp       | `u64` | 毫秒时间戳（大端序）|
-|22    | 4    | data_length     | `u32` | 当前分片载荷长度（大端序）|
+| 2    | 1    | vehicle_id      | `u8`  | 车辆 ID |
+| 3    | 4    | frame_id        | `u32` | 帧序号（小端序），用于重组 |
+| 7    | 2    | fragment_index  | `u16` | 分片索引，首片为 `0`（小端序）|
+| 9    | 2    | total_fragments | `u16` | 总分片数（小端序），完整帧为 `1`|
+| 11   | 8    | timestamp       | `u64` | 毫秒时间戳（小端序）|
+| 19   | 4    | data_length     | `u32` | 当前分片载荷长度（小端序）|
 
 ### 帧类型枚举
 | 数值 | 名称 | 说明 |
@@ -42,8 +42,8 @@
 
 伪代码示例（参见 `test_udp_camera_sender.py`）：
 ```python
-header = struct.pack('>BBIIHHQI', version, frame_type,
-                     vehicle_id, frame_id,
+header = struct.pack('<BBBIHHQI', version, frame_type,
+                     vehicle_id & 0xFF, frame_id,
                      fragment_index, total_fragments,
                      timestamp_ms, len(fragment_data))
 socket.sendto(header + fragment_data, target_addr)

@@ -23,7 +23,7 @@
 </template>
 
 <script setup>
-import { defineProps, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
 
 const OFFLINE_TEXT = '--';

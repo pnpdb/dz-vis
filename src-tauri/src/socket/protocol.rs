@@ -1,5 +1,5 @@
 use bytes::{Buf, BytesMut};
-use crc::{Crc, CRC_16_IBM_SDLC};
+use crc::{Algorithm, Crc};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -10,7 +10,18 @@ pub const VERSION: u8 = 0x10;
 pub const MIN_PACKET_SIZE: usize = 25; // 不包含数据域的最小包大小
 
 // CRC16校验
-const CRC16: Crc<u16> = Crc::<u16>::new(&CRC_16_IBM_SDLC);
+const CRC_16_CCITT_FALSE: Algorithm<u16> = Algorithm {
+    width: 16,
+    poly: 0x1021,
+    init: 0xFFFF,
+    refin: false,
+    refout: false,
+    xorout: 0x0000,
+    check: 0x29B1,
+    residue: 0x0000,
+};
+
+const CRC16: Crc<u16> = Crc::<u16>::new(&CRC_16_CCITT_FALSE);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SocketMessage {
@@ -142,7 +153,7 @@ impl ProtocolParser {
         ]);
         cursor += 8;
 
-        // 解析消息类型 (小端序)
+        // 解析消息类型
         if self.buffer.len() < cursor + 2 {
             return Err(ProtocolError::IncompleteData);
         }
@@ -152,7 +163,7 @@ impl ProtocolParser {
         ]);
         cursor += 2;
 
-        // 解析数据域长度 (小端序)
+        // 解析数据域长度
         if self.buffer.len() < cursor + 4 {
             return Err(ProtocolError::IncompleteData);
         }
@@ -164,7 +175,7 @@ impl ProtocolParser {
         ]) as usize;
         cursor += 4;
 
-        // 检查总包长度
+        // 检查包总长度
         let total_length = MIN_PACKET_SIZE + data_length;
         if self.buffer.len() < total_length {
             return Err(ProtocolError::IncompleteData);
@@ -178,14 +189,14 @@ impl ProtocolParser {
         };
         cursor += data_length;
 
-        // 验证CRC (小端序)
+        // 验证CRC
         let received_crc = u16::from_le_bytes([
             self.buffer[cursor],
             self.buffer[cursor + 1],
         ]);
         cursor += 2;
 
-        // 计算CRC (从版本字节开始到CRC之前)
+        // 计算CRC (从版本字节开始到CRC之前的字节)
         let crc_data = &self.buffer[4..cursor - 2];
         let calculated_crc = CRC16.checksum(crc_data);
         

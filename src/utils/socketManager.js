@@ -15,6 +15,7 @@ import logHelper from '@/utils/logHelper.js'
 import { normalizeVehicleList, parseVehicleId } from '@/utils/vehicleTypes.js'
 
 const socketLogger = createLogger('SocketManager');
+const bytesToHex = (bytes) => Array.from(bytes || [], (b) => b.toString(16).padStart(2, '0')).join(' ');
 
 class SocketManager {
     constructor() {
@@ -127,8 +128,10 @@ class SocketManager {
      */
     handleIncomingMessage(payload) {
         const { vehicle_id, message_type, timestamp, data } = payload;
-        
-        socketLogger.debug(`收到消息 - 车辆: ${vehicle_id}, 类型: 0x${message_type.toString(16).toUpperCase()}`);
+        const dataArray = Array.isArray(data) ? data : Array.from(data ?? []);
+
+        socketLogger.debug(`收到消息 - 车辆: ${vehicle_id}, 类型: 0x${message_type.toString(16).toUpperCase()}, 数据长度: ${dataArray.length}`);
+        socketLogger.trace?.('socket-message payload', { ...payload, data: dataArray });
         
         // 更新车辆连接状态为在线
         this.updateVehicleStatus(vehicle_id, true);
@@ -164,8 +167,11 @@ class SocketManager {
 
         // 车辆信息协议处理
         this.setMessageHandler(RECEIVE_MESSAGE_TYPES.VEHICLE_INFO, (carId, data, timestamp) => {
-            socketLogger.info(`收到车辆信息 - 车辆: ${carId}, 数据长度: ${data.length}`);
-            this.parseVehicleInfo(carId, data, timestamp);
+            const dataArray = Array.isArray(data) ? data : Array.from(data ?? []);
+            socketLogger.info(`收到车辆信息 - 车辆: ${carId}, 数据长度: ${dataArray.length}`);
+            socketLogger.debug(`车辆信息原始字节 (前16字节): ${bytesToHex(dataArray.slice(0, 16))}`);
+            socketLogger.debug(`车辆信息原始字节 (完整): ${bytesToHex(dataArray)}`);
+            this.parseVehicleInfo(carId, dataArray, timestamp);
         });
     }
 
@@ -362,6 +368,7 @@ class SocketManager {
         // 验证数据长度
         if (data.length !== VEHICLE_INFO_PROTOCOL.TOTAL_SIZE) {
             socketLogger.error(`车辆信息数据长度错误 - 期望: ${VEHICLE_INFO_PROTOCOL.TOTAL_SIZE}, 实际: ${data.length}`);
+            socketLogger.error(`车辆信息原始数据(hex): ${bytesToHex(Array.from(data))}`);
             plWarn(`车辆信息数据长度错误 - 期望: ${VEHICLE_INFO_PROTOCOL.TOTAL_SIZE}, 实际: ${data.length}`).catch(() => {});
             return;
         }
@@ -383,6 +390,23 @@ class SocketManager {
             const lidarStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.LIDAR_STATUS_OFFSET);
             const gyroStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.GYRO_STATUS_OFFSET);
             const parkingSlotStatus = view.getUint8(VEHICLE_INFO_PROTOCOL.PARKING_SLOT_OFFSET);
+
+            socketLogger.debug('车辆信息字段解析', {
+                carId,
+                rawVehicleId: vehicleId,
+                speed,
+                positionX,
+                positionY,
+                orientation,
+                battery,
+                gear,
+                steeringAngle,
+                navCode,
+                cameraStatus,
+                lidarStatus,
+                gyroStatus,
+                parkingSlotStatus
+            });
             
             // 数据验证
             const clampedSpeed = Math.max(VEHICLE_INFO_PROTOCOL.MIN_SPEED, 
@@ -425,6 +449,7 @@ class SocketManager {
             ], { throttle: true, throttleKey: `vinfo-ok-${vehicleId}`, interval: 500 });
             
             // 发送到UI更新
+            socketLogger.debug(`向前端广播 VEHICLE_INFO_UPDATE - 车辆: ${vehicleId}, 车速: ${clampedSpeed.toFixed(3)}, 档位: ${gear}, 车位: ${parkingSlotStatus}`);
             eventBus.emit(EVENTS.VEHICLE_INFO_UPDATE, vehicleInfo);
 
             // 根据导航状态自动切换平行驾驶模式
@@ -439,6 +464,7 @@ class SocketManager {
             
         } catch (error) {
             socketLogger.error(`解析车辆信息失败 - 车辆: ${carId}:`, error);
+            socketLogger.error(`解析失败原始数据(hex): ${bytesToHex(Array.from(data))}`);
             plError(`解析车辆信息失败 - 车辆: ${carId}: ${error}`).catch(() => {});
         }
     }

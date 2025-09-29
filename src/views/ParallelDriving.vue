@@ -253,7 +253,7 @@ const handleVideoFrame = ({ blobUrl, timeout, frame, stats, fps }) => {
     URL.revokeObjectURL(blobUrl)
     return
   }
-
+  
   if (frame?.vehicleId && !compareVehicleId(frame.vehicleId, targetId)) {
     URL.revokeObjectURL(blobUrl)
     return
@@ -262,7 +262,7 @@ const handleVideoFrame = ({ blobUrl, timeout, frame, stats, fps }) => {
   if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
     URL.revokeObjectURL(videoSrc.value)
   }
-
+  
   videoSrc.value = blobUrl
   lastFrameTime.value = Date.now()
   if (typeof fps === 'number') {
@@ -277,7 +277,7 @@ const handleVehicleInfoUpdate = (payload) => {
   if (!detail) {
     return
   }
-
+  
   const targetId = currentVehicleId.value
   if (!compareVehicleId(detail.vehicleId, targetId) && !compareVehicleId(detail.carId, targetId)) {
     return

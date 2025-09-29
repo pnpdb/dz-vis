@@ -93,6 +93,8 @@ impl SocketServer {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
         
+        info!("******客户端连接 IP: {}", addr.ip());
+
         // 判断是否为沙盘服务连接（优先判定）
         let mut is_sandbox = false;
         if let Some(db) = app_handle.try_state::<VehicleDatabase>() {

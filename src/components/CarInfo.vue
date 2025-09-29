@@ -131,7 +131,14 @@ const handleVehicleInfoUpdate = (data) => {
     if (!data || typeof data !== 'object') return;
 
     const incomingId = data.vehicleId ?? data.carId;
+    console.debug('📥 CarInfo收到车辆信息事件:', {
+        incomingId,
+        currentVehicleId: currentVehicleId.value,
+        online: props.online,
+        data,
+    });
     if (!compareVehicleId(incomingId, currentVehicleId.value)) {
+        console.debug('⏭️ CarInfo忽略不同车辆的数据');
         return;
     }
 
@@ -143,24 +150,14 @@ const handleVehicleInfoUpdate = (data) => {
     navStatus.value = data.navigation ?? { code: 0, text: '未导航' };
     parkingSlot.value = Number.isFinite(data.parkingSlot) ? Number(data.parkingSlot) : 0;
     vehicleInfo.value = data;
-};
-
-const handleVehicleConnectionStatus = ({ carId, vehicleId, isConnected }) => {
-    const incomingId = vehicleId ?? carId;
-    if (!compareVehicleId(incomingId, currentVehicleId.value)) {
-        return;
-    }
-
-    logHelper.debug('CarInfo', '更新连接状态', {
-        carId: incomingId,
-        isConnected,
-        previous: props.online,
-        current: props.online,
+    console.debug('✅ CarInfo更新完成', {
+        speed: speedValue.value,
+        positionX: positionX.value,
+        positionY: positionY.value,
+        battery: batteryValue.value,
+        navStatus: navStatus.value,
+        parkingSlot: parkingSlot.value,
     });
-
-    if (!isConnected) {
-        resetToDefaultState();
-    }
 };
 
 watch(
@@ -177,13 +174,11 @@ watch(
 
 onMounted(() => {
     eventBus.on(EVENTS.VEHICLE_INFO_UPDATE, handleVehicleInfoUpdate);
-    eventBus.on(EVENTS.VEHICLE_CONNECTION_STATUS, handleVehicleConnectionStatus);
     checkAndUpdateVehicleStatus();
 });
 
 onBeforeUnmount(() => {
     eventBus.off(EVENTS.VEHICLE_INFO_UPDATE, handleVehicleInfoUpdate);
-    eventBus.off(EVENTS.VEHICLE_CONNECTION_STATUS, handleVehicleConnectionStatus);
 });
 </script>
 

@@ -13,7 +13,6 @@ export class VehicleConnectionAPI {
     static async getAllConnections() {
         try {
             const result = await invoke('get_vehicle_connections');
-            console.log('✅ 获取车辆连接列表:', result);
             return { success: true, data: result };
         } catch (error) {
             console.error('❌ 获取车辆连接失败:', error);
@@ -29,7 +28,6 @@ export class VehicleConnectionAPI {
             const result = await invoke('create_vehicle_connection', {
                 request: connectionData
             });
-            console.log('✅ 创建车辆连接成功:', result);
             return { success: true, data: result };
         } catch (error) {
             console.error('❌ 创建车辆连接失败:', error);
@@ -46,7 +44,6 @@ export class VehicleConnectionAPI {
                 id: id,
                 request: updateData
             });
-            console.log('✅ 更新车辆连接成功:', result);
             return { success: true, data: result };
         } catch (error) {
             console.error('❌ 更新车辆连接失败:', error);
@@ -60,7 +57,6 @@ export class VehicleConnectionAPI {
     static async deleteConnection(id) {
         try {
             const result = await invoke('delete_vehicle_connection', { id });
-            console.log('✅ 删除车辆连接成功:', result);
             return { success: true, data: result };
         } catch (error) {
             console.error('❌ 删除车辆连接失败:', error);
@@ -74,7 +70,6 @@ export class VehicleConnectionAPI {
     static async getActiveConnections() {
         try {
             const result = await invoke('get_active_vehicle_connections');
-            console.log('✅ 获取活跃车辆连接:', result);
             return { success: true, data: result };
         } catch (error) {
             console.error('❌ 获取活跃车辆连接失败:', error);
@@ -136,7 +131,6 @@ export class TrafficLightAPI {
     static async getSettings() {
         try {
             const result = await invoke('get_traffic_light_settings');
-            console.log('✅ 获取交通灯设置:', result);
             return { success: true, data: result };
         } catch (error) {
             console.error('❌ 获取交通灯设置失败:', error);
@@ -151,7 +145,6 @@ export class TrafficLightAPI {
     static async updateSettings(settings) {
         try {
             const result = await invoke('update_traffic_light_settings', { request: settings });
-            console.log('✅ 更新交通灯设置成功:', result);
             return { success: true, data: result };
         } catch (error) {
             console.error('❌ 更新交通灯设置失败:', error);
@@ -198,7 +191,6 @@ export class StatisticsAPI {
     static async getVehicleOnlineStats() {
         try {
             const result = await invoke('get_vehicle_online_stats');
-            console.log('✅ 获取车辆在线统计:', result);
             return { success: true, data: result };
         } catch (error) {
             console.error('❌ 获取车辆在线统计失败:', error);
@@ -212,7 +204,6 @@ export class StatisticsAPI {
     static async getDrivingBehaviorStats() {
         try {
             const result = await invoke('get_driving_behavior_stats');
-            console.log('✅ 获取自动驾驶行为统计:', result);
             return { success: true, data: result };
         } catch (error) {
             console.error('❌ 获取自动驾驶行为统计失败:', error);
@@ -232,7 +223,6 @@ export class SandboxAPI {
     static async getServiceSettings() {
         try {
             const result = await invoke('get_sandbox_service_settings');
-            console.log('✅ 获取沙盘服务设置:', result);
             return { success: true, data: result };
         } catch (error) {
             console.error('❌ 获取沙盘服务设置失败:', error);
@@ -248,7 +238,6 @@ export class SandboxAPI {
             const result = await invoke('create_or_update_sandbox_service_settings', {
                 request: settingsData
             });
-            console.log('✅ 保存沙盘服务设置成功:', result);
             return { success: true, data: result };
         } catch (error) {
             console.error('❌ 保存沙盘服务设置失败:', error);
@@ -262,7 +251,6 @@ export class SandboxAPI {
     static async deleteServiceSettings() {
         try {
             const result = await invoke('delete_sandbox_service_settings');
-            console.log('✅ 删除沙盘服务设置成功:', result);
             return { success: true, data: result };
         } catch (error) {
             console.error('❌ 删除沙盘服务设置失败:', error);

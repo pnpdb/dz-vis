@@ -121,8 +121,6 @@ export const useCarStore = defineStore('car', {
                 if (result.success) {
                     // 使用统一的车辆数据标准化函数
                     this.applyVehicleConnections(result.data);
-                    
-                    console.log('✅ Store加载车辆列表成功:', this.carList);
                 } else {
                     console.error('❌ Store加载车辆列表失败:', result.error);
                     // 失败时使用默认列表

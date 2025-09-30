@@ -600,7 +600,6 @@ const applyTheme = (theme) => {
 
 // 关闭登录框
 const closeLogin = () => {
-    console.log('关闭登录框');
     loginDialogVisible.value = false;
 };
 

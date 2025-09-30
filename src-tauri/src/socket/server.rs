@@ -171,19 +171,22 @@ impl SocketServer {
             info!("沙盘服务连接已建立: {} (IP: {})", addr, addr.ip());
         }
 
-        let (vehicle_id, vehicle_name) = if is_sandbox {
+        let mut vehicle_name_string = String::new();
+        let (mut vehicle_id, mut vehicle_name) = if is_sandbox {
             (-1, "SandboxService".to_string())
         } else if let Some(info) = vehicle_info {
+            info!("数据库匹配车辆 -> ID: {}, 名称: {}", info.vehicle_id, info.name);
+            vehicle_name_string = info.name.clone();
             (info.vehicle_id, info.name)
         } else {
-            warn!("IP {} 未找到车辆配置，使用默认值", addr.ip());
-            let default_id = addr.ip().to_string()
-                .split('.')
-                .last()
-                .unwrap_or("0")
-                .parse::<i32>()
-                .unwrap_or(0);
-            (default_id, format!("未知车辆_{}", addr.ip()))
+            warn!(
+                "数据库未匹配车辆配置 (IP: {}), 将使用接入帧中的车辆ID",
+                addr.ip()
+            );
+            // vehicle_id 将在解析数据包时以协议内的真实ID为准
+            let name = format!("未知车辆_{}", addr.ip());
+            vehicle_name_string = name.clone();
+            (0, name)
         };
         
         // 保存车辆连接（非沙盘）
@@ -258,7 +261,17 @@ impl SocketServer {
                                 parser.feed_data(&buffer[..n]);
                                 // 尝试解析消息（沙盘连接不进行解析）
                                 while let Ok(Some(message)) = parser.try_parse_message() {
-                                    Self::handle_message(message, vehicle_id, &vehicle_name, &app_handle, vehicle_state.clone()).await;
+                                    if let Some((new_id, new_name)) = Self::handle_message(
+                                        message,
+                                        vehicle_id,
+                                        &vehicle_name,
+                                        &app_handle,
+                                        vehicle_state.clone(),
+                                        connections.clone()
+                                    ).await {
+                                        vehicle_id = new_id;
+                                        vehicle_name = new_name;
+                                    }
                                 }
                             }
                         }
@@ -336,11 +349,13 @@ impl SocketServer {
         vehicle_name: &str,
         app_handle: &tauri::AppHandle,
         vehicle_state: Arc<RwLock<HashMap<u8, VehicleInfo>>>,
-    ) {
+        connections: ConnectionManager,
+    ) -> Option<(i32, String)> {
         debug!("收到消息 - 车辆: {} (ID: {}), 类型: 0x{:04X}, 数据长度: {}",
                 vehicle_name, vehicle_id, message.message_type, message.data.len());
 
         let mut parsed_payload: Option<serde_json::Value> = None;
+        let mut reassigned_vehicle: Option<(i32, String)> = None;
 
         if message.message_type == MessageTypes::HEARTBEAT {
             parsed_payload = Some(serde_json::json!({
@@ -357,9 +372,27 @@ impl SocketServer {
                     message.data.len()
                 );
             } else if let Some(info_json) = parse_vehicle_info_payload(&message.data, &vehicle_state, vehicle_id, vehicle_name) {
+                if let Some(parsed_id) = info_json.get("vehicle_id").and_then(|v| v.as_u64()) {
+                    let parsed_vehicle_id = parsed_id as i32;
+                    if vehicle_id != parsed_vehicle_id && vehicle_id >= 0 {
+                        let mut conns = connections.write();
+                        if let Some(mut conn) = conns.remove(&vehicle_id) {
+                            info!(
+                                "纠正车辆连接ID: {} -> {} (名称: {})",
+                                vehicle_id,
+                                parsed_vehicle_id,
+                                vehicle_name
+                            );
+                            conn.vehicle_id = parsed_vehicle_id;
+                            let new_name = conn.vehicle_name.clone();
+                            conns.insert(parsed_vehicle_id, conn);
+                            reassigned_vehicle = Some((parsed_vehicle_id, new_name));
+                        }
+                    }
+                }
                 parsed_payload = Some(info_json);
             } else {
-                return;
+                return None;
             }
         }
  
@@ -384,6 +417,7 @@ impl SocketServer {
                 error!("发送消息到前端失败: {}", e);
             }
         }
+        reassigned_vehicle
     }
 
     /// 发送车辆连接事件到前端

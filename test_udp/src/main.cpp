@@ -136,7 +136,7 @@ bool SendFragmentedFrame(int sockfd, const sockaddr_in &addr, uint8_t vehicle_id
 }  // namespace
 
 int main() {
-  const uint8_t vehicle_id = 1;
+  const uint8_t vehicle_id = 2;
   const std::string host = "127.0.0.1";
   const uint16_t port = 8080;
   const int camera_index = 0;

@@ -71,6 +71,8 @@ import {
     faCarOn,
     faRecycle,
     faLocationArrow,
+    faNetworkWired,
+    faSyncAlt,
     // 添加新的缺失图标
     faCrop,
     faImage,
@@ -88,7 +90,10 @@ import {
     faHardHat,
     faTrash,
     faRedo,
-    faCircle
+    faCircle,
+    faVideoSlash,
+    faEdit,
+    faEthernet
 } from '@fortawesome/free-solid-svg-icons'
 
 // 将图标添加到库中
@@ -163,6 +168,8 @@ library.add(
     faCarOn,
     faRecycle,
     faLocationArrow,
+    faNetworkWired,
+    faSyncAlt,
     // 添加新的缺失图标
     faCrop,
     faImage,
@@ -180,5 +187,8 @@ library.add(
     faHardHat,
     faTrash,
     faRedo,
-    faCircle
+    faCircle,
+    faVideoSlash,
+    faEdit,
+    faEthernet
 )

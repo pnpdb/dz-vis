@@ -284,8 +284,8 @@
                         <div class="about-logo">
                             <fa icon="car" class="about-icon" />
                         </div>
-                        <h2 class="software-title">DZ CAR MANAGER</h2>
-                        <p class="software-subtitle">智能车辆管理系统</p>
+                        <h2 class="software-title">{{ appTitle }}</h2>
+                        <p class="software-subtitle">DZ CAR MANAGER</p>
                     </div>
                     
                     <div class="info-section">
@@ -294,7 +294,7 @@
                             <span class="info-value">1.0.0</span>
                         </div>
                         <div class="info-item">
-                            <span class="info-label">开发公司：</span>
+                            <span class="info-label">版权所有：</span>
                             <span class="info-value">北京渡众机器人科技有限公司</span>
                         </div>
                         <div class="info-item">
@@ -606,11 +606,11 @@ const closeLogin = () => {
 
 // Element Plus对话框事件监听器
 const onDialogOpen = () => {
-    console.log('🟢 对话框开始打开');
+    // console.log('🟢 对话框开始打开');
 };
 
 const onDialogOpened = () => {
-    console.log('✅ 对话框完全打开');
+    // console.log('✅ 对话框完全打开');
     
     // 立即检查对话框的实际渲染状态
     setTimeout(() => {
@@ -621,13 +621,13 @@ const onDialogOpened = () => {
             const dialogRect = dialog.getBoundingClientRect();
             const dialogStyles = getComputedStyle(dialog);
             
-            console.log('🔍 对话框实际状态检查:');
-            console.log('位置:', dialogRect);
-            console.log('z-index:', dialogStyles.zIndex);
-            console.log('display:', dialogStyles.display);
-            console.log('visibility:', dialogStyles.visibility);
-            console.log('opacity:', dialogStyles.opacity);
-            console.log('position:', dialogStyles.position);
+            // console.log('🔍 对话框实际状态检查:');
+            // console.log('位置:', dialogRect);
+            // console.log('z-index:', dialogStyles.zIndex);
+            // console.log('display:', dialogStyles.display);
+            // console.log('visibility:', dialogStyles.visibility);
+            // console.log('opacity:', dialogStyles.opacity);
+            // console.log('position:', dialogStyles.position);
             
             // 强制将对话框挂载到body，脱离父容器限制
             const dialogWrapper = dialog.closest('.el-overlay');
@@ -656,9 +656,9 @@ const onDialogOpened = () => {
             dialog.style.borderRadius = '24px';
             dialog.style.boxShadow = '0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 240, 255, 0.1)';
             
-            // 详细检查DOM结构并移除多余边框
-            console.log('🔍 对话框DOM结构:', dialog);
-            console.log('🔍 对话框所有子元素:', dialog.children);
+            // // 详细检查DOM结构并移除多余边框
+            // console.log('🔍 对话框DOM结构:', dialog);
+            // console.log('🔍 对话框所有子元素:', dialog.children);
             
             // 移除对话框本身可能的多余样式
             dialog.style.boxShadow = 'none'; // 先移除可能的双重阴影
@@ -666,7 +666,7 @@ const onDialogOpened = () => {
             
             // 检查并移除所有子元素的边框
             Array.from(dialog.children).forEach((child, index) => {
-                console.log(`🔍 子元素 ${index}:`, child.className, child);
+                // console.log(`🔍 子元素 ${index}:`, child.className, child);
                 child.style.border = 'none';
                 child.style.background = 'transparent';
                 child.style.boxShadow = 'none';
@@ -679,13 +679,13 @@ const onDialogOpened = () => {
                 dialogBody.style.border = 'none';
                 dialogBody.style.padding = '0';
                 dialogBody.style.boxShadow = 'none';
-                console.log('🧹 移除dialog__body边框完成');
+                // console.log('🧹 移除dialog__body边框完成');
             }
             
             const dialogHeader = dialog.querySelector('.el-dialog__header');
             if (dialogHeader) {
                 dialogHeader.style.display = 'none';
-                console.log('🧹 隐藏dialog__header完成');
+                // console.log('🧹 隐藏dialog__header完成');
             }
             
             // 检查是否有el-dialog__wrapper等包装元素
@@ -694,7 +694,7 @@ const onDialogOpened = () => {
                 wrapper.style.border = 'none';
                 wrapper.style.background = 'transparent';
                 wrapper.style.boxShadow = 'none';
-                console.log('🧹 移除wrapper边框完成');
+                // console.log('🧹 移除wrapper边框完成');
             }
             
             // 最后重新应用外层样式
@@ -708,23 +708,23 @@ const onDialogOpened = () => {
             const closeBtn = dialog.querySelector('.manual-close-btn');
             if (closeBtn) {
                 const closeBtnParent = closeBtn.parentElement;
-                console.log('🔍 关闭按钮的父容器:', closeBtnParent.className, closeBtnParent);
+                // console.log('🔍 关闭按钮的父容器:', closeBtnParent.className, closeBtnParent);
                 // 移除关闭按钮父容器的边框
                 closeBtnParent.style.border = 'none';
                 closeBtnParent.style.background = 'transparent';
                 closeBtnParent.style.boxShadow = 'none';
-                console.log('🧹 移除关闭按钮父容器边框完成');
+                // console.log('🧹 移除关闭按钮父容器边框完成');
             }
             
             // 特别检查login-container
             const loginContainer = dialog.querySelector('.login-container');
             if (loginContainer) {
-                console.log('🔍 login-container样式:', getComputedStyle(loginContainer));
+                // console.log('🔍 login-container样式:', getComputedStyle(loginContainer));
                 loginContainer.style.border = 'none';
                 loginContainer.style.background = 'transparent';
                 loginContainer.style.boxShadow = 'none';
                 loginContainer.style.outline = 'none';
-                console.log('🧹 强制移除login-container边框完成');
+                // console.log('🧹 强制移除login-container边框完成');
             }
             
             // 检查表单和其他可能的边框元素
@@ -733,7 +733,7 @@ const onDialogOpened = () => {
                 form.style.border = 'none';
                 form.style.background = 'transparent';
                 form.style.boxShadow = 'none';
-                console.log('🧹 移除表单边框完成');
+                // console.log('🧹 移除表单边框完成');
             }
             
             // 检查所有可能有边框的元素
@@ -743,26 +743,26 @@ const onDialogOpened = () => {
                 element.style.background = 'transparent';
                 element.style.boxShadow = 'none';
                 element.style.outline = 'none';
-                console.log(`🧹 移除元素${index}边框: ${element.className}`);
+                // console.log(`🧹 移除元素${index}边框: ${element.className}`);
             });
             
-            console.log('🧹 所有边框清理完成');
+            // console.log('🧹 所有边框清理完成');
             
-            console.log('🎨 强制应用主题样式完成');
+            // console.log('🎨 强制应用主题样式完成');
             
             // 验证样式是否正确应用
             const finalStyles = getComputedStyle(dialog);
-            console.log('🎨 最终背景色:', finalStyles.backgroundColor);
-            console.log('🎨 最终边框:', finalStyles.border);
-            console.log('🎨 最终圆角:', finalStyles.borderRadius);
+            // console.log('🎨 最终背景色:', finalStyles.backgroundColor);
+            // console.log('🎨 最终边框:', finalStyles.border);
+            // console.log('🎨 最终圆角:', finalStyles.borderRadius);
             
-            console.log('🔧 强制修复后的位置:', dialog.getBoundingClientRect());
+            // console.log('🔧 强制修复后的位置:', dialog.getBoundingClientRect());
         }
         
         if (overlay) {
             // 确保遮罩层也在body下
             if (overlay.parentNode !== document.body) {
-                console.log('🔧 将遮罩层移动到body');
+                // console.log('🔧 将遮罩层移动到body');
                 document.body.appendChild(overlay);
             }
             overlay.style.zIndex = '99998';
@@ -771,26 +771,26 @@ const onDialogOpened = () => {
             overlay.style.left = '0';
             overlay.style.width = '100vw';
             overlay.style.height = '100vh';
-            console.log('🔍 遮罩层z-index:', getComputedStyle(overlay).zIndex);
+            // console.log('🔍 遮罩层z-index:', getComputedStyle(overlay).zIndex);
         }
     }, 100);
 };
 
 const onDialogClose = () => {
-    console.log('🔴 对话框开始关闭');
+    // console.log('🔴 对话框开始关闭');
     // 防止意外关闭 - 只有明确调用closeLogin才应该关闭
-    console.trace('对话框关闭调用栈');
+    // console.trace('对话框关闭调用栈');
 };
 
 const onDialogClosed = () => {
-    console.log('❌ 对话框完全关闭');
+    // console.log('❌ 对话框完全关闭');
 };
 
 // 显示登录框 - 简化版本
 const showLogin = () => {
-    logHelper.debug('Header', '设置按钮被点击，显示登录框')
+    // logHelper.debug('Header', '设置按钮被点击，显示登录框')
     // 简单调试保留即可
-    console.debug('设置按钮被点击，显示登录框');
+    // console.debug('设置按钮被点击，显示登录框');
     
     // 清空表单
     loginForm.value = {
@@ -800,13 +800,13 @@ const showLogin = () => {
     
     // 简单设置状态，不进行复杂的DOM操作
     loginDialogVisible.value = true;
-    console.log('登录框显示状态:', loginDialogVisible.value);
+    // console.log('登录框显示状态:', loginDialogVisible.value);
 };
 
 // 显示关于弹窗
 const showAbout = () => {
-    logHelper.debug('Header', '关于按钮被点击，显示关于弹窗')
-    console.debug('关于按钮被点击，显示关于弹窗');
+    // logHelper.debug('Header', '关于按钮被点击，显示关于弹窗')
+    // console.debug('关于按钮被点击，显示关于弹窗');
     aboutDialogVisible.value = true;
 };
 
@@ -847,7 +847,7 @@ const saveSettings = async () => {
             app_title: settings.value.appTitle
         };
         const res = await invoke('update_app_settings', { request: payload });
-        console.log('✅ 应用设置已保存:', res);
+        // console.log('✅ 应用设置已保存:', res);
         ElMessage.success('设置已保存！');
         // 运行时动态应用前端日志级别
         if (settings.value?.logLevel) {
@@ -1017,10 +1017,10 @@ onMounted(() => {
                 // 可以在这里添加窗口大小变化的处理逻辑
             },
             onFocus: () => {
-                console.log('Window focused');
+                // console.log('Window focused');
             },
             onBlur: () => {
-                console.log('Window blurred');
+                // console.log('Window blurred');
             }
         });
     }

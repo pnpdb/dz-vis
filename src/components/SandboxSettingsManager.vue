@@ -99,7 +99,6 @@
                     <div class="camera-header">
                         <div class="camera-info">
                             <div class="camera-name">
-                                <fa :icon="camera.camera_type === 'RJ45' ? 'ethernet' : 'usb'" />
                                 {{ camera.name }}
                             </div>
                             <div class="camera-type">{{ camera.camera_type }}</div>

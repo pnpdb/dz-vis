@@ -162,6 +162,9 @@
 import { ref, onMounted } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import VehicleConnectionAPI from '@/utils/vehicleAPI.js';
+import { useCarStore } from '@/stores/car.js';
+
+const carStore = useCarStore();
 
 // 响应式数据
 const loading = ref(false);
@@ -205,7 +208,9 @@ const loadVehicleConnections = async () => {
     const result = await VehicleConnectionAPI.getAllConnections();
     
     if (result.success) {
-        vehicleConnections.value = result.data;
+        const sortedConnections = [...result.data].sort((a, b) => a.vehicle_id - b.vehicle_id);
+        vehicleConnections.value = sortedConnections;
+        carStore.applyVehicleConnections(sortedConnections);
     } else {
         ElMessage.error(`获取车辆连接列表失败: ${result.error}`);
     }

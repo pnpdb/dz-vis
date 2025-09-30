@@ -163,11 +163,11 @@ const handleVehicleInfoUpdate = (data) => {
 watch(
     () => props.carInfo,
     (newVehicleId, oldVehicleId) => {
-        if (newVehicleId !== oldVehicleId) {
+    if (newVehicleId !== oldVehicleId) {
             currentVehicleId.value = parseVehicleId(newVehicleId);
-            resetToDefaultState();
-            checkAndUpdateVehicleStatus();
-        }
+        resetToDefaultState();
+        checkAndUpdateVehicleStatus();
+    }
     },
     { immediate: true },
 );

@@ -119,7 +119,7 @@ const loadVehicleConnections = async () => {
         const result = await VehicleConnectionAPI.getAllConnections();
         if (result.success) {
             // 转换数据库数据为组件需要的格式
-            databaseCarList.value = result.data.map(connection => ({
+            const normalized = result.data.map(connection => ({
                 id: connection.vehicle_id,
                 name: connection.name, // 只显示车辆名称，不带描述
                 vehicleId: connection.vehicle_id,
@@ -128,6 +128,8 @@ const loadVehicleConnections = async () => {
                 description: connection.description,
                 isActive: connection.is_active
             }));
+
+            databaseCarList.value = normalized.sort((a, b) => a.vehicleId - b.vehicleId);
             
             console.debug('✅ 车辆设置页面加载车辆列表成功:', databaseCarList.value);
         } else {

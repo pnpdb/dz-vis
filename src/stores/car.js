@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { VehicleConnectionAPI } from '@/utils/vehicleAPI.js';
-import { normalizeVehicleList, parseVehicleId } from '@/utils/vehicleTypes.js';
+import { normalizeVehicleList, parseVehicleId, compareVehicleId } from '@/utils/vehicleTypes.js';
 
 const filePath = localStorage.getItem('filePath') || '';
 
@@ -98,18 +98,29 @@ export const useCarStore = defineStore('car', {
         },
 
         // 从数据库加载车辆列表
+        applyVehicleConnections(connections = []) {
+            const normalized = normalizeVehicleList(connections);
+            const previousSelected = this.selectedCarId;
+
+            this.carList = normalized;
+
+            if (previousSelected) {
+                const stillExists = normalized.some(vehicle => compareVehicleId(vehicle.vehicleId, previousSelected));
+                if (!stillExists) {
+                    this.selectedCarId = normalized[0]?.vehicleId ?? '';
+                }
+            } else if (!this.selectedCarId && normalized.length > 0) {
+                this.selectedCarId = normalized[0].vehicleId;
+            }
+        },
+
         async loadVehicleConnections() {
             this.loading = true;
             try {
                 const result = await VehicleConnectionAPI.getAllConnections();
                 if (result.success) {
                     // 使用统一的车辆数据标准化函数
-                    this.carList = normalizeVehicleList(result.data);
-                    
-                    // 如果没有选中车辆且有车辆列表，选择第一个
-                    if (!this.selectedCarId && this.carList.length > 0) {
-                        this.selectedCarId = this.carList[0].vehicleId;
-                    }
+                    this.applyVehicleConnections(result.data);
                     
                     console.log('✅ Store加载车辆列表成功:', this.carList);
                 } else {

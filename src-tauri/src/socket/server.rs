@@ -171,12 +171,10 @@ impl SocketServer {
             info!("沙盘服务连接已建立: {} (IP: {})", addr, addr.ip());
         }
 
-        let mut vehicle_name_string = String::new();
         let (mut vehicle_id, mut vehicle_name) = if is_sandbox {
             (-1, "SandboxService".to_string())
         } else if let Some(info) = vehicle_info {
             info!("数据库匹配车辆 -> ID: {}, 名称: {}", info.vehicle_id, info.name);
-            vehicle_name_string = info.name.clone();
             (info.vehicle_id, info.name)
         } else {
             warn!(
@@ -184,9 +182,7 @@ impl SocketServer {
                 addr.ip()
             );
             // vehicle_id 将在解析数据包时以协议内的真实ID为准
-            let name = format!("未知车辆_{}", addr.ip());
-            vehicle_name_string = name.clone();
-            (0, name)
+            (0, format!("未知车辆_{}", addr.ip()))
         };
         
         // 保存车辆连接（非沙盘）

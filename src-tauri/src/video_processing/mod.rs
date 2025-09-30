@@ -12,6 +12,3 @@ pub mod frame_statistics;
 pub mod types;
 
 pub use frame_processor::FrameProcessor;
-pub use jpeg_validator::JpegValidator;
-pub use frame_statistics::FrameStatistics;
-pub use types::*;

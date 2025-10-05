@@ -7,7 +7,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import vehicleBridge from '@/utils/vehicleBridge.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
-import { RECEIVE_MESSAGE_TYPES, MessageTypeUtils, VEHICLE_CONTROL_PROTOCOL, SEND_MESSAGE_TYPES, AVP_PARKING_PROTOCOL } from '@/constants/messageTypes.js';
+import { RECEIVE_MESSAGE_TYPES, MessageTypeUtils, VEHICLE_CONTROL_PROTOCOL, SEND_MESSAGE_TYPES, AVP_PARKING_PROTOCOL, VEHICLE_CAMERA_PROTOCOL, DATA_RECORDING_PROTOCOL } from '@/constants/messageTypes.js';
 import { ElMessage } from 'element-plus';
 import { createLogger, logger } from '@/utils/logger.js';
 import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log';
@@ -25,6 +25,10 @@ class SocketManager {
         this.sandboxConnected = false;
         this.vehicleReady = new Map();
         this.vehicleParkingSlots = new Map();
+        this.activeCameraVehicleId = null;
+        this.manualCameraStates = new Map(); // Stores manual ON/OFF state for each vehicle's camera
+        this.parallelOverride = new Set(); // Tracks vehicles whose camera was temporarily enabled for Parallel Driving
+        this.pendingCameraPromise = Promise.resolve(); // For sequentializing camera toggle commands
         this.messageHandlers = new Map();
         this.carStore = null;
         
@@ -368,6 +372,9 @@ class SocketManager {
         socketLogger.info(`车辆连接状态更新 - 车辆: ${carId}, 状态: ${isConnected ? '连接' : '断开'}, 在线数量: ${this.getOnlineVehicleCount()}`);
         if (!isConnected) {
             this.vehicleParkingSlots.delete(carId);
+            if (this.activeCameraVehicleId === carId) {
+                this.activeCameraVehicleId = null;
+            }
         }
     }
 
@@ -782,6 +789,123 @@ class SocketManager {
 
     getVehicleParkingSlot(vehicleId) {
         return this.vehicleParkingSlots.get(vehicleId) || 0;
+    }
+
+    /**
+     * 记录某车辆开关的手动状态
+     */
+    setManualCameraState(vehicleId, enabled) {
+        if (!Number.isFinite(vehicleId)) return;
+        if (enabled) {
+            this.manualCameraStates.set(vehicleId, true);
+        } else {
+            this.manualCameraStates.delete(vehicleId);
+        }
+        const store = this.ensureCarStore();
+        store?.setManualCameraState?.(vehicleId, enabled);
+    }
+
+    isManualCameraEnabled(vehicleId) {
+        if (!Number.isFinite(vehicleId)) return false;
+        if (this.manualCameraStates.has(vehicleId)) {
+            return this.manualCameraStates.get(vehicleId) === true;
+        }
+        const store = this.ensureCarStore();
+        return store?.isManualCameraEnabled?.(vehicleId) === true;
+    }
+
+    markManualCameraState() {}
+
+    /**
+     * 发送车辆摄像头开关指令，确保同一时间只有一个车辆处于开启状态
+     */
+    async toggleVehicleCamera(vehicleId, enabled, { force = false } = {}) {
+        const normalizedId = parseVehicleId(vehicleId, 0);
+        if (!normalizedId) {
+            socketLogger.warn('toggleVehicleCamera: vehicleId 无效', vehicleId);
+            return;
+        }
+
+        const desiredStatus = enabled ? VEHICLE_CAMERA_PROTOCOL.STATUS_ON : VEHICLE_CAMERA_PROTOCOL.STATUS_OFF;
+
+        if (!force) {
+            if (enabled) {
+                if (this.activeCameraVehicleId === normalizedId) {
+                    socketLogger.debug(`[CameraToggle] 车辆${normalizedId} 已处于开启状态，跳过发送`);
+                    return;
+                }
+            } else {
+                if (this.activeCameraVehicleId !== normalizedId) {
+                    socketLogger.debug(`[CameraToggle] 车辆${normalizedId} 已处于关闭状态，跳过发送`);
+                    return;
+                }
+            }
+        }
+
+        const store = this.ensureCarStore();
+
+        const execute = async () => {
+            // 如果要开启，先关闭约定中的其他车辆
+            if (enabled && this.activeCameraVehicleId && this.activeCameraVehicleId !== normalizedId) {
+                try {
+                    socketLogger.info(`[CameraToggle] 切换摄像头源: ${this.activeCameraVehicleId} -> ${normalizedId}`);
+                    await vehicleBridge.sendVehicleCameraToggle(this.activeCameraVehicleId, false);
+                } catch (error) {
+                    socketLogger.warn(`关闭车辆 ${this.activeCameraVehicleId} 摄像头失败:`, error);
+                }
+            }
+
+            try {
+                await vehicleBridge.sendVehicleCameraToggle(normalizedId, desiredStatus === VEHICLE_CAMERA_PROTOCOL.STATUS_ON);
+                socketLogger.info(`[CameraToggle] 车辆 ${normalizedId} 摄像头${enabled ? '开启' : '关闭'} 指令已发送`);
+                this.activeCameraVehicleId = enabled ? normalizedId : null;
+                if (!enabled) {
+                    this.parallelOverride.delete(normalizedId);
+                }
+            } catch (error) {
+                socketLogger.error(`发送车辆 ${normalizedId} 摄像头开关失败:`, error);
+                throw error;
+            }
+        };
+
+        this.pendingCameraPromise = this.pendingCameraPromise.then(execute, execute);
+        return this.pendingCameraPromise;
+    }
+
+    async enforceCameraStatesOnShow(vehicleId) {
+        const normalizedId = parseVehicleId(vehicleId, 0);
+        if (!normalizedId) return;
+        const store = this.ensureCarStore();
+        const shouldEnable = store?.isManualCameraEnabled?.(normalizedId);
+        if (shouldEnable) {
+            await this.toggleVehicleCamera(normalizedId, true);
+        }
+    }
+
+    async enforceCameraStatesOnHide(vehicleId) {
+        const normalizedId = parseVehicleId(vehicleId, 0);
+        if (!normalizedId) return;
+        const store = this.ensureCarStore();
+        const shouldDisable = store?.isManualCameraEnabled?.(normalizedId);
+        if (shouldDisable) {
+            await this.toggleVehicleCamera(normalizedId, false);
+        }
+    }
+
+    markParallelOverride(vehicleId, enabled) {
+        const normalizedId = parseVehicleId(vehicleId, 0);
+        if (!normalizedId) return;
+        if (enabled) {
+            this.parallelOverride.add(normalizedId);
+        } else {
+            this.parallelOverride.delete(normalizedId);
+        }
+    }
+
+    hasParallelOverride(vehicleId) {
+        const normalizedId = parseVehicleId(vehicleId, 0);
+        if (!normalizedId) return false;
+        return this.parallelOverride.has(normalizedId);
     }
 }
 

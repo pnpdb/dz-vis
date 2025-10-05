@@ -52,6 +52,8 @@ const currentVehicleId = computed(() => carStore.selectedCarId)
 
 const isRouteVisible = computed(() => currentRouteName.value === 'Cars')
 
+let wasManualEnabledBeforeHide = null
+let wasManualEnabledBeforeSwitch = null
 
 const updateVideoReceiver = () => {
   if (cameraEnabled.value && isRouteVisible.value) {
@@ -106,8 +108,29 @@ const handleVideoFrame = ({ blobUrl, frame }) => {
   })
 }
 
-const toggleCamera = () => {
-  carStore.setCameraEnabled(!carStore.cameraEnabled)
+const toggleCamera = async () => {
+  const vehicleId = currentVehicleId.value
+  if (!vehicleId) {
+    ElMessage.error('请先选择车辆')
+    return
+  }
+
+  const willEnable = !carStore.cameraEnabled
+  carStore.setCameraEnabled(willEnable)
+  carStore.setManualCameraState(vehicleId, willEnable)
+
+  try {
+    await window.socketManager.toggleVehicleCamera(vehicleId, willEnable)
+    if (!willEnable) {
+      unsubscribeVideo()
+    } else if (isRouteVisible.value) {
+      subscribeVideo()
+    }
+  } catch (error) {
+    carStore.setCameraEnabled(!willEnable)
+    carStore.setManualCameraState(vehicleId, !willEnable)
+    ElMessage.error(`摄像头开关操作失败: ${error}`)
+  }
 }
 
 const handleTimeout = ({ vehicleId }) => {
@@ -128,23 +151,98 @@ const requestParallelDriving = () => {
   })
 }
 
-watch(cameraEnabled, updateVideoReceiver)
-watch(isRouteVisible, updateVideoReceiver)
-watch(currentVehicleId, () => {
-  unsubscribeVideo()
-  if (cameraEnabled.value && isRouteVisible.value) {
+watch(cameraEnabled, (enabled) => {
+  if (enabled && isRouteVisible.value) {
     subscribeVideo()
+  } else {
+    unsubscribeVideo()
+  }
+})
+
+watch(isRouteVisible, async (visible) => {
+  const vehicleId = currentVehicleId.value
+  if (!vehicleId) return
+
+  if (!visible) {
+    // 记录当前手动状态，用于恢复
+    wasManualEnabledBeforeHide = carStore.isManualCameraEnabled(vehicleId)
+
+    // 如果是进入平行驾驶，保持摄像头开启逻辑由路由统一处理
+    if (router.currentRoute.value?.name === 'ParallelDriving') {
+      unsubscribeVideo()
+      return
+    }
+
+    unsubscribeVideo()
+
+    if (wasManualEnabledBeforeHide) {
+      try {
+        await window.socketManager?.toggleVehicleCamera?.(vehicleId, false)
+      } catch (error) {
+        console.warn('隐藏摄像头区域时关闭摄像头失败:', error)
+      }
+    }
+  } else {
+    if (wasManualEnabledBeforeHide) {
+      try {
+        await window.socketManager?.toggleVehicleCamera?.(vehicleId, true)
+        subscribeVideo()
+      } catch (error) {
+        console.warn('显示摄像头区域时开启摄像头失败:', error)
+      }
+    }
+    wasManualEnabledBeforeHide = null
+  }
+})
+
+watch(currentVehicleId, async (newVehicleId, oldVehicleId) => {
+  if (oldVehicleId) {
+    wasManualEnabledBeforeSwitch = carStore.isManualCameraEnabled(oldVehicleId)
+    unsubscribeVideo()
+
+    if (router.currentRoute.value?.name !== 'ParallelDriving') {
+      try {
+        await window.socketManager.toggleVehicleCamera(oldVehicleId, false)
+      } catch (error) {
+        console.warn('切换车辆时关闭旧车辆摄像头失败:', error)
+      }
+    }
+  }
+
+  if (!newVehicleId) {
+    carStore.setCameraEnabled(false)
+    return
+  }
+
+  const manualEnabled = carStore.isManualCameraEnabled(newVehicleId)
+  carStore.setCameraEnabled(manualEnabled)
+
+  const currentRoute = router.currentRoute.value?.name
+  const routeVisible = currentRoute === 'Cars'
+
+  if (routeVisible && manualEnabled) {
+    try {
+      await window.socketManager.toggleVehicleCamera(newVehicleId, true)
+      subscribeVideo()
+    } catch (error) {
+      console.warn('切换车辆时开启新车辆摄像头失败:', error)
+    }
   }
 })
 
 onMounted(() => {
   updateVideoReceiver()
   eventBus.on(EVENTS.VIDEO_STREAM_TIMEOUT, handleTimeout)
+  window.socketManager?.enforceCameraStatesOnShow?.(currentVehicleId.value)
 })
 
 onBeforeUnmount(() => {
   unsubscribeVideo()
   eventBus.off(EVENTS.VIDEO_STREAM_TIMEOUT, handleTimeout)
+
+  if (router.currentRoute.value?.name !== 'ParallelDriving') {
+    window.socketManager?.enforceCameraStatesOnHide?.(currentVehicleId.value)
+  }
 })
 </script>
 

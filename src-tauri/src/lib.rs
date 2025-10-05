@@ -232,6 +232,7 @@ pub fn run() {
             send_data_recording_command,
             send_vehicle_function_setting_command,
             send_vehicle_path_display_command,
+            send_vehicle_camera_toggle_command,
             // 视频处理命令
             process_video_frame,
             quick_validate_jpeg_base64,

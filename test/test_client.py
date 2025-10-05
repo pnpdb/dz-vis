@@ -492,14 +492,14 @@ class TestClient:
         except Exception as e:
             print(f" 连接失败: {e}")
             return False
-    
+        
     def disconnect(self):
         """断开连接"""
         self.running = False
         if self.socket:
             self.socket.close()
             print(" 已断开连接")
-    
+        
     def send_message(self, message_type, data):
         """发送消息"""
         if not self.socket:
@@ -528,7 +528,7 @@ class TestClient:
         except Exception as e:
             print(f" 发送消息失败: {e}")
             return False
-    
+        
     def start_heartbeat(self, interval=5):
         """启动心跳发送"""
         def heartbeat_loop():
@@ -540,7 +540,7 @@ class TestClient:
         thread = threading.Thread(target=heartbeat_loop, daemon=True)
         thread.start()
         print(f" 心跳发送已启动 (间隔: {interval}秒)")
-    
+        
     def start_data_simulation(self):
         """启动数据模拟发送"""
         def data_simulation_loop():
@@ -556,7 +556,7 @@ class TestClient:
         thread = threading.Thread(target=data_simulation_loop, daemon=True)
         thread.start()
         print(" 数据模拟发送已启动")
-    
+        
     def listen_for_commands(self):
         """监听服务器命令"""
         def listen_loop():
@@ -754,6 +754,7 @@ class TestClient:
         
         print()  # 添加空行便于阅读
 
+
 def main():
     import sys
     
@@ -803,5 +804,8 @@ def main():
     finally:
         client.disconnect()
 
+
 if __name__ == "__main__":
     main()
+
+

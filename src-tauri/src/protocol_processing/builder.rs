@@ -146,6 +146,18 @@ impl ProtocolBuilder {
         self.update_stats(start_time);
         self.buffer.clone()
     }
+
+    /// 构建车辆摄像头开关协议
+    pub fn build_vehicle_camera_toggle(&mut self, toggle: &VehicleCameraToggleData) -> Vec<u8> {
+        let start_time = current_timestamp_us();
+        self.buffer.clear();
+
+        self.buffer.push(toggle.vehicle_id);
+        self.buffer.push(toggle.enabled);
+
+        self.update_stats(start_time);
+        self.buffer.clone()
+    }
     
     /// 批量构建协议
     pub fn batch_build(&mut self, commands: &[ParsedProtocolData]) -> Vec<Vec<u8>> {
@@ -162,6 +174,7 @@ impl ProtocolBuilder {
                 ParsedProtocolData::ConstructionMarker(marker) => self.build_construction_marker(marker),
                 ParsedProtocolData::VehicleFunctionSetting(setting) => self.build_vehicle_function_setting(setting),
                 ParsedProtocolData::VehiclePathDisplay(path) => self.build_vehicle_path_display(path),
+                ParsedProtocolData::VehicleCameraToggle(toggle) => self.build_vehicle_camera_toggle(toggle),
                 _ => continue,
             };
             results.push(data);

@@ -6,8 +6,8 @@ use crate::database::{
 };
 use crate::protocol_processing::types::{
     AvpParkingData, AvpPickupData, ControlCommandType, DataRecordingData, PositionData,
-    TaxiOrderData, VehicleControlCommand, VehicleFunctionSettingData, VehiclePathDisplayData,
-    MessageTypes,
+    TaxiOrderData, VehicleCameraToggleData, VehicleControlCommand, VehicleFunctionSettingData,
+    VehiclePathDisplayData, MessageTypes,
 };
 use crate::services::vehicle::VehicleService;
 use crate::socket::{self, ConnectionManager, SandboxConnectionManager};
@@ -571,6 +571,27 @@ pub async fn send_vehicle_path_display_command(
     let connections = app.state::<ConnectionManager>();
     socket::SocketServer::send_to_vehicle(&connections, vehicle_id as i32, 0x1007, &payload)
         .map(|_| "车辆路径显示指令发送成功".to_string())
+}
+
+/// 发送车辆摄像头开关协议
+#[tauri::command]
+pub async fn send_vehicle_camera_toggle_command(
+    app: tauri::AppHandle,
+    vehicle_id: u8,
+    enabled: u8,
+) -> Result<String, String> {
+    if !matches!(enabled, 0 | 1) {
+        return Err(format!("摄像头状态无效: {}", enabled));
+    }
+
+    let payload = VehicleService::new().build_vehicle_camera_toggle_payload(&VehicleCameraToggleData {
+        vehicle_id,
+        enabled,
+    });
+
+    let connections = app.state::<ConnectionManager>();
+    socket::SocketServer::send_to_vehicle(&connections, vehicle_id as i32, MessageTypes::VEHICLE_CAMERA_TOGGLE, &payload)
+        .map(|_| "车辆摄像头开关指令发送成功".to_string())
 }
 
 // 其余命令维持原样。

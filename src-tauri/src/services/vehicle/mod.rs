@@ -11,6 +11,7 @@ use crate::protocol_processing::types::{
     DataRecordingData,
     VehicleFunctionSettingData,
     VehiclePathDisplayData,
+    VehicleCameraToggleData,
 };
 
 /// 车辆服务：统一处理车辆协议数据构建
@@ -110,6 +111,14 @@ impl VehicleService {
         path_display: &VehiclePathDisplayData,
     ) -> Vec<u8> {
         ProtocolBuilder::new().build_vehicle_path_display(path_display)
+    }
+
+    /// 构建车辆摄像头开关数据域
+    pub fn build_vehicle_camera_toggle_payload(
+        &self,
+        toggle: &VehicleCameraToggleData,
+    ) -> Vec<u8> {
+        ProtocolBuilder::new().build_vehicle_camera_toggle(toggle)
     }
 }
 

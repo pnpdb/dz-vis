@@ -18,6 +18,7 @@ export const SEND_MESSAGE_TYPES = {
     VEHICLE_FUNCTION_SETTING: 0x1006, // 车辆功能设置
     VEHICLE_PATH_DISPLAY: 0x1007,    // 车辆路径显示控制
     CONSTRUCTION_MARKER: 0x1008,     // 施工标记
+    VEHICLE_CAMERA_TOGGLE: 0x1009,   // 车载摄像头开关
 };
 
 // 车辆信息协议数据域定义 (55字节)
@@ -171,6 +172,16 @@ export const VEHICLE_PATH_DISPLAY_PROTOCOL = {
     PATH_ENABLE: 1,                  // 车端开启发送路径数据
 };
 
+// 车辆摄像头控制协议数据域定义 (2字节)
+export const VEHICLE_CAMERA_PROTOCOL = {
+    VEHICLE_ID_OFFSET: 0,            // 车辆编号偏移 (1字节)
+    ENABLE_STATUS_OFFSET: 1,         // 摄像头发送状态 (1字节)
+    TOTAL_SIZE: 2,                   // 总大小 2字节
+
+    STATUS_OFF: 0,                   // 停止发送
+    STATUS_ON: 1,                    // 开始发送
+};
+
 // 施工标记协议数据域定义 (18字节)
 export const CONSTRUCTION_MARKER_PROTOCOL = {
     ID_OFFSET: 0,                    // 施工点ID偏移 (1字节, UINT8)
@@ -249,6 +260,7 @@ export default {
     AVP_PICKUP_PROTOCOL,
     VEHICLE_FUNCTION_SETTING_PROTOCOL,
     VEHICLE_PATH_DISPLAY_PROTOCOL,
+    VEHICLE_CAMERA_PROTOCOL,
     CONSTRUCTION_MARKER_PROTOCOL,
     PROTOCOL_CONSTANTS,
     MessageTypeUtils

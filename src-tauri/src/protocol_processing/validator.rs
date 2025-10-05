@@ -104,7 +104,28 @@ impl ProtocolValidator {
             ParsedProtocolData::DataRecording(recording) => self.validate_data_recording(recording, start_time, timeout),
             ParsedProtocolData::ConstructionMarker(marker) => self.validate_construction_marker(marker, start_time, timeout),
             ParsedProtocolData::VehicleFunctionSetting(_) | ParsedProtocolData::VehiclePathDisplay(_) => Ok(()),
+            ParsedProtocolData::VehicleCameraToggle(toggle) => self.validate_vehicle_camera_toggle(toggle),
         }
+    }
+
+    fn validate_vehicle_camera_toggle(&self, toggle: &VehicleCameraToggleData) -> Result<(), ProtocolError> {
+        if toggle.vehicle_id == 0 {
+            return Err(ProtocolError::ValidationError {
+                field: "vehicle_id".into(),
+                value: toggle.vehicle_id as f64,
+                min: 1.0,
+                max: 255.0,
+            });
+        }
+        if !matches!(toggle.enabled, 0 | 1) {
+            return Err(ProtocolError::ValidationError {
+                field: "enabled".into(),
+                value: toggle.enabled as f64,
+                min: 0.0,
+                max: 1.0,
+            });
+        }
+        Ok(())
     }
     
     /// 验证车辆信息

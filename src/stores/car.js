@@ -50,6 +50,7 @@ export const useCarStore = defineStore('car', {
         name: 'Eduardo',
         loading: false,
         cameraEnabled: false,
+        cameraManualStates: new Map(),
         vehicleStateMap: new Map(),
         // 出租车状态管理
         taxi: {
@@ -78,6 +79,28 @@ export const useCarStore = defineStore('car', {
 
         setCameraEnabled(enabled) {
             this.cameraEnabled = Boolean(enabled);
+        },
+
+        setManualCameraState(vehicleId, enabled) {
+            const normalizedId = parseVehicleId(vehicleId, 0);
+            if (!normalizedId) return;
+            if (enabled) {
+                this.cameraManualStates.set(normalizedId, true);
+            } else {
+                this.cameraManualStates.delete(normalizedId);
+            }
+        },
+
+        isManualCameraEnabled(vehicleId) {
+            const normalizedId = parseVehicleId(vehicleId, 0);
+            if (!normalizedId) return false;
+            return this.cameraManualStates.get(normalizedId) === true;
+        },
+
+        resetManualCameraState(vehicleId) {
+            const normalizedId = parseVehicleId(vehicleId, 0);
+            if (!normalizedId) return;
+            this.cameraManualStates.delete(normalizedId);
         },
 
         updateVehicleState(vehicleId, state) {

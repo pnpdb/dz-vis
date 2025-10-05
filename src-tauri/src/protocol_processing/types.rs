@@ -139,6 +139,8 @@ pub enum ParsedProtocolData {
     VehicleFunctionSetting(VehicleFunctionSettingData),
     /// 车辆路径显示
     VehiclePathDisplay(VehiclePathDisplayData),
+    /// 车辆摄像头开关
+    VehicleCameraToggle(VehicleCameraToggleData),
 }
 
 /// 出租车订单数据
@@ -184,6 +186,13 @@ pub struct VehicleFunctionSettingData {
 pub struct VehiclePathDisplayData {
     pub vehicle_id: u8,
     pub display_path: u8,
+}
+
+/// 车辆摄像头开关数据
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VehicleCameraToggleData {
+    pub vehicle_id: u8,
+    pub enabled: u8,
 }
 
 /// 施工标记数据
@@ -335,6 +344,7 @@ impl MessageTypes {
     pub const AVP_PICKUP: u16 = 0x0006;
     pub const DATA_RECORDING: u16 = 0x0007;
     pub const CONSTRUCTION_MARKER: u16 = 0x0008;
+    pub const VEHICLE_CAMERA_TOGGLE: u16 = 0x1009;
     
     /// 获取消息类型名称
     pub fn get_name(message_type: u16) -> &'static str {
@@ -347,6 +357,7 @@ impl MessageTypes {
             Self::AVP_PICKUP => "AVP取车",
             Self::DATA_RECORDING => "数据记录",
             Self::CONSTRUCTION_MARKER => "施工标记",
+            Self::VEHICLE_CAMERA_TOGGLE => "车辆摄像头开关",
             _ => "未知类型",
         }
     }
@@ -363,6 +374,7 @@ impl MessageTypes {
                 | Self::AVP_PICKUP
                 | Self::DATA_RECORDING
                 | Self::CONSTRUCTION_MARKER
+                | Self::VEHICLE_CAMERA_TOGGLE
         )
     }
 }

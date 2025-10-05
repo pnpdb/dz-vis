@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { VEHICLE_CONTROL_PROTOCOL } from '@/constants/messageTypes.js';
+import { VEHICLE_CONTROL_PROTOCOL, VEHICLE_CAMERA_PROTOCOL } from '@/constants/messageTypes.js';
 
 const commandMap = {
     [VEHICLE_CONTROL_PROTOCOL.COMMAND_START]: 'Start',
@@ -49,6 +49,11 @@ const broadcastAllConstructionMarkers = (markers) => {
     return invoke('broadcast_all_construction_markers', { markers });
 };
 
+const sendVehicleCameraToggle = (vehicleId, enabled) => {
+    const status = enabled ? VEHICLE_CAMERA_PROTOCOL.STATUS_ON : VEHICLE_CAMERA_PROTOCOL.STATUS_OFF;
+    return invoke('send_vehicle_camera_toggle_command', { vehicleId, enabled: status });
+};
+
 export default {
     sendVehicleControl,
     sendDataRecording,
@@ -60,5 +65,6 @@ export default {
     sendAvpPickup,
     broadcastConstructionMarker,
     broadcastAllConstructionMarkers,
+    sendVehicleCameraToggle,
 };
 

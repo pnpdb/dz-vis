@@ -36,7 +36,8 @@ pub use sandbox::{
     get_traffic_light_item, update_traffic_light_item, get_traffic_light_settings,
     update_traffic_light_settings, get_sandbox_service_settings, 
     create_or_update_sandbox_service_settings, delete_sandbox_service_settings,
-    get_all_sandbox_cameras, create_sandbox_camera, update_sandbox_camera, delete_sandbox_camera
+    get_all_sandbox_cameras, create_sandbox_camera, update_sandbox_camera, delete_sandbox_camera,
+    send_sandbox_lighting_control
 };
 
 pub use media::{

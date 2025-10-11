@@ -105,6 +105,7 @@ impl ProtocolValidator {
             ParsedProtocolData::ConstructionMarker(marker) => self.validate_construction_marker(marker, start_time, timeout),
             ParsedProtocolData::VehicleFunctionSetting(_) | ParsedProtocolData::VehiclePathDisplay(_) => Ok(()),
             ParsedProtocolData::VehicleCameraToggle(toggle) => self.validate_vehicle_camera_toggle(toggle),
+            ParsedProtocolData::SandboxLighting(lighting) => self.validate_sandbox_lighting(lighting),
         }
     }
 
@@ -124,6 +125,24 @@ impl ProtocolValidator {
                 min: 0.0,
                 max: 1.0,
             });
+        }
+        Ok(())
+    }
+
+    fn validate_sandbox_lighting(&self, lighting: &SandboxLightingData) -> Result<(), ProtocolError> {
+        for (field, value) in [
+            ("ambient", lighting.ambient),
+            ("building", lighting.building),
+            ("street", lighting.street),
+        ] {
+            if !matches!(value, 0 | 1) {
+                return Err(ProtocolError::ValidationError {
+                    field: field.to_string(),
+                    value: value as f64,
+                    min: 0.0,
+                    max: 1.0,
+                });
+            }
         }
         Ok(())
     }

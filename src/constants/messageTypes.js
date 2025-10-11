@@ -19,6 +19,7 @@ export const SEND_MESSAGE_TYPES = {
     VEHICLE_PATH_DISPLAY: 0x1007,    // 车辆路径显示控制
     CONSTRUCTION_MARKER: 0x1008,     // 施工标记
     VEHICLE_CAMERA_TOGGLE: 0x1009,   // 车载摄像头开关
+    SANDBOX_LIGHTING_CONTROL: 0x2003, // 沙盘灯光控制
 };
 
 // 车辆信息协议数据域定义 (55字节)
@@ -201,6 +202,17 @@ export const CONSTRUCTION_MARKER_PROTOCOL = {
     }
 };
 
+// 沙盘灯光控制协议数据域定义 (3字节)
+export const SANDBOX_LIGHTING_PROTOCOL = {
+    AMBIENT_OFFSET: 0,
+    BUILDING_OFFSET: 1,
+    STREET_OFFSET: 2,
+    TOTAL_SIZE: 3,
+
+    STATUS_OFF: 0,
+    STATUS_ON: 1,
+};
+
 // 协议常量
 export const PROTOCOL_CONSTANTS = {
     HEADER: [0xEF, 0xEF, 0xEF, 0xEF],        // 帧头
@@ -262,6 +274,7 @@ export default {
     VEHICLE_PATH_DISPLAY_PROTOCOL,
     VEHICLE_CAMERA_PROTOCOL,
     CONSTRUCTION_MARKER_PROTOCOL,
+    SANDBOX_LIGHTING_PROTOCOL,
     PROTOCOL_CONSTANTS,
     MessageTypeUtils
 };

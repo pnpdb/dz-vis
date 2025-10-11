@@ -1,5 +1,7 @@
 // 沙盘相关命令
 use crate::socket::{self, SandboxConnectionManager};
+use crate::services::sandbox::SandboxService;
+use crate::protocol_processing::types::SandboxLightingData;
 use crate::database::{VehicleDatabase, UpdateTrafficLightSettingsRequest, CreateOrUpdateSandboxServiceRequest, CreateSandboxCameraRequest, UpdateSandboxCameraRequest};
 use tauri::Manager;
 
@@ -94,6 +96,36 @@ pub async fn send_sandbox_exit_control(
         return Err("沙盘未连接".to_string());
     }
     socket::SocketServer::send_to_sandbox(&sandbox, 0x2001, &data)
+        .map(|_| "发送成功".to_string())
+        .map_err(|e| format!("发送失败: {}", e))
+}
+
+/// 发送沙盘灯光控制指令（0x2003）
+#[tauri::command]
+pub async fn send_sandbox_lighting_control(
+    app: tauri::AppHandle,
+    ambient: u8,
+    building: u8,
+    street: u8,
+) -> Result<String, String> {
+    for (name, value) in [("ambient", ambient), ("building", building), ("street", street)] {
+        if !matches!(value, 0 | 1) {
+            return Err(format!("{} 状态无效，必须为 0 或 1", name));
+        }
+    }
+
+    let sandbox = app.state::<SandboxConnectionManager>();
+    if sandbox.read().is_none() {
+        return Err("沙盘未连接".to_string());
+    }
+
+    let payload = SandboxService::new().build_lighting_payload(&SandboxLightingData {
+        ambient,
+        building,
+        street,
+    });
+
+    socket::SocketServer::send_to_sandbox(&sandbox, crate::protocol_processing::types::MessageTypes::SANDBOX_LIGHTING_CONTROL, &payload)
         .map(|_| "发送成功".to_string())
         .map_err(|e| format!("发送失败: {}", e))
 }

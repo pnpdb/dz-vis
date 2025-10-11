@@ -167,6 +167,7 @@
 import { ref, onMounted, watch, onBeforeUnmount, computed, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 import { TrafficLightAPI, SandboxAPI } from '@/utils/vehicleAPI.js';
+import { SANDBOX_LIGHTING_PROTOCOL } from '@/constants/messageTypes.js';
 import { invoke } from '@tauri-apps/api/core';
 import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log';
 
@@ -223,9 +224,43 @@ const trafficLightOptions = computed(() => {
 const lightSettings = ref({
     barrier: true, // 停车抬杠
     ambient: true, // 环境灯
-    building: false, // 建筑灯
+    building: true, // 建筑灯
     street: true, // 路灯
 });
+
+let pendingLightingPromise = Promise.resolve();
+
+const enqueueLightingUpdate = () => {
+    const payload = {
+        ambient: lightSettings.value.ambient ? SANDBOX_LIGHTING_PROTOCOL.STATUS_ON : SANDBOX_LIGHTING_PROTOCOL.STATUS_OFF,
+        building: lightSettings.value.building ? SANDBOX_LIGHTING_PROTOCOL.STATUS_ON : SANDBOX_LIGHTING_PROTOCOL.STATUS_OFF,
+        street: lightSettings.value.street ? SANDBOX_LIGHTING_PROTOCOL.STATUS_ON : SANDBOX_LIGHTING_PROTOCOL.STATUS_OFF,
+    };
+
+    pendingLightingPromise = pendingLightingPromise.then(async () => {
+        if (!window.socketManager?.sendSandboxLightingControl) {
+            return;
+        }
+        try {
+            await window.socketManager.sendSandboxLightingControl(payload);
+        } catch (error) {
+            console.error('❌ 发送沙盘灯光控制失败:', error);
+            ElMessage.error('发送灯光控制指令失败');
+            throw error;
+        }
+    });
+};
+
+watch(
+    () => [lightSettings.value.ambient, lightSettings.value.building, lightSettings.value.street],
+    (current, previous) => {
+        if (previous && current[0] === previous[0] && current[1] === previous[1] && current[2] === previous[2]) {
+            return;
+        }
+        enqueueLightingUpdate();
+    },
+    { immediate: true }
+);
 
 // 切换编号时加载该编号的时长
 const onTrafficLightChange = async () => {

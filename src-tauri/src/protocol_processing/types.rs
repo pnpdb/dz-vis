@@ -141,6 +141,8 @@ pub enum ParsedProtocolData {
     VehiclePathDisplay(VehiclePathDisplayData),
     /// 车辆摄像头开关
     VehicleCameraToggle(VehicleCameraToggleData),
+    /// 沙盘灯光控制
+    SandboxLighting(SandboxLightingData),
 }
 
 /// 出租车订单数据
@@ -202,6 +204,14 @@ pub struct ConstructionMarkerData {
     pub action: u8,
     pub x: f64,
     pub y: f64,
+}
+
+/// 沙盘灯光控制数据
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SandboxLightingData {
+    pub ambient: u8,
+    pub building: u8,
+    pub street: u8,
 }
 
 /// 协议处理性能统计
@@ -345,6 +355,7 @@ impl MessageTypes {
     pub const DATA_RECORDING: u16 = 0x0007;
     pub const CONSTRUCTION_MARKER: u16 = 0x0008;
     pub const VEHICLE_CAMERA_TOGGLE: u16 = 0x1009;
+    pub const SANDBOX_LIGHTING_CONTROL: u16 = 0x2003;
     
     /// 获取消息类型名称
     pub fn get_name(message_type: u16) -> &'static str {
@@ -358,6 +369,7 @@ impl MessageTypes {
             Self::DATA_RECORDING => "数据记录",
             Self::CONSTRUCTION_MARKER => "施工标记",
             Self::VEHICLE_CAMERA_TOGGLE => "车辆摄像头开关",
+            Self::SANDBOX_LIGHTING_CONTROL => "沙盘灯光控制",
             _ => "未知类型",
         }
     }
@@ -375,6 +387,7 @@ impl MessageTypes {
                 | Self::DATA_RECORDING
                 | Self::CONSTRUCTION_MARKER
                 | Self::VEHICLE_CAMERA_TOGGLE
+                | Self::SANDBOX_LIGHTING_CONTROL
         )
     }
 }

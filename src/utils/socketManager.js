@@ -7,7 +7,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import vehicleBridge from '@/utils/vehicleBridge.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
-import { RECEIVE_MESSAGE_TYPES, MessageTypeUtils, VEHICLE_CONTROL_PROTOCOL, SEND_MESSAGE_TYPES, AVP_PARKING_PROTOCOL, VEHICLE_CAMERA_PROTOCOL, DATA_RECORDING_PROTOCOL } from '@/constants/messageTypes.js';
+import { RECEIVE_MESSAGE_TYPES, MessageTypeUtils, VEHICLE_CONTROL_PROTOCOL, SEND_MESSAGE_TYPES, AVP_PARKING_PROTOCOL, VEHICLE_CAMERA_PROTOCOL, DATA_RECORDING_PROTOCOL, SANDBOX_LIGHTING_PROTOCOL } from '@/constants/messageTypes.js';
 import { ElMessage } from 'element-plus';
 import { createLogger, logger } from '@/utils/logger.js';
 import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log';
@@ -906,6 +906,23 @@ class SocketManager {
         const normalizedId = parseVehicleId(vehicleId, 0);
         if (!normalizedId) return false;
         return this.parallelOverride.has(normalizedId);
+    }
+
+    async sendSandboxLightingControl({ ambient, building, street }) {
+        const values = { ambient, building, street };
+        for (const [name, value] of Object.entries(values)) {
+            if (!Number.isInteger(value) || (value !== 0 && value !== 1)) {
+                throw new Error(`${name} 状态无效`);
+            }
+        }
+
+        try {
+            await invoke('send_sandbox_lighting_control', values);
+            socketLogger.info(`[SandboxLighting] 已发送灯光状态: 环境=${ambient}, 建筑=${building}, 路灯=${street}`);
+        } catch (error) {
+            socketLogger.error('发送沙盘灯光控制指令失败:', error);
+            throw error;
+        }
     }
 }
 

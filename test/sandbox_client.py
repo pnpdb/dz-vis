@@ -94,6 +94,12 @@ def main():
                     red_seconds = struct.unpack_from('<H', data, 1)[0]
                     green_seconds = struct.unpack_from('<H', data, 3)[0]
                     print(f"🚦 {ts} 收到 0x2002 指令: 红绿灯#{light_id}, 红灯{red_seconds}s, 绿灯{green_seconds}s")
+                elif mt == 0x2003 and len(data) >= 3:
+                    ambient, building, street = data[:3]
+                    def mk_text(flag, name):
+                        status = "开启" if flag else "关闭"
+                        return f"{name}:{status}"
+                    print(f"💡 {ts} 收到 0x2003 指令: {mk_text(ambient, '环境灯')}, {mk_text(building, '建筑灯')}, {mk_text(street, '路灯')}")
                 else:
                     print(f"ℹ️ {ts} 收到消息: 0x{mt:04X}, 数据长度: {len(data)}")
     finally:

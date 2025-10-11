@@ -158,12 +158,25 @@ impl ProtocolBuilder {
         self.update_stats(start_time);
         self.buffer.clone()
     }
-    
+
+    /// 构建沙盘灯光控制协议
+    pub fn build_sandbox_lighting(&mut self, lighting: &SandboxLightingData) -> Vec<u8> {
+        let start_time = current_timestamp_us();
+        self.buffer.clear();
+
+        self.buffer.push(lighting.ambient);
+        self.buffer.push(lighting.building);
+        self.buffer.push(lighting.street);
+
+        self.update_stats(start_time);
+        self.buffer.clone()
+    }
+ 
     /// 批量构建协议
     pub fn batch_build(&mut self, commands: &[ParsedProtocolData]) -> Vec<Vec<u8>> {
         let start_time = current_timestamp_us();
         let mut results = Vec::with_capacity(commands.len());
-        
+ 
         for command in commands {
             let data = match command {
                 ParsedProtocolData::VehicleControl(cmd) => self.build_vehicle_control(cmd),
@@ -175,11 +188,12 @@ impl ProtocolBuilder {
                 ParsedProtocolData::VehicleFunctionSetting(setting) => self.build_vehicle_function_setting(setting),
                 ParsedProtocolData::VehiclePathDisplay(path) => self.build_vehicle_path_display(path),
                 ParsedProtocolData::VehicleCameraToggle(toggle) => self.build_vehicle_camera_toggle(toggle),
+                ParsedProtocolData::SandboxLighting(lighting) => self.build_sandbox_lighting(lighting),
                 _ => continue,
             };
             results.push(data);
         }
-        
+ 
         self.stats.total_time_us += current_timestamp_us() - start_time;
         results
     }

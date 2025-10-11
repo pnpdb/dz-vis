@@ -198,7 +198,7 @@ class SocketManager {
         const position = parsed.position ?? { x: 0, y: 0 };
         const orientation = Number(parsed.orientation ?? 0);
         const battery = Number(parsed.battery ?? 0);
-        const gear = Number(parsed.gear ?? 0);
+        const gear = this.extractGear(parsed.gear);
         const steeringAngle = Number(parsed.steeringAngle ?? 0);
         const navigation = parsed.navigation ?? { code: 0, text: '未知状态' };
         const sensors = parsed.sensors ?? {};
@@ -255,7 +255,7 @@ class SocketManager {
             if (!close(previous.position?.y, nextState.position?.y)) return true;
             if (!close(previous.orientation, nextState.orientation)) return true;
             if (!close(previous.battery, nextState.battery)) return true;
-            if (Number(previous.gear) !== Number(nextState.gear)) return true;
+            if (previous.gear !== nextState.gear) return true;
             if (!close(previous.steeringAngle, nextState.steeringAngle)) return true;
             if (Number(previous.navigation?.code) !== Number(nextState.navigation?.code)) return true;
             if ((previous.sensors?.camera?.status ?? false) !== (nextState.sensors?.camera?.status ?? false)) return true;
@@ -922,6 +922,24 @@ class SocketManager {
         } catch (error) {
             socketLogger.error('发送沙盘灯光控制指令失败:', error);
             throw error;
+        }
+    }
+
+    extractGear(gearData) {
+        if (!gearData) return 'P';
+        if (typeof gearData === 'string') return gearData;
+        const value = Number(gearData.value ?? gearData);
+        switch (value) {
+            case 1: return 'P';
+            case 2: return 'R';
+            case 3: return 'N';
+            case 4: return 'D1';
+            case 5: return 'D2';
+            case 6: return 'D3';
+            case 7: return 'D4';
+            case 8: return 'D5';
+            case 9: return 'D';
+            default: return 'P';
         }
     }
 }

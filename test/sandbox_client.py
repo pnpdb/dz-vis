@@ -16,10 +16,51 @@ import socket
 import struct
 import sys
 import time
+import random
+import threading
 from datetime import datetime
 
 HEADER = b'\xEF\xEF\xEF\xEF'
 FOOTER = b'\xFE\xFE\xFE\xFE'
+
+LIGHT_COLORS = [1, 2, 3]  # 1:红, 2:绿, 3:黄
+
+def build_traffic_light_packet(light_count: int) -> bytes:
+    lights = []
+    for idx in range(light_count):
+        color = random.choice(LIGHT_COLORS)
+        remaining = random.randint(5, 30)
+        lights.append((color, remaining))
+
+    payload = bytearray()
+    for color, remaining in lights:
+        payload.append(color)
+        payload.append(remaining)
+
+    timestamp = int(time.time() * 1000)
+    message_type = 0x3001
+
+    packet = bytearray()
+    packet.extend(HEADER)
+    packet.append(0x10)
+    packet.extend(timestamp.to_bytes(8, 'little'))
+    packet.extend(message_type.to_bytes(2, 'little'))
+    packet.extend(len(payload).to_bytes(4, 'little'))
+    packet.extend(payload)
+
+    # CRC16计算
+    crc_data = packet[4:]
+    crc = 0xFFFF
+    for byte in crc_data:
+        crc ^= byte << 8
+        for _ in range(8):
+            if crc & 0x8000:
+                crc = ((crc << 1) ^ 0x1021) & 0xFFFF
+            else:
+                crc = (crc << 1) & 0xFFFF
+    packet.extend(crc.to_bytes(2, 'little'))
+    packet.extend(FOOTER)
+    return bytes(packet)
 
 def parse_packet(packet: bytes):
     if len(packet) < 25:
@@ -44,13 +85,30 @@ def parse_packet(packet: bytes):
         'data': data,
     }
 
+def send_traffic_light_loop(sock, light_count):
+    while True:
+        actual_count = light_count if light_count else random.randint(1, 3)
+        packet = build_traffic_light_packet(actual_count)
+        try:
+            sock.sendall(packet)
+        except Exception as e:
+            print(f"❌ 发送 0x3001 失败: {e}")
+            break
+        time.sleep(1)
+
+
 def main():
     host = sys.argv[1] if len(sys.argv) > 1 else '192.168.1.12'
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 8888
+    light_count = int(sys.argv[3]) if len(sys.argv) > 3 else 0
+    light_count = max(0, min(light_count, 3))
 
     print(f"🧪 沙盘客户端连接 {host}:{port}")
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((host, port))
+
+    sender_thread = threading.Thread(target=send_traffic_light_loop, args=(s, light_count), daemon=True)
+    sender_thread.start()
 
     try:
         buf = bytearray()
@@ -94,6 +152,14 @@ def main():
                     red_seconds = struct.unpack_from('<H', data, 1)[0]
                     green_seconds = struct.unpack_from('<H', data, 3)[0]
                     print(f"🚦 {ts} 收到 0x2002 指令: 红绿灯#{light_id}, 红灯{red_seconds}s, 绿灯{green_seconds}s")
+                elif mt == 0x3001:
+                    count = len(data) // 2
+                    print(f"🚥 {ts} 收到 0x3001 指令: 共 {count} 个红绿灯")
+                    for i in range(count):
+                        color = data[i * 2]
+                        remaining = data[i * 2 + 1]
+                        color_text = {1: '红', 2: '绿', 3: '黄'}.get(color, f'未知({color})')
+                        print(f"   - 灯{i+1}: {color_text}, 剩余 {remaining} 秒")
                 elif mt == 0x2003 and len(data) >= 3:
                     ambient, building, street = data[:3]
                     def mk_text(flag, name):

@@ -1,6 +1,7 @@
 use super::protocol::{build_message, ProtocolParser, SocketMessage};
 use crate::database::VehicleDatabase;
-use crate::protocol_processing::types::{MessageTypes, VehicleInfo, ProtocolConstants};
+use crate::protocol_processing::types::{MessageTypes, VehicleInfo, ProtocolConstants, ParsedProtocolData, GearPosition};
+use crate::protocol_processing::parser::ProtocolParser as ProcessingProtocolParser;
 use parking_lot::RwLock;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -234,9 +235,11 @@ impl SocketServer {
             });
         }
         
-        let mut parser = ProtocolParser::new();
+        let mut vehicle_parser = ProtocolParser::new();
+        let mut sandbox_parser = if is_sandbox { Some(ProtocolParser::new()) } else { None };
+ 
         let mut buffer = [0u8; 4096]; // 增加缓冲区大小以处理更大的数据包
-        
+ 
         loop {
             tokio::select! {
                 // 接收数据
@@ -253,10 +256,16 @@ impl SocketServer {
                             break;
                         }
                         Ok(n) => {
-                            if !is_sandbox {
-                                parser.feed_data(&buffer[..n]);
-                                // 尝试解析消息（沙盘连接不进行解析）
-                                while let Ok(Some(message)) = parser.try_parse_message() {
+                            if is_sandbox {
+                                if let Some(parser) = sandbox_parser.as_mut() {
+                                    parser.feed_data(&buffer[..n]);
+                                    while let Ok(Some(message)) = parser.try_parse_message() {
+                                        sandbox_logger::handle_parsed_message(&message);
+                                    }
+                                }
+                            } else {
+                                vehicle_parser.feed_data(&buffer[..n]);
+                                while let Ok(Some(message)) = vehicle_parser.try_parse_message() {
                                     if let Some((new_id, new_name)) = Self::handle_message(
                                         message,
                                         vehicle_id,
@@ -389,6 +398,32 @@ impl SocketServer {
                 parsed_payload = Some(info_json);
             } else {
                 return None;
+            }
+        } else if message.message_type == MessageTypes::SANDBOX_TRAFFIC_LIGHT_STATUS {
+            let mut parser = ProcessingProtocolParser::new(false);
+            let result = parser.parse_protocol(message.message_type, &message.data);
+            if result.success {
+                if let Some(ParsedProtocolData::SandboxTrafficLightStatus(status)) = result.data {
+                    info!("沙盘红绿灯状态: {} 个灯", status.lights.len());
+                    for light in &status.lights {
+                        let color_text = match light.color {
+                            1 => "红灯",
+                            2 => "绿灯",
+                            3 => "黄灯",
+                            other => {
+                                warn!("沙盘红绿灯状态未知颜色 {}", other);
+                                "未知"
+                            }
+                        };
+                        info!("  - 灯{}: {} 剩余 {} 秒", light.index, color_text, light.remaining);
+                    }
+                    parsed_payload = Some(serde_json::json!({
+                        "type": "sandbox_traffic_light_status",
+                        "lights": status.lights
+                    }));
+                }
+            } else if let Some(err) = result.error {
+                warn!("沙盘红绿灯状态解析失败: {}", err);
             }
         }
  
@@ -543,6 +578,29 @@ impl SocketServer {
     }
 }
 
+mod sandbox_logger {
+    use super::*;
+
+    pub fn handle_parsed_message(message: &SocketMessage) {
+        let mut processing_parser = ProcessingProtocolParser::new(false);
+        let result = processing_parser.parse_protocol(message.message_type, &message.data);
+        if message.message_type == MessageTypes::SANDBOX_TRAFFIC_LIGHT_STATUS {
+            if let Some(ParsedProtocolData::SandboxTrafficLightStatus(status)) = result.data {
+                log::info!("[Sandbox] 红绿灯状态: {}", status.lights.len());
+                for light in status.lights {
+                    let color_text = match light.color {
+                        1 => "红",
+                        2 => "绿",
+                        3 => "黄",
+                        _ => "未知",
+                    };
+                    log::info!("  - 灯{}: {} 剩余 {} 秒", light.index, color_text, light.remaining);
+                }
+            }
+        }
+    }
+}
+
 fn floats_close(a: f64, b: f64, epsilon: f64) -> bool {
     (a - b).abs() <= epsilon
 }
@@ -585,7 +643,8 @@ fn parse_vehicle_info_payload(
     let position_y = read_f64(ProtocolConstants::VEHICLE_INFO_POSITION_Y_OFFSET);
     let orientation = read_f64(ProtocolConstants::VEHICLE_INFO_ORIENTATION_OFFSET);
     let battery = read_f64(ProtocolConstants::VEHICLE_INFO_BATTERY_OFFSET);
-    let gear = view[ProtocolConstants::VEHICLE_INFO_GEAR_OFFSET];
+    let gear_raw = view[ProtocolConstants::VEHICLE_INFO_GEAR_OFFSET];
+    let gear = GearPosition::from_u8(gear_raw);
     let steering_angle = read_f64(ProtocolConstants::VEHICLE_INFO_STEERING_ANGLE_OFFSET);
     let nav_status = view[ProtocolConstants::VEHICLE_INFO_NAV_STATUS_OFFSET];
     let camera_status = view[ProtocolConstants::VEHICLE_INFO_CAMERA_STATUS_OFFSET] != 0;
@@ -627,17 +686,17 @@ fn parse_vehicle_info_payload(
     Some(serde_json::json!({
         "vehicle_id": info.vehicle_id,
         "speed": info.speed,
-        "position": {
-            "x": info.position_x,
-            "y": info.position_y
-        },
+        "position": {"x": info.position_x, "y": info.position_y},
         "orientation": info.orientation,
         "battery": info.battery,
-        "gear": info.gear,
+        "gear": {
+            "value": gear.to_u8(),
+            "label": gear.label(),
+        },
         "steeringAngle": info.steering_angle,
         "navigation": {
             "code": info.nav_status,
-            "text": nav_status_text(info.nav_status)
+            "text": nav_status_text(info.nav_status),
         },
         "sensors": {
             "camera": {

@@ -106,6 +106,7 @@ impl ProtocolValidator {
             ParsedProtocolData::VehicleFunctionSetting(_) | ParsedProtocolData::VehiclePathDisplay(_) => Ok(()),
             ParsedProtocolData::VehicleCameraToggle(toggle) => self.validate_vehicle_camera_toggle(toggle),
             ParsedProtocolData::SandboxLighting(lighting) => self.validate_sandbox_lighting(lighting),
+            ParsedProtocolData::SandboxTrafficLightStatus(status) => self.validate_sandbox_traffic_light_status(status),
         }
     }
 
@@ -141,6 +142,28 @@ impl ProtocolValidator {
                     value: value as f64,
                     min: 0.0,
                     max: 1.0,
+                });
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_sandbox_traffic_light_status(&self, status: &SandboxTrafficLightStatusData) -> Result<(), ProtocolError> {
+        for light in &status.lights {
+            if !matches!(light.color, 1 | 2 | 3) {
+                return Err(ProtocolError::ValidationError {
+                    field: format!("light_color_{}", light.index),
+                    value: light.color as f64,
+                    min: 1.0,
+                    max: 3.0,
+                });
+            }
+            if light.remaining > 120 {
+                return Err(ProtocolError::ValidationError {
+                    field: format!("light_remaining_{}", light.index),
+                    value: light.remaining as f64,
+                    min: 0.0,
+                    max: 120.0,
                 });
             }
         }
@@ -370,16 +393,16 @@ impl ProtocolValidator {
     }
     
     /// 验证档位范围
-    fn validate_gear_range(&self, gear: u8) -> Result<(), ProtocolError> {
-        if gear > 4 { // 0: 停车, 1: 前进, 2: 后退, 3: 空档, 4: 驻车
-            Err(ProtocolError::ValidationError {
+    fn validate_gear_range(&self, gear: GearPosition) -> Result<(), ProtocolError> {
+        match gear {
+            GearPosition::Park | GearPosition::Reverse | GearPosition::Neutral => Ok(()),
+            GearPosition::DriveLevel(level) if (1..=6).contains(&level) => Ok(()),
+            _ => Err(ProtocolError::ValidationError {
                 field: "gear".to_string(),
-                value: gear as f64,
-                min: 0.0,
-                max: 4.0,
-            })
-        } else {
-            Ok(())
+                value: gear.to_u8() as f64,
+                min: 1.0,
+                max: 9.0,
+            }),
         }
     }
     
@@ -424,8 +447,8 @@ impl ProtocolValidator {
             });
         }
         
-        // 逻辑2: 如果档位是停车档(0)，速度应该为0
-        if info.gear == 0 && info.speed > 0.0 {
+        // 逻辑2: 如果档位是停车档P，速度应该为0
+        if matches!(info.gear, GearPosition::Park) && info.speed > 0.0 {
             return Err(ProtocolError::ValidationError {
                 field: "gear_speed_logic".to_string(),
                 value: info.speed,

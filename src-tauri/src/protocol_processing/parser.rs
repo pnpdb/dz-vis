@@ -59,6 +59,7 @@ impl ProtocolParser {
             MessageTypes::AVP_PICKUP => self.parse_avp_pickup(data),
             MessageTypes::DATA_RECORDING => self.parse_data_recording(data),
             MessageTypes::CONSTRUCTION_MARKER => self.parse_construction_marker(data),
+            MessageTypes::SANDBOX_TRAFFIC_LIGHT_STATUS => self.parse_sandbox_traffic_light_status(data),
             _ => Err(ProtocolError::InvalidMessageType { message_type }),
         };
         
@@ -100,7 +101,8 @@ impl ProtocolParser {
         let position_y = self.read_f64_le(data, ProtocolConstants::VEHICLE_INFO_POSITION_Y_OFFSET)?;
         let orientation = self.read_f64_le(data, ProtocolConstants::VEHICLE_INFO_ORIENTATION_OFFSET)?;
         let battery = self.read_f64_le(data, ProtocolConstants::VEHICLE_INFO_BATTERY_OFFSET)?;
-        let gear = data[ProtocolConstants::VEHICLE_INFO_GEAR_OFFSET];
+        let gear_raw = data[ProtocolConstants::VEHICLE_INFO_GEAR_OFFSET];
+        let gear = GearPosition::from_u8(gear_raw);
         let steering_angle = self.read_f64_le(data, ProtocolConstants::VEHICLE_INFO_STEERING_ANGLE_OFFSET)?;
         let nav_status = data[ProtocolConstants::VEHICLE_INFO_NAV_STATUS_OFFSET];
         
@@ -296,6 +298,31 @@ impl ProtocolParser {
         };
         
         Ok(ParsedProtocolData::ConstructionMarker(construction_marker))
+    }
+
+    /// 解析沙盘红绿灯状态协议
+    fn parse_sandbox_traffic_light_status(&mut self, data: &[u8]) -> Result<ParsedProtocolData, ProtocolError> {
+        if data.is_empty() {
+            return Ok(ParsedProtocolData::SandboxTrafficLightStatus(SandboxTrafficLightStatusData { lights: Vec::new() }));
+        }
+
+        if data.len() % 2 != 0 {
+            return Err(ProtocolError::InvalidPayloadLength { length: data.len() });
+        }
+
+        let count = data.len() / 2;
+        let mut lights = Vec::with_capacity(count);
+        for i in 0..count {
+            let color = data[i * 2];
+            let remaining = data[i * 2 + 1];
+            lights.push(SandboxTrafficLightState {
+                index: (i + 1) as u8,
+                color,
+                remaining,
+            });
+        }
+
+        Ok(ParsedProtocolData::SandboxTrafficLightStatus(SandboxTrafficLightStatusData { lights }))
     }
     
     /// 零拷贝读取小端序f64

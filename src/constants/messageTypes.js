@@ -30,7 +30,7 @@ export const VEHICLE_INFO_PROTOCOL = {
     POSITION_Y_OFFSET: 17,           // 位置Y偏移 (8字节, DOUBLE)
     ORIENTATION_OFFSET: 25,          // 朝向偏移 (8字节, DOUBLE)
     BATTERY_OFFSET: 33,              // 电池电量偏移 (8字节, DOUBLE)
-    GEAR_OFFSET: 41,                 // 档位偏移 (1字节, UINT8) 1:P 2:R 3:N 4:D
+    GEAR_OFFSET: 41,                 // 档位偏移 (1字节, UINT8)
     STEERING_ANGLE_OFFSET: 42,       // 方向盘转角偏移 (8字节, DOUBLE)
     NAV_STATUS_OFFSET: 50,           // 导航状态偏移 (1字节)
     CAMERA_STATUS_OFFSET: 51,        // 相机状态偏移 (1字节)

@@ -18,7 +18,7 @@ pub struct VehicleInfo {
     /// 电池电量 (0.0-100.0)
     pub battery: f64,
     /// 档位
-    pub gear: u8,
+    pub gear: GearPosition,
     /// 方向盘角度
     pub steering_angle: f64,
     /// 导航状态
@@ -27,6 +27,50 @@ pub struct VehicleInfo {
     pub sensors: SensorStatus,
     /// 车位占用状态
     pub parking_slot: u8,
+}
+
+/// 档位定义
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum GearPosition {
+    Park,
+    Reverse,
+    Neutral,
+    DriveLevel(u8),
+}
+
+impl GearPosition {
+    pub fn from_u8(value: u8) -> Self {
+        match value {
+            1 => GearPosition::Park,
+            2 => GearPosition::Reverse,
+            3 => GearPosition::Neutral,
+            4 | 5 | 6 | 7 | 8 | 9 => GearPosition::DriveLevel(value.saturating_sub(3)),
+            _ => GearPosition::DriveLevel(0),
+        }
+    }
+
+    pub fn to_u8(self) -> u8 {
+        match self {
+            GearPosition::Park => 1,
+            GearPosition::Reverse => 2,
+            GearPosition::Neutral => 3,
+            GearPosition::DriveLevel(level) => level.saturating_add(3),
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            GearPosition::Park => "P",
+            GearPosition::Reverse => "R",
+            GearPosition::Neutral => "N",
+            GearPosition::DriveLevel(1) => "D1",
+            GearPosition::DriveLevel(2) => "D2",
+            GearPosition::DriveLevel(3) => "D3",
+            GearPosition::DriveLevel(4) => "D4",
+            GearPosition::DriveLevel(5) => "D5",
+            GearPosition::DriveLevel(_) => "D",
+        }
+    }
 }
 
 /// 传感器状态
@@ -143,6 +187,8 @@ pub enum ParsedProtocolData {
     VehicleCameraToggle(VehicleCameraToggleData),
     /// 沙盘灯光控制
     SandboxLighting(SandboxLightingData),
+    /// 沙盘红绿灯状态
+    SandboxTrafficLightStatus(SandboxTrafficLightStatusData),
 }
 
 /// 出租车订单数据
@@ -214,6 +260,20 @@ pub struct SandboxLightingData {
     pub street: u8,
 }
 
+/// 单个红绿灯状态
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SandboxTrafficLightState {
+    pub index: u8,
+    pub color: u8,
+    pub remaining: u8,
+}
+
+/// 沙盘红绿灯状态集合
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SandboxTrafficLightStatusData {
+    pub lights: Vec<SandboxTrafficLightState>,
+}
+
 /// 协议处理性能统计
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProtocolProcessingStats {
@@ -244,7 +304,27 @@ pub struct BatchProcessingResult {
     pub results: Vec<ProtocolParsingResult>,
 }
 
-/// 协议常量定义
+pub fn nav_status_text(status: u8) -> &'static str {
+    match status {
+        1 => "正常行驶中（空载模式倒车入库）",
+        2 => "正常行驶中（空载模式不倒车入库）",
+        3 => "接客模式，去起点接客",
+        4 => "接客模式，去终点送客",
+        5 => "去往充电车位",
+        6 => "充电中",
+        7 => "去往定车位路上",
+        8 => "车位停车中",
+        9 => "到达接客起点",
+        10 => "到达接客终点",
+        11 => "正在倒车入库",
+        12 => "正在出库中",
+        13 => "正在倒车入库",
+        14 => "出库完成",
+        15 => "平行驾驶模式",
+        _ => "未知状态",
+    }
+}
+
 pub struct ProtocolConstants;
 
 impl ProtocolConstants {
@@ -331,7 +411,10 @@ pub enum ProtocolError {
         min: f64,
         max: f64,
     },
-    
+
+    #[error("数据长度无效: {length}")]
+    InvalidPayloadLength { length: usize },
+
     #[error("零拷贝转换失败: {0}")]
     ZeroCopyError(String),
     
@@ -356,6 +439,7 @@ impl MessageTypes {
     pub const CONSTRUCTION_MARKER: u16 = 0x0008;
     pub const VEHICLE_CAMERA_TOGGLE: u16 = 0x1009;
     pub const SANDBOX_LIGHTING_CONTROL: u16 = 0x2003;
+    pub const SANDBOX_TRAFFIC_LIGHT_STATUS: u16 = 0x3001;
     
     /// 获取消息类型名称
     pub fn get_name(message_type: u16) -> &'static str {
@@ -370,6 +454,7 @@ impl MessageTypes {
             Self::CONSTRUCTION_MARKER => "施工标记",
             Self::VEHICLE_CAMERA_TOGGLE => "车辆摄像头开关",
             Self::SANDBOX_LIGHTING_CONTROL => "沙盘灯光控制",
+            Self::SANDBOX_TRAFFIC_LIGHT_STATUS => "沙盘红绿灯状态",
             _ => "未知类型",
         }
     }
@@ -388,6 +473,7 @@ impl MessageTypes {
                 | Self::CONSTRUCTION_MARKER
                 | Self::VEHICLE_CAMERA_TOGGLE
                 | Self::SANDBOX_LIGHTING_CONTROL
+                | Self::SANDBOX_TRAFFIC_LIGHT_STATUS
         )
     }
 }

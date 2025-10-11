@@ -192,13 +192,6 @@ const vehicleConnected = ref(false)
 const currentSpeed = ref(0)
 const steeringAngle = ref(0)
 const batteryLevel = ref(0)
-const gearMap = {
-  1: 'P',
-  2: 'R',
-  3: 'N',
-  4: 'D'
-}
-
 const currentGear = ref('P')
 const vehicleCoords = ref({ x: 540, y: 392.5 })
 const vehiclePosition = computed(() => {
@@ -299,8 +292,8 @@ const handleVehicleInfoUpdate = (payload) => {
   if (typeof detail.battery === 'number') {
     batteryLevel.value = Math.max(0, Math.min(100, Math.round(detail.battery)))
   }
-  const numericGear = Number(detail.gear)
-  currentGear.value = gearMap[numericGear] ?? detail.gear ?? 'P'
+  const gear = detail.gear ?? 'P'
+  currentGear.value = typeof gear === 'string' ? gear : String(gear)
   if (detail.position?.x !== undefined && detail.position?.y !== undefined) {
     vehicleCoords.value = { x: detail.position.x, y: detail.position.y }
   }

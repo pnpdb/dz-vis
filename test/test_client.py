@@ -437,7 +437,7 @@ def create_vehicle_info_data(vehicle_id=1):
     data.extend(struct.pack('<d', battery))
     
     # 档位 (1字节, UINT8) - 1:P 2:R 3:N 4:D
-    gear = random.choice([1, 2, 3, 4])
+    gear = random.choice([1, 2, 3, 4, 5, 6, 7, 8, 9])
     data.extend(struct.pack('<B', gear))
     
     # 方向盘转角 (8字节, DOUBLE) - 角度 -540~540 示例

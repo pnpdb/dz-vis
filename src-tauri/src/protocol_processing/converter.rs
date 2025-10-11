@@ -143,7 +143,7 @@ impl DataConverter {
             position_y: f64::from_le_bytes(raw.position_y),
             orientation: f64::from_le_bytes(raw.orientation),
             battery: f64::from_le_bytes(raw.battery),
-            gear: raw.gear,
+            gear: GearPosition::from_u8(raw.gear),
             steering_angle: f64::from_le_bytes(raw.steering_angle),
             nav_status: raw.nav_status,
             sensors: SensorStatus {

@@ -67,7 +67,9 @@ app.use(createPinia());
 app.use(router);
 
 app.use(ElementPlus, {
-    // Element Plus configuration can go here
+    message: {
+        offset: 40  // 为自定义标题栏（30px）留出空间，额外留10px边距
+    }
 });
 
 // 全局注册Font Awesome组件

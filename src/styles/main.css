@@ -171,6 +171,18 @@ div[class*="el-dialog"] {
     background: rgba(0, 10, 20, 0.8) !important;
     backdrop-filter: blur(8px) !important;
 }
+
+/* 调整 Element Plus Message 组件位置，避免被自定义标题栏遮挡 */
+.el-message {
+    top: 50px !important;  /* 标题栏30px + 额外边距20px */
+    z-index: 10001 !important;  /* 确保在标题栏之上 */
+}
+
+/* 调整 Element Plus Notification 组件位置 */
+.el-notification {
+    top: 50px !important;  /* 标题栏30px + 额外边距20px */
+    z-index: 10001 !important;
+}
 .container {
     margin: 0 auto;
     display: flex;

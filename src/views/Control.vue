@@ -251,15 +251,13 @@ const enqueueLightingUpdate = () => {
     });
 };
 
+// 监听灯光设置变化，只在用户手动操作时发送协议
 watch(
     () => [lightSettings.value.ambient, lightSettings.value.building, lightSettings.value.street],
-    (current, previous) => {
-        if (previous && current[0] === previous[0] && current[1] === previous[1] && current[2] === previous[2]) {
-            return;
-        }
+    () => {
+        // 只在用户手动操作按钮时发送协议，不在初始化时发送
         enqueueLightingUpdate();
-    },
-    { immediate: true }
+    }
 );
 
 // 切换编号时加载该编号的时长

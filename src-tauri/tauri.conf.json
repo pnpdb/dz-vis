@@ -30,7 +30,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; frame-src 'self' asset:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: asset:; script-src 'self' 'unsafe-eval'; connect-src 'self' ws: wss: https:;",
+      "csp": "default-src 'self'; frame-src 'self' asset:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: asset:; script-src 'self' 'unsafe-eval'; connect-src 'self' ipc: blob: ws: wss: https: tauri:;",
       "dangerousDisableAssetCspModification": false
     }
   },

@@ -1,5 +1,8 @@
 <template>
     <div class="main-layout">
+        <!-- 自定义标题栏 -->
+        <TitleBar />
+        
         <!-- 科技背景层 -->
         <div class="tech-background">
             <div class="grid-overlay"></div>
@@ -87,6 +90,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed, defineAsyncComponent, Suspense } from 'vue';
 import { useRoute } from 'vue-router';
+import TitleBar from '@/components/TitleBar.vue';
 import Header from '@/components/Header.vue';
 import Map from '@/views/Map.vue';
 import { error as jsError } from '@tauri-apps/plugin-log';

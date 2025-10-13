@@ -57,7 +57,7 @@ const closeWindow = async () => {
     left: 0;
     right: 0;
     height: 30px;
-    background-color: #181818;
+    background-color: #222222;
     display: flex;
     align-items: center;
     z-index: 10000;

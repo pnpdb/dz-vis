@@ -333,6 +333,25 @@ pub fn run() {
 
             // UDP视频服务器自动启动已移至媒体命令模块，可通过API手动启动
 
+            // 在 Linux 上显式设置窗口图标
+            #[cfg(target_os = "linux")]
+            {
+                if let Some(window) = app.get_webview_window("main") {
+                    use tauri::Manager;
+                    
+                    // 从嵌入的资源中加载图标
+                    if let Some(icon_rgba) = app.default_window_icon() {
+                        if let Err(e) = window.set_icon(icon_rgba.clone()) {
+                            warn!("⚠️ 设置窗口图标失败: {}", e);
+                        } else {
+                            info!("✅ Linux: 窗口图标已设置");
+                        }
+                    } else {
+                        warn!("⚠️ 未找到默认窗口图标");
+                    }
+                }
+            }
+
             #[cfg(debug_assertions)]
             {
                 let window = app.get_webview_window("main").unwrap();

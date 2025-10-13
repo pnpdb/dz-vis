@@ -42,7 +42,8 @@
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
-      "icons/icon.ico"
+      "icons/icon.ico",
+      "icons/icon.png"
     ],
     "publisher": "DZ Technologies",
     "copyright": "© 2025 DZ Technologies. All rights reserved.",
@@ -50,6 +51,14 @@
     "shortDescription": "Car Management System",
     "longDescription": "A comprehensive car management system for autonomous vehicle monitoring and control.",
     "externalBin": [],
-    "resources": []
+    "resources": [],
+    "linux": {
+      "deb": {
+        "depends": []
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    }
   }
 }

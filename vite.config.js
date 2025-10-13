@@ -15,6 +15,9 @@ export default defineConfig(async () => ({
     },
   },
 
+  // Public directory for static assets
+  publicDir: 'public',
+  
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors
@@ -39,15 +42,19 @@ export default defineConfig(async () => ({
 
   // Build optimizations
   build: {
-    // Target modern browsers
-    target: ['es2020', 'chrome87', 'firefox78', 'safari14'],
+    // Target modern browsers that support top-level await
+    target: ['es2022', 'chrome89', 'firefox89', 'safari15'],
     // Generate sourcemaps for better debugging
     sourcemap: process.env.NODE_ENV === 'development',
     // Optimize CSS
     cssCodeSplit: true,
+    // Copy public directory assets
+    copyPublicDir: true,
     // Rollup options
     rollupOptions: {
       output: {
+        // Support top-level await
+        format: 'es',
         // Manual chunks for better caching and loading
         manualChunks: {
           // Vue核心库

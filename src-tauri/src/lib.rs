@@ -259,7 +259,13 @@ pub fn run() {
             get_message_types_config_command,
             get_receive_message_types,
             get_send_message_types,
-            get_protocol_constants
+            get_protocol_constants,
+            // 车辆状态管理命令
+            is_vehicle_state_changed,
+            batch_check_vehicle_states,
+            // 批量操作命令
+            batch_send_to_vehicles,
+            batch_broadcast_to_vehicles
         ])
         .setup(move |app| {
             info!("应用启动: {}", env!("CARGO_PKG_NAME"));

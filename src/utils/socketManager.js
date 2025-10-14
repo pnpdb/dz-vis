@@ -14,6 +14,7 @@ import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } fr
 import logHelper from '@/utils/logHelper.js'
 import { normalizeVehicleList, parseVehicleId } from '@/utils/vehicleTypes.js'
 import { useCarStore } from '@/stores/car.js'
+import { throttle, createThrottledEmitter } from '@/utils/eventThrottle.js';
 
 const socketLogger = createLogger('SocketManager');
 const bytesToHex = (bytes) => Array.from(bytes || [], (b) => b.toString(16).padStart(2, '0')).join(' ');
@@ -25,6 +26,13 @@ class SocketManager {
         this.pendingCameraPromise = Promise.resolve(); // For sequentializing camera toggle commands
         this.messageHandlers = new Map();
         this.carStore = null;
+        
+        // 创建节流的事件发射器（性能优化）
+        this.throttledEmitters = {
+            vehicleInfo: createThrottledEmitter(eventBus, EVENTS.VEHICLE_INFO_UPDATE, 50), // 50ms节流
+            connectionStatus: createThrottledEmitter(eventBus, EVENTS.VEHICLE_CONNECTION_STATUS, 100),
+            onlineCountChanged: createThrottledEmitter(eventBus, EVENTS.ONLINE_VEHICLES_COUNT_CHANGED, 200),
+        };
         
         // 设置默认消息处理器
         this.setupDefaultHandlers();
@@ -229,7 +237,8 @@ class SocketManager {
             `车辆:${vehicleId} 速:${speed.toFixed(3)} 位置:(${position.x?.toFixed?.(2) ?? position.x},${position.y?.toFixed?.(2) ?? position.y}) 电:${battery.toFixed?.(1) ?? battery}%`
         ], { throttle: true, throttleKey: `vinfo-ok-${vehicleId}`, interval: 500 });
 
-        eventBus.emit(EVENTS.VEHICLE_INFO_UPDATE, vehicleInfo);
+        // 使用节流的事件发射器（性能优化）
+        this.throttledEmitters.vehicleInfo(vehicleInfo);
     }
 
     /**
@@ -357,15 +366,14 @@ class SocketManager {
             lastSeen: Date.now()
         });
         
-        // 触发车辆连接状态变化事件
-        eventBus.emit(EVENTS.VEHICLE_CONNECTION_STATUS, {
+        // 使用节流的事件发射器（性能优化）
+        this.throttledEmitters.connectionStatus({
             carId,
             isConnected,
             timestamp: Date.now()
         });
 
-        // 触发在线车辆数量变化事件
-        eventBus.emit(EVENTS.ONLINE_VEHICLES_COUNT_CHANGED, {
+        this.throttledEmitters.onlineCountChanged({
             count: store.getOnlineVehicleCount(),
             vehicleIds: store.getOnlineVehicleIds(),
             timestamp: Date.now()

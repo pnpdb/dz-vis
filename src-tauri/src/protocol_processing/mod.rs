@@ -21,4 +21,4 @@ pub use builder::ProtocolBuilder;
 pub use validator::ProtocolValidator;
 pub use converter::DataConverter;
 pub use batch_processor::BatchProcessor;
-pub use message_types_config::{get_message_types_config, MessageTypesConfig};
+pub use message_types_config::get_message_types_config;

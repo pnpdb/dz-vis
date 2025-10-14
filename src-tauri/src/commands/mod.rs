@@ -9,6 +9,7 @@ pub mod media;
 pub mod video_processing;
 pub mod protocol_processing;
 pub mod protocol_config;
+pub mod vehicle_state;
 
 // 导出命令供 lib.rs 使用
 pub use system::{
@@ -29,7 +30,8 @@ pub use vehicle::{
     get_vehicle_online_stats, get_driving_behavior_stats, get_vehicle_server_ports,
     send_vehicle_control_command, send_data_recording_command,
     send_vehicle_function_setting_command, send_vehicle_path_display_command,
-    send_vehicle_camera_toggle_command
+    send_vehicle_camera_toggle_command,
+    batch_send_to_vehicles, batch_broadcast_to_vehicles,
 };
 
 pub use sandbox::{
@@ -64,8 +66,12 @@ pub use protocol_processing::{
 
 // 协议配置命令
 pub use protocol_config::{
-    get_message_types_config_command,
-    get_protocol_constants,
-    get_receive_message_types,
-    get_send_message_types,
+    get_message_types_config_command, get_protocol_constants,
+    get_receive_message_types, get_send_message_types,
+};
+
+// 车辆状态管理命令
+pub use vehicle_state::{
+    is_vehicle_state_changed,
+    batch_check_vehicle_states,
 };

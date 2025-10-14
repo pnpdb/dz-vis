@@ -594,4 +594,110 @@ pub async fn send_vehicle_camera_toggle_command(
         .map(|_| "车辆摄像头开关指令发送成功".to_string())
 }
 
+/// 批量发送消息给多个车辆（性能优化）
+/// 并发发送，减少IPC开销
+#[tauri::command]
+pub async fn batch_send_to_vehicles(
+    app: tauri::AppHandle,
+    vehicles: Vec<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    use futures_util::future::join_all;
+    
+    let connections = app.state::<ConnectionManager>();
+    
+    // 并发发送所有消息
+    let tasks: Vec<_> = vehicles
+        .into_iter()
+        .filter_map(|v| {
+            let vehicle_id = v.get("vehicle_id")?.as_u64()? as i32;
+            let message_type = v.get("message_type")?.as_u64()? as u16;
+            let data = v.get("data")?
+                .as_array()?
+                .iter()
+                .filter_map(|d| d.as_u64().map(|n| n as u8))
+                .collect::<Vec<u8>>();
+            
+            Some((vehicle_id, message_type, data))
+        })
+        .map(|(vehicle_id, message_type, data)| {
+            let conns = connections.inner().clone();
+            async move {
+                socket::SocketServer::send_to_vehicle(&conns, vehicle_id, message_type, &data)
+                    .map(|_| vehicle_id)
+                    .map_err(|e| (vehicle_id, e))
+            }
+        })
+        .collect();
+    
+    let results = join_all(tasks).await;
+    
+    let mut success_count = 0;
+    let mut errors = Vec::new();
+    
+    for result in results {
+        match result {
+            Ok(_) => success_count += 1,
+            Err((vehicle_id, err)) => errors.push(serde_json::json!({
+                "vehicle_id": vehicle_id,
+                "error": err
+            })),
+        }
+    }
+    
+    Ok(serde_json::json!({
+        "success_count": success_count,
+        "error_count": errors.len(),
+        "errors": errors
+    }))
+}
+
+/// 批量广播相同消息给多个车辆（优化版本）
+#[tauri::command]
+pub async fn batch_broadcast_to_vehicles(
+    app: tauri::AppHandle,
+    vehicle_ids: Vec<u8>,
+    message_type: u16,
+    data: Vec<u8>,
+) -> Result<serde_json::Value, String> {
+    use futures_util::future::join_all;
+    
+    let connections = app.state::<ConnectionManager>();
+    
+    // 并发发送
+    let tasks: Vec<_> = vehicle_ids
+        .into_iter()
+        .map(|vehicle_id| {
+            let conns = connections.inner().clone();
+            let data_clone = data.clone();
+            async move {
+                socket::SocketServer::send_to_vehicle(&conns, vehicle_id as i32, message_type, &data_clone)
+                    .map(|_| vehicle_id)
+                    .map_err(|e| (vehicle_id, e))
+            }
+        })
+        .collect();
+    
+    let results = join_all(tasks).await;
+    
+    let mut success_ids = Vec::new();
+    let mut errors = Vec::new();
+    
+    for result in results {
+        match result {
+            Ok(id) => success_ids.push(id),
+            Err((id, err)) => errors.push(serde_json::json!({
+                "vehicle_id": id,
+                "error": err
+            })),
+        }
+    }
+    
+    Ok(serde_json::json!({
+        "success_count": success_ids.len(),
+        "success_ids": success_ids,
+        "error_count": errors.len(),
+        "errors": errors
+    }))
+}
+
 // 其余命令维持原样。

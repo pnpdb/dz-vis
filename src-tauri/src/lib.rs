@@ -6,6 +6,7 @@ use tauri_plugin_log;
 mod commands;
 mod config;
 mod database;
+mod error;
 mod protocol_processing;
 mod rtsp_converter;
 mod rtsp_stream;
@@ -13,6 +14,7 @@ mod services;
 mod socket;
 mod udp_video;
 mod video_processing;
+mod utils;
 
 use commands::protocol_processing::ProtocolProcessorState;
 use commands::*;

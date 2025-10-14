@@ -19,6 +19,7 @@ import './styles/customer.scss';
 
 // Import error handling
 import { setupGlobalErrorHandling, ErrorHandler } from '@/utils/errorHandler.js';
+import { setupGlobalErrorHandler } from '@/utils/globalErrorHandler.js';
 import { Environment } from '@/utils/tauri.js';
 import { socketManager } from '@/utils/socketManager.js';
 import { logger } from '@/utils/logger.js';
@@ -57,7 +58,10 @@ window.socketManager = socketManager;
 
 const app = createApp(App);
 
-// Error handling for Vue app
+// 安装新的全局错误处理器（优先级更高，更完善）
+setupGlobalErrorHandler(app);
+
+// Error handling for Vue app (保留旧的错误处理器作为补充)
 app.config.errorHandler = (err, instance, info) => {
     ErrorHandler.handle(err, {
         type: 'vueError',

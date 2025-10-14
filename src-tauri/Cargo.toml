@@ -53,3 +53,23 @@ log = "0.4.28"
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-autostart = "2.0.0-rc.1"
 
+# ========== 生产环境编译优化 ==========
+# 这些优化可以显著减少二进制大小和提升性能
+# 不会影响应用的正常运行
+[profile.release]
+# 优化级别：3 = 最大化速度，z = 最小化体积
+# 使用 "3" 优先保证性能
+opt-level = 3
+
+# 链接时优化（LTO）- 可以减少 10-20% 的体积
+# "thin" 是平衡模式，编译时间合理且效果好
+lto = "thin"
+
+# 移除调试符号 - 可以减少 20-30% 的体积
+# 生产环境不需要调试符号
+strip = true
+
+# 代码生成单元数量
+# 16 是默认值，保持编译速度和优化效果的平衡
+codegen-units = 16
+

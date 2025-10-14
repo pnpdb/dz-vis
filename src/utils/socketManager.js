@@ -251,9 +251,9 @@ class SocketManager {
                     });
 
                     if (!result.changed) {
-                        socketLogger.debug(`车辆 ${vehicleId} 数据未变化，跳过UI更新`);
-                        return;
-                    }
+            socketLogger.debug(`车辆 ${vehicleId} 数据未变化，跳过UI更新`);
+            return;
+        }
 
                     // 记录变化的字段（开发环境）
                     if (import.meta.env.DEV && result.changed_fields?.length > 0) {
@@ -426,14 +426,14 @@ class SocketManager {
         // 使用节流的事件发射器（性能优化）
         this.throttledEmitters.connectionStatus({
             carId,
-            isConnected,
-            timestamp: Date.now()
+                isConnected,
+                timestamp: Date.now()
         });
 
         this.throttledEmitters.onlineCountChanged({
             count: store.getOnlineVehicleCount(),
             vehicleIds: store.getOnlineVehicleIds(),
-            timestamp: Date.now()
+                timestamp: Date.now()
         });
         
         socketLogger.info(`车辆连接状态更新 - 车辆: ${carId}, 状态: ${isConnected ? '连接' : '断开'}, 在线数量: ${store.getOnlineVehicleCount()}`);

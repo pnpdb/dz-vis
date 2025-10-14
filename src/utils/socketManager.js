@@ -21,12 +21,6 @@ const bytesToHex = (bytes) => Array.from(bytes || [], (b) => b.toString(16).padS
 class SocketManager {
     constructor() {
         this.isServerRunning = false;
-        this.connectedVehicles = new Map();
-        this.sandboxConnected = false;
-        this.vehicleReady = new Map();
-        this.vehicleParkingSlots = new Map();
-        this.activeCameraVehicleId = null;
-        this.manualCameraStates = new Map(); // Stores manual ON/OFF state for each vehicle's camera
         this.parallelOverride = new Set(); // Tracks vehicles whose camera was temporarily enabled for Parallel Driving
         this.pendingCameraPromise = Promise.resolve(); // For sequentializing camera toggle commands
         this.messageHandlers = new Map();
@@ -39,6 +33,10 @@ class SocketManager {
         this.setupStatusRequestHandler();
     }
 
+    /**
+     * 获取carStore实例（延迟加载）
+     * @returns {Object} carStore实例
+     */
     ensureCarStore() {
         if (!this.carStore) {
             try {
@@ -232,19 +230,22 @@ class SocketManager {
         ], { throttle: true, throttleKey: `vinfo-ok-${vehicleId}`, interval: 500 });
 
         eventBus.emit(EVENTS.VEHICLE_INFO_UPDATE, vehicleInfo);
-
-        if (parkingSlot > 0) {
-            this.vehicleParkingSlots.set(vehicleId, parkingSlot);
-        } else {
-            this.vehicleParkingSlots.delete(vehicleId);
-        }
     }
 
+    /**
+     * 检查车辆状态是否变化
+     * @param {number} vehicleId - 车辆ID
+     * @param {Object} nextState - 新状态
+     * @returns {boolean} 是否变化
+     */
     isVehicleStateChanged(vehicleId, nextState) {
         const store = this.ensureCarStore();
         if (!store) return true;
-        const previous = store.getVehicleState(vehicleId);
-        if (!previous) return true;
+        
+        const vehicleState = store.getVehicleState(vehicleId);
+        if (!vehicleState) return true;
+        
+        const previous = vehicleState.state; // 获取运行状态部分
 
         try {
             const epsilon = 1e-6;
@@ -342,68 +343,73 @@ class SocketManager {
     }
 
     /**
-     * 更新车辆状态
+     * 更新车辆状态（委托给store）
      */
     updateVehicleStatus(carId, isConnected) {
-        if (isConnected) {
-            this.connectedVehicles.set(carId, {
-                car_id: carId,
-                connected: true,
-                last_seen: Date.now()
-            });
-        } else {
-            this.connectedVehicles.delete(carId);
+        const store = this.ensureCarStore();
+        if (!store) {
+            socketLogger.warn('carStore未初始化，无法更新车辆状态');
+            return;
         }
+        
+        // 更新store中的连接状态
+        store.updateVehicleConnection(carId, isConnected, {
+            lastSeen: Date.now()
+        });
         
         // 触发车辆连接状态变化事件
         eventBus.emit(EVENTS.VEHICLE_CONNECTION_STATUS, {
             carId,
-                isConnected,
-                timestamp: Date.now()
+            isConnected,
+            timestamp: Date.now()
         });
 
         // 触发在线车辆数量变化事件
         eventBus.emit(EVENTS.ONLINE_VEHICLES_COUNT_CHANGED, {
-                count: this.getOnlineVehicleCount(),
-                vehicleIds: this.getOnlineVehicleIds(),
-                timestamp: Date.now()
+            count: store.getOnlineVehicleCount(),
+            vehicleIds: store.getOnlineVehicleIds(),
+            timestamp: Date.now()
         });
         
-        socketLogger.info(`车辆连接状态更新 - 车辆: ${carId}, 状态: ${isConnected ? '连接' : '断开'}, 在线数量: ${this.getOnlineVehicleCount()}`);
-        if (!isConnected) {
-            this.vehicleParkingSlots.delete(carId);
-            if (this.activeCameraVehicleId === carId) {
-                this.activeCameraVehicleId = null;
-            }
-        }
+        socketLogger.info(`车辆连接状态更新 - 车辆: ${carId}, 状态: ${isConnected ? '连接' : '断开'}, 在线数量: ${store.getOnlineVehicleCount()}`);
     }
 
     /**
-     * 检查车辆是否连接
+     * 检查车辆是否连接（委托给store）
      */
     isVehicleConnected(vehicleId) {
-        return this.connectedVehicles.has(vehicleId);
+        const store = this.ensureCarStore();
+        return store ? store.isVehicleOnline(vehicleId) : false;
     }
 
     /**
-     * 获取车辆连接信息
+     * 获取车辆连接信息（委托给store）
      */
     getVehicleConnection(vehicleId) {
-        return this.connectedVehicles.get(vehicleId) || null;
+        const store = this.ensureCarStore();
+        if (!store) return null;
+        const state = store.getVehicleState(vehicleId);
+        return state ? {
+            car_id: vehicleId,
+            connected: state.connection.isOnline,
+            last_seen: state.connection.lastSeen
+        } : null;
     }
 
     /**
-     * 获取当前在线车辆数量
+     * 获取当前在线车辆数量（委托给store）
      */
     getOnlineVehicleCount() {
-        return this.connectedVehicles.size;
+        const store = this.ensureCarStore();
+        return store ? store.getOnlineVehicleCount() : 0;
     }
 
     /**
-     * 获取所有在线车辆ID列表
+     * 获取所有在线车辆ID列表（委托给store）
      */
     getOnlineVehicleIds() {
-        return Array.from(this.connectedVehicles.keys());
+        const store = this.ensureCarStore();
+        return store ? store.getOnlineVehicleIds() : [];
     }
 
     /**
@@ -707,32 +713,54 @@ class SocketManager {
         // TODO: 处理未知消息类型
     }
 
+    /**
+     * 处理沙盘连接（委托给store）
+     */
     handleSandboxConnect(payload) {
-        socketLogger.info('沙盘客户端连接', payload)
-        this.sandboxConnected = true
-        eventBus.emit(EVENTS.SANDBOX_CONNECTION_STATUS, { isConnected: true, payload })
+        socketLogger.info('沙盘客户端连接', payload);
+        const store = this.ensureCarStore();
+        if (store) {
+            store.setSandboxConnected(true);
+        }
+        eventBus.emit(EVENTS.SANDBOX_CONNECTION_STATUS, { isConnected: true, payload });
     }
 
+    /**
+     * 处理沙盘断开（委托给store）
+     */
     handleSandboxDisconnect(payload) {
-        socketLogger.warn('沙盘客户端断开', payload)
-        this.sandboxConnected = false
-        eventBus.emit(EVENTS.SANDBOX_CONNECTION_STATUS, { isConnected: false, payload })
+        socketLogger.warn('沙盘客户端断开', payload);
+        const store = this.ensureCarStore();
+        if (store) {
+            store.setSandboxConnected(false);
+        }
+        eventBus.emit(EVENTS.SANDBOX_CONNECTION_STATUS, { isConnected: false, payload });
     }
 
+    /**
+     * 检查沙盘是否连接（委托给store）
+     */
     isSandboxConnected() {
-        return this.sandboxConnected
+        const store = this.ensureCarStore();
+        return store ? store.isSandboxConnected() : false;
     }
 
+    /**
+     * 设置车辆就绪状态（委托给store）
+     */
     setVehicleReady(vehicleId, ready) {
-        if (ready) {
-            this.vehicleReady.set(vehicleId, true)
-        } else {
-            this.vehicleReady.delete(vehicleId)
+        const store = this.ensureCarStore();
+        if (store) {
+            store.setVehicleReady(vehicleId, ready);
         }
     }
 
+    /**
+     * 检查车辆是否就绪（委托给store）
+     */
     isVehicleReady(vehicleId) {
-        return this.vehicleReady.get(vehicleId) === true
+        const store = this.ensureCarStore();
+        return store ? store.isVehicleReady(vehicleId) : false;
     }
 
     getSelectedVehicleId() {
@@ -745,37 +773,40 @@ class SocketManager {
         return 0
     }
 
+    /**
+     * 获取车辆停车位（委托给store）
+     */
     getVehicleParkingSlot(vehicleId) {
-        return this.vehicleParkingSlots.get(vehicleId) || 0;
+        const store = this.ensureCarStore();
+        return store ? store.getVehicleParkingSlot(vehicleId) : 0;
     }
 
     /**
-     * 记录某车辆开关的手动状态
+     * 记录某车辆摄像头的手动状态（委托给store）
      */
     setManualCameraState(vehicleId, enabled) {
         if (!Number.isFinite(vehicleId)) return;
-        if (enabled) {
-            this.manualCameraStates.set(vehicleId, true);
-        } else {
-            this.manualCameraStates.delete(vehicleId);
-        }
         const store = this.ensureCarStore();
-        store?.setManualCameraState?.(vehicleId, enabled);
-    }
-
-    isManualCameraEnabled(vehicleId) {
-        if (!Number.isFinite(vehicleId)) return false;
-        if (this.manualCameraStates.has(vehicleId)) {
-            return this.manualCameraStates.get(vehicleId) === true;
+        if (store) {
+            store.setManualCameraState(vehicleId, enabled);
         }
-        const store = this.ensureCarStore();
-        return store?.isManualCameraEnabled?.(vehicleId) === true;
     }
-
-    markManualCameraState() {}
 
     /**
-     * 发送车辆摄像头开关指令，确保同一时间只有一个车辆处于开启状态
+     * 检查摄像头手动状态（委托给store）
+     */
+    isManualCameraEnabled(vehicleId) {
+        if (!Number.isFinite(vehicleId)) return false;
+        const store = this.ensureCarStore();
+        return store ? store.isManualCameraEnabled(vehicleId) : false;
+    }
+
+    markManualCameraState() {
+        // 保留空方法以兼容旧代码
+    }
+
+    /**
+     * 发送车辆摄像头开关指令，确保同一时间只有一个车辆处于开启状态（委托给store）
      */
     async toggleVehicleCamera(vehicleId, enabled, { force = false } = {}) {
         const normalizedId = parseVehicleId(vehicleId, 0);
@@ -784,39 +815,48 @@ class SocketManager {
             return;
         }
 
+        const store = this.ensureCarStore();
+        if (!store) {
+            socketLogger.warn('carStore未初始化，无法切换摄像头');
+            return;
+        }
+
         const desiredStatus = enabled ? VEHICLE_CAMERA_PROTOCOL.STATUS_ON : VEHICLE_CAMERA_PROTOCOL.STATUS_OFF;
+        const activeCameraId = store.getActiveCameraVehicleId();
 
         if (!force) {
             if (enabled) {
-                if (this.activeCameraVehicleId === normalizedId) {
+                if (activeCameraId === normalizedId) {
                     socketLogger.debug(`[CameraToggle] 车辆${normalizedId} 已处于开启状态，跳过发送`);
                     return;
                 }
             } else {
-                if (this.activeCameraVehicleId !== normalizedId) {
+                if (activeCameraId !== normalizedId) {
                     socketLogger.debug(`[CameraToggle] 车辆${normalizedId} 已处于关闭状态，跳过发送`);
                     return;
                 }
             }
         }
 
-        const store = this.ensureCarStore();
-
         const execute = async () => {
-            // 如果要开启，先关闭约定中的其他车辆
-            if (enabled && this.activeCameraVehicleId && this.activeCameraVehicleId !== normalizedId) {
+            // 如果要开启，先关闭其他车辆
+            if (enabled && activeCameraId && activeCameraId !== normalizedId) {
                 try {
-                    socketLogger.info(`[CameraToggle] 切换摄像头源: ${this.activeCameraVehicleId} -> ${normalizedId}`);
-                    await vehicleBridge.sendVehicleCameraToggle(this.activeCameraVehicleId, false);
+                    socketLogger.info(`[CameraToggle] 切换摄像头源: ${activeCameraId} -> ${normalizedId}`);
+                    await vehicleBridge.sendVehicleCameraToggle(activeCameraId, false);
+                    store.setActiveCameraState(activeCameraId, false);
                 } catch (error) {
-                    socketLogger.warn(`关闭车辆 ${this.activeCameraVehicleId} 摄像头失败:`, error);
+                    socketLogger.warn(`关闭车辆 ${activeCameraId} 摄像头失败:`, error);
                 }
             }
 
             try {
                 await vehicleBridge.sendVehicleCameraToggle(normalizedId, desiredStatus === VEHICLE_CAMERA_PROTOCOL.STATUS_ON);
                 socketLogger.info(`[CameraToggle] 车辆 ${normalizedId} 摄像头${enabled ? '开启' : '关闭'} 指令已发送`);
-                this.activeCameraVehicleId = enabled ? normalizedId : null;
+                
+                // 更新store中的激活状态
+                store.setActiveCameraState(normalizedId, enabled);
+                
                 if (!enabled) {
                     this.parallelOverride.delete(normalizedId);
                 }

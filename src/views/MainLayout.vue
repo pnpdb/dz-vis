@@ -88,16 +88,20 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, computed, defineAsyncComponent, Suspense } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, defineAsyncComponent } from 'vue';
 import { useRoute } from 'vue-router';
 import TitleBar from '@/components/TitleBar.vue';
 import Header from '@/components/Header.vue';
 import Map from '@/views/Map.vue';
-import { error as jsError } from '@tauri-apps/plugin-log';
 import { getConstructionMarkersDetails, removeConstructionMarker } from '@/components/Scene3D/index.js';
 import { ElMessage } from 'element-plus';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
-import vehicleBridge from '@/utils/vehicleBridge.js'
+import vehicleBridge from '@/utils/vehicleBridge.js';
+
+// ✅ 使用组合式函数（代码复用优化）
+import { useSystemTime } from '@/composables/useSystemTime.js';
+import { useFPS } from '@/composables/useFPS.js';
+import { useNetworkStatus } from '@/composables/useNetworkStatus.js';
 
 // 懒加载组件 - 提升初始加载性能
 const Cars = defineAsyncComponent(() => import('@/views/Cars.vue'));
@@ -119,43 +123,14 @@ const currentComponent = computed(() => {
     return componentMap[route.name] || Cars;
 });
 
-// 实时状态数据
-const currentTime = ref('');
-const fps = ref(60);
-const fpsPercentage = ref(100);
-const networkStatus = ref({
-    text: '检测网络中...',
-    icon: 'signal',
-    connected: false
-});
+// ✅ 使用组合式函数获取状态数据
+const { currentTime } = useSystemTime();
+const { fps, fpsPercentage } = useFPS();
+const { networkStatus } = useNetworkStatus();
 
 // 施工标记列表状态
 const constructionMarkers = ref([]);
 const constructionListCollapsed = ref(false);
-
-// 更新时间
-const updateTime = () => {
-    const now = new Date();
-    currentTime.value = now.toLocaleTimeString('zh-CN', { 
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    });
-};
-
-// 真实FPS监控
-const updateFPS = (fpsData) => {
-    if (fpsData && typeof fpsData.fps === 'number') {
-        fps.value = fpsData.fps;
-        fpsPercentage.value = Math.min((fps.value / 60) * 100, 100);
-    }
-};
-
-// 监听3D场景的FPS事件
-const handleFPSUpdate = (payload) => {
-    updateFPS(payload);
-};
 
 // 窗口 resize 处理
 const handleResize = () => {
@@ -163,39 +138,6 @@ const handleResize = () => {
         width: window.innerWidth,
         height: window.innerHeight
     });
-};
-
-// 检测网络连接状态（使用Rust后端）
-const checkNetworkStatus = async () => {
-    try {
-        // 首先检查浏览器的在线状态
-        if (!navigator.onLine) {
-            networkStatus.value = {
-                text: '网络断开',
-                icon: 'times-circle',
-                connected: false
-            };
-            return;
-        }
-
-        // 调用Rust后端获取网络状态
-        const { invoke } = await import('@tauri-apps/api/core');
-        const result = await invoke('get_network_status');
-        
-        networkStatus.value = {
-            text: result.text,
-            icon: result.icon,
-            connected: result.connected
-        };
-        
-    } catch (error) {
-        await jsError('网络状态检测失败:', error);
-        networkStatus.value = {
-            text: '网络状态未知',
-            icon: 'question-circle',
-            connected: false
-        };
-    }
 };
 
 // 施工标记列表管理
@@ -251,25 +193,7 @@ const deleteConstructionMarker = async (markerId) => {
     }
 };
 
-let timeInterval = null;
-let networkInterval = null;
-
 onMounted(() => {
-    // 启动实时更新
-    updateTime();
-    timeInterval = setInterval(updateTime, 1000);
-    
-    // 启动网络状态检测
-    checkNetworkStatus();
-    networkInterval = setInterval(checkNetworkStatus, 30000); // 每30秒检测一次
-    
-    // 监听网络状态变化
-    window.addEventListener('online', checkNetworkStatus);
-    window.addEventListener('offline', checkNetworkStatus);
-    
-    // 监听FPS更新事件
-    eventBus.on(EVENTS.FPS_UPDATE, handleFPSUpdate);
-    
     // 绑定resize事件
     window.addEventListener('resize', handleResize);
 
@@ -282,14 +206,8 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-    // 清理定时器和事件
-    if (timeInterval) clearInterval(timeInterval);
-    if (networkInterval) clearInterval(networkInterval);
-    
-    eventBus.off(EVENTS.FPS_UPDATE, handleFPSUpdate);
+    // 清理事件监听器
     window.removeEventListener('resize', handleResize);
-    window.removeEventListener('online', checkNetworkStatus);
-    window.removeEventListener('offline', checkNetworkStatus);
     eventBus.off(EVENTS.CONSTRUCTION_MARKER_ADDED, updateConstructionMarkersList);
     eventBus.off(EVENTS.CONSTRUCTION_MARKER_REMOVED, updateConstructionMarkersList);
 });

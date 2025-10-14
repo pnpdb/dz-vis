@@ -26,6 +26,7 @@ class SocketManager {
         this.pendingCameraPromise = Promise.resolve(); // For sequentializing camera toggle commands
         this.messageHandlers = new Map();
         this.carStore = null;
+        this._rustCompareErrorLogged = false; // 避免重复记录Rust比对错误
         
         // 创建节流的事件发射器（性能优化）
         this.throttledEmitters = {
@@ -198,7 +199,13 @@ class SocketManager {
         });
     }
 
-    updateVehicleInfoFromParsed(carId, parsed, timestamp) {
+    /**
+     * 更新车辆信息（优化版：完全依赖Rust状态比对）
+     * @param {number} carId - 车辆ID
+     * @param {Object} parsed - 解析后的车辆数据
+     * @param {number} timestamp - 时间戳
+     */
+    async updateVehicleInfoFromParsed(carId, parsed, timestamp) {
         const vehicleId = Number(parsed.vehicle_id ?? parsed.carId ?? carId);
         const speed = Number(parsed.speed ?? 0);
         const position = parsed.position ?? { x: 0, y: 0 };
@@ -225,13 +232,46 @@ class SocketManager {
             timestamp,
         };
 
-        if (!this.isVehicleStateChanged(vehicleId, vehicleInfo)) {
-            socketLogger.debug(`车辆 ${vehicleId} 数据未变化，跳过UI更新`);
-            return;
-        }
-
+        // ✅ 优化：使用Rust进行状态比对（移除JS端重复比对）
         const store = this.ensureCarStore();
-        store?.updateVehicleState(vehicleId, vehicleInfo);
+        if (store) {
+            const prevState = store.getVehicleRuntimeState(vehicleId);
+            
+            // 如果有前一个状态且数据完整，使用Rust比对
+            if (prevState && prevState.vehicleId != null) {
+                try {
+                    // 准备Rust比对所需的数据格式
+                    const prevForRust = this.prepareStateForRustComparison(prevState);
+                    const nextForRust = this.prepareStateForRustComparison(vehicleInfo);
+                    
+                    const { invoke } = await import('@tauri-apps/api/core');
+                    const result = await invoke('is_vehicle_state_changed', {
+                        prev: prevForRust,
+                        next: nextForRust
+                    });
+
+                    if (!result.changed) {
+                        socketLogger.debug(`车辆 ${vehicleId} 数据未变化，跳过UI更新`);
+                        return;
+                    }
+
+                    // 记录变化的字段（开发环境）
+                    if (import.meta.env.DEV && result.changed_fields?.length > 0) {
+                        socketLogger.debug(`车辆 ${vehicleId} 变化字段: ${result.changed_fields.join(', ')}`);
+                    }
+                } catch (error) {
+                    // Rust比对失败时回退到更新（保证可靠性）
+                    // 只在第一次失败时警告，避免日志刷屏
+                    if (!this._rustCompareErrorLogged) {
+                        socketLogger.warn(`Rust状态比对失败，回退到直接更新:`, error.message || error);
+                        this._rustCompareErrorLogged = true;
+                    }
+                }
+            }
+
+            // 更新状态到store
+            store.updateVehicleState(vehicleId, vehicleInfo);
+        }
 
         logger.outputToPlugin('DEBUG', 'SocketManager.vehicleInfoUpdate', [
             `车辆:${vehicleId} 速:${speed.toFixed(3)} 位置:(${position.x?.toFixed?.(2) ?? position.x},${position.y?.toFixed?.(2) ?? position.y}) 电:${battery.toFixed?.(1) ?? battery}%`
@@ -242,41 +282,58 @@ class SocketManager {
     }
 
     /**
-     * 检查车辆状态是否变化
-     * @param {number} vehicleId - 车辆ID
-     * @param {Object} nextState - 新状态
-     * @returns {boolean} 是否变化
+     * 准备用于Rust比对的状态数据
+     * @param {Object} state - 车辆状态
+     * @returns {Object} Rust VehicleInfo格式
      */
-    isVehicleStateChanged(vehicleId, nextState) {
-        const store = this.ensureCarStore();
-        if (!store) return true;
-        
-        const vehicleState = store.getVehicleState(vehicleId);
-        if (!vehicleState) return true;
-        
-        const previous = vehicleState.state; // 获取运行状态部分
-
-        try {
-            const epsilon = 1e-6;
-            const close = (a, b) => Math.abs(Number(a) - Number(b)) <= epsilon;
-
-            if (!close(previous.speed, nextState.speed)) return true;
-            if (!close(previous.position?.x, nextState.position?.x)) return true;
-            if (!close(previous.position?.y, nextState.position?.y)) return true;
-            if (!close(previous.orientation, nextState.orientation)) return true;
-            if (!close(previous.battery, nextState.battery)) return true;
-            if (previous.gear !== nextState.gear) return true;
-            if (!close(previous.steeringAngle, nextState.steeringAngle)) return true;
-            if (Number(previous.navigation?.code) !== Number(nextState.navigation?.code)) return true;
-            if ((previous.sensors?.camera?.status ?? false) !== (nextState.sensors?.camera?.status ?? false)) return true;
-            if ((previous.sensors?.lidar?.status ?? false) !== (nextState.sensors?.lidar?.status ?? false)) return true;
-            if ((previous.sensors?.gyro?.status ?? false) !== (nextState.sensors?.gyro?.status ?? false)) return true;
-            if (Number(previous.parkingSlot) !== Number(nextState.parkingSlot)) return true;
-            return false;
-        } catch (error) {
-            socketLogger.warn('比较车辆状态失败，默认更新:', error);
-            return true;
+    prepareStateForRustComparison(state) {
+        // 获取档位值（可能是对象或数字）
+        let gearValue = state.gear?.value ?? state.gear ?? 1;
+        if (typeof gearValue !== 'number') {
+            gearValue = 1; // 默认为P档
         }
+
+        // 转换档位为Rust枚举格式
+        let gearEnum;
+        switch (gearValue) {
+            case 1:
+                gearEnum = 'Park';
+                break;
+            case 2:
+                gearEnum = 'Reverse';
+                break;
+            case 3:
+                gearEnum = 'Neutral';
+                break;
+            case 4:
+            case 5:
+            case 6:
+            case 7:
+            case 8:
+            case 9:
+                gearEnum = { DriveLevel: gearValue - 3 };
+                break;
+            default:
+                gearEnum = 'Park';
+        }
+
+        return {
+            vehicle_id: Number(state.vehicleId ?? state.vehicle_id ?? 0),
+            speed: Number(state.speed ?? 0),
+            position_x: Number(state.position?.x ?? 0),
+            position_y: Number(state.position?.y ?? 0),
+            orientation: Number(state.orientation ?? 0),
+            battery: Number(state.battery ?? 0),
+            gear: gearEnum,
+            steering_angle: Number(state.steeringAngle ?? state.steering_angle ?? 0),
+            nav_status: Number(state.navigation?.code ?? state.nav_status ?? 0),
+            sensors: {
+                camera: Boolean(state.sensors?.camera?.status ?? false),
+                lidar: Boolean(state.sensors?.lidar?.status ?? false),
+                gyro: Boolean(state.sensors?.gyro?.status ?? false),
+            },
+            parking_slot: Number(state.parkingSlot ?? state.parking_slot ?? 0),
+        };
     }
 
     /**

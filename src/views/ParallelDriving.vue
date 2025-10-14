@@ -376,7 +376,7 @@ const goBack = async () => {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .parallel-driving-page {
   width: 100vw;
   height: 100vh;
@@ -388,6 +388,37 @@ const goBack = async () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
+  
+  /* 左右边框效果 - 与主界面保持一致 */
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      rgba(0, 240, 255, 0.3) 10%,
+      rgba(0, 240, 255, 0.6) 50%,
+      rgba(0, 240, 255, 0.3) 90%,
+      transparent 100%
+    );
+    z-index: 1000;
+    pointer-events: none;
+  }
+  
+  &::before {
+    left: 0;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+  }
+  
+  &::after {
+    right: 0;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+  }
 }
 
 /* 标题栏样式 - 与主界面Header.vue保持一致 */

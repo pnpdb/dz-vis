@@ -76,6 +76,9 @@ class SocketManager {
             
             socketLogger.info(`Socket服务器启动成功: ${result}`);
             
+            // 触发服务器启动事件（用于显示网络信息）
+            eventBus.emit(EVENTS.SOCKET_SERVER_STARTED, result);
+            
             // 开始监听消息
             this.startListening();
             

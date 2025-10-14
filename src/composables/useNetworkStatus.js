@@ -15,92 +15,63 @@ import eventBus, { EVENTS } from '@/utils/eventBus.js';
  * }}
  */
 export function useNetworkStatus() {
-    const carStore = useCarStore();
-    const onlineVehicleCount = ref(0);
-    const sandboxConnected = ref(false);
+    const serverInfo = ref(''); // Socket服务器信息（本机IP地址）
 
     /**
      * 网络状态计算属性
+     * 左下角只显示本机IP地址
      */
     const networkStatus = computed(() => {
-        // 检查沙盘连接状态
-        if (!sandboxConnected.value) {
-            return {
-                text: '沙盘离线',
-                icon: 'times-circle',
-                connected: false
-            };
-        }
-
-        // 检查车辆在线数量
-        if (onlineVehicleCount.value === 0) {
-            return {
-                text: '无车辆在线',
-                icon: 'exclamation-circle',
-                connected: true
-            };
-        }
-
         return {
-            text: `${onlineVehicleCount.value} 辆车在线`,
-            icon: 'check-circle',
+            text: serverInfo.value || '127.0.0.1',
+            icon: 'network-wired',
             connected: true
         };
     });
 
     /**
-     * 更新在线车辆数量
+     * 获取本机IP地址
      */
-    const updateOnlineCount = () => {
-        onlineVehicleCount.value = carStore.getOnlineVehicleCount();
+    const fetchLocalIP = async () => {
+        try {
+            const { invoke } = await import('@tauri-apps/api/core');
+            const networkStatus = await invoke('get_network_status');
+            
+            if (networkStatus && networkStatus.ip) {
+                serverInfo.value = networkStatus.ip;
+            } else {
+                serverInfo.value = '127.0.0.1';
+            }
+        } catch (error) {
+            console.warn('获取本机IP失败:', error);
+            serverInfo.value = '127.0.0.1';
+        }
     };
+
 
     /**
-     * 更新沙盘连接状态
+     * 处理Socket服务器启动事件
+     * 更新本机IP地址
      */
-    const updateSandboxStatus = () => {
-        sandboxConnected.value = carStore.isSandboxConnected();
+    const handleServerStarted = async () => {
+        // Socket服务器启动后，重新获取IP（确保最新）
+        await fetchLocalIP();
     };
 
-    /**
-     * 检查状态（手动触发）
-     */
-    const checkStatus = () => {
-        updateOnlineCount();
-        updateSandboxStatus();
-    };
-
-    /**
-     * 处理在线车辆数变化事件
-     */
-    const handleOnlineCountChanged = (count) => {
-        onlineVehicleCount.value = count ?? carStore.getOnlineVehicleCount();
-    };
-
-    /**
-     * 处理沙盘连接状态变化事件
-     */
-    const handleSandboxStatusChanged = (status) => {
-        sandboxConnected.value = status ?? carStore.isSandboxConnected();
-    };
-
-    onMounted(() => {
-        // 初始化状态
-        checkStatus();
-
-        // 监听事件
-        eventBus.on(EVENTS.ONLINE_VEHICLES_COUNT_CHANGED, handleOnlineCountChanged);
-        eventBus.on(EVENTS.SANDBOX_CONNECTION_STATUS, handleSandboxStatusChanged);
+    onMounted(async () => {
+        // 立即获取本机IP
+        await fetchLocalIP();
+        
+        // 监听Socket服务器启动事件
+        eventBus.on(EVENTS.SOCKET_SERVER_STARTED, handleServerStarted);
     });
 
     onBeforeUnmount(() => {
-        eventBus.off(EVENTS.ONLINE_VEHICLES_COUNT_CHANGED, handleOnlineCountChanged);
-        eventBus.off(EVENTS.SANDBOX_CONNECTION_STATUS, handleSandboxStatusChanged);
+        eventBus.off(EVENTS.SOCKET_SERVER_STARTED, handleServerStarted);
     });
 
     return {
-        networkStatus,
-        checkStatus
+        networkStatus
     };
 }
 

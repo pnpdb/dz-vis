@@ -16,7 +16,8 @@ export const EVENTS = {
     SCENE3D_COMPLETE: 'scene3d-complete',
     VIDEO_FPS_UPDATE: 'video-fps-update',
     VIDEO_STREAM_TIMEOUT: 'video-stream-timeout',
-    SANDBOX_CONNECTION_STATUS: 'sandbox-connection-status'
+    SANDBOX_CONNECTION_STATUS: 'sandbox-connection-status',
+    SOCKET_SERVER_STARTED: 'socket-server-started'
 };
 
 const eventBus = {

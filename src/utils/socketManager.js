@@ -464,48 +464,6 @@ class SocketManager {
     async sendVehicleControl(vehicleId, command, positionData = null) {
         return vehicleBridge.sendVehicleControl(vehicleId, command, positionData);
     }
-    
-    // 保留原来的实现作为回退
-    async sendVehicleControlLegacy(vehicleId, command, positionData = null) {
-        try {
-            socketLogger.debug(`sendVehicleControlLegacy - 车辆: ${vehicleId}, 指令: ${command}`);
-            
-            if (command < 1 || command > 4) {
-                throw new Error(`无效的控制指令: ${command}`);
-            }
-
-            const needsPosition = command === 4;
-            const dataSize = needsPosition ? 26 : 2;
-
-            const dataBuffer = new ArrayBuffer(dataSize);
-            const dataView = new DataView(dataBuffer);
-
-            dataView.setUint8(0, vehicleId);
-            dataView.setUint8(1, command);
-            
-            if (needsPosition) {
-                if (!positionData) {
-                    throw new Error('初始化位姿指令需要提供位置数据');
-                }
-                dataView.setFloat64(2, positionData.x, true);
-                dataView.setFloat64(10, positionData.y, true);
-                dataView.setFloat64(18, positionData.orientation, true);
-            }
-
-            const dataArray = new Uint8Array(dataBuffer);
-            const result = await invoke('send_to_vehicle', {
-                vehicleId,
-                messageType: SEND_MESSAGE_TYPES.VEHICLE_CONTROL,
-                data: Array.from(dataArray)
-            });
-            
-            socketLogger.info(`fallback 车辆控制指令发送成功 - 车辆: ${vehicleId}, 指令: ${command}, 数据大小: ${dataSize}字节`);
-            return result;
-        } catch (error) {
-            socketLogger.error(`fallback 发送车辆控制指令失败 - 车辆: ${vehicleId}, 指令: ${command}:`, error);
-            throw error;
-        }
-    }
 
     /**
      * 便捷方法：启动车辆

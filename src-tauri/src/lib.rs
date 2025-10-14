@@ -16,6 +16,7 @@ mod video_processing;
 
 use commands::protocol_processing::ProtocolProcessorState;
 use commands::*;
+use commands::protocol_config::*;
 use config::{get_app_config, get_port_config};
 use database::VehicleDatabase;
 use std::sync::Arc;
@@ -253,7 +254,12 @@ pub fn run() {
             reset_protocol_stats,
             configure_batch_processor,
             get_supported_message_types,
-            quick_validate_protocol_format
+            quick_validate_protocol_format,
+            // 协议配置命令
+            get_message_types_config_command,
+            get_receive_message_types,
+            get_send_message_types,
+            get_protocol_constants
         ])
         .setup(move |app| {
             info!("应用启动: {}", env!("CARGO_PKG_NAME"));

@@ -24,16 +24,25 @@ import { socketManager } from '@/utils/socketManager.js';
 import { logger } from '@/utils/logger.js';
 import { invoke } from '@tauri-apps/api/core';
 import { debug as jsDebug, info as jsInfo, warn as jsWarn, error as jsError } from '@tauri-apps/plugin-log';
+import { loadMessageTypesConfig } from '@/constants/messageTypesLoader.js';
 
-// 在Tauri环境启动时从SQLite读取日志级别并应用到前端logger
+// 在Tauri环境启动时初始化配置
 if (Environment.isTauri()) {
     try {
+        // 读取日志级别
         const appSettings = await invoke('get_app_settings');
         const lvl = (appSettings?.log_level || '').toString().toUpperCase();
         if (lvl) {
             logger.setLevel(lvl);
-            // 也记录一条初始化日志，便于排查
             try { await jsInfo(`前端日志级别已应用: ${lvl}`); } catch (_) {}
+        }
+        
+        // 预加载消息类型配置（统一前后端定义）
+        try {
+            await loadMessageTypesConfig();
+            await jsInfo('✅ 消息类型配置已从Rust后端加载');
+        } catch (e) {
+            await jsWarn(`消息类型配置加载失败，使用默认配置: ${e}`);
         }
     } catch (_) {
         // 忽略读取失败

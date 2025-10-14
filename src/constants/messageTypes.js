@@ -1,14 +1,21 @@
 /**
  * Socket消息类型常量定义
+ * 
+ * 注意：这些常量现在从Rust后端动态加载（参见 messageTypesLoader.js）
+ * 保留此文件是为了向后兼容，但建议新代码直接使用 messageTypesLoader
+ * 
+ * TODO: 逐步迁移到异步加载模式
  */
 
 // 接收消息类型 (从客户端接收)
+// 这些是默认值，实际值在应用启动时从Rust加载
 export const RECEIVE_MESSAGE_TYPES = {
     HEARTBEAT: 0x0001,           // 心跳包
     VEHICLE_INFO: 0x0002,        // 车辆信息协议（车辆编号+速度+位置+电量+传感器状态）
 };
 
 // 发送消息类型 (发送给客户端)
+// 这些是默认值，实际值在应用启动时从Rust加载
 export const SEND_MESSAGE_TYPES = {
     VEHICLE_CONTROL: 0x1001,         // 车辆控制指令
     DATA_RECORDING: 0x1002,          // 数据记录控制

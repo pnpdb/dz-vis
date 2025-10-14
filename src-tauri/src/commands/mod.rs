@@ -8,6 +8,7 @@ pub mod sandbox;
 pub mod media;
 pub mod video_processing;
 pub mod protocol_processing;
+pub mod protocol_config;
 
 // 导出命令供 lib.rs 使用
 pub use system::{
@@ -59,4 +60,12 @@ pub use protocol_processing::{
     parse_protocol, validate_protocol, batch_process_protocols, build_protocol,
     get_protocol_stats, reset_protocol_stats, configure_batch_processor,
     get_supported_message_types, quick_validate_protocol_format,
+};
+
+// 协议配置命令
+pub use protocol_config::{
+    get_message_types_config_command,
+    get_protocol_constants,
+    get_receive_message_types,
+    get_send_message_types,
 };

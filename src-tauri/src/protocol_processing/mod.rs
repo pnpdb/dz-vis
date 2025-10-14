@@ -13,6 +13,7 @@ pub mod builder;
 pub mod validator;
 pub mod converter;
 pub mod batch_processor;
+pub mod message_types_config;
 
 pub use types::*;
 pub use parser::ProtocolParser;
@@ -20,3 +21,4 @@ pub use builder::ProtocolBuilder;
 pub use validator::ProtocolValidator;
 pub use converter::DataConverter;
 pub use batch_processor::BatchProcessor;
+pub use message_types_config::{get_message_types_config, MessageTypesConfig};

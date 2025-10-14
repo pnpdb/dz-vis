@@ -89,8 +89,17 @@ export default defineConfig(async () => ({
     minify: 'terser',
     terserOptions: {
       compress: {
+        // 生产环境移除 console（开发环境保留）
         drop_console: process.env.NODE_ENV === 'production',
-        drop_debugger: process.env.NODE_ENV === 'production'
+        drop_debugger: true,
+        // 移除特定的 console 方法
+        pure_funcs: process.env.NODE_ENV === 'production' 
+          ? ['console.log', 'console.info', 'console.debug', 'console.warn'] 
+          : [],
+      },
+      format: {
+        // 移除注释
+        comments: false,
       }
     }
   },

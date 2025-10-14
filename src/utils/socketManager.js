@@ -176,8 +176,6 @@ class SocketManager {
             }
         } else {
             socketLogger.warn(`未找到消息类型 ${typeName} (0x${message_type.toString(16)}) 的处理器`);
-            // 调用默认处理器
-            this.handleUnknownMessage(vehicle_id, message_type, parsed, timestamp);
         }
     }
 
@@ -742,18 +740,7 @@ class SocketManager {
             throw error;
         }
     }
-
-    /**
-     * 处理未知消息类型
-     */
-    handleUnknownMessage(carId, messageType, parsed, timestamp) {
-        socketLogger.warn(`未知消息类型 0x${messageType.toString(16)} - 车辆: ${carId}, 数据长度: ${parsed?.length ?? 0}`);
-        if (parsed) {
-            socketLogger.debug('未知消息类型使用parsed数据:', parsed);
-        }
-        // TODO: 处理未知消息类型
-    }
-
+    
     /**
      * 处理沙盘连接（委托给store）
      */

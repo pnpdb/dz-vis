@@ -23,7 +23,7 @@
 
 <script setup>
 import { ref, onErrorCaptured, getCurrentInstance } from 'vue';
-import { error as logError } from '@/utils/logger';
+import { logger } from '@/utils/logger';
 
 const hasError = ref(false);
 const errorMessage = ref('');
@@ -49,7 +49,7 @@ onErrorCaptured((err, instance, info) => {
   );
 
   // 记录错误日志
-  logError('ErrorBoundary 捕获到错误:', {
+  logger.error('ErrorBoundary', '捕获到错误', {
     message: err.message,
     stack: err.stack,
     info,

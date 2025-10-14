@@ -4,6 +4,7 @@
  */
 
 import { logger } from '@/utils/logger';
+import { TIMING } from '@/config/constants.js';
 
 /**
  * 预加载图片
@@ -228,7 +229,7 @@ export async function smartPreload() {
         if ('requestIdleCallback' in window) {
             requestIdleCallback(() => preloadSecondaryResources(), { timeout: 5000 });
         } else {
-            setTimeout(() => preloadSecondaryResources(), 3000);
+            setTimeout(() => preloadSecondaryResources(), TIMING.SECONDARY_PRELOAD_DELAY);
         }
     }
 }

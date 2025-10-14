@@ -5,6 +5,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { logger } from './logger.js';
+import { TIMING } from '@/config/constants.js';
 
 /**
  * 视频处理器类
@@ -15,9 +16,9 @@ export class VideoProcessor {
         this.stats = new Map(); // 本地统计缓存
         this.processingQueue = new Map(); // 处理队列，避免重复处理
         this.processingTimestamps = new Map(); // 记录开始处理的时间戳
-        this.PROCESSING_TIMEOUT = 10000; // 10秒超时
+        this.PROCESSING_TIMEOUT = TIMING.VIDEO_PROCESSING_TIMEOUT;
         
-        // 启动定期清理任务（每5秒检查一次）
+        // 启动定期清理任务
         this._startCleanupTask();
     }
     
@@ -30,7 +31,7 @@ export class VideoProcessor {
         
         this.cleanupInterval = setInterval(() => {
             this._cleanupTimedOutProcessing();
-        }, 5000); // 每5秒检查一次
+        }, TIMING.VIDEO_CLEANUP_INTERVAL);
     }
     
     /**
@@ -110,7 +111,7 @@ export class VideoProcessor {
                 this._updateLocalStats(vehicleId, result.stats, processingTime);
                 
                 // 记录性能日志（仅在开发模式或详细日志模式下）
-                if (import.meta.env.DEV && result.stats.total_time_us > 10000) { // 超过10ms记录
+                if (import.meta.env.DEV && result.stats.total_time_us > TIMING.PERF_LOG_THRESHOLD) {
                     logger.debug('VideoProcessor', 
                         `车辆${vehicleId}帧处理: ${(result.stats.total_time_us / 1000).toFixed(2)}ms ` +
                         `(解码: ${(result.stats.decode_time_us / 1000).toFixed(2)}ms, ` +
@@ -442,10 +443,10 @@ export const videoProcessor = new VideoProcessor();
 
 // 自动清理任务
 if (typeof window !== 'undefined') {
-    // 每5分钟清理一次超时统计
+    // 定期清理超时统计
     setInterval(() => {
         videoProcessor.cleanupStaleStats(300).catch(console.warn);
-    }, 5 * 60 * 1000);
+    }, TIMING.STATS_CLEANUP_INTERVAL);
 }
 
 export default videoProcessor;

@@ -60,7 +60,15 @@ impl ProtocolParser {
             MessageTypes::DATA_RECORDING => self.parse_data_recording(data),
             MessageTypes::CONSTRUCTION_MARKER => self.parse_construction_marker(data),
             MessageTypes::SANDBOX_TRAFFIC_LIGHT_STATUS => self.parse_sandbox_traffic_light_status(data),
-            _ => Err(ProtocolError::InvalidMessageType { message_type }),
+            _ => {
+                // 记录未知消息类型到日志（不发送到前端）
+                log::warn!(
+                    "收到未知消息类型: 0x{:04X}, 数据长度: {} 字节",
+                    message_type,
+                    data.len()
+                );
+                Err(ProtocolError::InvalidMessageType { message_type })
+            }
         };
         
         self.stats.parsing_time_us = current_timestamp_us() - parsing_start;

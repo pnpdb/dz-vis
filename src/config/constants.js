@@ -22,6 +22,19 @@ export const TIMING = {
     // 超时设置
     NETWORK_TIMEOUT: 5000,             // 网络请求超时（ms）
     COMMAND_TIMEOUT: 3000,             // 命令执行超时（ms）
+    VIDEO_PROCESSING_TIMEOUT: 10000,   // 视频处理超时（ms）
+    VIDEO_CLEANUP_INTERVAL: 5000,      // 视频清理检查间隔（ms）
+    
+    // 数据更新间隔
+    DATA_UPDATE_INTERVAL: 2000,        // 数据更新间隔（ms）
+    SERVER_STATUS_INTERVAL: 5000,      // 服务器状态检查间隔（ms）
+    STATS_CLEANUP_INTERVAL: 300000,    // 统计数据清理间隔（5分钟，ms）
+    
+    // 资源预加载
+    SECONDARY_PRELOAD_DELAY: 3000,     // 次要资源预加载延迟（ms）
+    
+    // 性能日志
+    PERF_LOG_THRESHOLD: 10000,         // 性能日志记录阈值（10ms，us）
 };
 
 // ========== 数据限制常量 ==========

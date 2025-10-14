@@ -239,9 +239,18 @@ export class ErrorHandler {
      * @private
      */
     static handleCriticalError(errorInfo) {
+        // 使用日志模块记录严重错误到文件
+        logger.error('CriticalError', '🚨 严重错误', {
+            message: errorInfo.message,
+            type: errorInfo.type,
+            severity: errorInfo.severity,
+            stack: errorInfo.stack,
+            context: errorInfo.context,
+            timestamp: errorInfo.timestamp,
+        });
+        
+        // 同时在控制台输出（便于开发调试）
         console.error('🚨 CRITICAL ERROR:', errorInfo);
-        // TODO: 发送到错误监控系统（如Sentry）
-        // 可以在这里添加自动上报逻辑
     }
 
     /**

@@ -2,7 +2,9 @@
     <div class="fullscreen-map">
         <!-- 全屏3D场景 -->
         <div class="scene-container">
-            <Scene3D />
+            <ErrorBoundary>
+                <Scene3D />
+            </ErrorBoundary>
             <!-- 模型区域内的右下角按钮，避免跨出模型区域 -->
             <div class="scene-bottom-right-controls">
                 <button class="scene-action-btn" @click="setDefaultView">俯视视角</button>
@@ -156,6 +158,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { ElMessage } from 'element-plus';
+import ErrorBoundary from '@/components/ErrorBoundary.vue';
 import CarList from '@/components/CarList.vue';
 import CarButton from '@/components/CarButton.vue';
 import Scene3D from '@/components/Scene3D/index.vue';
@@ -165,7 +168,8 @@ import { socketManager } from '@/utils/socketManager.js';
 import { startPoseSelectionMode, stopPoseSelectionMode, startPointSelectionMode, stopPointSelectionMode, createConstructionMarkerAt, removeConstructionMarker, getConstructionMarkersDetails } from '@/components/Scene3D/index.js';
 import { SEND_MESSAGE_TYPES, CONSTRUCTION_MARKER_PROTOCOL } from '@/constants/messageTypes.js';
 import vehicleBridge from '@/utils/vehicleBridge.js';
-import eventBus, { EVENTS } from '@/utils/eventBus.js'
+import eventBus, { EVENTS } from '@/utils/eventBus.js';
+import { TIMING } from '@/config/constants.js';
 
 // 实时数据
 const networkDelay = ref(12);
@@ -241,10 +245,10 @@ const handleOnlineVehiclesCountChanged = ({ count, vehicleIds }) => {
 
 onMounted(() => {
     updateData()
-    dataUpdateInterval = setInterval(updateData, 2000)
+    dataUpdateInterval = setInterval(updateData, TIMING.DATA_UPDATE_INTERVAL)
 
     updateServerStatus()
-    serverStatusInterval = setInterval(updateServerStatus, 5000)
+    serverStatusInterval = setInterval(updateServerStatus, TIMING.SERVER_STATUS_INTERVAL)
 
     eventBus.on(EVENTS.ONLINE_VEHICLES_COUNT_CHANGED, handleOnlineVehiclesCountChanged)
 

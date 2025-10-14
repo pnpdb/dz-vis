@@ -3,7 +3,7 @@
 //! 提供零拷贝的协议解析功能，支持多种协议类型的高效解析
 
 use crate::protocol_processing::types::*;
-use std::mem;
+use crate::utils::byte_utils;
 
 /// 高性能协议解析器
 pub struct ProtocolParser {
@@ -325,28 +325,13 @@ impl ProtocolParser {
         Ok(ParsedProtocolData::SandboxTrafficLightStatus(SandboxTrafficLightStatusData { lights }))
     }
     
-    /// 零拷贝读取小端序f64
+    /// 读取小端序f64（使用统一工具函数）
     fn read_f64_le(&self, data: &[u8], offset: usize) -> Result<f64, ProtocolError> {
-        if offset + 8 > data.len() {
-            return Err(ProtocolError::InsufficientData {
+        byte_utils::read_f64_le(data, offset)
+            .map_err(|_| ProtocolError::InsufficientData {
                 required: offset + 8,
                 actual: data.len(),
-            });
-        }
-        
-        // 检查内存对齐
-        let ptr = data.as_ptr().wrapping_add(offset);
-        if ptr as usize % mem::align_of::<f64>() != 0 {
-            // 如果没有对齐，使用安全的字节数组转换
-            let mut bytes = [0u8; 8];
-            bytes.copy_from_slice(&data[offset..offset + 8]);
-            Ok(f64::from_le_bytes(bytes))
-        } else {
-            // 如果对齐，可以使用零拷贝转换
-            unsafe {
-                Ok(f64::from_le_bytes(*(ptr as *const [u8; 8])))
-            }
-        }
+            })
     }
     
     /// 验证速度范围

@@ -1963,26 +1963,40 @@ export const destroyScene = () => {
         renderer.setAnimationLoop(null);
     }
     
-    // 清理事件监听器
+    // ============ 清理所有事件监听器 ============
+    
+    // 1. 清理window事件
     if (resizeHandler) {
         window.removeEventListener('resize', resizeHandler);
         resizeHandler = null;
     }
-    // 移除自定义事件
-    eventBus.off(EVENTS.SCENE3D_TOPDOWN, handleTopDownView)
-    eventBus.off(EVENTS.SCENE3D_DEFAULT, handleDefaultView)
-    // 无
     
-    // 清理鼠标事件监听器
-    if (container) {
-        container.removeEventListener('mousedown', onMouseDown);
-        container.removeEventListener('mousemove', onMouseMove);
-        container.removeEventListener('mouseup', onMouseUp);
-    }
-    
+    // 2. 清理document事件
     if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
     }
+    
+    // 3. 清理自定义事件（eventBus）
+    // 防御性清理：即使函数未定义也尝试移除
+    try {
+        eventBus.off(EVENTS.SCENE3D_TOPDOWN, handleTopDownView);
+        eventBus.off(EVENTS.SCENE3D_DEFAULT, handleDefaultView);
+    } catch (error) {
+        console.warn('清理自定义事件失败:', error);
+    }
+    
+    // 4. 清理容器鼠标事件
+    if (container) {
+        try {
+            container.removeEventListener('mousedown', onMouseDown);
+            container.removeEventListener('mousemove', onMouseMove);
+            container.removeEventListener('mouseup', onMouseUp);
+        } catch (error) {
+            console.warn('清理鼠标事件失败:', error);
+        }
+    }
+    
+    // ============================================
     
     // 清理模型和材质
     models.forEach((model) => {

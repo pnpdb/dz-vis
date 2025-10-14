@@ -14,6 +14,45 @@ export class VideoProcessor {
     constructor() {
         this.stats = new Map(); // 本地统计缓存
         this.processingQueue = new Map(); // 处理队列，避免重复处理
+        this.processingTimestamps = new Map(); // 记录开始处理的时间戳
+        this.PROCESSING_TIMEOUT = 10000; // 10秒超时
+        
+        // 启动定期清理任务（每5秒检查一次）
+        this._startCleanupTask();
+    }
+    
+    /**
+     * 启动超时清理任务
+     * @private
+     */
+    _startCleanupTask() {
+        if (typeof window === 'undefined') return;
+        
+        this.cleanupInterval = setInterval(() => {
+            this._cleanupTimedOutProcessing();
+        }, 5000); // 每5秒检查一次
+    }
+    
+    /**
+     * 清理超时的处理任务
+     * @private
+     */
+    _cleanupTimedOutProcessing() {
+        const now = Date.now();
+        let cleanedCount = 0;
+        
+        for (const [key, timestamp] of this.processingTimestamps.entries()) {
+            if (now - timestamp > this.PROCESSING_TIMEOUT) {
+                logger.warn('VideoProcessor', `处理任务超时，强制清理: ${key} (已等待${Math.round((now - timestamp) / 1000)}秒)`);
+                this.processingQueue.delete(key);
+                this.processingTimestamps.delete(key);
+                cleanedCount++;
+            }
+        }
+        
+        if (cleanedCount > 0) {
+            logger.info('VideoProcessor', `清理了${cleanedCount}个超时的处理任务`);
+        }
     }
     
     /**
@@ -35,13 +74,15 @@ export class VideoProcessor {
             // 创建处理Promise
             const processingPromise = this._processFrameInternal(vehicleId, base64Data, frameId);
             this.processingQueue.set(cacheKey, processingPromise);
+            this.processingTimestamps.set(cacheKey, Date.now()); // 记录开始时间
             
             try {
                 const result = await processingPromise;
                 return result;
             } finally {
-                // 清理缓存
+                // 清理缓存和时间戳
                 this.processingQueue.delete(cacheKey);
+                this.processingTimestamps.delete(cacheKey);
             }
         } catch (error) {
             logger.error('VideoProcessor', `处理视频帧失败: ${error.message}`);
@@ -344,6 +385,55 @@ export class VideoProcessor {
         }
         
         return comparison;
+    }
+    
+    /**
+     * 销毁处理器，清理所有资源
+     */
+    destroy() {
+        // 清理定时器
+        if (this.cleanupInterval) {
+            clearInterval(this.cleanupInterval);
+            this.cleanupInterval = null;
+        }
+        
+        // 清理队列和时间戳
+        this.processingQueue.clear();
+        this.processingTimestamps.clear();
+        this.stats.clear();
+        
+        logger.info('VideoProcessor', '视频处理器已销毁');
+    }
+    
+    /**
+     * 获取当前处理队列状态（用于调试）
+     * 
+     * @returns {Object} 队列状态信息
+     */
+    getQueueStatus() {
+        return {
+            queueSize: this.processingQueue.size,
+            oldestTask: this._getOldestTaskAge(),
+            timeoutThreshold: this.PROCESSING_TIMEOUT
+        };
+    }
+    
+    /**
+     * 获取最老任务的等待时间
+     * @private
+     */
+    _getOldestTaskAge() {
+        if (this.processingTimestamps.size === 0) return 0;
+        
+        const now = Date.now();
+        let oldest = 0;
+        
+        for (const timestamp of this.processingTimestamps.values()) {
+            const age = now - timestamp;
+            if (age > oldest) oldest = age;
+        }
+        
+        return oldest;
     }
 }
 

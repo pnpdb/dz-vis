@@ -499,34 +499,7 @@ class SocketManager {
             socketLogger.debug(`SocketManager发送状态响应 - 车辆: ${vehicleId}, 连接: ${isConnected}`);
         });
     }
-
-
-    /**
-     * 车辆控制方法 (预留给后续指令协议实现)
-     * TODO: 当实现发送指令协议时，恢复这些方法
-     */
-    // async startVehicle(carId) {
-    //     return this.sendToVehicle(carId, SEND_MESSAGE_TYPES.START_VEHICLE);
-    // }
-
-    // async stopVehicle(carId) {
-    //     return this.sendToVehicle(carId, SEND_MESSAGE_TYPES.STOP_VEHICLE);
-    // }
-
-    // async emergencyBrake(carId) {
-    //     return this.sendToVehicle(carId, SEND_MESSAGE_TYPES.EMERGENCY_BRAKE);
-    // }
-
-    // async setVehicleSpeed(carId, speed) {
-    //     const speedData = new Uint8Array(4);
-    //     new DataView(speedData.buffer).setFloat32(0, speed, true); // 小端序
-    //     return this.sendToVehicle(carId, SEND_MESSAGE_TYPES.SET_SPEED, speedData);
-    // }
-
-    // async requestVehicleStatus(carId) {
-    //     return this.sendToVehicle(carId, SEND_MESSAGE_TYPES.REQUEST_STATUS);
-    // }
-
+    
     // ============ 数据域解析方法 ============
 
     /**

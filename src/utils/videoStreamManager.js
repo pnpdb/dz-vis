@@ -15,6 +15,7 @@ class VideoStreamManager {
     this.udpServerPromise = null;
     this.activeVehicleId = null;
     this.lastFrameTimestamps = new Map();
+    this.lastBlobUrls = new Map(); // vehicleId -> blobUrl (用于内存回收)
   }
 
   async ensureServer() {
@@ -83,6 +84,13 @@ class VideoStreamManager {
       this.timeoutTimers.delete(id);
     }
     this.frameCounts.delete(id);
+    
+    // 释放 Blob URL 避免内存泄漏
+    const oldBlobUrl = this.lastBlobUrls.get(id);
+    if (oldBlobUrl) {
+      URL.revokeObjectURL(oldBlobUrl);
+      this.lastBlobUrls.delete(id);
+    }
   }
 
   startFrameRate(id) {
@@ -154,6 +162,13 @@ class VideoStreamManager {
       const processedArray = Uint8Array.from(processedBinary, (char) => char.charCodeAt(0));
       const blob = new Blob([processedArray], { type: 'image/jpeg' });
       const blobUrl = URL.createObjectURL(blob);
+
+      // 释放旧的 Blob URL 避免内存泄漏
+      const oldBlobUrl = this.lastBlobUrls.get(id);
+      if (oldBlobUrl) {
+        URL.revokeObjectURL(oldBlobUrl);
+      }
+      this.lastBlobUrls.set(id, blobUrl);
 
       const now = Date.now();
       const previousTimestamp = this.lastFrameTimestamps.get(id) || null;

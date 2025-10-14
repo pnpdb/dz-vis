@@ -780,10 +780,6 @@ onBeforeUnmount(() => {
     stopVideoStream();
 });
 
-const updateLightDuration = () => {
-    console.log('更新信号灯时长:', trafficSettings.value);
-    // TODO: 实现信号灯控制逻辑
-};
 </script>
 
 <style lang="scss" scoped>

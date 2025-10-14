@@ -1,6 +1,9 @@
 <template>
   <div class="parallel-driving-page">
-    <!-- 标题栏 - 与主界面保持一致 -->
+    <!-- 自定义标题栏 - 与主界面保持一致 -->
+    <TitleBar />
+    
+    <!-- 标题栏 -->
     <header class="header">
       <!-- 左侧返回按钮 -->
       <div class="left-section">
@@ -151,6 +154,7 @@ import { parseVehicleId, compareVehicleId } from '@/utils/vehicleTypes.js'
 import eventBus, { EVENTS } from '@/utils/eventBus.js'
 import { useCarStore } from '@/stores/car.js'
 import { videoStreamManager } from '@/utils/videoStreamManager.js'
+import TitleBar from '@/components/TitleBar.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -400,13 +404,14 @@ const goBack = async () => {
   align-items: center;
   justify-content: space-between;
   padding: 0 40px;
+  margin-top: 30px; /* 为自定义标题栏留出空间 */
   margin-bottom: 0;
   overflow: visible !important;
   border: none;
   box-shadow: none;
   
-  /* 启用窗口拖动 */
-  -webkit-app-region: drag;
+  /* 禁用窗口拖动（由自定义标题栏处理） */
+  -webkit-app-region: no-drag;
 }
 
 /* 菜单导航栏 - 与主界面保持一致 */
@@ -513,6 +518,7 @@ const goBack = async () => {
   justify-content: center;
   color: #ffffff;
   cursor: pointer;
+  -webkit-app-region: no-drag; /* 确保按钮可点击 */
   transition: all 0.3s ease;
   font-weight: 800;
   font-size: 20px;

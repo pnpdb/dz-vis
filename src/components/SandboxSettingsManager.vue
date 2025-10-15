@@ -35,7 +35,7 @@
                             style="width: 100%"
                         />
                     </el-form-item>
-                    <el-form-item>
+                    <el-form-item class="service-actions-item">
                         <div class="service-actions">
                             <el-button 
                                 type="primary" 
@@ -561,7 +561,7 @@ onMounted(() => {
 }
 
 .settings-section {
-    margin-bottom: 24px;
+    margin-bottom: 32px;
     
     &:last-child {
         margin-bottom: 0;
@@ -608,6 +608,17 @@ onMounted(() => {
 .service-actions {
     display: flex;
     gap: 12px;
+    justify-content: flex-end;
+    width: 100%;
+}
+
+// 按钮所在表单项的特定样式
+:deep(.service-actions-item) {
+    .el-form-item__content {
+        display: flex;
+        justify-content: flex-end;
+        margin-left: 0 !important;
+    }
 }
 
 .cameras-list {

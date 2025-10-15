@@ -48,7 +48,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import CarSettings from '@/components/CarSettings.vue';
 import { VehicleConnectionAPI } from '@/utils/vehicleAPI.js';
 import { socketManager } from '@/utils/socketManager.js';
@@ -58,6 +58,7 @@ const selectedCar = ref('');
 const showAllPaths = ref(false);
 const vehicleList = ref([]);
 const loading = ref(false);
+const isRestoringState = ref(false); // 防止递归更新的标志位
 
 // 加载车辆连接数据
 const loadVehicleConnections = async () => {
@@ -132,6 +133,58 @@ const handleViewVehiclePath = async () => {
         });
     }
 };
+
+// 监听显示所有路径开关变化
+watch(showAllPaths, async (newValue, oldValue) => {
+    // 如果是程序内部恢复状态的操作，跳过处理
+    if (isRestoringState.value) {
+        isRestoringState.value = false;
+        return;
+    }
+    
+    try {
+        // 获取所有在线车辆
+        const onlineVehicleIds = socketManager.getOnlineVehicleIds();
+        
+        // 如果是打开操作（从 false 到 true），检查是否有在线车辆
+        if (newValue && onlineVehicleIds.length === 0) {
+            ElMessage.warning({
+                message: '当前未有车辆在线',
+                duration: 3000
+            });
+            // 恢复开关到关闭状态
+            isRestoringState.value = true;
+            showAllPaths.value = false;
+            return;
+        }
+        
+        // 如果是关闭操作且没有在线车辆，静默跳过
+        if (!newValue && onlineVehicleIds.length === 0) {
+            console.log('没有在线车辆，跳过批量路径显示指令发送');
+            return;
+        }
+        
+        // 批量发送路径显示控制指令给所有在线车辆
+        const displayPath = newValue ? 1 : 0;
+        await socketManager.sendBatchVehiclePathDisplay(onlineVehicleIds, displayPath);
+        
+        ElMessage.success({
+            message: newValue 
+                ? `已开启 ${onlineVehicleIds.length} 辆车的路径显示` 
+                : `已关闭 ${onlineVehicleIds.length} 辆车的路径显示`,
+            duration: 3000
+        });
+    } catch (error) {
+        console.error('批量发送路径显示指令失败:', error);
+        ElMessage.error({
+            message: '批量发送路径显示指令失败: ' + error.message,
+            duration: 3000
+        });
+        // 发送失败时恢复开关状态
+        isRestoringState.value = true;
+        showAllPaths.value = !newValue;
+    }
+});
 
 // 组件挂载时加载数据
 onMounted(() => {

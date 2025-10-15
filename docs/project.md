@@ -76,6 +76,7 @@
 | `0x1003` | 服务器→车辆 | 导航控制 |
 | `0x1004` | 服务器→车辆 | 摄像头控制 |
 | `0x1006` | 服务器→车辆 | 功能设置（数据记录等） |
+| `0x1007` | 服务器→车辆 | 路径显示控制（支持批量发送） |
 | `0x2003` | 服务器→沙盘 | 沙盘灯光控制 |
 | `0x3001` | 沙盘→服务器 | 红绿灯状态（动态长度） |
 
@@ -201,6 +202,21 @@ main.js                         # 应用入口，加载消息类型配置
    - 只启用必需的 features
    - `rt-multi-thread`, `macros`, `sync`, `time`, `net`, `io-util`, `fs`, `process`
 
+7. **并发安全优化** ✨ 最新
+   - `BatchProcessor` 从 `Mutex` 改为 `RwLock`
+   - 提升统计信息读取性能（多读少写场景）
+   - 减少锁竞争
+
+8. **空值检查增强** ✨ 最新
+   - `videoStreamManager`: 完整的 frame/vehicle_id/jpeg_data 验证
+   - `socketManager`: 完整的 parsed 数据验证和范围检查
+   - 防止运行时 null/undefined 错误
+
+9. **资源清理优化** ✨ 最新
+   - Blob URL 先创建新 URL，成功后再释放旧 URL
+   - `Scene3D/index.vue` 防御性清理所有事件监听器
+   - 防止内存泄漏和视频帧丢失
+
 ### 错误处理（已统一）
 
 #### Rust 端
@@ -317,19 +333,24 @@ URL.revokeObjectURL(blobUrl)
 
 ## 🐛 已知问题
 
-### 需要修复
-1. **停车位状态不一致**: `state.parkingSlot` 和 `state.parking.slotId` 重复存储
-2. **Blob URL 清理时机**: 应先创建新 URL，成功后再释放旧 URL
+### ✅ 已修复（最新更新）
+1. ✅ **停车位状态不一致**: 已移除重复的 `state.parkingSlot`，统一使用 `state.parking.slotId`
+2. ✅ **Blob URL 清理时机**: 已修改为先创建新 URL，成功后再释放旧 URL
+3. ✅ **空值检查不足**: 已在 `videoStreamManager` 和 `socketManager` 中添加完善的类型检查
+4. ✅ **并发安全性**: `BatchProcessor` 已从 `Mutex` 改为 `RwLock`，提升读取性能
+5. ✅ **事件监听器泄漏**: 已修复 `Scene3D/index.vue` 中的监听器清理问题
 
 ### 需要优化
 1. **SQLx 版本过旧**: 当前 0.6，建议升级到 0.8 或迁移 rusqlite
-2. **调试日志过多**: 部分日志未条件化，生产环境仍输出
-3. **Scene3D 渲染**: 每帧遍历整个场景，应维护动画对象列表
+2. **Scene3D 渲染**: 每帧遍历整个场景，应维护动画对象列表
 
 ### 待实现
-1. **大组件拆分**: Scene3D 和 Control 组件过大
-2. **数据库索引**: 高频查询字段缺少索引
-3. **响应式优化**: Pinia Store 的 `vehicles` Map 可用 `shallowRef`
+1. **大组件拆分**: Scene3D (2300行) 和 Control (1300行) 组件过大
+
+### ✅ 已验证无需优化
+1. ✅ **Pinia Store 响应式**: 已有节流，数据量小，响应式合理
+2. ✅ **数据库索引**: 已完善，覆盖所有高频查询字段
+3. ✅ **VideoProcessor 缓存键**: 开销极低（0.09ms/秒），不是瓶颈
 
 ---
 
@@ -377,27 +398,24 @@ build: {
 
 ## 🚀 继续开发建议
 
-### 优先级 P0（立即修复）
-1. 停车位状态不一致问题
-2. Blob URL 清理时机问题
-
-### 优先级 P1（本迭代）
-1. Scene3D 渲染优化（维护动画对象列表）
-2. 空值检查和类型安全
-3. 并发安全性（Mutex → RwLock）
-4. 事件监听器对称清理
+### ✅ 已完成的优化（最新）
+- ✅ **P0**: 停车位状态不一致、Blob URL 清理时机
+- ✅ **P1**: 空值检查和类型安全、并发安全性、事件监听器清理
+- ✅ **功能**: 批量路径显示控制（"显示所有路径"开关）
 
 ### 优先级 P2（下迭代）
-1. 大组件拆分（Scene3D、Control）
-2. Pinia Store 响应式优化
-3. 数据库查询索引
-4. VideoProcessor 缓存键优化
+1. **Scene3D 渲染优化** - 维护动画对象列表，避免全场景遍历
+2. **大组件拆分** - Scene3D (2300行) 和 Control (1300行)
 
 ### 优先级 P3（持续改进）
-1. SQLx 版本升级
-2. 调试日志条件化
-3. JSDoc 文档补充
-4. Rust 模块可见性收紧
+1. **SQLx 版本升级** - 从 0.6 升级到 0.8
+2. **JSDoc 文档补充** - 为核心函数添加完整文档
+3. **Rust 模块可见性收紧** - 明确模块边界
+
+### ✅ 已验证无需优化
+- Pinia Store 响应式（已有节流，性能合理）
+- 数据库查询索引（已完善覆盖）
+- VideoProcessor 缓存键（不是性能瓶颈）
 
 ---
 
@@ -416,6 +434,26 @@ build: {
 - **打包生产**: `npm run tauri:build`
 - **Rust 检查**: `cargo check --manifest-path=src-tauri/Cargo.toml`
 - **前端构建**: `npm run build`
+
+---
+
+## 🆕 最新功能（本次更新）
+
+### 批量路径显示控制
+**位置**: 功能设置 → 路径设置 → 显示所有路径
+
+**功能说明**:
+- 一键开启/关闭所有在线车辆的路径显示
+- 使用批量发送优化（`batch_send_to_vehicles`），单次 IPC 调用完成
+- 自动检测在线车辆，无在线车辆时给出提示
+- 失败时自动恢复开关状态
+
+**技术实现**:
+- 前端: `Settings.vue` 使用 `watch` 监听开关状态
+- 通信: `socketManager.sendBatchVehiclePathDisplay()` 批量发送 0x1007 协议
+- 后端: Rust 并发发送（`futures_util::join_all`）
+
+**协议**: 0x1007 - 数据域 `[车辆编号, 显示路径(0/1)]`
 
 ---
 

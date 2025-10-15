@@ -776,6 +776,52 @@ class SocketManager {
     }
     
     /**
+     * 批量发送车辆路径显示控制指令（给所有指定车辆）
+     * @param {Array<number>} vehicleIds - 车辆ID数组
+     * @param {number} displayPath - 显示路径状态 (0:关闭, 1:开启)
+     */
+    async sendBatchVehiclePathDisplay(vehicleIds, displayPath) {
+        try {
+            if (!Array.isArray(vehicleIds) || vehicleIds.length === 0) {
+                throw new Error('车辆ID数组不能为空');
+            }
+            if (displayPath == null || (displayPath !== 0 && displayPath !== 1)) {
+                throw new Error('显示路径状态无效');
+            }
+
+            socketLogger.info(`批量发送路径显示控制指令 - ${vehicleIds.length} 辆车, 状态: ${displayPath ? '开启' : '关闭'}`);
+
+            const { invoke } = await import('@tauri-apps/api/core');
+            
+            // 构建批量发送的数据
+            // 每辆车的数据域: [车辆编号(1字节), 显示路径(1字节)]
+            const vehicles = vehicleIds.map(vehicleId => ({
+                vehicle_id: Number(vehicleId),
+                message_type: SEND_MESSAGE_TYPES.VEHICLE_PATH_DISPLAY, // 0x1007
+                data: [
+                    Number(vehicleId), // 第一个字节：车辆编号
+                    displayPath        // 第二个字节：显示路径状态
+                ]
+            }));
+            
+            // 调用 Rust 批量发送命令
+            const result = await invoke('batch_send_to_vehicles', { vehicles });
+            
+            if (result.error_count > 0) {
+                socketLogger.warn(`批量路径显示控制部分失败 - 成功: ${result.success_count}, 失败: ${result.error_count}`);
+                console.warn('失败详情:', result.errors);
+            } else {
+                socketLogger.info(`批量路径显示控制全部成功 - ${result.success_count} 辆车`);
+            }
+            
+            return result;
+        } catch (error) {
+            socketLogger.error(`批量发送路径显示控制指令失败:`, error);
+            throw error;
+        }
+    }
+    
+    /**
      * 处理沙盘连接（委托给store）
      */
     handleSandboxConnect(payload) {

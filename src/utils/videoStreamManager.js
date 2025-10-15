@@ -135,7 +135,21 @@ class VideoStreamManager {
   }
 
   async handleFrame(frame) {
+    // 类型安全：验证 frame 对象
+    if (!frame || typeof frame !== 'object') {
+      console.warn('[VideoStream] 无效的帧对象');
+      return;
+    }
+    
+    // 类型安全：验证 vehicle_id
+    if (frame.vehicle_id == null || isNaN(Number(frame.vehicle_id))) {
+      console.warn('[VideoStream] 无效的车辆ID:', frame.vehicle_id);
+      return;
+    }
+    
     const id = Number(frame.vehicle_id);
+    
+    // 检查是否有订阅者
     if (!this.subscribers.has(id)) {
       if (this.activeVehicleId !== null && this.activeVehicleId !== id) {
         console.debug('[VideoStream] Frame ignored; active vehicle', this.activeVehicleId, 'frame vehicle', id,
@@ -143,32 +157,60 @@ class VideoStreamManager {
       }
       return;
     }
-    if (!frame.jpeg_data || frame.jpeg_data.length === 0) {
+    
+    // 空值检查：验证 jpeg_data
+    if (!frame.jpeg_data || !Array.isArray(frame.jpeg_data) && typeof frame.jpeg_data !== 'string') {
+      console.warn('[VideoStream] 无效的 jpeg_data 类型');
       return;
     }
+    
+    if (frame.jpeg_data.length === 0) {
+      return;
+    }
+    
     try {
       const result = await videoProcessor.processVideoFrame(
         frame.vehicle_id,
         frame.jpeg_data,
         frame.frame_id,
       );
+      
+      // 空值检查：验证处理结果
+      if (!result || typeof result !== 'object') {
+        console.warn('[VideoStream] 无效的处理结果');
+        return;
+      }
+      
       if (!result.success || !result.frame?.jpeg_base64) {
         try {
           plWarn(`视频帧处理失败: ${result.error || '未知错误'}`).catch(() => {});
         } catch (_) {}
         return;
       }
+      
+      // 类型安全：验证 base64 字符串
+      if (typeof result.frame.jpeg_base64 !== 'string' || result.frame.jpeg_base64.length === 0) {
+        console.warn('[VideoStream] 无效的 base64 数据');
+        return;
+      }
+      
       const processedBinary = atob(result.frame.jpeg_base64);
       const processedArray = Uint8Array.from(processedBinary, (char) => char.charCodeAt(0));
       const blob = new Blob([processedArray], { type: 'image/jpeg' });
-      const blobUrl = URL.createObjectURL(blob);
-
-      // 释放旧的 Blob URL 避免内存泄漏
+      
+      // 先创建新的 Blob URL
+      const newBlobUrl = URL.createObjectURL(blob);
+      
+      // 创建成功后，再释放旧的 Blob URL（避免失败时用户看不到画面）
       const oldBlobUrl = this.lastBlobUrls.get(id);
       if (oldBlobUrl) {
         URL.revokeObjectURL(oldBlobUrl);
       }
-      this.lastBlobUrls.set(id, blobUrl);
+      
+      // 保存新的 Blob URL
+      this.lastBlobUrls.set(id, newBlobUrl);
+      
+      const blobUrl = newBlobUrl;
 
       const now = Date.now();
       const previousTimestamp = this.lastFrameTimestamps.get(id) || null;

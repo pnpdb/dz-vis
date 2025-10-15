@@ -19,6 +19,7 @@ import eventBus, { EVENTS } from '@/utils/eventBus.js'
 const isLoading = ref(true);
 const loadingProgress = ref(0);
 let appCloseHandler = null;
+let modelProgressHandler = null; // 用于清理模型加载进度监听器
 
 onMounted(async () => {
   // 确保DOM准备就绪后再初始化3D场景
@@ -63,7 +64,7 @@ const initSceneAsync = async (container) => {
         isLoading.value = false;
         
         // 继续监听模型加载进度，但不再阻塞交互
-        const modelProgressHandler = (() => {
+        modelProgressHandler = (() => {
           let lastProgress = -1;
           return (event) => {
             const progress = event?.detail ?? 0;
@@ -74,6 +75,7 @@ const initSceneAsync = async (container) => {
             if (progress === 100) {
               console.log('所有模型加载完成');
               eventBus.off(EVENTS.SCENE3D_PROGRESS, modelProgressHandler);
+              modelProgressHandler = null; // 清空引用
             } else {
               console.log(`模型加载进度: ${progress}%`);
             }
@@ -106,8 +108,16 @@ const initSceneAsync = async (container) => {
 onUnmounted(() => {
   destroyScene();
   
+  // 清理 window 事件监听器
   if (appCloseHandler) {
     window.removeEventListener('beforeunload', appCloseHandler);
+    appCloseHandler = null;
+  }
+  
+  // 清理 eventBus 监听器（防御性清理，确保组件卸载时所有监听器都被移除）
+  if (modelProgressHandler) {
+    eventBus.off(EVENTS.SCENE3D_PROGRESS, modelProgressHandler);
+    modelProgressHandler = null;
   }
 });
 </script>

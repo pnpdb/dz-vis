@@ -207,16 +207,43 @@ class SocketManager {
      * @param {number} timestamp - 时间戳
      */
     async updateVehicleInfoFromParsed(carId, parsed, timestamp) {
+        // 空值检查：验证输入参数
+        if (!parsed || typeof parsed !== 'object') {
+            socketLogger.warn(`无效的解析数据: carId=${carId}`);
+            return;
+        }
+        
+        // 类型安全：确保 vehicleId 有效
         const vehicleId = Number(parsed.vehicle_id ?? parsed.carId ?? carId);
-        const speed = Number(parsed.speed ?? 0);
-        const position = parsed.position ?? { x: 0, y: 0 };
+        if (isNaN(vehicleId) || vehicleId <= 0) {
+            socketLogger.warn(`无效的车辆ID: ${vehicleId}`);
+            return;
+        }
+        
+        // 安全地提取数值，带有范围验证
+        const speed = Math.max(0, Number(parsed.speed ?? 0));
+        const battery = Math.max(0, Math.min(100, Number(parsed.battery ?? 0)));
         const orientation = Number(parsed.orientation ?? 0);
-        const battery = Number(parsed.battery ?? 0);
-        const gear = this.extractGear(parsed.gear);
         const steeringAngle = Number(parsed.steeringAngle ?? 0);
-        const navigation = parsed.navigation ?? { code: 0, text: '未知状态' };
-        const sensors = parsed.sensors ?? {};
-        const parkingSlot = Number(parsed.parkingSlot ?? 0);
+        const parkingSlot = Math.max(0, Number(parsed.parkingSlot ?? 0));
+        
+        // 安全地提取对象，确保有默认值
+        const position = (parsed.position && typeof parsed.position === 'object') 
+            ? { x: Number(parsed.position.x ?? 0), y: Number(parsed.position.y ?? 0) }
+            : { x: 0, y: 0 };
+        
+        const navigation = (parsed.navigation && typeof parsed.navigation === 'object')
+            ? { 
+                code: Number(parsed.navigation.code ?? 0), 
+                text: String(parsed.navigation.text ?? '未知状态') 
+              }
+            : { code: 0, text: '未知状态' };
+        
+        const sensors = (parsed.sensors && typeof parsed.sensors === 'object')
+            ? parsed.sensors
+            : {};
+        
+        const gear = this.extractGear(parsed.gear);
 
         const vehicleInfo = {
             carId,
@@ -236,11 +263,18 @@ class SocketManager {
         // ✅ 优化：使用Rust进行状态比对（移除JS端重复比对）
         const store = this.ensureCarStore();
         if (store) {
-            const prevState = store.getVehicleRuntimeState(vehicleId);
+            const prevVehicleState = store.getVehicleState(vehicleId);
             
             // 如果有前一个状态且数据完整，使用Rust比对
-            if (prevState && prevState.vehicleId != null) {
+            if (prevVehicleState && prevVehicleState.state) {
                 try {
+                    // 准备前一个状态（需要包含停车位信息）
+                    const prevState = {
+                        ...prevVehicleState.state,
+                        parkingSlot: prevVehicleState.parking.slotId,
+                        vehicleId: vehicleId
+                    };
+                    
                     // 准备Rust比对所需的数据格式
                     const prevForRust = this.prepareStateForRustComparison(prevState);
                     const nextForRust = this.prepareStateForRustComparison(vehicleInfo);

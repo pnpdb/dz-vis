@@ -4,7 +4,7 @@
 
 use crate::protocol_processing::types::*;
 use crate::protocol_processing::{ProtocolParser, ProtocolValidator, DataConverter};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use std::thread;
 use std::sync::mpsc;
 
@@ -18,8 +18,8 @@ pub struct BatchProcessor {
     converter_pool: Vec<DataConverter>,
     /// 工作线程数量
     worker_count: usize,
-    /// 批处理统计
-    stats: Arc<Mutex<BatchProcessingStats>>,
+    /// 批处理统计（使用 RwLock 提高读取性能）
+    stats: Arc<RwLock<BatchProcessingStats>>,
 }
 
 /// 批处理统计信息
@@ -92,7 +92,7 @@ impl BatchProcessor {
             validator_pool,
             converter_pool,
             worker_count,
-            stats: Arc::new(Mutex::new(BatchProcessingStats {
+            stats: Arc::new(RwLock::new(BatchProcessingStats {
                 total_tasks: 0,
                 successful_tasks: 0,
                 failed_tasks: 0,
@@ -160,7 +160,7 @@ impl BatchProcessor {
                     
                     // 更新统计信息
                     {
-                        let mut stats_guard = stats.lock().unwrap();
+                        let mut stats_guard = stats.write().unwrap();
                         stats_guard.total_tasks += 1;
                         stats_guard.total_time_us += processing_time;
                     }
@@ -205,7 +205,7 @@ impl BatchProcessor {
         
         // 更新批处理统计
         {
-            let mut stats_guard = self.stats.lock().unwrap();
+            let mut stats_guard = self.stats.write().unwrap();
             stats_guard.successful_tasks += success_count as u64;
             stats_guard.failed_tasks += error_count as u64;
             
@@ -322,7 +322,7 @@ impl BatchProcessor {
                 
                 // 更新统计
                 {
-                    let mut stats_guard = stats.lock().unwrap();
+                    let mut stats_guard = stats.write().unwrap();
                     stats_guard.total_tasks += 1;
                     stats_guard.total_time_us += processing_time;
                     
@@ -441,18 +441,18 @@ impl BatchProcessor {
     
     /// 获取平均处理时间
     fn get_average_processing_time(&self) -> f64 {
-        let stats_guard = self.stats.lock().unwrap();
+        let stats_guard = self.stats.read().unwrap();
         stats_guard.average_time_us
     }
     
     /// 获取批处理统计
     pub fn get_stats(&self) -> BatchProcessingStats {
-        self.stats.lock().unwrap().clone()
+        self.stats.read().unwrap().clone()
     }
     
     /// 重置统计
     pub fn reset_stats(&mut self) {
-        let mut stats_guard = self.stats.lock().unwrap();
+        let mut stats_guard = self.stats.write().unwrap();
         *stats_guard = BatchProcessingStats {
             total_tasks: 0,
             successful_tasks: 0,

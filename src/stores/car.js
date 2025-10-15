@@ -119,7 +119,6 @@ export const useCarStore = defineStore('car', {
                             lidar: { status: false },
                             gyro: { status: false },
                         },
-                        parkingSlot: 0,
                         timestamp: null,
                     },
                     // 摄像头状态
@@ -183,12 +182,11 @@ export const useCarStore = defineStore('car', {
                 steeringAngle: vehicleInfo.steeringAngle ?? state.state.steeringAngle,
                 navigation: vehicleInfo.navigation || state.state.navigation,
                 sensors: vehicleInfo.sensors || state.state.sensors,
-                parkingSlot: vehicleInfo.parkingSlot ?? state.state.parkingSlot,
                 timestamp: vehicleInfo.timestamp || Date.now(),
             });
             
-            // 更新停车位
-            if (vehicleInfo.parkingSlot > 0) {
+            // 更新停车位（统一存储在 parking.slotId，避免状态不一致）
+            if (vehicleInfo.parkingSlot !== undefined) {
                 state.parking.slotId = vehicleInfo.parkingSlot;
             }
         },

@@ -14,6 +14,7 @@ import {
     LOD,
     BufferAttribute,
     LinearFilter,
+    LinearMipmapLinearFilter,
     Vector3,
     Raycaster,
     Group,
@@ -311,6 +312,61 @@ const initSceneCore = async () => {
         // 异步加载模型（不阻塞，带进度反馈）
         loadModelsWithProgress();
         
+        // 🔍 暴露调试对象到 window (仅开发环境)
+        if (import.meta.env.DEV || true) {  // 暂时在所有环境都启用，便于诊断
+            window.__scene3d__ = {
+                scene,
+                camera,
+                renderer,
+                controls,
+                models,
+                modelsGroup,
+                // 辅助调试函数
+                getSandboxModel: () => models.get('final'),
+                getCarsModel: () => models.get('cars'),
+                adjustSandboxScale: (scale) => {
+                    const sandbox = models.get('final');
+                    if (sandbox) {
+                        sandbox.scale.setScalar(scale);
+                        console.log(`✅ 沙盘缩放已调整为: ${scale}`);
+                    } else {
+                        console.error('❌ 沙盘模型未找到');
+                    }
+                },
+                adjustSandboxPosition: (x, y, z) => {
+                    const sandbox = models.get('final');
+                    if (sandbox) {
+                        sandbox.position.set(x, y, z);
+                        console.log(`✅ 沙盘位置已调整为: (${x}, ${y}, ${z})`);
+                    } else {
+                        console.error('❌ 沙盘模型未找到');
+                    }
+                },
+                logSandboxInfo: () => {
+                    const sandbox = models.get('final');
+                    if (sandbox) {
+                        console.log('🔍 沙盘模型信息:');
+                        console.log('  位置:', sandbox.position);
+                        console.log('  缩放:', sandbox.scale);
+                        console.log('  旋转:', sandbox.rotation);
+                        console.log('  可见:', sandbox.visible);
+                        const box = new Box3().setFromObject(sandbox);
+                        const size = new Vector3();
+                        box.getSize(size);
+                        console.log('  边界框尺寸:', size);
+                        console.log('  边界框范围:', box);
+                    } else {
+                        console.error('❌ 沙盘模型未找到');
+                    }
+                }
+            };
+            console.log('🔧 调试工具已挂载到 window.__scene3d__');
+            console.log('💡 快速调试命令:');
+            console.log('  - window.__scene3d__.logSandboxInfo() // 查看沙盘信息');
+            console.log('  - window.__scene3d__.adjustSandboxScale(0.1) // 调整缩放');
+            console.log('  - window.__scene3d__.adjustSandboxPosition(0, 2, 0) // 调整位置');
+        }
+        
         // 基础场景已完成，可以开始交互（即使模型未加载完）
         console.log('基础3D场景初始化完成，界面可交互');
         eventBus.emit(EVENTS.SCENE3D_COMPLETE);
@@ -323,20 +379,20 @@ const initSceneCore = async () => {
 
 // 设置光照系统
 const setupLighting = () => {
-    // 环境光
-    const ambientLight = new AmbientLight(0xffffff, 1.2);
+    // 环境光（降低强度避免过曝）
+    const ambientLight = new AmbientLight(0xffffff, 0.6);
     ambientLight.name = 'AmbientLight';
     lightsGroup.add(ambientLight);
 
-    // 主方向光
-    const directionalLight = new DirectionalLight(0xffffff, 1.5);
+    // 主方向光（降低强度）
+    const directionalLight = new DirectionalLight(0xffffff, 0.8);
     directionalLight.position.set(10, 10, 10);
     directionalLight.name = 'MainDirectionalLight';
     directionalLight.castShadow = false; // 暂时关闭阴影以提升性能
     lightsGroup.add(directionalLight);
 
     // 补充光源（更柔和）
-    const fillLight = new DirectionalLight(0x87ceeb, 0.8);
+    const fillLight = new DirectionalLight(0x87ceeb, 0.4);
     fillLight.position.set(-5, 5, -5);
     fillLight.name = 'FillLight';
     lightsGroup.add(fillLight);
@@ -363,10 +419,11 @@ const loadEnvironment = () => {
         ['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png'],
         (texture) => {
             scene.environment = texture;
+            console.log('✅ Skybox 环境贴图加载成功');
         },
         undefined,
         (error) => {
-            console.warn('环境贴图加载失败:', error);
+            console.warn('❌ 环境贴图加载失败:', error);
         }
     );
 };
@@ -423,7 +480,7 @@ const loadModelsWithProgress = async () => {
             setTimeout(() => {
                 console.info('开始加载沙盘模型');
                 loadModelAsync(loader, '/model/final.glb', 'final', {
-                    scale: 0.01,
+                    scale: 6, // 0.01
                     position: [0, 1.4, 0],
                     processMaterial: true,
                     priority: 'low',
@@ -438,6 +495,28 @@ const loadModelsWithProgress = async () => {
                     // 获取加载的沙盘模型并计算尺寸
                     const sandboxModel = models.get('final');
                     if (sandboxModel) {
+                        // 🔍 添加详细的模型调试信息
+                        console.log('🔍 沙盘模型调试信息:');
+                        console.log('  - 位置:', sandboxModel.position);
+                        console.log('  - 缩放:', sandboxModel.scale);
+                        console.log('  - 旋转:', sandboxModel.rotation);
+                        console.log('  - 是否可见:', sandboxModel.visible);
+                        
+                        // 计算模型的实际边界框
+                        const box = new Box3().setFromObject(sandboxModel);
+                        const size = new Vector3();
+                        box.getSize(size);
+                        console.log('  - 边界框尺寸:', size);
+                        console.log('  - 边界框最小点:', box.min);
+                        console.log('  - 边界框最大点:', box.max);
+                        
+                        // 检查子对象数量
+                        let meshCount = 0;
+                        sandboxModel.traverse((child) => {
+                            if (child.isMesh) meshCount++;
+                        });
+                        console.log('  - 网格数量:', meshCount);
+                        
                         const dimensions = calculateSandboxDimensions(sandboxModel);
                         if (dimensions) {
                             // 为沙盘模型添加坐标轴 - 默认隐藏
@@ -463,6 +542,8 @@ const loadModelsWithProgress = async () => {
                             console.debug(`沙盘中心坐标轴: (${dimensions.center.x.toFixed(3)}, ${dimensions.center.y.toFixed(3)}, ${dimensions.center.z.toFixed(3)})`);
                             
                         }
+                    } else {
+                        console.error('❌ 无法从models中获取沙盘模型！');
                     }
                     
                     resolve();
@@ -514,7 +595,7 @@ const loadModels = () => {
     // 延迟加载大模型，给界面更多响应时间
     setTimeout(() => {
         loadModel(loader, '/model/final.glb', 'final', {
-            scale: 0.01,
+            scale: 5,
             position: [0, 1.4, 0],
             processMaterial: true,
             priority: 'low',
@@ -636,12 +717,14 @@ const optimizeGeometryAsyncNonBlocking = async (model) => {
                     // 简化的材质优化
                     if (child.material) {
                         child.material.precision = 'mediump';
-                        child.material.dithering = false;
+                        child.material.dithering = true;  // 启用抖动减少色带
                         
-                        // 只优化主纹理，跳过复杂纹理处理
+                        // 优化纹理设置以避免闪烁
                         if (child.material.map) {
-                            child.material.map.generateMipmaps = false;
-                            child.material.map.minFilter = LinearFilter;
+                            child.material.map.generateMipmaps = true;  // 启用 mipmap 避免闪烁
+                            child.material.map.anisotropy = 4;  // 增加各向异性过滤
+                            // minFilter 使用 mipmap 过滤器
+                            child.material.map.minFilter = LinearMipmapLinearFilter;
                             child.material.map.magFilter = LinearFilter;
                         }
                     }
@@ -778,6 +861,28 @@ const loadModel = (loader, url, key, options = {}) => {
             
             // 如果是沙盘模型，计算尺寸
             if (key === 'final') {
+                // 🔍 添加详细的模型调试信息
+                console.log('🔍 沙盘模型调试信息 (同步加载):');
+                console.log('  - 位置:', model.position);
+                console.log('  - 缩放:', model.scale);
+                console.log('  - 旋转:', model.rotation);
+                console.log('  - 是否可见:', model.visible);
+                
+                // 计算模型的实际边界框
+                const box = new Box3().setFromObject(model);
+                const size = new Vector3();
+                box.getSize(size);
+                console.log('  - 边界框尺寸:', size);
+                console.log('  - 边界框最小点:', box.min);
+                console.log('  - 边界框最大点:', box.max);
+                
+                // 检查子对象数量
+                let meshCount = 0;
+                model.traverse((child) => {
+                    if (child.isMesh) meshCount++;
+                });
+                console.log('  - 网格数量:', meshCount);
+                
                 setTimeout(() => {
                     const dimensions = calculateSandboxDimensions(model);
                     if (dimensions) {
@@ -919,12 +1024,13 @@ const optimizeGeometry = (model) => {
         // 材质和纹理优化
         if (child.material) {
             child.material.precision = 'mediump';
-            child.material.dithering = false;
+            child.material.dithering = true;  // 启用抖动减少色带
             
-            // 优化纹理设置
+            // 优化纹理设置以避免闪烁
             if (child.material.map) {
-                child.material.map.generateMipmaps = false;
-                child.material.map.minFilter = LinearFilter;
+                child.material.map.generateMipmaps = true;  // 启用 mipmap 避免闪烁
+                child.material.map.anisotropy = 4;  // 增加各向异性过滤
+                child.material.map.minFilter = LinearMipmapLinearFilter;
                 child.material.map.magFilter = LinearFilter;
             }
             

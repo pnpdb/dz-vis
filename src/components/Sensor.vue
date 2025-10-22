@@ -71,6 +71,11 @@ const getVehicleIdFromLetter = (letter) => {
 const handleVehicleInfoUpdate = (vehicleInfo) => {
     if (!vehicleInfo || typeof vehicleInfo !== 'object') return;
 
+    // 如果当前没有选中的车辆（carInfo为null），不更新传感器信息
+    if (!props.carInfo) {
+        return;
+    }
+
     const isCurrentVehicle =
         vehicleInfo.carId === props.carInfo ||
         vehicleInfo.vehicleId === props.carInfo ||

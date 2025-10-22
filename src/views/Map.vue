@@ -348,7 +348,6 @@ const cancelConstructionPoint = () => {
 onMounted(() => {
     eventBus.on(EVENTS.MENU_VISIBILITY_CHANGED, (visibility) => {
         showDrivingBehaviorChart.value = visibility.show_auto_drive;
-        console.info('[Map] 自动驾驶行为统计显示状态:', visibility.show_auto_drive ? '显示' : '隐藏');
     });
 });
 

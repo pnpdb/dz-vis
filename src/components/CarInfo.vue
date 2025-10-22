@@ -130,6 +130,11 @@ const checkAndUpdateVehicleStatus = () => {
 const handleVehicleInfoUpdate = (data) => {
     if (!data || typeof data !== 'object') return;
 
+    // 如果当前没有选中的车辆（carInfo为null），不更新信息
+    if (!props.carInfo) {
+        return;
+    }
+
     const incomingId = data.vehicleId ?? data.carId;
     if (!compareVehicleId(incomingId, currentVehicleId.value)) {
         return;

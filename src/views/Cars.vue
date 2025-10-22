@@ -37,8 +37,14 @@ import eventBus, { EVENTS } from '@/utils/eventBus.js';
 
 const carStore = useCarStore();
 
-// 使用store中的选中车辆ID
-const selectedCar = computed(() => carStore.selectedCarId || 1);
+// 使用store中的选中车辆ID（只有在车辆列表不为空时才返回）
+const selectedCar = computed(() => {
+    // 如果没有车辆列表，不返回默认值
+    if (!carStore.carList || carStore.carList.length === 0) {
+        return null;
+    }
+    return carStore.selectedCarId;
+});
 const vehicleStatus = ref('offline'); // 车辆状态：online, offline，默认离线
 
 const vehicleStatusText = computed(() => {

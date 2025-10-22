@@ -9,43 +9,6 @@ export const useCarStore = defineStore('car', {
         filePath,
         selectedCarId: '',
         carList: [], // 从数据库加载的车辆列表
-        defaultCarList: [ // 默认车辆列表（备用）
-            {
-                id: 1,
-                name: '车辆A',
-                value: 1,
-                position: {
-                    x: 100,
-                    y: 100,
-                },
-                angle: 0,
-                speed: 20,
-                batteryValue: 82,
-                isNav: true,
-                loop: 75,
-                online: true,
-            },
-            {
-                id: 2,
-                name: '车辆B',
-                value: 2,
-            },
-            {
-                id: 3,
-                name: '车辆C',
-                value: 3,
-            },
-            {
-                id: 4,
-                name: '车辆D',
-                value: 4,
-            },
-            {
-                id: 5,
-                name: '车辆E',
-                value: 5,
-            },
-        ],
         count: 0,
         name: 'Eduardo',
         loading: false,
@@ -72,9 +35,9 @@ export const useCarStore = defineStore('car', {
             );
             return car || (state.carList.length > 0 ? state.carList[0] : null);
         },
-        // 返回可用的车辆列表（如果数据库为空则使用默认列表）
+        // 返回可用的车辆列表
         availableCarList: state => {
-            return state.carList.length > 0 ? state.carList : state.defaultCarList;
+            return state.carList;
         },
     },
     actions: {

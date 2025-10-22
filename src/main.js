@@ -4,18 +4,18 @@ import { createPinia } from 'pinia';
 import App from './App.vue';
 import router from './router';
 
-import '@/icons/index.js'; // 图标库
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
-import { config } from '@fortawesome/fontawesome-svg-core';
-import '@fortawesome/fontawesome-svg-core/styles.css';
-// 避免自动注入样式导致在不同平台/打包环境下样式缺失或冲突
-config.autoAddCss = false;
+// Font Awesome Web Fonts 模式（使用 CSS + 字体文件）
+// 解决 Ubuntu WebKit compositing 模式下 SVG 图标不显示的问题
+import '@fortawesome/fontawesome-free/css/all.css';
 
 import ElementPlus from 'element-plus';
 import 'element-plus/theme-chalk/dark/css-vars.css';
 import 'element-plus/dist/index.css';
 import './styles/main.css';
 import './styles/customer.scss';
+
+// 导入自定义 Font Awesome 包装组件（Web Fonts 模式）
+import FontAwesomeIcon from '@/components/FontAwesomeIcon.vue';
 
 // Import unified error handling
 import { setupGlobalErrorHandler } from '@/utils/errorHandler.js';
@@ -72,7 +72,7 @@ app.use(ElementPlus, {
     }
 });
 
-// 全局注册Font Awesome组件
+// 全局注册 Font Awesome 包装组件（Web Fonts 模式）
 app.component('fa', FontAwesomeIcon);
 
 // 挂载应用

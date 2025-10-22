@@ -143,11 +143,10 @@ pub fn run() {
         (level, max_bytes, auto_start)
     };
 
-    // 在 Linux 平台禁用 WebKit 复合渲染以修复 SVG/Icon 渲染问题
     #[cfg(target_os = "linux")]
     {
-        std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
-        info!("🌐 Linux: 设置 WEBKIT_DISABLE_COMPOSITING_MODE=1");
+        std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "0");
+        info!("🌐 Linux: 设置 WEBKIT_DISABLE_COMPOSITING_MODE=0");
     }
 
     tauri::Builder::default()

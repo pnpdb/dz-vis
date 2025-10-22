@@ -61,12 +61,6 @@ export default defineConfig(async () => ({
           'vue-vendor': ['vue', 'vue-router', 'pinia'],
           // UI组件库
           'element-plus': ['element-plus'],
-          // 图标库
-          'fontawesome': [
-            '@fortawesome/fontawesome-svg-core',
-            '@fortawesome/free-solid-svg-icons',
-            '@fortawesome/vue-fontawesome'
-          ],
           // 图表库
           'charts': ['echarts'],
           // Three.js核心
@@ -130,10 +124,6 @@ export default defineConfig(async () => ({
       'pinia',
       // UI组件
       'element-plus',
-      // 图标库
-      '@fortawesome/vue-fontawesome',
-      '@fortawesome/fontawesome-svg-core',
-      '@fortawesome/free-solid-svg-icons',
       // Three.js (核心部分预构建)
       'three/src/Three.js',
       // 网络请求

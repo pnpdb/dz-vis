@@ -7,7 +7,8 @@
             </div>
             <h2 class="panel-title">功能设置</h2>
         </div>
-        <CarSettings />
+        <!-- 车辆设置区域已禁用 -->
+        <!-- <CarSettings /> -->
         <div class="form-group">
             <label class="form-label"> <fa icon="route"> </fa> 路径设置</label>
             <div class="flex">
@@ -49,7 +50,7 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue';
-import CarSettings from '@/components/CarSettings.vue';
+// import CarSettings from '@/components/CarSettings.vue';  // 车辆设置已禁用
 import { VehicleConnectionAPI } from '@/utils/vehicleAPI.js';
 import { socketManager } from '@/utils/socketManager.js';
 import { ElMessage } from 'element-plus';

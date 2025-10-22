@@ -299,6 +299,24 @@ impl VehicleDatabase {
                 r#"INSERT INTO app_settings (log_level, cache_size, auto_start, app_title, created_at, updated_at) VALUES ('INFO', 512, 0, '渡众智能沙盘云控平台', ?, ?)"#
             ).bind(&now).bind(&now).execute(&self.pool).await?;
         }
+
+        // 创建菜单可见性设置表
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS menu_visibility_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                show_vehicle_info BOOLEAN NOT NULL DEFAULT 1,
+                show_auto_drive BOOLEAN NOT NULL DEFAULT 1,
+                show_sandbox_control BOOLEAN NOT NULL DEFAULT 1,
+                show_settings BOOLEAN NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            "#
+        ).execute(&self.pool).await?;
+
+        // 初始化默认菜单可见性设置
+        self.init_default_menu_visibility_settings().await?;
         
         log::info!("✅ 数据库表结构检查完成");
         Ok(())
@@ -1159,5 +1177,100 @@ impl VehicleDatabase {
             .await?;
 
         Ok(result.rows_affected() > 0)
+    }
+
+    // ===================== 菜单可见性设置 =====================
+
+    /// 获取菜单可见性设置
+    pub async fn get_menu_visibility_settings(&self) -> Result<MenuVisibilitySettings, sqlx::Error> {
+        let row = sqlx::query("SELECT * FROM menu_visibility_settings ORDER BY id DESC LIMIT 1")
+            .fetch_one(&self.pool)
+            .await?;
+        
+        Ok(MenuVisibilitySettings {
+            id: row.get("id"),
+            show_vehicle_info: row.get("show_vehicle_info"),
+            show_auto_drive: row.get("show_auto_drive"),
+            show_sandbox_control: row.get("show_sandbox_control"),
+            show_settings: row.get("show_settings"),
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))
+                .unwrap_or_default()
+                .with_timezone(&chrono::Utc),
+            updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at"))
+                .unwrap_or_default()
+                .with_timezone(&chrono::Utc),
+        })
+    }
+
+    /// 更新菜单可见性设置
+    pub async fn update_menu_visibility_settings(&self, req: UpdateMenuVisibilityRequest) -> Result<MenuVisibilitySettings, sqlx::Error> {
+        // 读取当前设置并合并
+        let current = self.get_menu_visibility_settings().await?;
+        
+        let show_vehicle_info = req.show_vehicle_info.unwrap_or(current.show_vehicle_info);
+        let show_auto_drive = req.show_auto_drive.unwrap_or(current.show_auto_drive);
+        let show_sandbox_control = req.show_sandbox_control.unwrap_or(current.show_sandbox_control);
+        let show_settings = req.show_settings.unwrap_or(current.show_settings);
+        let now = Utc::now();
+
+        sqlx::query(
+            r#"
+            UPDATE menu_visibility_settings 
+            SET show_vehicle_info = ?, 
+                show_auto_drive = ?, 
+                show_sandbox_control = ?, 
+                show_settings = ?,
+                updated_at = ?
+            WHERE id = ?
+            "#
+        )
+        .bind(show_vehicle_info)
+        .bind(show_auto_drive)
+        .bind(show_sandbox_control)
+        .bind(show_settings)
+        .bind(now.to_rfc3339())
+        .bind(current.id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(MenuVisibilitySettings {
+            id: current.id,
+            show_vehicle_info,
+            show_auto_drive,
+            show_sandbox_control,
+            show_settings,
+            created_at: current.created_at,
+            updated_at: now,
+        })
+    }
+
+    /// 初始化默认菜单可见性设置
+    async fn init_default_menu_visibility_settings(&self) -> Result<(), sqlx::Error> {
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM menu_visibility_settings")
+            .fetch_one(&self.pool)
+            .await?;
+
+        if count == 0 {
+            let now = Utc::now();
+            sqlx::query(
+                r#"
+                INSERT INTO menu_visibility_settings 
+                (show_vehicle_info, show_auto_drive, show_sandbox_control, show_settings, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                "#
+            )
+            .bind(true)  // 默认显示所有菜单
+            .bind(true)
+            .bind(true)
+            .bind(true)
+            .bind(now.to_rfc3339())
+            .bind(now.to_rfc3339())
+            .execute(&self.pool)
+            .await?;
+
+            log::info!("✅ 已初始化默认菜单可见性设置");
+        }
+
+        Ok(())
     }
 }

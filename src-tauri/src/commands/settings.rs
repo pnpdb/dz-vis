@@ -1,5 +1,5 @@
 // 设置相关命令
-use crate::database::{VehicleDatabase, models::UpdateAppSettingsRequest};
+use crate::database::{VehicleDatabase, models::{UpdateAppSettingsRequest, UpdateMenuVisibilityRequest}};
 use log::{info, warn};
 use tauri::Manager;
 
@@ -48,5 +48,31 @@ pub async fn update_app_settings(app: tauri::AppHandle, request: UpdateAppSettin
             Ok(serde_json::to_value(settings).unwrap())
         },
         Err(e) => Err(format!("更新应用设置失败: {}", e))
+    }
+}
+
+/// 获取菜单可见性设置
+#[tauri::command]
+pub async fn get_menu_visibility_settings(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let db = app.state::<VehicleDatabase>();
+    match db.get_menu_visibility_settings().await {
+        Ok(settings) => Ok(serde_json::to_value(settings).unwrap()),
+        Err(e) => Err(format!("获取菜单可见性设置失败: {}", e))
+    }
+}
+
+/// 更新菜单可见性设置
+#[tauri::command]
+pub async fn update_menu_visibility_settings(
+    app: tauri::AppHandle, 
+    request: UpdateMenuVisibilityRequest
+) -> Result<serde_json::Value, String> {
+    let db = app.state::<VehicleDatabase>();
+    match db.update_menu_visibility_settings(request).await {
+        Ok(settings) => {
+            info!("✅ 菜单可见性设置已更新");
+            Ok(serde_json::to_value(settings).unwrap())
+        },
+        Err(e) => Err(format!("更新菜单可见性设置失败: {}", e))
     }
 }

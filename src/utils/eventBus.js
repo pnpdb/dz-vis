@@ -17,7 +17,8 @@ export const EVENTS = {
     VIDEO_FPS_UPDATE: 'video-fps-update',
     VIDEO_STREAM_TIMEOUT: 'video-stream-timeout',
     SANDBOX_CONNECTION_STATUS: 'sandbox-connection-status',
-    SOCKET_SERVER_STARTED: 'socket-server-started'
+    SOCKET_SERVER_STARTED: 'socket-server-started',
+    MENU_VISIBILITY_CHANGED: 'menu-visibility-changed'
 };
 
 const eventBus = {

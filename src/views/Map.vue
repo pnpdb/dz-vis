@@ -25,8 +25,8 @@
             <div class="floating-element vehicle-time-chart-floating">
                 <VehicleTimeChart />
             </div>
-            <!-- 自动驾驶行为统计图表 - 左中下 -->
-            <div class="floating-element driving-behavior-chart-floating">
+            <!-- 自动驾驶行为统计图表 - 左中下 (跟随"自动驾驶"菜单显示/隐藏) -->
+            <div v-if="showDrivingBehaviorChart" class="floating-element driving-behavior-chart-floating">
                 <DrivingBehaviorChart />
             </div>
         </div>
@@ -181,6 +181,9 @@ const serverStatus = ref({
     running: false,
     vehicleCount: 0
 });
+
+// 菜单可见性控制
+const showDrivingBehaviorChart = ref(true); // 默认显示，跟随"自动驾驶"菜单的可见性
 
 // 应用启动时间
 const appStartTime = Date.now();
@@ -340,6 +343,19 @@ const cancelConstructionPoint = () => {
     }
     constructionDialogVisible.value = false;
 };
+
+// 监听菜单可见性变化，控制自动驾驶行为统计的显示
+onMounted(() => {
+    eventBus.on(EVENTS.MENU_VISIBILITY_CHANGED, (visibility) => {
+        showDrivingBehaviorChart.value = visibility.show_auto_drive;
+        console.info('[Map] 自动驾驶行为统计显示状态:', visibility.show_auto_drive ? '显示' : '隐藏');
+    });
+});
+
+// 组件卸载时移除事件监听
+onBeforeUnmount(() => {
+    eventBus.off(EVENTS.MENU_VISIBILITY_CHANGED);
+});
 </script>
 
 <style lang="scss" scoped>

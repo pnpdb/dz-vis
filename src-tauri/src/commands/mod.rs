@@ -18,7 +18,8 @@ pub use system::{
 };
 
 pub use settings::{
-    get_app_settings, update_app_settings
+    get_app_settings, update_app_settings,
+    get_menu_visibility_settings, update_menu_visibility_settings
 };
 
 pub use vehicle::{

@@ -252,6 +252,9 @@
                 <el-tab-pane label="沙盘设置" name="sandbox">
                     <SandboxSettingsManager />
                 </el-tab-pane>
+                <el-tab-pane label="菜单设置" name="menu">
+                    <MenuVisibilitySettings ref="menuVisibilitySettingsRef" />
+                </el-tab-pane>
             </el-tabs>
             <template #footer>
                 <div class="dialog-footer">
@@ -479,7 +482,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { TauriUtils } from '@/utils/tauri.js';
 import { invoke } from '@tauri-apps/api/core';
@@ -487,6 +490,7 @@ import { logger } from '@/utils/logger.js';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import VehicleConnectionManager from '@/components/VehicleConnectionManager.vue';
 import SandboxSettingsManager from '@/components/SandboxSettingsManager.vue';
+import MenuVisibilitySettings from '@/components/MenuVisibilitySettings.vue';
 import { toggleAxesVisibility, toggleGridVisibility, getSandboxDimensionsInfo } from '@/components/Scene3D/index.js';
 // 使用后端命令，避免前端插件导入问题
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -497,32 +501,51 @@ const router = useRouter();
 const route = useRoute();
 
 const selectedTab = ref('/');
-const tabs = ref([
+
+// 所有可用的tabs
+const allTabs = [
     {
         id: 1,
         path: '/',
         icon: 'car-side',
         name: '车辆信息',
+        visibilityKey: 'show_vehicle_info'
     },
     {
         id: 2,
         path: '/auto-drive',
         icon: 'robot',
         name: '自动驾驶',
+        visibilityKey: 'show_auto_drive'
     },
     {
         id: 3,
         path: '/control',
         icon: 'sliders-h',
         name: '沙盘控制',
+        visibilityKey: 'show_sandbox_control'
     },
     {
         id: 4,
         path: '/settings',
         icon: 'cog',
         name: '功能设置',
+        visibilityKey: 'show_settings'
     },
-]);
+];
+
+// 菜单可见性设置
+const menuVisibility = ref({
+    show_vehicle_info: true,
+    show_auto_drive: true,
+    show_sandbox_control: true,
+    show_settings: true
+});
+
+// 根据可见性过滤后的tabs
+const tabs = computed(() => {
+    return allTabs.filter(tab => menuVisibility.value[tab.visibilityKey]);
+});
 
 // 登录相关
 const loginDialogVisible = ref(false);
@@ -545,6 +568,7 @@ const loginRules = {
 // 设置相关
 const settingsDialogVisible = ref(false);
 const activeSettingsTab = ref('basic');
+const menuVisibilitySettingsRef = ref(null);
 
 // 关于弹窗相关
 const aboutDialogVisible = ref(false);
@@ -839,6 +863,7 @@ const handleLogin = async () => {
 // 保存设置
 const saveSettings = async () => {
     try {
+        // 保存基本设置
         const payload = {
             auto_start: settings.value.autoStart,
             log_level: settings.value.logLevel,
@@ -846,14 +871,19 @@ const saveSettings = async () => {
             app_title: settings.value.appTitle
         };
         const res = await invoke('update_app_settings', { request: payload });
-        // console.log('✅ 应用设置已保存:', res);
+        
+        // 保存菜单可见性设置
+        if (menuVisibilitySettingsRef.value) {
+            await menuVisibilitySettingsRef.value.saveSettings();
+        }
+        
         ElMessage.success('设置已保存！');
+        
         // 运行时动态应用前端日志级别
         if (settings.value?.logLevel) {
             logger.setLevel(String(settings.value.logLevel).toUpperCase());
             console.info(`[Logger] 前端日志级别已更新为: ${String(settings.value.logLevel).toUpperCase()}`);
         }
-        // 调试模式已移除，不再切换日志查看器
         
         // 更新动态标题
         appTitle.value = settings.value.appTitle;
@@ -887,6 +917,11 @@ const resetSettings = () => {
     // 应用模型设置
     toggleAxesVisibility(modelSettings.value.showAxes);
     toggleGridVisibility(modelSettings.value.showGrid);
+    
+    // 重置菜单可见性设置（撤销未保存的修改）
+    if (menuVisibilitySettingsRef.value) {
+        menuVisibilitySettingsRef.value.resetSettings();
+    }
     
     ElMessage.info('设置已重置！');
 };
@@ -1044,6 +1079,30 @@ onMounted(() => {
         }
     }).catch((e) => {
         console.warn('加载应用设置失败:', e);
+    });
+
+    // 加载菜单可见性设置
+    invoke('get_menu_visibility_settings').then((res) => {
+        if (res) {
+            menuVisibility.value = {
+                show_vehicle_info: res.show_vehicle_info,
+                show_auto_drive: res.show_auto_drive,
+                show_sandbox_control: res.show_sandbox_control,
+                show_settings: res.show_settings
+            };
+            console.info('[Header] 菜单可见性设置已加载:', menuVisibility.value);
+            
+            // 发送事件给MainLayout，用于控制自动驾驶行为统计的显示
+            eventBus.emit(EVENTS.MENU_VISIBILITY_CHANGED, menuVisibility.value);
+        }
+    }).catch((e) => {
+        console.warn('加载菜单可见性设置失败:', e);
+    });
+
+    // 监听菜单可见性变化事件
+    eventBus.on(EVENTS.MENU_VISIBILITY_CHANGED, (visibility) => {
+        menuVisibility.value = visibility;
+        console.info('[Header] 菜单可见性已更新:', visibility);
     });
 });
 </script>

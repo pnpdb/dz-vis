@@ -321,3 +321,24 @@ impl CreateSandboxCameraRequest {
         Ok(())
     }
 }
+
+/// 菜单可见性设置模型
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct MenuVisibilitySettings {
+    pub id: i64,
+    pub show_vehicle_info: bool,      // 显示"车辆信息"菜单
+    pub show_auto_drive: bool,        // 显示"自动驾驶"菜单
+    pub show_sandbox_control: bool,   // 显示"沙盘控制"菜单
+    pub show_settings: bool,          // 显示"功能设置"菜单
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// 更新菜单可见性设置的请求参数
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateMenuVisibilityRequest {
+    pub show_vehicle_info: Option<bool>,
+    pub show_auto_drive: Option<bool>,
+    pub show_sandbox_control: Option<bool>,
+    pub show_settings: Option<bool>,
+}

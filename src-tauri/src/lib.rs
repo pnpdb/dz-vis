@@ -228,6 +228,8 @@ pub fn run() {
             update_traffic_light_item,
             get_app_settings,
             update_app_settings,
+            get_menu_visibility_settings,
+            update_menu_visibility_settings,
             get_vehicle_server_ports,
             get_media_server_ports,
             send_vehicle_control_command,

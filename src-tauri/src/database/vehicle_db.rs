@@ -277,6 +277,8 @@ impl VehicleDatabase {
                 cache_size INTEGER NOT NULL DEFAULT 512,
                 auto_start BOOLEAN NOT NULL DEFAULT 0,
                 app_title TEXT NOT NULL DEFAULT '渡众智能沙盘云控平台',
+                coordinate_offset_x REAL NOT NULL DEFAULT 0.0,
+                coordinate_offset_y REAL NOT NULL DEFAULT 0.0,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
@@ -285,6 +287,14 @@ impl VehicleDatabase {
         
         // 为现有表添加auto_start字段（如果不存在）
         let _ = sqlx::query("ALTER TABLE app_settings ADD COLUMN auto_start BOOLEAN NOT NULL DEFAULT 0")
+            .execute(&self.pool).await; // 忽略错误，字段可能已存在
+        
+        // 为现有表添加coordinate_offset_x字段（如果不存在）
+        let _ = sqlx::query("ALTER TABLE app_settings ADD COLUMN coordinate_offset_x REAL NOT NULL DEFAULT 0.0")
+            .execute(&self.pool).await; // 忽略错误，字段可能已存在
+        
+        // 为现有表添加coordinate_offset_y字段（如果不存在）
+        let _ = sqlx::query("ALTER TABLE app_settings ADD COLUMN coordinate_offset_y REAL NOT NULL DEFAULT 0.0")
             .execute(&self.pool).await; // 忽略错误，字段可能已存在
         
         // 为现有表添加app_title字段（如果不存在）
@@ -296,7 +306,7 @@ impl VehicleDatabase {
         if cnt == 0 {
             let now = Utc::now().to_rfc3339();
             sqlx::query(
-                r#"INSERT INTO app_settings (log_level, cache_size, auto_start, app_title, created_at, updated_at) VALUES ('INFO', 512, 0, '渡众智能沙盘云控平台', ?, ?)"#
+                r#"INSERT INTO app_settings (log_level, cache_size, auto_start, app_title, coordinate_offset_x, coordinate_offset_y, created_at, updated_at) VALUES ('INFO', 512, 0, '渡众智能沙盘云控平台', 0.0, 0.0, ?, ?)"#
             ).bind(&now).bind(&now).execute(&self.pool).await?;
         }
 
@@ -375,6 +385,8 @@ impl VehicleDatabase {
             cache_size: row.get("cache_size"),
             auto_start: row.get::<Option<i64>, _>("auto_start").unwrap_or(0) != 0,
             app_title: row.get::<Option<String>, _>("app_title").unwrap_or("渡众智能沙盘云控平台".to_string()),
+            coordinate_offset_x: row.get::<Option<f64>, _>("coordinate_offset_x").unwrap_or(0.0),
+            coordinate_offset_y: row.get::<Option<f64>, _>("coordinate_offset_y").unwrap_or(0.0),
             created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at")).unwrap_or_default().with_timezone(&chrono::Utc),
             updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at")).unwrap_or_default().with_timezone(&chrono::Utc),
         })
@@ -390,12 +402,14 @@ impl VehicleDatabase {
         let cache_size = req.cache_size.unwrap_or(current.cache_size);
         let auto_start = req.auto_start.unwrap_or(current.auto_start);
         let app_title = req.app_title.unwrap_or(current.app_title);
+        let coordinate_offset_x = req.coordinate_offset_x.unwrap_or(current.coordinate_offset_x);
+        let coordinate_offset_y = req.coordinate_offset_y.unwrap_or(current.coordinate_offset_y);
         let now = Utc::now().to_rfc3339();
 
         sqlx::query(
             r#"
             UPDATE app_settings 
-            SET log_level = ?, cache_size = ?, auto_start = ?, app_title = ?, updated_at = ?
+            SET log_level = ?, cache_size = ?, auto_start = ?, app_title = ?, coordinate_offset_x = ?, coordinate_offset_y = ?, updated_at = ?
             WHERE id = (SELECT id FROM app_settings ORDER BY id DESC LIMIT 1)
             "#
         )
@@ -403,6 +417,8 @@ impl VehicleDatabase {
         .bind(cache_size)
         .bind(if auto_start { 1 } else { 0 })
         .bind(&app_title)
+        .bind(coordinate_offset_x)
+        .bind(coordinate_offset_y)
         .bind(&now)
         .execute(&self.pool)
         .await?;

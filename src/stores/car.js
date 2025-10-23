@@ -27,6 +27,10 @@ export const useCarStore = defineStore('car', {
         
         // 沙盘连接状态
         sandboxConnected: false,
+        
+        // 坐标偏移量设置（用于坐标转换）
+        coordinateOffsetX: 0.0,
+        coordinateOffsetY: 0.0,
     }),
     getters: {
         selectedCar: state => {
@@ -135,9 +139,18 @@ export const useCarStore = defineStore('car', {
             const state = this.getOrCreateVehicleState(vehicleId);
             if (!state) return;
             
+            // 应用坐标偏移量转换（如果vehicleInfo有位置信息）
+            let transformedPosition = vehicleInfo.position || state.state.position;
+            if (vehicleInfo.position) {
+                transformedPosition = {
+                    x: vehicleInfo.position.x + this.coordinateOffsetX,
+                    y: vehicleInfo.position.y + this.coordinateOffsetY
+                };
+            }
+            
             // 更新运行状态
             Object.assign(state.state, {
-                position: vehicleInfo.position || state.state.position,
+                position: transformedPosition,
                 speed: vehicleInfo.speed ?? state.state.speed,
                 battery: vehicleInfo.battery ?? state.state.battery,
                 gear: vehicleInfo.gear || state.state.gear,

@@ -241,6 +241,8 @@ pub struct AppSettings {
     pub cache_size: i32,         // 缓存大小(MB)
     pub auto_start: bool,        // 开机启动
     pub app_title: String,       // 应用标题
+    pub coordinate_offset_x: f64, // 坐标X轴偏移量
+    pub coordinate_offset_y: f64, // 坐标Y轴偏移量
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -252,6 +254,8 @@ pub struct UpdateAppSettingsRequest {
     pub cache_size: Option<i32>,
     pub auto_start: Option<bool>,
     pub app_title: Option<String>,
+    pub coordinate_offset_x: Option<f64>,
+    pub coordinate_offset_y: Option<f64>,
 }
 
 impl UpdateAppSettingsRequest {

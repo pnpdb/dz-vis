@@ -7,6 +7,7 @@ import {
     AmbientLight,
     CubeTextureLoader,
     DirectionalLight,
+    HemisphereLight,
     PerspectiveCamera,
     Scene,
     WebGLRenderer,
@@ -36,6 +37,8 @@ import {
     CanvasTexture,
     CylinderGeometry,
     Quaternion,
+    ACESFilmicToneMapping,
+    SRGBColorSpace,
 } from 'three';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js'
@@ -155,7 +158,7 @@ const initSceneCore = async () => {
         await new Promise(resolve => setTimeout(resolve, 0));
         
         renderer = new WebGLRenderer({
-            antialias: false, // 初始关闭抗锯齿
+            antialias: true, // 开启抗锯齿，提升视觉质量
             alpha: false, // 禁用透明度以提高性能
             powerPreference: "high-performance",
             stencil: false,
@@ -169,7 +172,16 @@ const initSceneCore = async () => {
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // 限制像素比
         renderer.shadowMap.enabled = false;
         renderer.sortObjects = false; // 禁用对象排序以提升性能
-        renderer.outputColorSpace = 'srgb';
+        renderer.outputColorSpace = SRGBColorSpace;
+        
+        // 🎨 色调映射（Tone Mapping）- 模拟烘焙效果
+        renderer.toneMapping = ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 0.8; // 曝光度（降低以避免过曝发白）
+        
+        // 物理光照
+        renderer.useLegacyLights = false; // 使用物理光照模式（Three.js r155+）
+        
+        console.log('✨ 渲染器优化: 色调映射(ACES)、曝光度0.8、物理光照已启用');
         
         // WebGL状态同步
         const gl = renderer.getContext();
@@ -322,10 +334,10 @@ const initSceneCore = async () => {
                 models,
                 modelsGroup,
                 // 辅助调试函数
-                getSandboxModel: () => models.get('final'),
+                getSandboxModel: () => models.get('sandbox'),
                 getCarsModel: () => models.get('cars'),
                 adjustSandboxScale: (scale) => {
-                    const sandbox = models.get('final');
+                    const sandbox = models.get('sandbox');
                     if (sandbox) {
                         sandbox.scale.setScalar(scale);
                         console.log(`✅ 沙盘缩放已调整为: ${scale}`);
@@ -334,7 +346,7 @@ const initSceneCore = async () => {
                     }
                 },
                 adjustSandboxPosition: (x, y, z) => {
-                    const sandbox = models.get('final');
+                    const sandbox = models.get('sandbox');
                     if (sandbox) {
                         sandbox.position.set(x, y, z);
                         console.log(`✅ 沙盘位置已调整为: (${x}, ${y}, ${z})`);
@@ -342,8 +354,39 @@ const initSceneCore = async () => {
                         console.error('❌ 沙盘模型未找到');
                     }
                 },
+                adjustCarPosition: (x, y, z) => {
+                    const car = models.get('cars');
+                    if (car) {
+                        car.position.set(x, y, z);
+                        console.log(`✅ 小车位置已调整为: (${x}, ${y}, ${z})`);
+                    } else {
+                        console.error('❌ 小车模型未找到');
+                    }
+                },
+                logAlignmentInfo: () => {
+                    const sandbox = models.get('sandbox');
+                    const car = models.get('cars');
+                    
+                    if (sandbox && car) {
+                        const sandboxBox = new Box3().setFromObject(sandbox);
+                        const carBox = new Box3().setFromObject(car);
+                        
+                        console.log('🔍 对齐信息:');
+                        console.log('沙盘:');
+                        console.log(`  - 位置: Y=${sandbox.position.y.toFixed(3)}`);
+                        console.log(`  - 包围盒底部(道路表面): Y=${sandboxBox.min.y.toFixed(3)}`);
+                        console.log(`  - 包围盒顶部: Y=${sandboxBox.max.y.toFixed(3)}`);
+                        console.log('小车:');
+                        console.log(`  - 位置: Y=${car.position.y.toFixed(3)}`);
+                        console.log(`  - 包围盒底部: Y=${carBox.min.y.toFixed(3)}`);
+                        console.log(`  - 包围盒顶部: Y=${carBox.max.y.toFixed(3)}`);
+                        console.log(`  - 小车底部与道路表面的距离: ${(carBox.min.y - sandboxBox.min.y).toFixed(3)} (应该≈0)`);
+                    } else {
+                        console.error('❌ 模型未找到');
+                    }
+                },
                 logSandboxInfo: () => {
-                    const sandbox = models.get('final');
+                    const sandbox = models.get('sandbox');
                     if (sandbox) {
                         console.log('🔍 沙盘模型信息:');
                         console.log('  位置:', sandbox.position);
@@ -362,9 +405,9 @@ const initSceneCore = async () => {
             };
             console.log('🔧 调试工具已挂载到 window.__scene3d__');
             console.log('💡 快速调试命令:');
-            console.log('  - window.__scene3d__.logSandboxInfo() // 查看沙盘信息');
-            console.log('  - window.__scene3d__.adjustSandboxScale(0.1) // 调整缩放');
-            console.log('  - window.__scene3d__.adjustSandboxPosition(0, 2, 0) // 调整位置');
+            console.log('  - window.__scene3d__.logAlignmentInfo() // 查看沙盘和小车对齐信息');
+            console.log('  - window.__scene3d__.adjustCarPosition(0, Y, 0) // 微调小车Y位置');
+            console.log('  - window.__scene3d__.adjustSandboxScale(6) // 调整沙盘缩放');
         }
         
         // 基础场景已完成，可以开始交互（即使模型未加载完）
@@ -377,25 +420,40 @@ const initSceneCore = async () => {
     }
 };
 
-// 设置光照系统
+// 设置光照系统（专业级配置 - 降低亮度避免过曝）
 const setupLighting = () => {
-    // 环境光（降低强度避免过曝）
-    const ambientLight = new AmbientLight(0xffffff, 0.6);
-    ambientLight.name = 'AmbientLight';
-    lightsGroup.add(ambientLight);
+    // 🌐 半球光（Hemisphere Light）- 模拟天空和地面的环境光
+    // 提供更真实的全局照明，替代简单的环境光
+    const hemisphereLight = new HemisphereLight(
+        0xddeeff,  // 天空颜色（淡蓝色，降低亮度）
+        0x332222,  // 地面颜色（深灰棕色）
+        0.4        // 强度（从0.6降低到0.4）
+    );
+    hemisphereLight.name = 'HemisphereLight';
+    hemisphereLight.position.set(0, 50, 0);
+    lightsGroup.add(hemisphereLight);
 
-    // 主方向光（降低强度）
-    const directionalLight = new DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(10, 10, 10);
+    // ☀️ 主平行光（Directional Light）- 模拟太阳光
+    // 使用物理光照模式（intensity以坎德拉为单位）
+    const directionalLight = new DirectionalLight(0xffffff, 1.2);  // 从2.0降低到1.2
+    directionalLight.position.set(10, 20, 10);
     directionalLight.name = 'MainDirectionalLight';
     directionalLight.castShadow = false; // 暂时关闭阴影以提升性能
     lightsGroup.add(directionalLight);
 
-    // 补充光源（更柔和）
-    const fillLight = new DirectionalLight(0x87ceeb, 0.4);
-    fillLight.position.set(-5, 5, -5);
+    // 💡 补充平行光（Fill Light）- 提亮阴影区域
+    const fillLight = new DirectionalLight(0x87ceeb, 0.5);  // 从1.0降低到0.5
+    fillLight.position.set(-10, 10, -10);
     fillLight.name = 'FillLight';
     lightsGroup.add(fillLight);
+
+    // 🔆 背光（Back Light）- 增加轮廓感
+    const backLight = new DirectionalLight(0xffffff, 0.3);  // 从0.5降低到0.3
+    backLight.position.set(0, 5, -15);
+    backLight.name = 'BackLight';
+    lightsGroup.add(backLight);
+
+    console.log('💡 光照系统已优化: 半球光 + 三点光照（总强度: 2.4，避免过曝）');
 };
 
 // 模型动画更新
@@ -410,7 +468,7 @@ const updateModelAnimations = (deltaTime) => {
     }
 };
 
-// 环境贴图加载
+// 🌍 环境贴图加载（Environment Map / Skybox）
 const loadEnvironment = () => {
     const cubeTextureLoader = new CubeTextureLoader()
         .setPath('/Image/skybox/');
@@ -418,8 +476,29 @@ const loadEnvironment = () => {
     cubeTextureLoader.load(
         ['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png'],
         (texture) => {
+            // 设置为场景的环境贴图（影响材质的反射和照明）
             scene.environment = texture;
-            console.log('✅ Skybox 环境贴图加载成功');
+            
+            // 可选：设置为场景背景（如果想显示天空盒）
+            // scene.background = texture;
+            
+            // 遍历所有已加载的模型，为材质添加环境反射
+            models.forEach((model, name) => {
+                model.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        const material = child.material;
+                        
+                        // 为PBR材质设置环境贴图强度
+                        if (material.isMeshStandardMaterial || material.isMeshPhysicalMaterial) {
+                            material.envMap = texture;
+                            material.envMapIntensity = 0.8; // 环境反射强度（降低以避免过亮）
+                            material.needsUpdate = true;
+                        }
+                    }
+                });
+            });
+            
+            console.log('✅ 环境球（Skybox）加载成功，材质反射已启用');
         },
         undefined,
         (error) => {
@@ -455,9 +534,9 @@ const loadModelsWithProgress = async () => {
         return new Promise((resolve) => {
             setTimeout(() => {
                 console.info('开始加载小车模型');
-                loadModelAsync(loader, '/model/cars.glb', 'cars', {
+                loadModelAsync(loader, '/models/car.glb', 'cars', {
                     scale: 8,
-                    position: [0, 0.5, 0],
+                    position: [0, 0, 0],  // 初始位置，稍后会根据沙盘自动调整
                     priority: 'high'
                 }, (progress) => {
                     carsProgress = progress;
@@ -479,9 +558,9 @@ const loadModelsWithProgress = async () => {
         return new Promise((resolve) => {
             setTimeout(() => {
                 console.info('开始加载沙盘模型');
-                loadModelAsync(loader, '/model/final.glb', 'final', {
-                    scale: 6, // 0.01
-                    position: [0, 1.4, 0],
+                loadModelAsync(loader, '/models/sandbox.glb', 'sandbox', {
+                    scale: 6,
+                    position: [0, 0, 0],  // 初始位置，稍后会自动调整让底座贴地
                     processMaterial: true,
                     priority: 'low',
                     enableLOD: false
@@ -493,7 +572,7 @@ const loadModelsWithProgress = async () => {
                     console.info('沙盘模型加载完成');
                     
                     // 获取加载的沙盘模型并计算尺寸
-                    const sandboxModel = models.get('final');
+                    const sandboxModel = models.get('sandbox');
                     if (sandboxModel) {
                         // 🔍 添加详细的模型调试信息
                         console.log('🔍 沙盘模型调试信息:');
@@ -519,6 +598,50 @@ const loadModelsWithProgress = async () => {
                         
                         const dimensions = calculateSandboxDimensions(sandboxModel);
                         if (dimensions) {
+                            // 🎯 自动对齐：让沙盘底座贴地（Y=0）
+                            const offsetY = -dimensions.bounds.min.y;
+                            sandboxModel.position.y = offsetY;
+                            
+                            console.log('📐 沙盘模型自动对齐:');
+                            console.log(`  - 包围盒最低点(调整前): Y=${dimensions.bounds.min.y.toFixed(3)}`);
+                            console.log(`  - 包围盒最高点(调整前): Y=${dimensions.bounds.max.y.toFixed(3)}`);
+                            console.log(`  - 偏移量: ${offsetY.toFixed(3)}`);
+                            console.log(`  - 调整后沙盘位置: Y=${sandboxModel.position.y.toFixed(3)} (底座贴地)`);
+                            
+                            // 🚗 调整小车位置，让它在道路表面上
+                            // 道路表面在沙盘底部（包围盒最下面那个平面）
+                            const carModel = models.get('cars');
+                            if (carModel) {
+                                console.log('🚗 开始调整小车位置...');
+                                console.log(`  - 小车当前position: (${carModel.position.x}, ${carModel.position.y}, ${carModel.position.z})`);
+                                
+                                // 1. 重新计算沙盘的包围盒（位置已经调整过了）
+                                const sandboxBox = new Box3().setFromObject(sandboxModel);
+                                const roadSurfaceY = sandboxBox.min.y;  // 道路表面 = 沙盘底部（最下面的平面）
+                                
+                                // 2. 计算小车自己的包围盒（当前在初始位置）
+                                const carBox = new Box3().setFromObject(carModel);
+                                const carBottomY = carBox.min.y;  // 小车底部的世界坐标Y
+                                const carTopY = carBox.max.y;  // 小车顶部的世界坐标Y
+                                
+                                // 3. 计算需要移动的距离：从当前底部位置移动到道路表面
+                                const moveDistance = roadSurfaceY - carBottomY;
+                                carModel.position.y = carModel.position.y + moveDistance;
+                                
+                                // 验证：重新计算包围盒确认对齐
+                                const newCarBox = new Box3().setFromObject(carModel);
+                                
+                                console.log(`  - 道路表面(沙盘底部): Y=${roadSurfaceY.toFixed(3)}`);
+                                console.log(`  - 小车调整前底部位置: Y=${carBottomY.toFixed(3)}`);
+                                console.log(`  - 小车调整前顶部位置: Y=${carTopY.toFixed(3)}`);
+                                console.log(`  - 需要移动距离: ${moveDistance.toFixed(3)}`);
+                                console.log(`  - 小车调整后position: Y=${carModel.position.y.toFixed(3)}`);
+                                console.log(`  - 小车调整后底部位置: Y=${newCarBox.min.y.toFixed(3)}`);
+                                console.log(`  - 验证：底部与道路的距离: ${(newCarBox.min.y - roadSurfaceY).toFixed(3)} (应该≈0)`);
+                            } else {
+                                console.warn('⚠️ 小车模型未找到，无法调整位置');
+                            }
+                            
                             // 为沙盘模型添加坐标轴 - 默认隐藏
                             const sandboxAxes = new AxesHelper(8);
                             sandboxAxes.name = 'SandboxAxes';
@@ -529,17 +652,14 @@ const loadModelsWithProgress = async () => {
                             // 在沙盘中心点也添加一个坐标轴 - 默认隐藏
                             const centerAxes = new AxesHelper(3);
                             centerAxes.name = 'SandboxCenterAxes';
-                            centerAxes.position.set(
-                                dimensions.center.x,
-                                dimensions.center.y,
-                                dimensions.center.z
-                            );
+                            // 重新计算中心点（因为沙盘位置已调整）
+                            const newBox = new Box3().setFromObject(sandboxModel);
+                            const newCenter = newBox.getCenter(new Vector3());
+                            centerAxes.position.copy(newCenter);
                             centerAxes.visible = false; // 默认隐藏
                             scene.add(centerAxes);
                             
-                            console.debug('沙盘坐标轴已添加');
-                            console.debug(`沙盘位置坐标轴: (${sandboxModel.position.x}, ${sandboxModel.position.y}, ${sandboxModel.position.z})`);
-                            console.debug(`沙盘中心坐标轴: (${dimensions.center.x.toFixed(3)}, ${dimensions.center.y.toFixed(3)}, ${dimensions.center.z.toFixed(3)})`);
+                            console.debug('✅ 沙盘和小车位置对齐完成');
                             
                         }
                     } else {
@@ -583,20 +703,20 @@ const loadModels = () => {
     console.log('开始渐进式模型加载...');
 
     // 渐进式加载：先加载小模型，再加载大模型
-    // 小模型加载不会阻塞界面交互
-    setTimeout(() => {
-        loadModel(loader, '/model/cars.glb', 'cars', {
-            scale: 8,
-            position: [0, 0.5, 0],
+     // 小模型加载不会阻塞界面交互
+     setTimeout(() => {
+         loadModel(loader, '/models/car.glb', 'cars', {
+             scale: 8,
+             position: [0, 0, 0],  // 初始位置，稍后会根据沙盘自动调整
             priority: 'high'
         });
     }, 100);
 
-    // 延迟加载大模型，给界面更多响应时间
-    setTimeout(() => {
-        loadModel(loader, '/model/final.glb', 'final', {
-            scale: 5,
-            position: [0, 1.4, 0],
+     // 延迟加载大模型，给界面更多响应时间
+     setTimeout(() => {
+         loadModel(loader, '/models/sandbox.glb', 'sandbox', {
+             scale: 6,  // 与异步加载保持一致
+             position: [0, 0, 0],  // 初始位置，稍后会自动调整让底座贴地
             processMaterial: true,
             priority: 'low',
             enableLOD: false // 暂时禁用LOD避免顶点缓冲区错误
@@ -860,7 +980,7 @@ const loadModel = (loader, url, key, options = {}) => {
             console.log(`模型 ${key} 已添加到场景`);
             
             // 如果是沙盘模型，计算尺寸
-            if (key === 'final') {
+            if (key === 'sandbox') {
                 // 🔍 添加详细的模型调试信息
                 console.log('🔍 沙盘模型调试信息 (同步加载):');
                 console.log('  - 位置:', model.position);
@@ -886,27 +1006,68 @@ const loadModel = (loader, url, key, options = {}) => {
                 setTimeout(() => {
                     const dimensions = calculateSandboxDimensions(model);
                     if (dimensions) {
+                        // 🎯 自动对齐：让沙盘底座贴地（Y=0）
+                        const offsetY = -dimensions.bounds.min.y;
+                        model.position.y = offsetY;
+                        
+                        console.log('📐 沙盘模型自动对齐 (同步加载):');
+                        console.log(`  - 包围盒最低点(调整前): Y=${dimensions.bounds.min.y.toFixed(3)}`);
+                        console.log(`  - 包围盒最高点(调整前): Y=${dimensions.bounds.max.y.toFixed(3)}`);
+                        console.log(`  - 偏移量: ${offsetY.toFixed(3)}`);
+                        console.log(`  - 调整后沙盘位置: Y=${model.position.y.toFixed(3)} (底座贴地)`);
+                        
+                        // 🚗 调整小车位置，让它在道路表面上
+                        // 道路表面在沙盘底部（包围盒最下面那个平面）
+                        const carModel = models.get('cars');
+                        if (carModel) {
+                            console.log('🚗 开始调整小车位置(同步加载)...');
+                            console.log(`  - 小车当前position: (${carModel.position.x}, ${carModel.position.y}, ${carModel.position.z})`);
+                            
+                            // 1. 重新计算沙盘的包围盒（位置已经调整过了）
+                            const sandboxBox = new Box3().setFromObject(model);
+                            const roadSurfaceY = sandboxBox.min.y;  // 道路表面 = 沙盘底部（最下面的平面）
+                            
+                            // 2. 计算小车自己的包围盒（当前在初始位置）
+                            const carBox = new Box3().setFromObject(carModel);
+                            const carBottomY = carBox.min.y;  // 小车底部的世界坐标Y
+                            const carTopY = carBox.max.y;  // 小车顶部的世界坐标Y
+                            
+                            // 3. 计算需要移动的距离：从当前底部位置移动到道路表面
+                            const moveDistance = roadSurfaceY - carBottomY;
+                            carModel.position.y = carModel.position.y + moveDistance;
+                            
+                            // 验证：重新计算包围盒确认对齐
+                            const newCarBox = new Box3().setFromObject(carModel);
+                            
+                            console.log(`  - 道路表面(沙盘底部): Y=${roadSurfaceY.toFixed(3)}`);
+                            console.log(`  - 小车调整前底部位置: Y=${carBottomY.toFixed(3)}`);
+                            console.log(`  - 小车调整前顶部位置: Y=${carTopY.toFixed(3)}`);
+                            console.log(`  - 需要移动距离: ${moveDistance.toFixed(3)}`);
+                            console.log(`  - 小车调整后position: Y=${carModel.position.y.toFixed(3)}`);
+                            console.log(`  - 小车调整后底部位置: Y=${newCarBox.min.y.toFixed(3)}`);
+                            console.log(`  - 验证：底部与道路的距离: ${(newCarBox.min.y - roadSurfaceY).toFixed(3)} (应该≈0)`);
+                        } else {
+                            console.warn('⚠️ 小车模型未找到，无法调整位置');
+                        }
+                        
                         // 为沙盘模型添加坐标轴 - 默认隐藏
                         const sandboxAxes = new AxesHelper(8);
                         sandboxAxes.name = 'SandboxAxes';
-                        sandboxAxes.position.copy(model.position); // 与沙盘模型相同位置
-                        sandboxAxes.visible = false; // 默认隐藏
+                        sandboxAxes.position.copy(model.position);
+                        sandboxAxes.visible = false;
                         scene.add(sandboxAxes);
                         
                         // 在沙盘中心点也添加一个坐标轴 - 默认隐藏
                         const centerAxes = new AxesHelper(3);
                         centerAxes.name = 'SandboxCenterAxes';
-                        centerAxes.position.set(
-                            dimensions.center.x,
-                            dimensions.center.y,
-                            dimensions.center.z
-                        );
-                        centerAxes.visible = false; // 默认隐藏
+                        // 重新计算中心点（因为沙盘位置已调整）
+                        const newBox = new Box3().setFromObject(model);
+                        const newCenter = newBox.getCenter(new Vector3());
+                        centerAxes.position.copy(newCenter);
+                        centerAxes.visible = false;
                         scene.add(centerAxes);
                         
-                        console.log('🎯 沙盘坐标轴已添加:');
-                        console.log(`  - 沙盘位置坐标轴: (${model.position.x}, ${model.position.y}, ${model.position.z})`);
-                        console.log(`  - 沙盘中心坐标轴: (${dimensions.center.x.toFixed(3)}, ${dimensions.center.y.toFixed(3)}, ${dimensions.center.z.toFixed(3)})`);
+                        console.log('✅ 沙盘和小车位置对齐完成 (同步加载)');
                         
                     }
                 }, 100); // 短暂延迟确保模型完全加载到场景中
@@ -962,6 +1123,20 @@ const optimizeMaterialsAsync = async (model) => {
                     material.color.set('gray');
                     material.needsUpdate = true;
                 }
+                
+                // 🎨 为PBR材质设置物理属性（模拟烘焙效果）
+                if (material.isMeshStandardMaterial || material.isMeshPhysicalMaterial) {
+                    // 环境贴图强度（降低以避免过亮）
+                    material.envMapIntensity = 0.8;  // 从1.2降低到0.8
+                    
+                    // 金属度和粗糙度（根据材质名称调整）
+                    if (!material.metalness && !material.roughness) {
+                        material.metalness = 0.1;  // 轻微金属感
+                        material.roughness = 0.8;  // 较粗糙的表面
+                    }
+                    
+                    material.needsUpdate = true;
+                }
             } catch (error) {
                 console.warn(`材质优化跳过:`, error);
             }
@@ -991,15 +1166,31 @@ const optimizeMaterials = (model) => {
             
             materialMap.set(uuid, child.material);
             
+            const material = child.material;
+            
             // 材质名称匹配
             const materialNames = [
                 '材质.003', 'pasted__材质.003', '材质.002', 
                 '材贪', '材质', '材贫', 'pasted__材质'
             ];
             
-            if (materialNames.includes(child.material.name)) {
-                child.material.color.set('gray');
-                child.material.needsUpdate = true;
+            if (materialNames.includes(material.name)) {
+                material.color.set('gray');
+                material.needsUpdate = true;
+            }
+            
+            // 🎨 为PBR材质设置物理属性（模拟烘焙效果）
+            if (material.isMeshStandardMaterial || material.isMeshPhysicalMaterial) {
+                // 环境贴图强度（降低以避免过亮）
+                material.envMapIntensity = 0.8;  // 从1.2降低到0.8
+                
+                // 金属度和粗糙度（根据材质名称调整）
+                if (!material.metalness && !material.roughness) {
+                    material.metalness = 0.1;  // 轻微金属感
+                    material.roughness = 0.8;  // 较粗糙的表面
+                }
+                
+                material.needsUpdate = true;
             }
         }
     });
@@ -1362,7 +1553,7 @@ export const toggleGridVisibility = (visible) => {
 
 // 获取沙盘尺寸信息的函数
 export const getSandboxDimensionsInfo = () => {
-    const sandboxModel = models.get('final');
+    const sandboxModel = models.get('sandbox');
     if (!sandboxModel) {
         return null;
     }

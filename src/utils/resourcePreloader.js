@@ -132,8 +132,8 @@ export async function preloadCriticalResources() {
 
     // 2. 预加载3D模型
     const critical3DModels = [
-        '/model/cars.glb',
-        '/model/final.glb',
+        '/models/car.glb',
+        '/models/sandbox.glb',
     ];
 
     try {

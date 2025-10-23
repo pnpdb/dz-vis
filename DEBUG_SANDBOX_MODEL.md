@@ -1,7 +1,7 @@
 # 沙盘模型显示问题诊断指南
 
 ## 问题描述
-新的 `public/model/final.glb` 模型在软件中显示不出来，但在线网站可以打开。
+新的 `public/models/sandbox.glb` 模型在软件中显示不出来，但在线网站可以打开。
 
 ## 诊断步骤
 
@@ -37,14 +37,14 @@
 
 ```javascript
 // 异步加载版本 (第426行)
-loadModelAsync(loader, '/model/final.glb', 'final', {
+loadModelAsync(loader, '/models/sandbox.glb', 'final', {
     scale: 0.01,  // ← 修改这里
     position: [0, 1.4, 0],
     ...
 })
 
 // 同步加载版本 (第517行)
-loadModel(loader, '/model/final.glb', 'final', {
+loadModel(loader, '/models/sandbox.glb', 'final', {
     scale: 0.01,  // ← 修改这里
     position: [0, 1.4, 0],
     ...
@@ -67,7 +67,7 @@ loadModel(loader, '/model/final.glb', 'final', {
 **解决方案**: 修改 `position` 值
 
 ```javascript
-loadModelAsync(loader, '/model/final.glb', 'final', {
+loadModelAsync(loader, '/models/sandbox.glb', 'final', {
     scale: 0.01,
     position: [0, 1.4, 0],  // ← 修改这里 [x, y, z]
     ...
@@ -94,7 +94,7 @@ loadModelAsync(loader, '/model/final.glb', 'final', {
 - 文件路径错误
 
 **解决方案**:
-1. 确认 `public/model/final.glb` 文件存在且完整
+1. 确认 `public/models/sandbox.glb` 文件存在且完整
 2. 尝试重新导出模型文件
 3. 检查模型文件在 Blender 或其他工具中是否有实际的网格对象
 
@@ -107,7 +107,7 @@ loadModelAsync(loader, '/model/final.glb', 'final', {
 **临时解决方案**: 禁用材质优化
 
 ```javascript
-loadModelAsync(loader, '/model/final.glb', 'final', {
+loadModelAsync(loader, '/models/sandbox.glb', 'final', {
     scale: 0.01,
     position: [0, 1.4, 0],
     processMaterial: false,  // ← 改为 false

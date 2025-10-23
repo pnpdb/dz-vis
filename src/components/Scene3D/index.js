@@ -1438,35 +1438,104 @@ const calculateSandboxDimensions = (model) => {
         return null;
     }
     
-    // 创建包围盒
-    const box = new Box3().setFromObject(model);
-    
-    // 计算尺寸
-    const size = box.getSize(new Vector3());
-    const center = box.getCenter(new Vector3());
-    
     // 获取模型的缩放比例
     const scale = model.scale.x; // 假设xyz缩放比例相同
     
+    // 1️⃣ 查找地面网格（草坪）作为X/Z尺寸的基准
+    let groundMesh = null;
+    let maxGroundArea = 0;
+    
+    model.traverse((child) => {
+        if (child.isMesh) {
+            // 查找名为 MD_CaoPing 的草坪网格
+            if (child.name && child.name.includes('CaoPing')) {
+                const meshBox = new Box3().setFromObject(child);
+                const meshSize = new Vector3();
+                meshBox.getSize(meshSize);
+                const area = meshSize.x * meshSize.z;
+                
+                if (area > maxGroundArea) {
+                    maxGroundArea = area;
+                    groundMesh = child;
+                }
+            }
+        }
+    });
+    
+    // 如果没找到草坪，就找最大的水平网格（Y高度接近0的网格）
+    if (!groundMesh) {
+        model.traverse((child) => {
+            if (child.isMesh) {
+                const meshBox = new Box3().setFromObject(child);
+                const meshSize = new Vector3();
+                meshBox.getSize(meshSize);
+                
+                // 找最大的接近水平的网格（高度很小的）
+                if (meshSize.y < 0.1 && meshSize.x * meshSize.z > maxGroundArea) {
+                    maxGroundArea = meshSize.x * meshSize.z;
+                    groundMesh = child;
+                }
+            }
+        });
+    }
+    
+    // 2️⃣ 计算地面尺寸（X和Z基于地面网格）
+    let groundSize = new Vector3();
+    let groundBox = null;
+    let groundName = '(未找到地面)';
+    
+    if (groundMesh) {
+        groundBox = new Box3().setFromObject(groundMesh);
+        groundBox.getSize(groundSize);
+        groundName = groundMesh.name || '(unnamed)';
+    }
+    
+    // 3️⃣ 计算整体包围盒（用于Y高度）
+    const totalBox = new Box3().setFromObject(model);
+    const totalSize = new Vector3();
+    totalBox.getSize(totalSize);
+    const center = totalBox.getCenter(new Vector3());
+    
+    // 4️⃣ 组合尺寸：X/Z来自地面，Y来自整体包围盒
+    const combinedSize = {
+        x: groundMesh ? groundSize.x : totalSize.x,  // 地面宽度
+        y: totalSize.y,                               // 整体高度
+        z: groundMesh ? groundSize.z : totalSize.z   // 地面深度
+    };
+    
     // 计算原始尺寸（去除缩放影响）
     const originalSize = {
-        x: size.x / scale,
-        y: size.y / scale,
-        z: size.z / scale
+        x: combinedSize.x / scale,
+        y: combinedSize.y / scale,
+        z: combinedSize.z / scale
+    };
+    
+    // 5️⃣ 组合坐标范围：X/Z来自地面，Y来自整体包围盒（用于坐标转换）
+    const bounds = {
+        min: {
+            x: groundBox ? groundBox.min.x : totalBox.min.x,  // 地面X最小值
+            y: totalBox.min.y,                                 // 整体Y最小值
+            z: groundBox ? groundBox.min.z : totalBox.min.z   // 地面Z最小值
+        },
+        max: {
+            x: groundBox ? groundBox.max.x : totalBox.max.x,  // 地面X最大值
+            y: totalBox.max.y,                                 // 整体Y最大值
+            z: groundBox ? groundBox.max.z : totalBox.max.z   // 地面Z最大值
+        }
     };
     
     const dimensions = {
-        // 当前场景中的实际尺寸
+        // 当前场景中的实际尺寸（基于地面）
         scaled: {
-            width: size.x,   // X轴宽度
-            height: size.y,  // Y轴高度  
-            depth: size.z    // Z轴深度
+            width: combinedSize.x,   // X轴宽度（地面）
+            height: combinedSize.y,  // Y轴高度（整体）
+            depth: combinedSize.z    // Z轴深度（地面）
         },
-        // 模型原始尺寸
+        // 模型原始尺寸（基于地面）
         original: {
-            width: originalSize.x,   // X轴宽度
-            height: originalSize.y,  // Y轴高度
-            depth: originalSize.z    // Z轴深度
+            width: originalSize.x,   // X轴宽度（地面）
+            height: originalSize.y,  // Y轴高度（整体）
+            depth: originalSize.z    // Z轴深度（地面）
         },
         // 中心点位置
         center: {
@@ -1474,10 +1543,12 @@ const calculateSandboxDimensions = (model) => {
             y: center.y,
             z: center.z
         },
-        // 包围盒范围
-        bounds: {
-            min: { x: box.min.x, y: box.min.y, z: box.min.z },
-            max: { x: box.max.x, y: box.max.y, z: box.max.z }
+        // 包围盒范围（X/Z基于地面，用于坐标转换）
+        bounds: bounds,
+        // 地面信息
+        ground: {
+            name: groundName,
+            found: !!groundMesh
         },
         // 缩放比例
         scale: scale
@@ -1490,10 +1561,12 @@ const calculateSandboxDimensions = (model) => {
     console.log('  - Y轴(绿色): 沙盘高度 (上下方向)');  
     console.log('  - Z轴(蓝色): 沙盘深度 (前后方向)');
     console.log('');
+    console.log(`🌿 地面基准: ${groundName} ${groundMesh ? '✅' : '❌未找到'}`);
+    console.log('');
     console.log('📐 场景中实际尺寸 (已应用缩放):');
-    console.log(`  - 宽度(X轴): ${dimensions.scaled.width.toFixed(3)} 单位`);
-    console.log(`  - 高度(Y轴): ${dimensions.scaled.height.toFixed(3)} 单位`);
-    console.log(`  - 深度(Z轴): ${dimensions.scaled.depth.toFixed(3)} 单位`);
+    console.log(`  - 宽度(X轴): ${dimensions.scaled.width.toFixed(3)} 单位 ${groundMesh ? '(基于地面)' : '(整体)'}`);
+    console.log(`  - 高度(Y轴): ${dimensions.scaled.height.toFixed(3)} 单位 (整体)`);
+    console.log(`  - 深度(Z轴): ${dimensions.scaled.depth.toFixed(3)} 单位 ${groundMesh ? '(基于地面)' : '(整体)'}`);
     console.log('');
     console.log('📏 模型原始尺寸 (缩放前):');
     console.log(`  - 宽度(X轴): ${dimensions.original.width.toFixed(3)} 单位`);
@@ -1505,7 +1578,7 @@ const calculateSandboxDimensions = (model) => {
     console.log(`  - Y: ${dimensions.center.y.toFixed(3)}`);
     console.log(`  - Z: ${dimensions.center.z.toFixed(3)}`);
     console.log('');
-    console.log('📦 包围盒范围:');
+    console.log(`📦 坐标范围 ${groundMesh ? '(基于地面，用于坐标转换)' : '(整体)'}:`);
     console.log(`  - X范围: ${dimensions.bounds.min.x.toFixed(3)} 到 ${dimensions.bounds.max.x.toFixed(3)}`);
     console.log(`  - Y范围: ${dimensions.bounds.min.y.toFixed(3)} 到 ${dimensions.bounds.max.y.toFixed(3)}`);
     console.log(`  - Z范围: ${dimensions.bounds.min.z.toFixed(3)} 到 ${dimensions.bounds.max.z.toFixed(3)}`);

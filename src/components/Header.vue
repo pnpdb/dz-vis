@@ -412,7 +412,9 @@
 
                     <!-- 第二行第二列 -->
                     <div class="info-card bounds-card">
-                        <h3>坐标范围</h3>
+                        <h3>坐标范围 
+                            <span v-if="sandboxDimensionsData.ground?.found" class="ground-badge">基于地面</span>
+                        </h3>
                         <div class="info-content">
                             <div class="data-row">
                                 <span>X轴:</span>
@@ -2598,6 +2600,20 @@ html .el-message-box.sandbox-dimensions-dialog {
 .center-card h3 { color: #FF9800; }
 .bounds-card h3 { color: #9C27B0; }
 .original-card h3 { color: #F44336; }
+
+/* 地面基准徽章样式 - 紫色主题与坐标范围标题保持一致 */
+.ground-badge {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: normal;
+    background: rgba(156, 39, 176, 0.2);
+    color: #9C27B0;
+    border: 1px solid rgba(156, 39, 176, 0.5);
+    border-radius: 4px;
+    vertical-align: middle;
+}
 
 .info-content {
     color: #c8c8c8;

@@ -401,11 +401,68 @@ const initSceneCore = async () => {
                     } else {
                         console.error('❌ 沙盘模型未找到');
                     }
+                },
+                analyzeSandboxMeshes: () => {
+                    const sandbox = models.get('sandbox');
+                    if (!sandbox) {
+                        console.error('❌ 沙盘模型未找到');
+                        return;
+                    }
+                    
+                    console.log('📊 沙盘模型网格分析:');
+                    console.log('=' .repeat(80));
+                    
+                    const meshes = [];
+                    sandbox.traverse((child) => {
+                        if (child.isMesh) {
+                            const meshBox = new Box3().setFromObject(child);
+                            const meshSize = new Vector3();
+                            meshBox.getSize(meshSize);
+                            
+                            meshes.push({
+                                name: child.name || '(unnamed)',
+                                visible: child.visible,
+                                box: meshBox,
+                                size: meshSize,
+                                vertexCount: child.geometry.attributes.position?.count || 0
+                            });
+                        }
+                    });
+                    
+                    console.log(`📦 共找到 ${meshes.length} 个网格\n`);
+                    
+                    // 按X轴尺寸排序
+                    meshes.sort((a, b) => b.size.x - a.size.x);
+                    
+                    meshes.forEach((mesh, idx) => {
+                        console.log(`[${idx + 1}] ${mesh.name}`);
+                        console.log(`  └─ 尺寸: X=${mesh.size.x.toFixed(3)} Y=${mesh.size.y.toFixed(3)} Z=${mesh.size.z.toFixed(3)}`);
+                        console.log(`  └─ 范围: X[${mesh.box.min.x.toFixed(2)} ~ ${mesh.box.max.x.toFixed(2)}] ` +
+                                   `Y[${mesh.box.min.y.toFixed(2)} ~ ${mesh.box.max.y.toFixed(2)}] ` +
+                                   `Z[${mesh.box.min.z.toFixed(2)} ~ ${mesh.box.max.z.toFixed(2)}]`);
+                        console.log(`  └─ 顶点数: ${mesh.vertexCount}, 可见: ${mesh.visible ? '是' : '否'}`);
+                        console.log('');
+                    });
+                    
+                    // 计算整体包围盒
+                    const totalBox = new Box3().setFromObject(sandbox);
+                    const totalSize = new Vector3();
+                    totalBox.getSize(totalSize);
+                    
+                    console.log('=' .repeat(80));
+                    console.log('📐 整体包围盒 (所有网格):');
+                    console.log(`  └─ 尺寸: X=${totalSize.x.toFixed(3)} Y=${totalSize.y.toFixed(3)} Z=${totalSize.z.toFixed(3)}`);
+                    console.log(`  └─ 原始尺寸 (除以缩放${sandbox.scale.x}): X=${(totalSize.x / sandbox.scale.x).toFixed(3)} ` +
+                               `Y=${(totalSize.y / sandbox.scale.y).toFixed(3)} Z=${(totalSize.z / sandbox.scale.z).toFixed(3)}`);
+                    console.log('=' .repeat(80));
+                    
+                    console.log('💡 提示: 如果某些网格尺寸异常大，可能是导致包围盒尺寸不准确的原因');
                 }
             };
             console.log('🔧 调试工具已挂载到 window.__scene3d__');
             console.log('💡 快速调试命令:');
             console.log('  - window.__scene3d__.logAlignmentInfo() // 查看沙盘和小车对齐信息');
+            console.log('  - window.__scene3d__.analyzeSandboxMeshes() // 分析沙盘网格尺寸（找出尺寸差异原因）');
             console.log('  - window.__scene3d__.adjustCarPosition(0, Y, 0) // 微调小车Y位置');
             console.log('  - window.__scene3d__.adjustSandboxScale(6) // 调整沙盘缩放');
         }

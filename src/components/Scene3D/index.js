@@ -596,72 +596,8 @@ const loadModelsWithProgress = async () => {
                         });
                         console.log('  - 网格数量:', meshCount);
                         
-                        const dimensions = calculateSandboxDimensions(sandboxModel);
-                        if (dimensions) {
-                            // 🎯 自动对齐：让沙盘底座贴地（Y=0）
-                            const offsetY = -dimensions.bounds.min.y;
-                            sandboxModel.position.y = offsetY;
-                            
-                            console.log('📐 沙盘模型自动对齐:');
-                            console.log(`  - 包围盒最低点(调整前): Y=${dimensions.bounds.min.y.toFixed(3)}`);
-                            console.log(`  - 包围盒最高点(调整前): Y=${dimensions.bounds.max.y.toFixed(3)}`);
-                            console.log(`  - 偏移量: ${offsetY.toFixed(3)}`);
-                            console.log(`  - 调整后沙盘位置: Y=${sandboxModel.position.y.toFixed(3)} (底座贴地)`);
-                            
-                            // 🚗 调整小车位置，让它在道路表面上
-                            // 道路表面在沙盘底部（包围盒最下面那个平面）
-                            const carModel = models.get('cars');
-                            if (carModel) {
-                                console.log('🚗 开始调整小车位置...');
-                                console.log(`  - 小车当前position: (${carModel.position.x}, ${carModel.position.y}, ${carModel.position.z})`);
-                                
-                                // 1. 重新计算沙盘的包围盒（位置已经调整过了）
-                                const sandboxBox = new Box3().setFromObject(sandboxModel);
-                                const roadSurfaceY = sandboxBox.min.y;  // 道路表面 = 沙盘底部（最下面的平面）
-                                
-                                // 2. 计算小车自己的包围盒（当前在初始位置）
-                                const carBox = new Box3().setFromObject(carModel);
-                                const carBottomY = carBox.min.y;  // 小车底部的世界坐标Y
-                                const carTopY = carBox.max.y;  // 小车顶部的世界坐标Y
-                                
-                                // 3. 计算需要移动的距离：从当前底部位置移动到道路表面
-                                const moveDistance = roadSurfaceY - carBottomY;
-                                carModel.position.y = carModel.position.y + moveDistance;
-                                
-                                // 验证：重新计算包围盒确认对齐
-                                const newCarBox = new Box3().setFromObject(carModel);
-                                
-                                console.log(`  - 道路表面(沙盘底部): Y=${roadSurfaceY.toFixed(3)}`);
-                                console.log(`  - 小车调整前底部位置: Y=${carBottomY.toFixed(3)}`);
-                                console.log(`  - 小车调整前顶部位置: Y=${carTopY.toFixed(3)}`);
-                                console.log(`  - 需要移动距离: ${moveDistance.toFixed(3)}`);
-                                console.log(`  - 小车调整后position: Y=${carModel.position.y.toFixed(3)}`);
-                                console.log(`  - 小车调整后底部位置: Y=${newCarBox.min.y.toFixed(3)}`);
-                                console.log(`  - 验证：底部与道路的距离: ${(newCarBox.min.y - roadSurfaceY).toFixed(3)} (应该≈0)`);
-                            } else {
-                                console.warn('⚠️ 小车模型未找到，无法调整位置');
-                            }
-                            
-                            // 为沙盘模型添加坐标轴 - 默认隐藏
-                            const sandboxAxes = new AxesHelper(8);
-                            sandboxAxes.name = 'SandboxAxes';
-                            sandboxAxes.position.copy(sandboxModel.position); // 与沙盘模型相同位置
-                            sandboxAxes.visible = false; // 默认隐藏
-                            scene.add(sandboxAxes);
-                            
-                            // 在沙盘中心点也添加一个坐标轴 - 默认隐藏
-                            const centerAxes = new AxesHelper(3);
-                            centerAxes.name = 'SandboxCenterAxes';
-                            // 重新计算中心点（因为沙盘位置已调整）
-                            const newBox = new Box3().setFromObject(sandboxModel);
-                            const newCenter = newBox.getCenter(new Vector3());
-                            centerAxes.position.copy(newCenter);
-                            centerAxes.visible = false; // 默认隐藏
-                            scene.add(centerAxes);
-                            
-                            console.debug('✅ 沙盘和小车位置对齐完成');
-                            
-                        }
+                        // 🎯 对齐沙盘和小车模型
+                        alignSandboxAndCar(sandboxModel, models, scene, '异步加载');
                     } else {
                         console.error('❌ 无法从models中获取沙盘模型！');
                     }
@@ -1003,74 +939,10 @@ const loadModel = (loader, url, key, options = {}) => {
                 });
                 console.log('  - 网格数量:', meshCount);
                 
+                // 🎯 对齐沙盘和小车模型（延迟确保模型完全加载到场景）
                 setTimeout(() => {
-                    const dimensions = calculateSandboxDimensions(model);
-                    if (dimensions) {
-                        // 🎯 自动对齐：让沙盘底座贴地（Y=0）
-                        const offsetY = -dimensions.bounds.min.y;
-                        model.position.y = offsetY;
-                        
-                        console.log('📐 沙盘模型自动对齐 (同步加载):');
-                        console.log(`  - 包围盒最低点(调整前): Y=${dimensions.bounds.min.y.toFixed(3)}`);
-                        console.log(`  - 包围盒最高点(调整前): Y=${dimensions.bounds.max.y.toFixed(3)}`);
-                        console.log(`  - 偏移量: ${offsetY.toFixed(3)}`);
-                        console.log(`  - 调整后沙盘位置: Y=${model.position.y.toFixed(3)} (底座贴地)`);
-                        
-                        // 🚗 调整小车位置，让它在道路表面上
-                        // 道路表面在沙盘底部（包围盒最下面那个平面）
-                        const carModel = models.get('cars');
-                        if (carModel) {
-                            console.log('🚗 开始调整小车位置(同步加载)...');
-                            console.log(`  - 小车当前position: (${carModel.position.x}, ${carModel.position.y}, ${carModel.position.z})`);
-                            
-                            // 1. 重新计算沙盘的包围盒（位置已经调整过了）
-                            const sandboxBox = new Box3().setFromObject(model);
-                            const roadSurfaceY = sandboxBox.min.y;  // 道路表面 = 沙盘底部（最下面的平面）
-                            
-                            // 2. 计算小车自己的包围盒（当前在初始位置）
-                            const carBox = new Box3().setFromObject(carModel);
-                            const carBottomY = carBox.min.y;  // 小车底部的世界坐标Y
-                            const carTopY = carBox.max.y;  // 小车顶部的世界坐标Y
-                            
-                            // 3. 计算需要移动的距离：从当前底部位置移动到道路表面
-                            const moveDistance = roadSurfaceY - carBottomY;
-                            carModel.position.y = carModel.position.y + moveDistance;
-                            
-                            // 验证：重新计算包围盒确认对齐
-                            const newCarBox = new Box3().setFromObject(carModel);
-                            
-                            console.log(`  - 道路表面(沙盘底部): Y=${roadSurfaceY.toFixed(3)}`);
-                            console.log(`  - 小车调整前底部位置: Y=${carBottomY.toFixed(3)}`);
-                            console.log(`  - 小车调整前顶部位置: Y=${carTopY.toFixed(3)}`);
-                            console.log(`  - 需要移动距离: ${moveDistance.toFixed(3)}`);
-                            console.log(`  - 小车调整后position: Y=${carModel.position.y.toFixed(3)}`);
-                            console.log(`  - 小车调整后底部位置: Y=${newCarBox.min.y.toFixed(3)}`);
-                            console.log(`  - 验证：底部与道路的距离: ${(newCarBox.min.y - roadSurfaceY).toFixed(3)} (应该≈0)`);
-                        } else {
-                            console.warn('⚠️ 小车模型未找到，无法调整位置');
-                        }
-                        
-                        // 为沙盘模型添加坐标轴 - 默认隐藏
-                        const sandboxAxes = new AxesHelper(8);
-                        sandboxAxes.name = 'SandboxAxes';
-                        sandboxAxes.position.copy(model.position);
-                        sandboxAxes.visible = false;
-                        scene.add(sandboxAxes);
-                        
-                        // 在沙盘中心点也添加一个坐标轴 - 默认隐藏
-                        const centerAxes = new AxesHelper(3);
-                        centerAxes.name = 'SandboxCenterAxes';
-                        // 重新计算中心点（因为沙盘位置已调整）
-                        const newBox = new Box3().setFromObject(model);
-                        const newCenter = newBox.getCenter(new Vector3());
-                        centerAxes.position.copy(newCenter);
-                        centerAxes.visible = false;
-                        scene.add(centerAxes);
-                        
-                        console.log('✅ 沙盘和小车位置对齐完成 (同步加载)');
-                        
-                    }
-                }, 100); // 短暂延迟确保模型完全加载到场景中
+                    alignSandboxAndCar(model, models, scene, '同步加载');
+                }, 100);
             }
         },
         (progress) => {
@@ -1419,6 +1291,87 @@ const createCoordinateAxes = () => {
     console.log('  - 绿色轴: Y轴 (上下方向)');
     console.log('  - 蓝色轴: Z轴 (前后方向)');
     console.log('  提示: 通过设置面板可以控制显示/隐藏');
+};
+
+/**
+ * 对齐沙盘和小车模型
+ * @param {Object} sandboxModel - 沙盘模型
+ * @param {Map} modelsMap - 所有模型的Map
+ * @param {THREE.Scene} scene - Three.js场景
+ * @param {string} loadMode - 加载模式标识（用于日志）
+ */
+const alignSandboxAndCar = (sandboxModel, modelsMap, scene, loadMode = '') => {
+    if (!sandboxModel) {
+        console.error('❌ 沙盘模型未找到，无法对齐');
+        return;
+    }
+    
+    const logPrefix = loadMode ? `(${loadMode})` : '';
+    
+    // 1️⃣ 对齐沙盘：让沙盘底座贴地（Y=0）
+    const sandboxBox = new Box3().setFromObject(sandboxModel);
+    const offsetY = -sandboxBox.min.y;
+    sandboxModel.position.y = offsetY;
+    
+    console.log(`📐 沙盘模型自动对齐${logPrefix}:`);
+    console.log(`  - 包围盒最低点(调整前): Y=${sandboxBox.min.y.toFixed(3)}`);
+    console.log(`  - 偏移量: ${offsetY.toFixed(3)}`);
+    console.log(`  - 调整后沙盘位置: Y=${sandboxModel.position.y.toFixed(3)} (底座贴地)`);
+    
+    // 2️⃣ 对齐小车：让小车底部贴在道路表面（沙盘底部）
+    const carModel = modelsMap.get('cars');
+    if (carModel) {
+        console.log(`🚗 开始调整小车位置${logPrefix}...`);
+        
+        // 重新计算沙盘的包围盒（位置已经调整过了）
+        const newSandboxBox = new Box3().setFromObject(sandboxModel);
+        const roadSurfaceY = newSandboxBox.min.y;  // 道路表面 = 沙盘底部
+        
+        // 计算小车的包围盒
+        const carBox = new Box3().setFromObject(carModel);
+        const carBottomY = carBox.min.y;
+        
+        // 计算需要移动的距离
+        const moveDistance = roadSurfaceY - carBottomY;
+        carModel.position.y += moveDistance;
+        
+        // 验证对齐结果
+        const verifyCarBox = new Box3().setFromObject(carModel);
+        const alignError = verifyCarBox.min.y - roadSurfaceY;
+        
+        console.log(`  - 道路表面(沙盘底部): Y=${roadSurfaceY.toFixed(3)}`);
+        console.log(`  - 小车调整前底部: Y=${carBottomY.toFixed(3)}`);
+        console.log(`  - 移动距离: ${moveDistance.toFixed(3)}`);
+        console.log(`  - 小车调整后position.y: ${carModel.position.y.toFixed(3)}`);
+        console.log(`  - 验证：对齐误差 ${alignError.toFixed(6)} (应该≈0)`);
+        
+        if (Math.abs(alignError) > 0.001) {
+            console.warn(`⚠️ 对齐误差较大: ${alignError.toFixed(6)}`);
+        }
+    } else {
+        console.warn(`⚠️ 小车模型未找到，无法调整位置${logPrefix}`);
+    }
+    
+    // 3️⃣ 添加调试坐标轴（检查是否已存在，避免重复添加）
+    if (!scene.getObjectByName('SandboxAxes')) {
+        const sandboxAxes = new AxesHelper(8);
+        sandboxAxes.name = 'SandboxAxes';
+        sandboxAxes.position.copy(sandboxModel.position);
+        sandboxAxes.visible = false;
+        scene.add(sandboxAxes);
+    }
+    
+    if (!scene.getObjectByName('SandboxCenterAxes')) {
+        const centerAxes = new AxesHelper(3);
+        centerAxes.name = 'SandboxCenterAxes';
+        const newBox = new Box3().setFromObject(sandboxModel);
+        const center = newBox.getCenter(new Vector3());
+        centerAxes.position.copy(center);
+        centerAxes.visible = false;
+        scene.add(centerAxes);
+    }
+    
+    console.log(`✅ 沙盘和小车位置对齐完成${logPrefix}`);
 };
 
 // 计算沙盘模型尺寸的工具函数

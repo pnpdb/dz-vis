@@ -1,138 +1,204 @@
 /**
- * 数据验证工具
- * 与Rust端保持一致的命名和功能
+ * 通用验证工具
+ * 提取重复的验证逻辑，提高代码复用性
  */
 
 /**
- * 验证IP地址格式
- * @param {string} ip - IP地址字符串
- * @returns {boolean} 是否有效
+ * 验证车辆ID是否有效
+ * @param {*} vehicleId - 车辆ID
+ * @returns {{valid: boolean, error?: string}}
  */
-export function isValidIp(ip) {
-    const ipPattern = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
-    const match = ip.match(ipPattern);
+export function validateVehicleId(vehicleId) {
+    if (vehicleId === null || vehicleId === undefined) {
+        return { valid: false, error: '车辆ID不能为空' };
+    }
     
-    if (!match) return false;
+    if (typeof vehicleId !== 'number' && typeof vehicleId !== 'string') {
+        return { valid: false, error: '车辆ID必须为数字或字符串' };
+    }
     
-    return match.slice(1).every(num => {
-        const n = parseInt(num, 10);
-        return n >= 0 && n <= 255;
+    return { valid: true };
+}
+
+/**
+ * 验证位置坐标是否有效
+ * @param {*} position - 位置对象
+ * @param {string} coordinateSystem - 坐标系类型 'model' | 'vehicle'
+ * @returns {{valid: boolean, error?: string}}
+ */
+export function validatePosition(position, coordinateSystem = 'model') {
+    if (!position || typeof position !== 'object') {
+        return { valid: false, error: '位置参数无效' };
+    }
+    
+    // 模型坐标系使用 {x, z}
+    if (coordinateSystem === 'model') {
+        if (typeof position.x !== 'number' || typeof position.z !== 'number') {
+            return { valid: false, error: '位置坐标必须为数字 (x, z)' };
+        }
+        
+        if (isNaN(position.x) || isNaN(position.z)) {
+            return { valid: false, error: '位置坐标不能为NaN' };
+        }
+    }
+    
+    // 车辆坐标系使用 {x, y}
+    if (coordinateSystem === 'vehicle') {
+        if (typeof position.x !== 'number' || typeof position.y !== 'number') {
+            return { valid: false, error: '位置坐标必须为数字 (x, y)' };
+        }
+        
+        if (isNaN(position.x) || isNaN(position.y)) {
+            return { valid: false, error: '位置坐标不能为NaN' };
+        }
+    }
+    
+    return { valid: true };
+}
+
+/**
+ * 验证朝向角度是否有效
+ * @param {*} orientation - 朝向角度（弧度）
+ * @returns {{valid: boolean, error?: string}}
+ */
+export function validateOrientation(orientation) {
+    if (orientation === null || orientation === undefined) {
+        return { valid: true }; // 朝向可选
+    }
+    
+    if (typeof orientation !== 'number') {
+        return { valid: false, error: '朝向角度必须为数字' };
+    }
+    
+    if (isNaN(orientation)) {
+        return { valid: false, error: '朝向角度不能为NaN' };
+    }
+    
+    // 朝向角度应该在 -π 到 π 范围内（可以给出警告但不阻止）
+    if (orientation < -Math.PI || orientation > Math.PI) {
+        console.warn(`⚠️ 朝向角度超出推荐范围 [-π, π]: ${orientation.toFixed(3)}`);
+    }
+    
+    return { valid: true };
+}
+
+/**
+ * 验证数字参数
+ * @param {*} value - 要验证的值
+ * @param {string} name - 参数名称
+ * @param {Object} options - 验证选项
+ * @param {number} options.min - 最小值
+ * @param {number} options.max - 最大值
+ * @param {boolean} options.allowNull - 是否允许null
+ * @returns {{valid: boolean, error?: string}}
+ */
+export function validateNumber(value, name, options = {}) {
+    const { min, max, allowNull = false } = options;
+    
+    if (value === null || value === undefined) {
+        if (allowNull) {
+            return { valid: true };
+        }
+        return { valid: false, error: `${name}不能为空` };
+    }
+    
+    if (typeof value !== 'number') {
+        return { valid: false, error: `${name}必须为数字` };
+    }
+    
+    if (isNaN(value)) {
+        return { valid: false, error: `${name}不能为NaN` };
+    }
+    
+    if (min !== undefined && value < min) {
+        return { valid: false, error: `${name}不能小于${min}` };
+    }
+    
+    if (max !== undefined && value > max) {
+        return { valid: false, error: `${name}不能大于${max}` };
+    }
+    
+    return { valid: true };
+}
+
+/**
+ * 验证车辆状态对象
+ * @param {*} vehicleInfo - 车辆信息对象
+ * @returns {{valid: boolean, errors: string[]}}
+ */
+export function validateVehicleInfo(vehicleInfo) {
+    const errors = [];
+    
+    if (!vehicleInfo || typeof vehicleInfo !== 'object') {
+        return { valid: false, errors: ['车辆信息对象无效'] };
+    }
+    
+    // 验证必需字段
+    if (vehicleInfo.position) {
+        const posResult = validatePosition(vehicleInfo.position, 'vehicle');
+        if (!posResult.valid) {
+            errors.push(`位置: ${posResult.error}`);
+        }
+    }
+    
+    if (vehicleInfo.orientation !== undefined) {
+        const oriResult = validateOrientation(vehicleInfo.orientation);
+        if (!oriResult.valid) {
+            errors.push(`朝向: ${oriResult.error}`);
+        }
+    }
+    
+    // 验证可选数值字段
+    const numericFields = [
+        { key: 'speed', name: '速度', min: 0 },
+        { key: 'battery', name: '电量', min: 0, max: 100 },
+        { key: 'steeringAngle', name: '方向盘转角', min: -540, max: 540 }
+    ];
+    
+    for (const field of numericFields) {
+        if (vehicleInfo[field.key] !== undefined) {
+            const result = validateNumber(
+                vehicleInfo[field.key],
+                field.name,
+                { min: field.min, max: field.max, allowNull: true }
+            );
+            if (!result.valid) {
+                errors.push(result.error);
+            }
+        }
+    }
+    
+    return { valid: errors.length === 0, errors };
+}
+
+/**
+ * 验证批量参数（用于批量操作）
+ * @param {Array} items - 要验证的项目数组
+ * @param {Function} validator - 验证器函数
+ * @returns {{valid: boolean, errors: Array}}
+ */
+export function validateBatch(items, validator) {
+    if (!Array.isArray(items)) {
+        return { valid: false, errors: ['输入必须为数组'] };
+    }
+    
+    const errors = [];
+    
+    items.forEach((item, index) => {
+        const result = validator(item);
+        if (!result.valid) {
+            errors.push({
+                index,
+                item,
+                error: result.error || result.errors
+            });
+        }
     });
-}
-
-/**
- * 验证是否为私有IP地址
- * @param {string} ip - IP地址字符串
- * @returns {boolean} 是否为私有IP
- */
-export function isPrivateIp(ip) {
-    if (!isValidIp(ip)) return false;
     
-    const parts = ip.split('.').map(p => parseInt(p, 10));
-    const [a, b] = parts;
-    
-    // 10.0.0.0/8
-    if (a === 10) return true;
-    
-    // 172.16.0.0/12
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    
-    // 192.168.0.0/16
-    if (a === 192 && b === 168) return true;
-    
-    // 169.254.0.0/16 (APIPA)
-    if (a === 169 && b === 254) return true;
-    
-    return false;
+    return {
+        valid: errors.length === 0,
+        errors,
+        validCount: items.length - errors.length,
+        totalCount: items.length
+    };
 }
-
-/**
- * 验证端口号范围
- * @param {number} port - 端口号
- * @returns {boolean} 是否有效
- */
-export function isValidPort(port) {
-    return Number.isInteger(port) && port > 0 && port <= 65535;
-}
-
-/**
- * 验证数字是否在范围内
- * @param {number} value - 值
- * @param {number} min - 最小值
- * @param {number} max - 最大值
- * @returns {boolean} 是否在范围内
- */
-export function isInRange(value, min, max) {
-    return value >= min && value <= max;
-}
-
-/**
- * 验证车辆ID范围
- * @param {number} id - 车辆ID
- * @returns {boolean} 是否有效
- */
-export function isValidVehicleId(id) {
-    return Number.isInteger(id) && isInRange(id, 1, 255);
-}
-
-/**
- * 验证速度范围（m/s）
- * @param {number} speed - 速度
- * @returns {boolean} 是否有效
- */
-export function isValidSpeed(speed) {
-    return typeof speed === 'number' && isInRange(speed, 0, 10);
-}
-
-/**
- * 验证电池电量范围
- * @param {number} battery - 电池电量（百分比）
- * @returns {boolean} 是否有效
- */
-export function isValidBattery(battery) {
-    return typeof battery === 'number' && isInRange(battery, 0, 100);
-}
-
-/**
- * 验证方向盘角度范围（度）
- * @param {number} angle - 方向盘角度
- * @returns {boolean} 是否有效
- */
-export function isValidSteeringAngle(angle) {
-    return typeof angle === 'number' && isInRange(angle, -180, 180);
-}
-
-/**
- * 验证字符串是否为空或仅包含空白字符
- * @param {string} s - 字符串
- * @returns {boolean} 是否为空白
- */
-export function isBlank(s) {
-    return !s || s.trim().length === 0;
-}
-
-/**
- * 验证字符串长度范围
- * @param {string} s - 字符串
- * @param {number} min - 最小长度
- * @param {number} max - 最大长度
- * @returns {boolean} 是否在范围内
- */
-export function isValidLength(s, min, max) {
-    const len = s ? s.length : 0;
-    return len >= min && len <= max;
-}
-
-export default {
-    isValidIp,
-    isPrivateIp,
-    isValidPort,
-    isInRange,
-    isValidVehicleId,
-    isValidSpeed,
-    isValidBattery,
-    isValidSteeringAngle,
-    isBlank,
-    isValidLength,
-};
-

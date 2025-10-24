@@ -3,8 +3,16 @@ import { VehicleConnectionAPI } from '@/utils/vehicleAPI.js';
 import { normalizeVehicleList, parseVehicleId, compareVehicleId } from '@/utils/vehicleTypes.js';
 import { vehicleToModelCoordinates } from '@/utils/coordinateTransform.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
+import { throttle } from '@/utils/throttle.js';
+import { deepClone } from '@/utils/stateManager.js';
+import { validateVehicleInfo } from '@/utils/validation.js';
 
 const filePath = localStorage.getItem('filePath') || '';
+
+// 性能优化：为高频事件创建节流函数
+const throttledVehicleStateUpdate = throttle((data) => {
+    eventBus.emit(EVENTS.VEHICLE_STATE_UPDATED, data);
+}, 50); // 每50ms最多触发一次
 
 export const useCarStore = defineStore('car', {
     state: () => ({
@@ -29,6 +37,10 @@ export const useCarStore = defineStore('car', {
         
         // 沙盘连接状态
         sandboxConnected: false,
+        
+        // 内存管理配置（防止内存泄漏）
+        maxVehicles: 50, // 最大车辆数量
+        vehicleIdleTimeout: 10 * 60 * 1000, // 10分钟未活动视为闲置
     }),
     getters: {
         selectedCar: state => {
@@ -134,6 +146,9 @@ export const useCarStore = defineStore('car', {
                 vehicleId,
                 isOnline
             });
+            
+            // 内存管理：检查是否需要清理闲置车辆
+            this.cleanupIdleVehicles();
         },
         
         /**
@@ -142,14 +157,22 @@ export const useCarStore = defineStore('car', {
          * @param {Object} vehicleInfo - 车辆信息
          */
         updateVehicleState(vehicleId, vehicleInfo) {
+            // 验证输入数据（使用统一验证工具）
+            const validation = validateVehicleInfo(vehicleInfo);
+            if (!validation.valid) {
+                console.warn(`⚠️ 车辆 ${vehicleId} 状态数据验证失败:`, validation.errors);
+                // 继续处理，但记录警告
+            }
+            
             const state = this.getOrCreateVehicleState(vehicleId);
             if (!state) return;
             
             // 保存原始的车辆坐标系值（用于显示）
             const originalPosition = vehicleInfo.position || state.state.position;
             
-            // 更新运行状态（保存原始车辆坐标系值）
-            Object.assign(state.state, {
+            // 不可变更新运行状态（架构优化：避免直接修改，使用不可变更新）
+            state.state = {
+                ...state.state,
                 position: originalPosition,  // 保存原始车辆坐标系（0-4.81, 0-2.81）
                 speed: vehicleInfo.speed ?? state.state.speed,
                 battery: vehicleInfo.battery ?? state.state.battery,
@@ -159,11 +182,14 @@ export const useCarStore = defineStore('car', {
                 navigation: vehicleInfo.navigation || state.state.navigation,
                 sensors: vehicleInfo.sensors || state.state.sensors,
                 timestamp: vehicleInfo.timestamp || Date.now(),
-            });
+            };
             
-            // 更新停车位（统一存储在 parking.slotId，避免状态不一致）
+            // 不可变更新停车位（避免直接修改）
             if (vehicleInfo.parkingSlot !== undefined) {
-                state.parking.slotId = vehicleInfo.parkingSlot;
+                state.parking = {
+                    ...state.parking,
+                    slotId: vehicleInfo.parkingSlot
+                };
             }
             
             // 触发状态更新事件（传递完整的车辆信息，包括传感器状态等）
@@ -184,7 +210,8 @@ export const useCarStore = defineStore('car', {
             };
             
             // 触发车辆状态更新事件（用于3D模型位置更新，传递模型坐标系）
-            eventBus.emit(EVENTS.VEHICLE_STATE_UPDATED, {
+            // 使用节流避免高频更新影响性能（每秒2次变为每秒最多20次）
+            throttledVehicleStateUpdate({
                 vehicleId,
                 position: modelPosition,  // 模型坐标系
                 orientation: vehicleInfo.orientation ?? state.state.orientation
@@ -243,6 +270,88 @@ export const useCarStore = defineStore('car', {
                 if (state.connection.isOnline) ids.push(id);
             }
             return ids;
+        },
+        
+        /**
+         * 清理闲置车辆（内存泄漏防护）
+         * 移除长时间未活动且离线的车辆状态
+         */
+        cleanupIdleVehicles() {
+            const now = Date.now();
+            const vehiclesToRemove = [];
+            
+            // 检查是否超过最大车辆数
+            if (this.vehicles.size <= this.maxVehicles) {
+                return;
+            }
+            
+            // 找出需要清理的车辆
+            for (const [vehicleId, state] of this.vehicles.entries()) {
+                // 只清理离线车辆
+                if (!state.connection.isOnline) {
+                    const idleTime = now - (state.connection.lastSeen || 0);
+                    if (idleTime > this.vehicleIdleTimeout) {
+                        vehiclesToRemove.push(vehicleId);
+                    }
+                }
+            }
+            
+            // 按最后活跃时间排序，优先删除最久未活动的
+            vehiclesToRemove.sort((a, b) => {
+                const timeA = this.vehicles.get(a)?.connection.lastSeen || 0;
+                const timeB = this.vehicles.get(b)?.connection.lastSeen || 0;
+                return timeA - timeB;
+            });
+            
+            // 删除车辆，直到数量低于阈值
+            const targetSize = Math.floor(this.maxVehicles * 0.8); // 清理到80%
+            let removed = 0;
+            
+            for (const vehicleId of vehiclesToRemove) {
+                if (this.vehicles.size <= targetSize) {
+                    break;
+                }
+                
+                this.vehicles.delete(vehicleId);
+                removed++;
+                console.info(`🧹 清理闲置车辆: ${vehicleId}`);
+            }
+            
+            if (removed > 0) {
+                console.info(`✅ 内存清理完成，移除 ${removed} 个闲置车辆，当前车辆数: ${this.vehicles.size}`);
+            }
+        },
+        
+        /**
+         * 手动清理指定车辆状态
+         * @param {number} vehicleId - 车辆ID
+         */
+        removeVehicleState(vehicleId) {
+            const normalizedId = parseVehicleId(vehicleId, 0);
+            if (normalizedId && this.vehicles.has(normalizedId)) {
+                this.vehicles.delete(normalizedId);
+                console.info(`🗑️ 已移除车辆状态: ${normalizedId}`);
+                return true;
+            }
+            return false;
+        },
+        
+        /**
+         * 清理所有离线车辆状态
+         */
+        clearOfflineVehicles() {
+            const offlineVehicles = [];
+            for (const [vehicleId, state] of this.vehicles.entries()) {
+                if (!state.connection.isOnline) {
+                    offlineVehicles.push(vehicleId);
+                }
+            }
+            
+            offlineVehicles.forEach(id => this.vehicles.delete(id));
+            
+            if (offlineVehicles.length > 0) {
+                console.info(`🧹 已清理 ${offlineVehicles.length} 个离线车辆状态`);
+            }
         },
         
         /**

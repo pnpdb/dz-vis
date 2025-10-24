@@ -1,429 +1,385 @@
 /**
- * 统一错误处理系统
- * 整合了全局错误捕获、错误分类、日志记录和用户通知
+ * 统一错误处理工具
+ * 提供一致的错误处理、日志记录和用户反馈机制
  */
-
-import { ElMessage } from 'element-plus';
-import { logger } from '@/utils/logger';
-import { DEFAULTS } from '@/config/constants';
 
 /**
- * 错误类型枚举
+ * 错误级别
  */
-export const ErrorType = {
-    RUNTIME: 'RUNTIME',           // 运行时错误
-    PROMISE: 'PROMISE',           // Promise未捕获错误
-    RESOURCE: 'RESOURCE',         // 资源加载错误
-    NETWORK: 'NETWORK',           // 网络错误
-    TAURI: 'TAURI',              // Tauri命令错误
-    VUE: 'VUE',                  // Vue组件错误
-    UNKNOWN: 'UNKNOWN',          // 未知错误
+export const ErrorLevel = {
+    DEBUG: 'debug',
+    INFO: 'info',
+    WARN: 'warn',
+    ERROR: 'error',
+    FATAL: 'fatal'
 };
 
 /**
- * 错误严重级别
+ * 错误类别
  */
-export const ErrorSeverity = {
-    LOW: 'LOW',                   // 低 - 仅记录日志
-    MEDIUM: 'MEDIUM',             // 中 - 记录日志+用户提示
-    HIGH: 'HIGH',                 // 高 - 记录日志+用户提示+可能影响功能
-    CRITICAL: 'CRITICAL',         // 严重 - 记录日志+用户提示+需要重启
+export const ErrorCategory = {
+    VALIDATION: 'validation',      // 验证错误
+    NETWORK: 'network',            // 网络错误
+    RESOURCE: 'resource',          // 资源错误
+    PERMISSION: 'permission',      // 权限错误
+    STATE: 'state',                // 状态错误
+    UNKNOWN: 'unknown'             // 未知错误
 };
 
 /**
- * 自定义错误类
+ * 应用错误类（扩展原生 Error）
  */
-export class TauriError extends Error {
-    constructor(message, code = null) {
+export class AppError extends Error {
+    constructor(message, options = {}) {
         super(message);
-        this.name = 'TauriError';
-        this.code = code;
-        this.timestamp = new Date().toISOString();
+        this.name = 'AppError';
+        this.level = options.level || ErrorLevel.ERROR;
+        this.category = options.category || ErrorCategory.UNKNOWN;
+        this.code = options.code;
+        this.context = options.context || {};
+        this.timestamp = new Date();
+        this.originalError = options.originalError;
+        
+        // 保持正确的堆栈跟踪
+        if (Error.captureStackTrace) {
+            Error.captureStackTrace(this, AppError);
+        }
     }
-}
-
-export class NetworkError extends Error {
-    constructor(message, statusCode = null) {
-        super(message);
-        this.name = 'NetworkError';
-        this.statusCode = statusCode;
-        this.timestamp = new Date().toISOString();
-    }
-}
-
-/**
- * 统一错误处理器
- */
-export class ErrorHandler {
-    static errorQueue = [];
-    static maxQueueSize = 50;
-    static listeners = new Set(); // 错误监听器
-
+    
     /**
-     * 格式化错误信息
-     * @private
+     * 转换为日志友好的格式
      */
-    static formatError(error, type, context = {}) {
+    toLogFormat() {
         return {
-            id: `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            type,
-            message: error.message || '未知错误',
-            stack: error.stack || '',
-            name: error.name || 'Error',
-            code: error.code,
-            timestamp: new Date().toISOString(),
-            severity: this.getSeverity(error, type),
-            userAgent: navigator.userAgent,
-            url: window.location.href,
-            context,
+            name: this.name,
+            message: this.message,
+            level: this.level,
+            category: this.category,
+            code: this.code,
+            context: this.context,
+            timestamp: this.timestamp.toISOString(),
+            stack: this.stack
         };
     }
+}
 
-    /**
-     * 判断错误严重级别
-     * @private
-     */
-    static getSeverity(error, type) {
-        // 自定义错误类型
-        if (error instanceof TauriError) {
-            return ErrorSeverity.HIGH;
-        }
-        if (error instanceof NetworkError) {
-            return ErrorSeverity.MEDIUM;
-        }
-
-        // 基于错误类型判断
-        if (type === ErrorType.TAURI) {
-            return ErrorSeverity.HIGH;
-        }
-        if (type === ErrorType.NETWORK) {
-            return ErrorSeverity.MEDIUM;
-        }
-        if (type === ErrorType.RESOURCE) {
-            return ErrorSeverity.LOW;
-        }
-
-        // 基于错误消息判断
-        const msg = error.message?.toLowerCase() || '';
-        if (msg.includes('critical') || msg.includes('fatal') || msg.includes('crash')) {
-            return ErrorSeverity.CRITICAL;
-        }
-        if (msg.includes('cannot read property') || msg.includes('undefined is not')) {
-            return ErrorSeverity.HIGH;
-        }
-
-        // Promise和运行时错误
-        if (type === ErrorType.PROMISE || type === ErrorType.RUNTIME || type === ErrorType.VUE) {
-            return ErrorSeverity.MEDIUM;
-        }
-
-        return ErrorSeverity.MEDIUM;
+/**
+ * 错误处理器类
+ */
+class ErrorHandler {
+    constructor() {
+        this.errorListeners = [];
+        this.errorHistory = [];
+        this.maxHistorySize = 100;
     }
-
+    
     /**
-     * 处理错误（主入口）
-     * @param {Error} error - 错误对象
-     * @param {string} type - 错误类型
-     * @param {Object} context - 上下文信息
-     * @returns {Object} 格式化的错误信息
+     * 注册错误监听器
+     * @param {Function} listener - 监听器函数
      */
-    static handle(error, type = ErrorType.UNKNOWN, context = {}) {
-        const formattedError = this.formatError(error, type, context);
-
-        // 添加到错误队列
-        this.addToQueue(formattedError);
-
-        // 记录日志
-        this.logError(formattedError);
-
-        // 显示用户通知
-        this.showNotification(formattedError);
-
-        // 触发监听器
-        this.emitError(formattedError);
-
-        // 严重错误特殊处理
-        if (formattedError.severity === ErrorSeverity.CRITICAL) {
-            this.handleCriticalError(formattedError);
-        }
-
-        return formattedError;
-    }
-
-    /**
-     * 添加到错误队列
-     * @private
-     */
-    static addToQueue(errorInfo) {
-        this.errorQueue.unshift(errorInfo);
-        if (this.errorQueue.length > this.maxQueueSize) {
-            this.errorQueue = this.errorQueue.slice(0, this.maxQueueSize);
+    addListener(listener) {
+        if (typeof listener === 'function') {
+            this.errorListeners.push(listener);
         }
     }
-
+    
     /**
-     * 记录日志
-     * @private
+     * 移除错误监听器
+     * @param {Function} listener - 监听器函数
      */
-    static logError(errorInfo) {
-        const logMethod = errorInfo.severity === ErrorSeverity.CRITICAL || errorInfo.severity === ErrorSeverity.HIGH
-            ? 'error'
-            : 'warn';
-
-        logger[logMethod](
-            'ErrorHandler',
-            `[${errorInfo.type}] ${errorInfo.message}`,
-            errorInfo
-        );
-    }
-
-    /**
-     * 显示用户通知
-     * @private
-     */
-    static showNotification(errorInfo) {
-        // 低优先级错误不显示通知
-        if (errorInfo.severity === ErrorSeverity.LOW) {
-            return;
+    removeListener(listener) {
+        const index = this.errorListeners.indexOf(listener);
+        if (index > -1) {
+            this.errorListeners.splice(index, 1);
         }
-
-        const messageConfig = {
-            offset: DEFAULTS?.MESSAGE_OFFSET || 60,
-            duration: errorInfo.severity === ErrorSeverity.CRITICAL ? 0 : 3000,
-        };
-
-        switch (errorInfo.severity) {
-            case ErrorSeverity.CRITICAL:
-                ElMessage.error({
-                    ...messageConfig,
-                    message: `严重错误: ${errorInfo.message}。请刷新页面重试`,
-                    showClose: true,
-                });
+    }
+    
+    /**
+     * 处理错误
+     * @param {Error|AppError|string} error - 错误对象或消息
+     * @param {Object} options - 选项
+     */
+    handle(error, options = {}) {
+        let appError;
+        
+        // 将普通错误转换为 AppError
+        if (error instanceof AppError) {
+            appError = error;
+        } else if (error instanceof Error) {
+            appError = new AppError(error.message, {
+                ...options,
+                originalError: error
+            });
+        } else if (typeof error === 'string') {
+            appError = new AppError(error, options);
+        } else {
+            appError = new AppError('未知错误', {
+                ...options,
+                context: { originalError: error }
+            });
+        }
+        
+        // 记录到历史
+        this.addToHistory(appError);
+        
+        // 日志输出
+        this.logError(appError);
+        
+        // 通知监听器
+        this.notifyListeners(appError);
+        
+        return appError;
+    }
+    
+    /**
+     * 记录错误到历史
+     */
+    addToHistory(error) {
+        this.errorHistory.push(error);
+        
+        // 限制历史记录大小
+        if (this.errorHistory.length > this.maxHistorySize) {
+            this.errorHistory.shift();
+        }
+    }
+    
+    /**
+     * 日志输出
+     */
+    logError(error) {
+        const logData = error.toLogFormat();
+        
+        switch (error.level) {
+            case ErrorLevel.DEBUG:
+                console.debug(`[${error.category}]`, logData);
                 break;
-
-            case ErrorSeverity.HIGH:
-                ElMessage.error({
-                    ...messageConfig,
-                    message: `错误: ${errorInfo.message}`,
-                });
+            case ErrorLevel.INFO:
+                console.info(`[${error.category}]`, logData);
                 break;
-
-            case ErrorSeverity.MEDIUM:
-                ElMessage.warning({
-                    ...messageConfig,
-                    message: errorInfo.message,
-                });
+            case ErrorLevel.WARN:
+                console.warn(`⚠️ [${error.category}]`, logData.message, logData);
                 break;
-
+            case ErrorLevel.ERROR:
+                console.error(`❌ [${error.category}]`, logData.message, logData);
+                break;
+            case ErrorLevel.FATAL:
+                console.error(`💥 [FATAL][${error.category}]`, logData.message, logData);
+                break;
             default:
-                break;
+                console.log(`[${error.category}]`, logData);
         }
     }
-
+    
     /**
-     * 触发错误监听器
-     * @private
+     * 通知监听器
      */
-    static emitError(errorInfo) {
-        this.listeners.forEach(listener => {
+    notifyListeners(error) {
+        this.errorListeners.forEach(listener => {
             try {
-                listener(errorInfo);
-            } catch (err) {
-                console.error('错误监听器执行失败:', err);
+                listener(error);
+            } catch (e) {
+                console.error('错误监听器执行失败:', e);
             }
         });
     }
-
+    
     /**
-     * 处理严重错误
-     * @private
+     * 获取错误历史
      */
-    static handleCriticalError(errorInfo) {
-        // 使用日志模块记录严重错误到文件
-        logger.error('CriticalError', '🚨 严重错误', {
-            message: errorInfo.message,
-            type: errorInfo.type,
-            severity: errorInfo.severity,
-            stack: errorInfo.stack,
-            context: errorInfo.context,
-            timestamp: errorInfo.timestamp,
-        });
+    getHistory(filter = null) {
+        if (!filter) {
+            return [...this.errorHistory];
+        }
         
-        // 同时在控制台输出（便于开发调试）
-        console.error('🚨 CRITICAL ERROR:', errorInfo);
+        return this.errorHistory.filter(filter);
     }
-
+    
     /**
-     * 订阅错误事件
-     * @param {Function} listener - 监听器函数
-     * @returns {Function} 取消订阅函数
+     * 清空错误历史
      */
-    static subscribe(listener) {
-        this.listeners.add(listener);
-        return () => this.listeners.delete(listener);
+    clearHistory() {
+        this.errorHistory = [];
     }
-
-    /**
-     * 获取最近的错误
-     * @param {number} limit - 数量限制
-     * @returns {Array} 错误列表
-     */
-    static getRecentErrors(limit = 10) {
-        return this.errorQueue.slice(0, limit);
-    }
-
-    /**
-     * 清空错误队列
-     */
-    static clearErrors() {
-        this.errorQueue = [];
-    }
-
+    
     /**
      * 获取错误统计
-     * @returns {Object} 统计信息
      */
-    static getStatistics() {
+    getStats() {
         const stats = {
-            total: this.errorQueue.length,
-            byType: {},
-            bySeverity: {},
+            total: this.errorHistory.length,
+            byLevel: {},
+            byCategory: {}
         };
-
-        this.errorQueue.forEach(error => {
-            stats.byType[error.type] = (stats.byType[error.type] || 0) + 1;
-            stats.bySeverity[error.severity] = (stats.bySeverity[error.severity] || 0) + 1;
+        
+        this.errorHistory.forEach(error => {
+            // 按级别统计
+            stats.byLevel[error.level] = (stats.byLevel[error.level] || 0) + 1;
+            
+            // 按类别统计
+            stats.byCategory[error.category] = (stats.byCategory[error.category] || 0) + 1;
         });
-
+        
         return stats;
     }
 }
 
+// 全局错误处理器实例（单例）
+const globalErrorHandler = new ErrorHandler();
+
 /**
- * 安装全局错误处理器
- * @param {Object} app - Vue应用实例
+ * 包装异步函数，自动处理错误
+ * @param {Function} fn - 异步函数
+ * @param {Object} errorOptions - 错误选项
+ * @returns {Function} 包装后的函数
+ */
+export function wrapAsync(fn, errorOptions = {}) {
+    return async function (...args) {
+        try {
+            return await fn.apply(this, args);
+        } catch (error) {
+            const handledError = globalErrorHandler.handle(error, errorOptions);
+            
+            // 如果需要重新抛出错误
+            if (errorOptions.rethrow !== false) {
+                throw handledError;
+            }
+            
+            return errorOptions.defaultValue;
+        }
+    };
+}
+
+/**
+ * 包装同步函数，自动处理错误
+ * @param {Function} fn - 同步函数
+ * @param {Object} errorOptions - 错误选项
+ * @returns {Function} 包装后的函数
+ */
+export function wrapSync(fn, errorOptions = {}) {
+    return function (...args) {
+        try {
+            return fn.apply(this, args);
+        } catch (error) {
+            const handledError = globalErrorHandler.handle(error, errorOptions);
+            
+            // 如果需要重新抛出错误
+            if (errorOptions.rethrow !== false) {
+                throw handledError;
+            }
+            
+            return errorOptions.defaultValue;
+        }
+    };
+}
+
+/**
+ * 创建特定类别的错误处理器
+ * @param {string} category - 错误类别
+ * @param {Object} defaultOptions - 默认选项
+ * @returns {Object} 错误处理器方法集
+ */
+export function createCategoryHandler(category, defaultOptions = {}) {
+    return {
+        handle: (error, options = {}) => {
+            return globalErrorHandler.handle(error, {
+                category,
+                ...defaultOptions,
+                ...options
+            });
+        },
+        
+        wrapAsync: (fn, options = {}) => {
+            return wrapAsync(fn, {
+                category,
+                ...defaultOptions,
+                ...options
+            });
+        },
+        
+        wrapSync: (fn, options = {}) => {
+            return wrapSync(fn, {
+                category,
+                ...defaultOptions,
+                ...options
+            });
+        }
+    };
+}
+
+// 导出全局错误处理器
+export default globalErrorHandler;
+
+// 便捷方法
+export const handleError = (error, options) => globalErrorHandler.handle(error, options);
+export const getErrorHistory = (filter) => globalErrorHandler.getHistory(filter);
+export const getErrorStats = () => globalErrorHandler.getStats();
+export const clearErrorHistory = () => globalErrorHandler.clearHistory();
+export const addErrorListener = (listener) => globalErrorHandler.addListener(listener);
+export const removeErrorListener = (listener) => globalErrorHandler.removeListener(listener);
+
+/**
+ * 为 Vue 应用设置全局错误处理器
+ * @param {Vue.App} app - Vue 应用实例
  */
 export function setupGlobalErrorHandler(app) {
-    // 1. Vue错误处理器
-    if (app) {
-        app.config.errorHandler = (err, instance, info) => {
-            ErrorHandler.handle(err, ErrorType.VUE, {
-                componentName: instance?.$options?.name || instance?.__name || '未知组件',
-                info,
-            });
-        };
-
-        // 2. Vue警告处理器
-        app.config.warnHandler = (msg, instance, trace) => {
-            logger.warn('ErrorHandler', 'Vue Warning:', { msg, trace });
-        };
+    if (!app) {
+        console.warn('⚠️ setupGlobalErrorHandler: Vue 应用实例未提供');
+        return;
     }
-
-    // 3. 全局未捕获错误
+    
+    // 设置 Vue 全局错误处理器
+    app.config.errorHandler = (err, instance, info) => {
+        const error = globalErrorHandler.handle(err, {
+            level: ErrorLevel.ERROR,
+            category: ErrorCategory.UNKNOWN,
+            context: {
+                componentName: instance?.$options?.name || '未知组件',
+                info
+            }
+        });
+        
+        // 在开发环境下重新抛出错误以便调试
+        if (import.meta.env.DEV) {
+            console.error('Vue Error:', error);
+        }
+    };
+    
+    // 设置 Vue 警告处理器
+    app.config.warnHandler = (msg, instance, trace) => {
+        globalErrorHandler.handle(msg, {
+            level: ErrorLevel.WARN,
+            category: ErrorCategory.UNKNOWN,
+            context: {
+                componentName: instance?.$options?.name || '未知组件',
+                trace
+            }
+        });
+    };
+    
+    // 设置全局未捕获错误处理器
     window.addEventListener('error', (event) => {
-        // 区分资源加载错误和运行时错误
-        if (event.target !== window) {
-            ErrorHandler.handle(
-                new Error(`资源加载失败: ${event.target.src || event.target.href}`),
-                ErrorType.RESOURCE,
-                {
-                    tagName: event.target.tagName,
-                    src: event.target.src,
-                    href: event.target.href,
-                }
-            );
-        } else if (event.error) {
-            ErrorHandler.handle(event.error, ErrorType.RUNTIME, {
+        globalErrorHandler.handle(event.error || event.message, {
+            level: ErrorLevel.ERROR,
+            category: ErrorCategory.UNKNOWN,
+            context: {
                 filename: event.filename,
                 lineno: event.lineno,
-                colno: event.colno,
-            });
-        }
-
-        // 阻止默认行为
-        event.preventDefault();
-    }, true);
-
-    // 4. 全局未捕获Promise错误
-    window.addEventListener('unhandledrejection', (event) => {
-        const error = event.reason instanceof Error
-            ? event.reason
-            : new Error(String(event.reason));
-
-        ErrorHandler.handle(error, ErrorType.PROMISE, {
-            promise: event.promise,
+                colno: event.colno
+            }
         });
-
-        // 阻止默认行为
-        event.preventDefault();
     });
-
-    logger.info('ErrorHandler', '全局错误处理器已安装');
+    
+    // 设置全局未捕获 Promise 错误处理器
+    window.addEventListener('unhandledrejection', (event) => {
+        globalErrorHandler.handle(event.reason, {
+            level: ErrorLevel.ERROR,
+            category: ErrorCategory.UNKNOWN,
+            context: {
+                promise: event.promise,
+                type: 'unhandledRejection'
+            }
+        });
+    });
+    
+    console.info('✅ 全局错误处理器已安装');
 }
-
-/**
- * 包装Tauri命令调用，自动处理错误
- * @param {Function} commandFn - Tauri命令函数
- * @param {string} commandName - 命令名称
- * @returns {Function} 包装后的函数
- */
-export function wrapTauriCommand(commandFn, commandName) {
-    return async (...args) => {
-        try {
-            return await commandFn(...args);
-        } catch (error) {
-            const err = error instanceof Error ? error : new TauriError(String(error));
-            ErrorHandler.handle(err, ErrorType.TAURI, { commandName, args });
-            throw err; // 重新抛出，让调用者可以决定如何处理
-        }
-    };
-}
-
-/**
- * 包装网络请求，自动处理错误
- * @param {Function} requestFn - 网络请求函数
- * @param {string} requestName - 请求名称
- * @returns {Function} 包装后的函数
- */
-export function wrapNetworkRequest(requestFn, requestName) {
-    return async (...args) => {
-        try {
-            return await requestFn(...args);
-        } catch (error) {
-            const err = error instanceof Error ? error : new NetworkError(String(error));
-            ErrorHandler.handle(err, ErrorType.NETWORK, { requestName, args });
-            throw err;
-        }
-    };
-}
-
-/**
- * 创建错误边界包装器（用于组件）
- * @param {Function} fn - 要包装的函数
- * @param {string} context - 上下文描述
- * @returns {Function} 包装后的函数
- */
-export function withErrorBoundary(fn, context = 'unknown') {
-    return async (...args) => {
-        try {
-            return await fn(...args);
-        } catch (error) {
-            const err = error instanceof Error ? error : new Error(String(error));
-            ErrorHandler.handle(err, ErrorType.RUNTIME, { context, args });
-            throw err;
-        }
-    };
-}
-
-// 默认导出
-export default {
-    ErrorHandler,
-    setupGlobalErrorHandler,
-    wrapTauriCommand,
-    wrapNetworkRequest,
-    withErrorBoundary,
-    ErrorType,
-    ErrorSeverity,
-    TauriError,
-    NetworkError,
-};

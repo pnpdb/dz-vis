@@ -42,6 +42,24 @@ export const PARKING_SLOTS = {
  * @returns {{x: number, z: number}} 模型坐标系的 {x, z}
  */
 export function vehicleToModelCoordinates(vehicleX, vehicleY) {
+    // 参数验证（健壮性优化）
+    if (typeof vehicleX !== 'number' || typeof vehicleY !== 'number') {
+        console.error('❌ 坐标转换参数必须为数字:', { vehicleX, vehicleY });
+        return { x: 0, z: 0 };
+    }
+    
+    if (isNaN(vehicleX) || isNaN(vehicleY)) {
+        console.error('❌ 坐标转换参数不能为NaN:', { vehicleX, vehicleY });
+        return { x: 0, z: 0 };
+    }
+    
+    // 边界检查（警告但不阻止）
+    if (vehicleX < -0.1 || vehicleX > SANDBOX_DIMENSIONS.width + 0.1 ||
+        vehicleY < -0.1 || vehicleY > SANDBOX_DIMENSIONS.depth + 0.1) {
+        console.warn(`⚠️ 车辆坐标超出范围: (${vehicleX.toFixed(3)}, ${vehicleY.toFixed(3)})`);
+        console.warn(`   期望范围: X(0-${SANDBOX_DIMENSIONS.width}), Y(0-${SANDBOX_DIMENSIONS.depth})`);
+    }
+    
     return {
         x: vehicleX - SANDBOX_DIMENSIONS.halfWidth,
         z: SANDBOX_DIMENSIONS.halfDepth - vehicleY
@@ -64,6 +82,17 @@ export const PARKING_SLOTS_MODEL = {
  * @returns {{x: number, y: number}} 车辆坐标系的 {x, y}
  */
 export function modelToVehicleCoordinates(modelX, modelZ) {
+    // 参数验证（健壮性优化）
+    if (typeof modelX !== 'number' || typeof modelZ !== 'number') {
+        console.error('❌ 坐标转换参数必须为数字:', { modelX, modelZ });
+        return { x: 0, y: 0 };
+    }
+    
+    if (isNaN(modelX) || isNaN(modelZ)) {
+        console.error('❌ 坐标转换参数不能为NaN:', { modelX, modelZ });
+        return { x: 0, y: 0 };
+    }
+    
     const vehicleX = modelX + SANDBOX_DIMENSIONS.halfWidth;
     const vehicleY = SANDBOX_DIMENSIONS.halfDepth - modelZ;
     
@@ -86,6 +115,18 @@ export function modelToVehicleCoordinates(modelX, modelZ) {
  * @returns {number} 距离
  */
 export function calculateDistance(x1, y1, x2, y2) {
+    // 参数验证（健壮性优化）
+    if (typeof x1 !== 'number' || typeof y1 !== 'number' || 
+        typeof x2 !== 'number' || typeof y2 !== 'number') {
+        console.error('❌ 距离计算参数必须为数字:', { x1, y1, x2, y2 });
+        return Infinity; // 返回无限大表示无效距离
+    }
+    
+    if (isNaN(x1) || isNaN(y1) || isNaN(x2) || isNaN(y2)) {
+        console.error('❌ 距离计算参数不能为NaN:', { x1, y1, x2, y2 });
+        return Infinity;
+    }
+    
     const dx = x2 - x1;
     const dy = y2 - y1;
     return Math.sqrt(dx * dx + dy * dy);

@@ -167,9 +167,16 @@ div[class*="el-dialog"] {
     left: 0 !important;
     width: 100vw !important;
     height: 100vh !important;
-    z-index: 99998 !important;
+    z-index: 2000 !important;
     background: rgba(0, 10, 20, 0.8) !important;
     backdrop-filter: blur(8px) !important;
+}
+
+/* 确保颜色选择器弹出层在对话框遮罩层之上 */
+.el-color-dropdown,
+.el-color-picker__panel,
+.el-popper[data-popper-placement] {
+    z-index: 99999 !important;
 }
 
 /* 调整 Element Plus Message 组件位置，避免被自定义标题栏遮挡 */

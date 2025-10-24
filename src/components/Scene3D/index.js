@@ -592,7 +592,7 @@ const loadModelsWithProgress = async () => {
             setTimeout(() => {
                 console.info('开始加载小车模型');
                 loadModelAsync(loader, '/models/car.glb', 'cars', {
-                    scale: 8,
+                    scale: 6,
                     position: [0, 0, 0],  // 初始位置，稍后会根据沙盘自动调整
                     priority: 'high'
                 }, (progress) => {
@@ -699,7 +699,7 @@ const loadModels = () => {
      // 小模型加载不会阻塞界面交互
      setTimeout(() => {
          loadModel(loader, '/models/car.glb', 'cars', {
-             scale: 8,
+             scale: 6,  // 小车模型缩放比例
              position: [0, 0, 0],  // 初始位置，稍后会根据沙盘自动调整
             priority: 'high'
         });

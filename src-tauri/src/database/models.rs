@@ -9,6 +9,7 @@ pub struct VehicleConnection {
     pub ip_address: String, // IP地址
     pub name: String,       // 车辆显示名称
     pub description: Option<String>, // 描述信息
+    pub color: Option<String>,       // 车辆颜色（十六进制格式，如 #409EFF）
     pub is_active: bool,    // 是否启用
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -21,6 +22,7 @@ pub struct CreateVehicleConnectionRequest {
     pub ip_address: String,
     pub name: String,
     pub description: Option<String>,
+    pub color: Option<String>,
 }
 
 /// 更新车辆连接的请求参数
@@ -30,6 +32,7 @@ pub struct UpdateVehicleConnectionRequest {
     pub ip_address: Option<String>,
     pub name: Option<String>,
     pub description: Option<String>,
+    pub color: Option<String>,
     pub is_active: Option<bool>,
 }
 

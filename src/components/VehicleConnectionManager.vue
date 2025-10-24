@@ -42,6 +42,11 @@
                 <div class="connection-header">
                     <div class="connection-info">
                         <div class="vehicle-name">
+                            <span 
+                                class="vehicle-color-indicator" 
+                                :style="{ backgroundColor: connection.color || '#409EFF' }"
+                                :title="`颜色: ${connection.color || '#409EFF'}`"
+                            ></span>
                             <fa :icon="connection.is_active ? 'car' : 'car-crash'" />
                             {{ connection.name }}
                         </div>
@@ -107,6 +112,8 @@
             :title="editingConnection ? '编辑车辆连接' : '添加车辆连接'"
             width="500px"
             :close-on-click-modal="false"
+            :modal-append-to-body="false"
+            :append-to-body="true"
         >
             <el-form 
                 ref="formRef"
@@ -139,6 +146,18 @@
                         :rows="2"
                         placeholder="车辆描述信息（可选）"
                     />
+                </el-form-item>
+                <el-form-item label="颜色" prop="color">
+                    <el-color-picker 
+                        v-model="formData.color" 
+                        show-alpha
+                        :predefine="predefinedColors"
+                        :teleported="true"
+                        popper-class="vehicle-color-picker-popper"
+                    />
+                    <span style="margin-left: 10px; color: #909399; font-size: 12px;">
+                        选择车辆的识别颜色
+                    </span>
                 </el-form-item>
             </el-form>
             
@@ -180,8 +199,25 @@ const formData = ref({
     vehicle_id: 1,
     name: '',
     ip_address: '',
-    description: ''
+    description: '',
+    color: '#409EFF'
 });
+
+// 预定义颜色
+const predefinedColors = [
+    '#409EFF', // Element Plus 主色
+    '#67C23A', // 成功绿
+    '#E6A23C', // 警告橙
+    '#F56C6C', // 危险红
+    '#909399', // 信息灰
+    '#FF6B6B', // 珊瑚红
+    '#4ECDC4', // 青绿色
+    '#95E1D3', // 薄荷绿
+    '#F38181', // 粉红色
+    '#AA96DA', // 淡紫色
+    '#FCBAD3', // 粉色
+    '#FFD93D', // 黄色
+];
 
 // 表单验证规则
 const formRules = {
@@ -230,7 +266,8 @@ const showAddDialog = () => {
         vehicle_id: 1,
         name: '',
         ip_address: '',
-        description: ''
+        description: '',
+        color: '#409EFF'
     };
     dialogVisible.value = true;
 };
@@ -242,7 +279,8 @@ const editConnection = (connection) => {
         vehicle_id: connection.vehicle_id,
         name: connection.name,
         ip_address: connection.ip_address,
-        description: connection.description || ''
+        description: connection.description || '',
+        color: connection.color || '#409EFF'
     };
     dialogVisible.value = true;
 };
@@ -263,7 +301,8 @@ const submitForm = async () => {
             vehicle_id: formData.value.vehicle_id !== editingConnection.value.vehicle_id ? formData.value.vehicle_id : null,
             name: formData.value.name !== editingConnection.value.name ? formData.value.name : null,
             ip_address: formData.value.ip_address !== editingConnection.value.ip_address ? formData.value.ip_address : null,
-            description: formData.value.description !== editingConnection.value.description ? formData.value.description : null
+            description: formData.value.description !== editingConnection.value.description ? formData.value.description : null,
+            color: formData.value.color !== editingConnection.value.color ? formData.value.color : null
         };
         result = await VehicleConnectionAPI.updateConnection(editingConnection.value.id, updateData);
     } else {
@@ -272,7 +311,8 @@ const submitForm = async () => {
             vehicle_id: formData.value.vehicle_id,
             name: formData.value.name,
             ip_address: formData.value.ip_address,
-            description: formData.value.description || null
+            description: formData.value.description || null,
+            color: formData.value.color || null
         };
         result = await VehicleConnectionAPI.createConnection(createData);
     }
@@ -450,6 +490,23 @@ onMounted(() => {
     gap: 8px;
 }
 
+.vehicle-color-indicator {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 0 6px rgba(0, 0, 0, 0.3), 0 0 10px currentColor;
+    flex-shrink: 0;
+    cursor: help;
+    transition: all 0.3s ease;
+    
+    &:hover {
+        transform: scale(1.3);
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.5), 0 0 15px currentColor;
+    }
+}
+
 .vehicle-id {
     font-size: 12px;
     color: var(--text-secondary);
@@ -624,4 +681,5 @@ onMounted(() => {
 :deep(.el-switch.is-checked .el-switch__core) {
     background-color: var(--primary) !important;
 }
+
 </style>

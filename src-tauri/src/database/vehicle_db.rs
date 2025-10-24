@@ -67,6 +67,7 @@ impl VehicleDatabase {
                 ip_address TEXT NOT NULL,
                 name TEXT NOT NULL,
                 description TEXT,
+                color TEXT,
                 is_active BOOLEAN NOT NULL DEFAULT true,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
@@ -79,6 +80,13 @@ impl VehicleDatabase {
             .execute(&self.pool).await?;
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_is_active ON vehicle_connections(is_active)")
             .execute(&self.pool).await?;
+        
+        // 迁移：添加 color 列（如果不存在）
+        // 使用简单的方式：尝试添加列，如果失败则忽略（说明列已存在）
+        let _ = sqlx::query("ALTER TABLE vehicle_connections ADD COLUMN color TEXT")
+            .execute(&self.pool)
+            .await;
+        // 忽略错误，因为如果列已存在会报错，但这是正常的
 
         // 创建交通灯设置表
         sqlx::query(
@@ -343,14 +351,15 @@ impl VehicleDatabase {
         sqlx::query(
             r#"
             INSERT INTO vehicle_connections 
-            (vehicle_id, ip_address, name, description, is_active, created_at, updated_at)
-            VALUES (?, ?, ?, ?, true, ?, ?)
+            (vehicle_id, ip_address, name, description, color, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, true, ?, ?)
             "#
         )
         .bind(request.vehicle_id)
         .bind(&request.ip_address)
         .bind(&request.name)
         .bind(&request.description)
+        .bind(&request.color)
         .bind(now.to_rfc3339())
         .bind(now.to_rfc3339())
         .execute(&self.pool)
@@ -368,6 +377,7 @@ impl VehicleDatabase {
             ip_address: row.get("ip_address"),
             name: row.get("name"),
             description: row.get("description"),
+            color: row.get("color"),
             is_active: row.get("is_active"),
             created_at: row.get::<String, _>("created_at").parse().unwrap(),
             updated_at: row.get::<String, _>("updated_at").parse().unwrap(),
@@ -429,7 +439,7 @@ impl VehicleDatabase {
     /// 获取所有车辆连接
     pub async fn get_all_vehicle_connections(&self) -> Result<Vec<VehicleConnection>, sqlx::Error> {
         let rows = sqlx::query(
-            "SELECT id, vehicle_id, ip_address, name, description, is_active, created_at, updated_at 
+            "SELECT id, vehicle_id, ip_address, name, description, color, is_active, created_at, updated_at 
              FROM vehicle_connections ORDER BY created_at DESC"
         )
             .fetch_all(&self.pool)
@@ -443,6 +453,7 @@ impl VehicleDatabase {
                 ip_address: row.get("ip_address"),
                 name: row.get("name"),
                 description: row.get("description"),
+                color: row.get("color"),
                 is_active: row.get("is_active"),
                 created_at: row.get::<String, _>("created_at").parse().unwrap(),
                 updated_at: row.get::<String, _>("updated_at").parse().unwrap(),
@@ -466,6 +477,7 @@ impl VehicleDatabase {
                 ip_address: row.get("ip_address"),
                 name: row.get("name"),
                 description: row.get("description"),
+                color: row.get("color"),
                 is_active: row.get("is_active"),
                 created_at: row.get::<String, _>("created_at").parse().unwrap(),
                 updated_at: row.get::<String, _>("updated_at").parse().unwrap(),
@@ -494,13 +506,14 @@ impl VehicleDatabase {
         let ip_address = request.ip_address.unwrap_or(existing.ip_address);
         let name = request.name.unwrap_or(existing.name);
         let description = request.description.or(existing.description);
+        let color = request.color.or(existing.color);
         let is_active = request.is_active.unwrap_or(existing.is_active);
         
         // 执行更新
         sqlx::query(
             r#"
             UPDATE vehicle_connections 
-            SET vehicle_id = ?, ip_address = ?, name = ?, description = ?, is_active = ?, updated_at = ?
+            SET vehicle_id = ?, ip_address = ?, name = ?, description = ?, color = ?, is_active = ?, updated_at = ?
             WHERE id = ?
             "#
         )
@@ -508,6 +521,7 @@ impl VehicleDatabase {
         .bind(&ip_address)
         .bind(&name)
         .bind(&description)
+        .bind(&color)
         .bind(is_active)
         .bind(now.to_rfc3339())
         .bind(id)
@@ -542,6 +556,7 @@ impl VehicleDatabase {
                 ip_address: row.get("ip_address"),
                 name: row.get("name"),
                 description: row.get("description"),
+                color: row.get("color"),
                 is_active: row.get("is_active"),
                 created_at: row.get::<String, _>("created_at").parse().unwrap(),
                 updated_at: row.get::<String, _>("updated_at").parse().unwrap(),

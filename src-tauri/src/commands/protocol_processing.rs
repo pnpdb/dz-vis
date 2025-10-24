@@ -348,8 +348,8 @@ pub async fn quick_validate_protocol_format(
         MessageTypes::VEHICLE_INFO => {
             validate_vehicle_info_format(&decoded_data)
         }
-        MessageTypes::VEHICLE_CONTROL => {
-            validate_vehicle_control_format(&decoded_data)
+        MessageTypes::PATH_FILE_SELECTION => {
+            validate_path_file_selection_format(&decoded_data)
         }
         MessageTypes::TAXI_ORDER => {
             validate_taxi_order_format(&decoded_data)
@@ -420,23 +420,19 @@ fn validate_vehicle_info_format(data: &[u8]) -> serde_json::Value {
     })
 }
 
-fn validate_vehicle_control_format(data: &[u8]) -> serde_json::Value {
-    use crate::protocol_processing::types::ProtocolConstants;
-    
-    let min_size = ProtocolConstants::VEHICLE_CONTROL_BASE_SIZE;
-    let max_size = ProtocolConstants::VEHICLE_CONTROL_TOTAL_SIZE_WITH_POSITION;
+fn validate_path_file_selection_format(data: &[u8]) -> serde_json::Value {
+    let min_size = 1; // 至少需要车辆编号
     let actual_size = data.len();
     
     let valid = actual_size >= min_size;
-    let has_position_data = actual_size >= max_size;
+    let path_file_count = if actual_size > 0 { actual_size - 1 } else { 0 };
     
     serde_json::json!({
         "valid": valid,
-        "message_type_name": "车辆控制",
+        "message_type_name": "路径文件选择",
         "min_size": min_size,
-        "max_size": max_size,
         "actual_size": actual_size,
-        "has_position_data": has_position_data,
+        "path_file_count": path_file_count,
         "error": if !valid {
             Some(format!("数据长度不足，至少需要{}字节，实际{}字节", min_size, actual_size))
         } else {

@@ -53,7 +53,7 @@ impl ProtocolParser {
         let parsing_start = current_timestamp_us();
         let result = match message_type {
             MessageTypes::VEHICLE_INFO => self.parse_vehicle_info(data),
-            MessageTypes::VEHICLE_CONTROL => self.parse_vehicle_control(data),
+            MessageTypes::PATH_FILE_SELECTION => self.parse_path_file_selection(data),
             MessageTypes::TAXI_ORDER => self.parse_taxi_order(data),
             MessageTypes::AVP_PARKING => self.parse_avp_parking(data),
             MessageTypes::AVP_PICKUP => self.parse_avp_pickup(data),
@@ -162,44 +162,36 @@ impl ProtocolParser {
         Ok(ParsedProtocolData::VehicleInfo(vehicle_info))
     }
     
-    /// 解析车辆控制协议
-    fn parse_vehicle_control(&mut self, data: &[u8]) -> Result<ParsedProtocolData, ProtocolError> {
-        if data.len() < ProtocolConstants::VEHICLE_CONTROL_BASE_SIZE {
+    /// 解析路径文件选择协议（0x0003）
+    /// 数据格式：车辆编号(1字节) + N个路径文件编号(每个1字节)
+    fn parse_path_file_selection(&mut self, data: &[u8]) -> Result<ParsedProtocolData, ProtocolError> {
+        // 至少需要1个字节（车辆编号）
+        if data.is_empty() {
             return Err(ProtocolError::InsufficientData {
-                required: ProtocolConstants::VEHICLE_CONTROL_BASE_SIZE,
+                required: 1,
                 actual: data.len(),
             });
         }
         
-        let vehicle_id = data[ProtocolConstants::VEHICLE_CONTROL_VEHICLE_ID_OFFSET];
-        let command_byte = data[ProtocolConstants::VEHICLE_CONTROL_COMMAND_OFFSET];
-        let command = ControlCommandType::from_u8(command_byte)?;
+        // 第一个字节是车辆编号
+        let vehicle_id = data[0];
         
-        // 如果是初始化位姿命令，需要读取位置数据
-        let position_data = if matches!(command, ControlCommandType::InitPose) {
-            if data.len() < ProtocolConstants::VEHICLE_CONTROL_TOTAL_SIZE_WITH_POSITION {
-                return Err(ProtocolError::InsufficientData {
-                    required: ProtocolConstants::VEHICLE_CONTROL_TOTAL_SIZE_WITH_POSITION,
-                    actual: data.len(),
-                });
-            }
-            
-            let x = self.read_f64_le(data, ProtocolConstants::VEHICLE_CONTROL_POSITION_X_OFFSET)?;
-            let y = self.read_f64_le(data, ProtocolConstants::VEHICLE_CONTROL_POSITION_Y_OFFSET)?;
-            let orientation = self.read_f64_le(data, ProtocolConstants::VEHICLE_CONTROL_ORIENTATION_OFFSET)?;
-            
-            Some(PositionData { x, y, orientation })
-        } else {
-            None
-        };
+        // 剩余的字节都是路径文件编号
+        let path_file_ids: Vec<u8> = data[1..].to_vec();
         
-        let control_command = VehicleControlCommand {
+        let path_selection = PathFileSelectionData {
             vehicle_id,
-            command,
-            position_data,
+            path_file_ids: path_file_ids.clone(),
         };
         
-        Ok(ParsedProtocolData::VehicleControl(control_command))
+        log::info!(
+            "解析路径文件选择 - 车辆ID: {}, 路径文件数: {}, 路径编号: {:?}",
+            vehicle_id,
+            path_selection.path_file_ids.len(),
+            path_selection.path_file_ids
+        );
+        
+        Ok(ParsedProtocolData::PathFileSelection(path_selection))
     }
     
     /// 解析出租车订单协议
@@ -425,14 +417,13 @@ mod tests {
     }
     
     #[test]
-    fn test_parse_vehicle_control() {
+    fn test_parse_path_file_selection() {
         let mut parser = ProtocolParser::new(false);
         
-        let mut data = vec![0u8; ProtocolConstants::VEHICLE_CONTROL_BASE_SIZE];
-        data[0] = 1; // vehicle_id
-        data[1] = 1; // start command
+        // 车辆编号1 + 路径文件编号 [3, 5, 7]
+        let data = vec![1u8, 3, 5, 7];
         
-        let result = parser.parse_protocol(MessageTypes::VEHICLE_CONTROL, &data);
+        let result = parser.parse_protocol(MessageTypes::PATH_FILE_SELECTION, &data);
         assert!(result.success);
     }
     

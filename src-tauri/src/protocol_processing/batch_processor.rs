@@ -508,8 +508,8 @@ mod tests {
         let tasks = vec![
             BatchTask {
                 task_id: 1,
-                message_type: MessageTypes::VEHICLE_CONTROL,
-                data: vec![1, 1], // vehicle_id=1, command=start
+                message_type: MessageTypes::PATH_FILE_SELECTION,
+                data: vec![1, 3, 5], // vehicle_id=1, path_files=[3,5]
                 priority: TaskPriority::Normal,
             },
             BatchTask {
@@ -531,14 +531,14 @@ mod tests {
         let tasks = vec![
             BatchTask {
                 task_id: 1,
-                message_type: MessageTypes::VEHICLE_CONTROL,
-                data: vec![1, 1],
+                message_type: MessageTypes::PATH_FILE_SELECTION,
+                data: vec![1, 3],
                 priority: TaskPriority::Low,
             },
             BatchTask {
                 task_id: 2,
-                message_type: MessageTypes::VEHICLE_CONTROL,
-                data: vec![2, 2],
+                message_type: MessageTypes::PATH_FILE_SELECTION,
+                data: vec![2, 5],
                 priority: TaskPriority::Critical,
             },
         ];
@@ -554,8 +554,8 @@ mod tests {
         let tasks = vec![
             BatchTask {
                 task_id: 1,
-                message_type: MessageTypes::VEHICLE_CONTROL,
-                data: vec![1, 1],
+                message_type: MessageTypes::PATH_FILE_SELECTION,
+                data: vec![1, 7],
                 priority: TaskPriority::Normal,
             },
         ];

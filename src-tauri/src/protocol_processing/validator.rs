@@ -97,6 +97,7 @@ impl ProtocolValidator {
     fn perform_validation(&self, data: &ParsedProtocolData, start_time: u64, timeout: u64) -> Result<(), ProtocolError> {
         match data {
             ParsedProtocolData::VehicleInfo(info) => self.validate_vehicle_info(info, start_time, timeout),
+            ParsedProtocolData::PathFileSelection(selection) => self.validate_path_file_selection(selection, start_time, timeout),
             ParsedProtocolData::VehicleControl(cmd) => self.validate_vehicle_control(cmd, start_time, timeout),
             ParsedProtocolData::TaxiOrder(order) => self.validate_taxi_order(order, start_time, timeout),
             ParsedProtocolData::AvpParking(parking) => self.validate_avp_parking(parking, start_time, timeout),
@@ -192,6 +193,26 @@ impl ProtocolValidator {
         if self.config.performance_check {
             self.validate_vehicle_performance(info)?;
         }
+        
+        Ok(())
+    }
+    
+    /// 验证路径文件选择
+    fn validate_path_file_selection(&self, selection: &PathFileSelectionData, start_time: u64, timeout: u64) -> Result<(), ProtocolError> {
+        self.check_timeout(start_time, timeout)?;
+        
+        // 验证车辆ID
+        if selection.vehicle_id == 0 {
+            return Err(ProtocolError::ValidationError {
+                field: "vehicle_id".into(),
+                value: selection.vehicle_id as f64,
+                min: 1.0,
+                max: 255.0,
+            });
+        }
+        
+        // 路径文件ID列表可以为空，所以不需要验证数量
+        // 每个路径文件ID范围为 0-255，已经由 u8 类型保证
         
         Ok(())
     }
@@ -578,9 +599,10 @@ mod tests {
             position_y: 20.0,
             orientation: 90.0,
             battery: 80.0,
-            gear: 1,
+            gear: GearPosition::DriveLevel(1),
             steering_angle: 15.0,
             nav_status: 1,
+            parking_slot: 0,
             sensors: SensorStatus {
                 camera: true,
                 lidar: true,
@@ -604,9 +626,10 @@ mod tests {
             position_y: 20.0,
             orientation: 90.0,
             battery: 80.0,
-            gear: 1,
+            gear: GearPosition::DriveLevel(1),
             steering_angle: 15.0,
             nav_status: 1,
+            parking_slot: 0,
             sensors: SensorStatus {
                 camera: true,
                 lidar: true,
@@ -630,9 +653,10 @@ mod tests {
             position_y: 20.0,
             orientation: 90.0,
             battery: 80.0,
-            gear: 1,
+            gear: GearPosition::DriveLevel(1),
             steering_angle: 15.0,
             nav_status: 1,
+            parking_slot: 0,
             sensors: SensorStatus {
                 camera: true,
                 lidar: true,
@@ -647,9 +671,10 @@ mod tests {
             position_y: 20.0,
             orientation: 90.0,
             battery: 80.0,
-            gear: 1,
+            gear: GearPosition::DriveLevel(1),
             steering_angle: 15.0,
             nav_status: 1,
+            parking_slot: 0,
             sensors: SensorStatus {
                 camera: true,
                 lidar: true,

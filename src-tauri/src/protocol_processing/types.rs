@@ -84,6 +84,15 @@ pub struct SensorStatus {
     pub gyro: bool,
 }
 
+/// 路径文件选择数据（0x0003）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PathFileSelectionData {
+    /// 车辆ID
+    pub vehicle_id: u8,
+    /// 路径文件编号列表
+    pub path_file_ids: Vec<u8>,
+}
+
 /// 车辆控制指令
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VehicleControlCommand {
@@ -167,6 +176,8 @@ pub struct ProtocolParsingResult {
 pub enum ParsedProtocolData {
     /// 车辆信息
     VehicleInfo(VehicleInfo),
+    /// 路径文件选择
+    PathFileSelection(PathFileSelectionData),
     /// 车辆控制指令
     VehicleControl(VehicleControlCommand),
     /// 出租车订单
@@ -429,9 +440,10 @@ pub enum ProtocolError {
 pub struct MessageTypes;
 
 impl MessageTypes {
+    // 接收消息类型（从车辆接收）
     pub const HEARTBEAT: u16 = 0x0001;
     pub const VEHICLE_INFO: u16 = 0x0002;
-    pub const VEHICLE_CONTROL: u16 = 0x0003;
+    pub const PATH_FILE_SELECTION: u16 = 0x0003;  // 路径文件选择（车端发送路径编号列表）
     pub const TAXI_ORDER: u16 = 0x0004;
     pub const AVP_PARKING: u16 = 0x0005;
     pub const AVP_PICKUP: u16 = 0x0006;
@@ -446,7 +458,7 @@ impl MessageTypes {
         match message_type {
             Self::HEARTBEAT => "心跳",
             Self::VEHICLE_INFO => "车辆信息",
-            Self::VEHICLE_CONTROL => "车辆控制",
+            Self::PATH_FILE_SELECTION => "路径文件选择",
             Self::TAXI_ORDER => "出租车订单",
             Self::AVP_PARKING => "AVP泊车",
             Self::AVP_PICKUP => "AVP取车",
@@ -465,7 +477,7 @@ impl MessageTypes {
             message_type,
             Self::HEARTBEAT
                 | Self::VEHICLE_INFO
-                | Self::VEHICLE_CONTROL
+                | Self::PATH_FILE_SELECTION
                 | Self::TAXI_ORDER
                 | Self::AVP_PARKING
                 | Self::AVP_PICKUP
@@ -476,6 +488,22 @@ impl MessageTypes {
                 | Self::SANDBOX_TRAFFIC_LIGHT_STATUS
         )
     }
+}
+
+/// 发送消息类型（发送给车辆）
+pub struct SendMessageTypes;
+
+impl SendMessageTypes {
+    pub const VEHICLE_CONTROL: u16 = 0x1001;           // 车辆控制指令
+    pub const DATA_RECORDING: u16 = 0x1002;            // 数据记录控制
+    pub const TAXI_ORDER: u16 = 0x1003;                // 出租车订单
+    pub const AVP_PARKING: u16 = 0x1004;               // AVP自主代客泊车
+    pub const AVP_PICKUP: u16 = 0x1005;                // AVP取车
+    pub const VEHICLE_FUNCTION_SETTING: u16 = 0x1006;  // 车辆功能设置
+    pub const VEHICLE_PATH_DISPLAY: u16 = 0x1007;      // 车辆路径显示控制
+    pub const CONSTRUCTION_MARKER: u16 = 0x1008;       // 施工标记
+    pub const VEHICLE_CAMERA_TOGGLE: u16 = 0x1009;     // 车载摄像头开关
+    pub const SANDBOX_LIGHTING_CONTROL: u16 = 0x2003;  // 沙盘灯光控制
 }
 
 /// 获取当前时间戳（微秒）

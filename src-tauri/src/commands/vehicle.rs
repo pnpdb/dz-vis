@@ -7,7 +7,7 @@ use crate::database::{
 use crate::protocol_processing::types::{
     AvpParkingData, AvpPickupData, ControlCommandType, DataRecordingData, PositionData,
     TaxiOrderData, VehicleCameraToggleData, VehicleControlCommand, VehicleFunctionSettingData,
-    VehiclePathDisplayData, MessageTypes,
+    VehiclePathDisplayData, MessageTypes, SendMessageTypes,
 };
 use crate::services::vehicle::VehicleService;
 use crate::socket::{self, ConnectionManager, SandboxConnectionManager};
@@ -501,7 +501,7 @@ pub async fn send_vehicle_control_command(
     });
 
     let connections = app.state::<ConnectionManager>();
-    socket::SocketServer::send_to_vehicle(&connections, vehicle_id as i32, MessageTypes::VEHICLE_CONTROL, &payload)
+    socket::SocketServer::send_to_vehicle(&connections, vehicle_id as i32, SendMessageTypes::VEHICLE_CONTROL, &payload)
         .map(|_| "车辆控制指令发送成功".to_string())
 }
 

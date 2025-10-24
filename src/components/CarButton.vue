@@ -53,15 +53,15 @@
                 <div class="position-details">
                     <div class="detail-row">
                         <span class="detail-label">X 坐标</span>
-                        <span class="detail-value">{{ selectedPoseData.x.toFixed(3) }}</span>
+                        <span class="detail-value">{{ selectedPoseData.x.toFixed(3) }} m</span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Y 坐标</span>
-                        <span class="detail-value">{{ selectedPoseData.z.toFixed(3) }}</span>
+                        <span class="detail-value">{{ selectedPoseData.z.toFixed(3) }} m</span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">朝向角度</span>
-                        <span class="detail-value">{{ selectedPoseData.orientation.toFixed(1) }}°</span>
+                        <span class="detail-value">{{ selectedPoseData.orientation.toFixed(2) }} rad ({{ (selectedPoseData.orientation * 180 / Math.PI).toFixed(1) }}°)</span>
                     </div>
                 </div>
 
@@ -106,6 +106,7 @@ import { ElMessage, ElDialog, ElButton } from 'element-plus';
 import { socketManager } from '@/utils/socketManager.js';
 import { useCarStore } from '@/stores/car.js';
 import { startPoseSelectionMode, stopPoseSelectionMode } from '@/components/Scene3D/index.js';
+import { modelToVehicleCoordinates } from '@/utils/coordinateTransform.js';
 
 const carStore = useCarStore();
 
@@ -114,7 +115,8 @@ const currentCarId = computed(() => carStore.selectedCarId);
 
 // 位姿确认对话框状态
 const showPoseDialog = ref(false);
-const selectedPoseData = ref(null);
+const selectedPoseData = ref(null);  // 用于显示（车辆坐标系）
+const selectedPoseModelData = ref(null);  // 用于发送（模型坐标系）
 const selectedVehicleId = ref(null);
 
 // 显示成功或失败消息，持续时间3秒
@@ -219,17 +221,40 @@ const showPoseConfirmDialog = (vehicleId, pose) => {
     // 停止位姿选择模式
     stopPoseSelectionMode();
     
-    selectedPoseData.value = pose;
+    // 保存模型坐标（用于发送协议）
+    selectedPoseModelData.value = {
+        x: pose.x,
+        z: pose.z,
+        orientation: pose.orientation  // 弧度
+    };
+    
+    // 转换为车辆坐标系用于显示
+    const vehicleCoords = modelToVehicleCoordinates(pose.x, pose.z);
+    selectedPoseData.value = {
+        x: vehicleCoords.x,  // 车辆坐标系 X (0-4.81m)
+        z: vehicleCoords.y,  // 车辆坐标系 Y (0-2.81m)，显示为Z
+        orientation: pose.orientation  // 弧度 (-π 到 π)
+    };
+    
+    console.log('🎯 位姿选择结果:');
+    console.log('  模型坐标:', pose.x.toFixed(3), pose.z.toFixed(3));
+    console.log('  车辆坐标:', vehicleCoords.x.toFixed(3), vehicleCoords.y.toFixed(3));
+    console.log('  朝向角度:', pose.orientation.toFixed(3), 'rad');
+    
     selectedVehicleId.value = vehicleId;
     showPoseDialog.value = true;
 };
 
 // 确认位姿初始化
 const confirmPoseInitialization = () => {
-    const { x, z, orientation } = selectedPoseData.value;
+    // 使用模型坐标发送给车辆（需要转换为车辆坐标系）
+    const modelPose = selectedPoseModelData.value;
     const vehicleId = selectedVehicleId.value;
     
-    executePoseInitialization(vehicleId, x, z, orientation);
+    // 转换为车辆坐标系发送
+    const vehicleCoords = modelToVehicleCoordinates(modelPose.x, modelPose.z);
+    
+    executePoseInitialization(vehicleId, vehicleCoords.x, vehicleCoords.y, modelPose.orientation);
     showPoseDialog.value = false;
 };
 
@@ -253,15 +278,17 @@ const reselectPose = () => {
 const cancelPoseSelection = () => {
     showPoseDialog.value = false;
     selectedPoseData.value = null;
+    selectedPoseModelData.value = null;
     selectedVehicleId.value = null;
 };
 
 // 执行位姿初始化
-const executePoseInitialization = async (vehicleId, x, z, orientation) => {
+const executePoseInitialization = async (vehicleId, x, y, orientation) => {
     try {
-        // 注意：socketManager.initializePose 的参数顺序是 (vehicleId, x, y, orientation)
-        // 这里 x 对应模型的 X 轴，y 对应模型的 Z 轴（因为是 2D 平面）
-        await socketManager.initializePose(vehicleId, x, z, orientation);
+        // x, y 已经是车辆坐标系 (0-4.81m, 0-2.81m)
+        // orientation 是弧度 (-π 到 π)
+        console.log(`📤 发送初始化位姿 - 车辆${vehicleId}: X=${x.toFixed(3)}m, Y=${y.toFixed(3)}m, 朝向=${orientation.toFixed(3)}rad`);
+        await socketManager.initializePose(vehicleId, x, y, orientation);
         showMsg(true, `车辆${vehicleId}位姿初始化指令发送成功`);
     } catch (error) {
         console.error('初始化位姿失败:', error);

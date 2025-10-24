@@ -124,6 +124,8 @@ export const useCarStore = defineStore('car', {
             if (!isOnline) {
                 state.parking.slotId = 0;
                 state.camera.isActive = false;
+                // 清理导航状态
+                state.state.navigation = { code: 0, text: '未知状态' };
             }
         },
         
@@ -343,6 +345,80 @@ export const useCarStore = defineStore('car', {
                 }
             }
             return occupied;
+        },
+        
+        /**
+         * 获取车辆的导航状态
+         * @param {number} vehicleId - 车辆ID
+         * @returns {Object|null} 导航状态 {code, text}
+         */
+        getVehicleNavigationStatus(vehicleId) {
+            const state = this.getVehicleState(vehicleId);
+            return state ? state.state.navigation : null;
+        },
+        
+        /**
+         * 查找离指定位置最近且导航状态为待命的车辆
+         * @param {number} targetX - 目标位置X坐标（模型坐标系）
+         * @param {number} targetZ - 目标位置Z坐标（模型坐标系）
+         * @returns {number|null} 最近的符合条件的车辆ID，或null
+         */
+        findNearestIdleVehicle(targetX, targetZ) {
+            const candidates = [];
+            
+            // 遍历所有车辆
+            for (const [vehicleId, state] of this.vehicles.entries()) {
+                // 必须在线
+                if (!state.connection.isOnline) {
+                    console.log(`🚫 车辆${vehicleId}离线，跳过`);
+                    continue;
+                }
+                
+                // 必须有导航状态
+                if (!state.state.navigation) {
+                    console.log(`🚫 车辆${vehicleId}无导航状态，跳过`);
+                    continue;
+                }
+                
+                const navCode = state.state.navigation.code;
+                
+                // 导航状态必须为1（待命）或2（空闲）
+                if (navCode !== 1 && navCode !== 2) {
+                    console.log(`🚫 车辆${vehicleId}导航状态${navCode}(${state.state.navigation.text})，不符合要求（需要1或2）`);
+                    continue;
+                }
+                
+                // 计算距离
+                const vehicleX = state.state.position.x;
+                const vehicleZ = state.state.position.y; // 注意：内部存储时y对应模型的z
+                const distance = Math.sqrt(
+                    Math.pow(vehicleX - targetX, 2) + 
+                    Math.pow(vehicleZ - targetZ, 2)
+                );
+                
+                candidates.push({
+                    vehicleId,
+                    distance,
+                    navStatus: navCode,
+                    navText: state.state.navigation.text,
+                    position: { x: vehicleX, z: vehicleZ }
+                });
+                
+                console.log(`✅ 车辆${vehicleId}符合条件 - 导航状态: ${navCode}(${state.state.navigation.text}), 距离: ${distance.toFixed(3)}m`);
+            }
+            
+            // 如果没有符合条件的车辆
+            if (candidates.length === 0) {
+                console.log('❌ 没有找到符合条件的车辆（在线且导航状态为1或2）');
+                return null;
+            }
+            
+            // 按距离排序，返回最近的
+            candidates.sort((a, b) => a.distance - b.distance);
+            const nearest = candidates[0];
+            
+            console.log(`🎯 找到最近的空闲车辆: ${nearest.vehicleId}号，距离: ${nearest.distance.toFixed(3)}m，导航状态: ${nearest.navStatus}(${nearest.navText})`);
+            return nearest.vehicleId;
         },
         
         /**

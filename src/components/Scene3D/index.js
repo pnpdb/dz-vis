@@ -1739,6 +1739,13 @@ export const createConstructionMarkerAt = (x, z, options = {}) => {
         return null;
     }
 
+    // 获取沙盘模型
+    const sandboxModel = models.get('sandbox');
+    if (!sandboxModel) {
+        console.warn('沙盘模型未找到，无法创建施工标记');
+        return null;
+    }
+
     const tex = ensureConstructionTexture();
     if (!tex) return null;
 
@@ -1747,7 +1754,7 @@ export const createConstructionMarkerAt = (x, z, options = {}) => {
     // 底部中点对齐所选点
     sprite.center.set(0.5, 0.0);
     // 基于沙盘尺寸的自适应宽度，然后按全局缩放系数缩放，高度按纹理宽高比计算
-    let baseWidth = 1.2; // 基准宽度（世界单位）
+    let baseWidth = 0.6; // 基准宽度（世界单位）- 缩小到原来的一半
     let widthScale = 1.0;
     try {
         const dims = getSandboxDimensionsInfo();
@@ -1761,10 +1768,13 @@ export const createConstructionMarkerAt = (x, z, options = {}) => {
     const aspectRatio = constructionTextureAspect > 0 ? constructionTextureAspect : 1.0;
     const height = width / aspectRatio;
     sprite.scale.set(width, height, 1);
+    
+    // 使用沙盘模型的局部坐标系（x, z是沙盘的局部坐标）
     sprite.position.set(x, 0.05, z);
     sprite.name = 'ConstructionMarker';
 
-    modelsGroup.add(sprite);
+    // 将标记添加到沙盘模型内部，而不是modelsGroup
+    sandboxModel.add(sprite);
 
     const id = nextConstructionId++;
     constructionMarkers.set(id, sprite);
@@ -1775,17 +1785,25 @@ export const createConstructionMarkerAt = (x, z, options = {}) => {
         position: sprite.position.clone()
     });
     
+    console.log(`🚧 施工标记已创建在沙盘局部坐标: (${x.toFixed(3)}, ${z.toFixed(3)})`);
+    
     return { id, x, z };
 };
 
 export const removeConstructionMarker = (id) => {
     const sprite = constructionMarkers.get(id);
     if (!sprite) return false;
-    if (modelsGroup && sprite.parent === modelsGroup) {
+    
+    // 标记现在是沙盘模型的子对象
+    const sandboxModel = models.get('sandbox');
+    if (sandboxModel && sprite.parent === sandboxModel) {
+        sandboxModel.remove(sprite);
+    } else if (modelsGroup && sprite.parent === modelsGroup) {
         modelsGroup.remove(sprite);
     } else if (scene && sprite.parent === scene) {
         scene.remove(sprite);
     }
+    
     if (sprite.material && sprite.material.map) {
         sprite.material.map.dispose();
     }
@@ -1802,14 +1820,19 @@ export const listConstructionMarkers = () => {
     return Array.from(constructionMarkers.keys());
 };
 
+/**
+ * 获取所有施工标记的详细信息
+ * 返回模型局部坐标，调用者负责根据需要转换为其他坐标系
+ * @returns {Array<{id: number, modelX: number, modelZ: number}>}
+ */
 export const getConstructionMarkersDetails = () => {
     const markers = [];
     constructionMarkers.forEach((sprite, id) => {
         if (sprite && sprite.position) {
             markers.push({
                 id: id,
-                x: sprite.position.x,
-                z: sprite.position.z
+                modelX: sprite.position.x,  // 模型局部坐标
+                modelZ: sprite.position.z   // 模型局部坐标
             });
         }
     });
@@ -1974,25 +1997,57 @@ const onMouseUp = (event) => {
         } else if (isPointSelectionMode && startPosition) {
             // 点选择模式：直接返回点击位置，不需要朝向
             if (pointSelectionCallback) {
+                // 获取沙盘模型，将世界坐标转换为模型局部坐标
+                const sandboxModel = models.get('sandbox');
+                let localX = startPosition.x;
+                let localZ = startPosition.z;
+                
+                if (sandboxModel) {
+                    // 将世界坐标转换为沙盘模型的局部坐标
+                    const localPos = sandboxModel.worldToLocal(startPosition.clone());
+                    localX = localPos.x;
+                    localZ = localPos.z;
+                    console.log(`🔄 点选择坐标转换: 世界坐标 (${startPosition.x.toFixed(3)}, ${startPosition.z.toFixed(3)}) → 局部坐标 (${localX.toFixed(3)}, ${localZ.toFixed(3)})`);
+                } else {
+                    console.warn('⚠️ 沙盘模型未找到，使用世界坐标');
+                }
+                
                 pointSelectionCallback({
-                    x: startPosition.x,
-                    z: startPosition.z
+                    x: localX,
+                    z: localZ
                 });
             }
         } else if (isPoseSelectionMode && startPosition && currentPosition) {
             // 位姿选择模式：计算朝向角度
-            const direction = new Vector3().subVectors(currentPosition, startPosition);
-            // 使用 -atan2(z, x) 来实现逆时针增加，X轴正方向为0度
-            let angle = -Math.atan2(direction.z, direction.x) * 180 / Math.PI;
-            // 确保角度在 0-360 范围内
-            if (angle < 0) angle += 360;
+            // 获取沙盘模型，将世界坐标转换为模型局部坐标
+            const sandboxModel = models.get('sandbox');
+            let localX = startPosition.x;
+            let localZ = startPosition.z;
             
-            // 调用回调函数
+            if (sandboxModel) {
+                // 将世界坐标转换为沙盘模型的局部坐标
+                const localPos = sandboxModel.worldToLocal(startPosition.clone());
+                localX = localPos.x;
+                localZ = localPos.z;
+                console.log(`🔄 位姿坐标转换: 世界坐标 (${startPosition.x.toFixed(3)}, ${startPosition.z.toFixed(3)}) → 局部坐标 (${localX.toFixed(3)}, ${localZ.toFixed(3)})`);
+            } else {
+                console.warn('⚠️ 沙盘模型未找到，使用世界坐标');
+            }
+            
+            // 计算朝向角度（弧度）
+            // 用户定义的角度系统：X轴正向为0，逆时针为正（0到π），顺时针为负（-π到0）
+            const direction = new Vector3().subVectors(currentPosition, startPosition);
+            // Z 轴取反，因为模型坐标系中 Z 轴向下是正向
+            const angleRad = Math.atan2(-direction.z, direction.x); // 弧度，范围 -π 到 π
+            
+            console.log(`📐 位姿朝向: ${angleRad.toFixed(3)} rad (${(angleRad * 180 / Math.PI).toFixed(1)}°)`);
+            
+            // 调用回调函数，传递模型局部坐标和弧度角度
             if (poseSelectionCallback) {
                 poseSelectionCallback({
-                    x: startPosition.x,
-                    z: startPosition.z,
-                    orientation: angle
+                    x: localX,
+                    z: localZ,
+                    orientation: angleRad  // 弧度，-π 到 π
                 });
             }
         }
@@ -2020,7 +2075,7 @@ const createPositionMarker = (position) => {
 };
 
 // 创建角度标签
-const createAngleLabel = (angle, position) => {
+const createAngleLabel = (angleRad, position) => {
     // 清除之前的标签
     if (angleLabel) {
         scene.remove(angleLabel);
@@ -2081,8 +2136,8 @@ const createAngleLabel = (angle, position) => {
     context.textAlign = 'center';
     context.textBaseline = 'middle';
     
-    // 绘制角度文本
-    const angleText = `${angle.toFixed(1)}°`;
+    // 显示角度（弧度，保留2位小数）
+    const angleText = `${angleRad.toFixed(2)} rad`;
     context.fillText(angleText, logicalWidth / 2, logicalHeight / 2);
     
     // 创建纹理和材质
@@ -2177,14 +2232,11 @@ const updateDirectionLine = (start, end) => {
     scene.add(directionArrow);
     
     // 计算角度并显示标签
+    // 用户定义的角度系统：X轴正向为0度，逆时针为正（0到π），顺时针为负（-π到0）
     const deltaX = end.x - start.x;
     const deltaZ = end.z - start.z;
-    let angle = Math.atan2(deltaZ, deltaX) * (180 / Math.PI); // 转换为度数
-    
-    // 确保角度在0-360范围内，逆时针从X轴开始
-    if (angle < 0) {
-        angle += 360;
-    }
+    // 使用 atan2 计算角度，但 Z 轴取反（因为模型坐标系中 Z 轴向下是正向）
+    let angleRad = Math.atan2(-deltaZ, deltaX); // 弧度，范围 -π 到 π
     
     // 计算射线中点位置用于放置标签
     const midPoint = new Vector3(
@@ -2193,8 +2245,8 @@ const updateDirectionLine = (start, end) => {
         (start.z + end.z) / 2
     );
     
-    // 创建角度标签
-    createAngleLabel(angle, midPoint);
+    // 创建角度标签（以弧度显示）
+    createAngleLabel(angleRad, midPoint);
 };
 
 // 创建地面平面用于射线检测
@@ -2605,6 +2657,13 @@ export const createStartPointMarker = (x, z) => {
         return null;
     }
 
+    // 获取沙盘模型
+    const sandboxModel = models.get('sandbox');
+    if (!sandboxModel) {
+        console.warn('沙盘模型未找到，无法创建起点标记');
+        return null;
+    }
+
     // 移除现有的起点标记
     removeStartPointMarker();
 
@@ -2617,7 +2676,7 @@ export const createStartPointMarker = (x, z) => {
     sprite.center.set(0.5, 0.0);
     
     // 计算标记尺寸 - 保持原始宽高比  
-    let baseWidth = 2; // 起点标记2倍大小
+    let baseWidth = 1.0; // 起点标记基础大小 - 缩小到原来的一半
     let widthScale = 1.0;
     try {
         const dims = getSandboxDimensionsInfo();
@@ -2632,13 +2691,16 @@ export const createStartPointMarker = (x, z) => {
     const aspectRatio = startTextureAspect > 0 ? startTextureAspect : 1.0;
     const height = width / aspectRatio;
     sprite.scale.set(width, height, 1);
+    
+    // 使用沙盘模型的局部坐标系（x, z是沙盘的局部坐标）
     sprite.position.set(x, 0.05, z);
     sprite.name = 'StartPointMarker';
 
-    modelsGroup.add(sprite);
+    // 将标记添加到沙盘模型内部，而不是modelsGroup
+    sandboxModel.add(sprite);
     startPointMarker = sprite;
     
-    console.log(`🚀 起点标记已创建: (${x.toFixed(3)}, ${z.toFixed(3)})`);
+    console.log(`🚀 起点标记已创建在沙盘局部坐标: (${x.toFixed(3)}, ${z.toFixed(3)})`);
     
     return { x, z };
 };
@@ -2649,6 +2711,13 @@ export const createStartPointMarker = (x, z) => {
 export const createEndPointMarker = (x, z) => {
     if (!scene) {
         console.warn('场景未初始化，无法创建终点标记');
+        return null;
+    }
+
+    // 获取沙盘模型
+    const sandboxModel = models.get('sandbox');
+    if (!sandboxModel) {
+        console.warn('沙盘模型未找到，无法创建终点标记');
         return null;
     }
 
@@ -2664,7 +2733,7 @@ export const createEndPointMarker = (x, z) => {
     sprite.center.set(0.5, 0.0);
     
     // 计算标记尺寸 - 保持原始宽高比
-    let baseWidth = 2; // 终点标记2倍大小
+    let baseWidth = 1.0; // 终点标记基础大小 - 缩小到原来的一半
     let widthScale = 1.0;
     try {
         const dims = getSandboxDimensionsInfo();
@@ -2679,13 +2748,16 @@ export const createEndPointMarker = (x, z) => {
     const aspectRatio = endTextureAspect > 0 ? endTextureAspect : 1.0;
     const height = width / aspectRatio;
     sprite.scale.set(width, height, 1);
+    
+    // 使用沙盘模型的局部坐标系（x, z是沙盘的局部坐标）
     sprite.position.set(x, 0.05, z);
     sprite.name = 'EndPointMarker';
 
-    modelsGroup.add(sprite);
+    // 将标记添加到沙盘模型内部，而不是modelsGroup
+    sandboxModel.add(sprite);
     endPointMarker = sprite;
     
-    console.log(`🏁 终点标记已创建: (${x.toFixed(3)}, ${z.toFixed(3)})`);
+    console.log(`🏁 终点标记已创建在沙盘局部坐标: (${x.toFixed(3)}, ${z.toFixed(3)})`);
     
     return { x, z };
 };
@@ -2696,7 +2768,11 @@ export const createEndPointMarker = (x, z) => {
 export const removeStartPointMarker = () => {
     if (!startPointMarker) return false;
     
-    if (modelsGroup && startPointMarker.parent === modelsGroup) {
+    // 标记现在是沙盘模型的子对象
+    const sandboxModel = models.get('sandbox');
+    if (sandboxModel && startPointMarker.parent === sandboxModel) {
+        sandboxModel.remove(startPointMarker);
+    } else if (modelsGroup && startPointMarker.parent === modelsGroup) {
         modelsGroup.remove(startPointMarker);
     } else if (scene && startPointMarker.parent === scene) {
         scene.remove(startPointMarker);
@@ -2718,7 +2794,11 @@ export const removeStartPointMarker = () => {
 export const removeEndPointMarker = () => {
     if (!endPointMarker) return false;
     
-    if (modelsGroup && endPointMarker.parent === modelsGroup) {
+    // 标记现在是沙盘模型的子对象
+    const sandboxModel = models.get('sandbox');
+    if (sandboxModel && endPointMarker.parent === sandboxModel) {
+        sandboxModel.remove(endPointMarker);
+    } else if (modelsGroup && endPointMarker.parent === modelsGroup) {
         modelsGroup.remove(endPointMarker);
     } else if (scene && endPointMarker.parent === scene) {
         scene.remove(endPointMarker);

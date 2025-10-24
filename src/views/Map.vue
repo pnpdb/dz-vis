@@ -170,6 +170,7 @@ import { SEND_MESSAGE_TYPES, CONSTRUCTION_MARKER_PROTOCOL } from '@/constants/me
 import vehicleBridge from '@/utils/vehicleBridge.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
 import { TIMING } from '@/config/constants.js';
+import { modelToVehicleCoordinates } from '@/utils/coordinateTransform.js';
 
 // 实时数据
 const networkDelay = ref(12);
@@ -288,13 +289,33 @@ const startConstructionMark = () => {
     startPointSelectionMode(({ x, z }) => {
         // 结束选择模式
         stopPointSelectionMode();
-        // 先创建临时施工标记（底部中点对齐）
+        
+        // 将模型局部坐标转换为车辆坐标系用于显示
+        const vehicleCoords = modelToVehicleCoordinates(x, z);
+        
+        // 先创建临时施工标记（使用模型局部坐标）
         const res = createConstructionMarkerAt(x, z);
         if (res) {
-            constructionSelected.value = { id: res.id, x, z };
+            // 显示车辆坐标系的坐标，但保存模型坐标用于后续操作
+            constructionSelected.value = { 
+                id: res.id, 
+                x: vehicleCoords.x,  // 车辆坐标系（用于显示）
+                z: vehicleCoords.y,  // 车辆坐标系的Y对应显示的Z
+                modelX: x,           // 模型局部坐标（用于内部计算）
+                modelZ: z            // 模型局部坐标（用于内部计算）
+            };
         } else {
-            constructionSelected.value = { id: null, x, z };
+            constructionSelected.value = { 
+                id: null, 
+                x: vehicleCoords.x, 
+                z: vehicleCoords.y,
+                modelX: x,
+                modelZ: z
+            };
         }
+        
+        console.log(`🚧 施工标记 - 车辆坐标: (${vehicleCoords.x.toFixed(3)}, ${vehicleCoords.y.toFixed(3)}), 模型坐标: (${x.toFixed(3)}, ${z.toFixed(3)})`);
+        
         constructionDialogVisible.value = true;
     });
 };
@@ -302,11 +323,22 @@ const startConstructionMark = () => {
 const confirmConstructionPoint = async () => {
     try {
         if (constructionSelected.value.id != null) {
-            // 获取所有施工标记信息并广播
-            const { invoke } = await import('@tauri-apps/api/core');
+            // 获取所有施工标记信息（模型局部坐标）
             const allMarkers = getConstructionMarkersDetails();
             
-            const result = await vehicleBridge.broadcastAllConstructionMarkers(allMarkers);
+            // 转换为车辆坐标系用于广播
+            const markersInVehicleCoords = allMarkers.map(marker => {
+                const vehicleCoords = modelToVehicleCoordinates(marker.modelX, marker.modelZ);
+                return {
+                    id: marker.id,
+                    x: vehicleCoords.x,  // 车辆坐标系
+                    z: vehicleCoords.y   // 车辆坐标系的Y映射到协议的Z
+                };
+            });
+            
+            console.log('🚧 广播施工标记（车辆坐标系）:', markersInVehicleCoords);
+            
+            const result = await vehicleBridge.broadcastAllConstructionMarkers(markersInVehicleCoords);
             
             // 显示成功消息
             ElMessage({

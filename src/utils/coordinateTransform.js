@@ -64,10 +64,17 @@ export const PARKING_SLOTS_MODEL = {
  * @returns {{x: number, y: number}} 车辆坐标系的 {x, y}
  */
 export function modelToVehicleCoordinates(modelX, modelZ) {
-    return {
-        x: modelX + SANDBOX_DIMENSIONS.halfWidth,
-        y: SANDBOX_DIMENSIONS.halfDepth - modelZ
-    };
+    const vehicleX = modelX + SANDBOX_DIMENSIONS.halfWidth;
+    const vehicleY = SANDBOX_DIMENSIONS.halfDepth - modelZ;
+    
+    // 验证转换结果是否在合理范围内
+    if (vehicleX < -0.1 || vehicleX > SANDBOX_DIMENSIONS.width + 0.1 ||
+        vehicleY < -0.1 || vehicleY > SANDBOX_DIMENSIONS.depth + 0.1) {
+        console.warn(`⚠️ 坐标转换结果超出范围: 模型坐标(${modelX.toFixed(3)}, ${modelZ.toFixed(3)}) → 车辆坐标(${vehicleX.toFixed(3)}, ${vehicleY.toFixed(3)})`);
+        console.warn(`   期望范围: X(0-${SANDBOX_DIMENSIONS.width}), Y(0-${SANDBOX_DIMENSIONS.depth})`);
+    }
+    
+    return { x: vehicleX, y: vehicleY };
 }
 
 /**

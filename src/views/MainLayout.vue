@@ -97,6 +97,7 @@ import { getConstructionMarkersDetails, removeConstructionMarker } from '@/compo
 import { ElMessage } from 'element-plus';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
 import vehicleBridge from '@/utils/vehicleBridge.js';
+import { modelToVehicleCoordinates } from '@/utils/coordinateTransform.js';
 
 // ✅ 使用组合式函数（代码复用优化）
 import { useSystemTime } from '@/composables/useSystemTime.js';
@@ -144,7 +145,15 @@ const handleResize = () => {
 const updateConstructionMarkersList = () => {
     try {
         const markers = getConstructionMarkersDetails();
-        constructionMarkers.value = markers;
+        // 将模型坐标转换为车辆坐标系用于显示
+        constructionMarkers.value = markers.map(marker => {
+            const vehicleCoords = modelToVehicleCoordinates(marker.modelX, marker.modelZ);
+            return {
+                id: marker.id,
+                x: vehicleCoords.x,  // 车辆坐标系（用于显示）
+                z: vehicleCoords.y   // 车辆坐标系的Y对应显示的Z
+            };
+        });
     } catch (error) {
         console.warn('获取施工标记列表失败:', error);
         constructionMarkers.value = [];
@@ -164,10 +173,20 @@ const deleteConstructionMarker = async (markerId) => {
         if (success) {
             updateConstructionMarkersList();
             
-            // 获取删除后剩余的所有施工标记并广播
+            // 获取删除后剩余的所有施工标记（模型坐标）
             const remainingMarkers = getConstructionMarkersDetails();
             
-            const result = await vehicleBridge.broadcastAllConstructionMarkers(remainingMarkers);
+            // 转换为车辆坐标系用于广播
+            const markersInVehicleCoords = remainingMarkers.map(marker => {
+                const vehicleCoords = modelToVehicleCoordinates(marker.modelX, marker.modelZ);
+                return {
+                    id: marker.id,
+                    x: vehicleCoords.x,  // 车辆坐标系
+                    z: vehicleCoords.y   // 车辆坐标系的Y
+                };
+            });
+            
+            const result = await vehicleBridge.broadcastAllConstructionMarkers(markersInVehicleCoords);
             
             // 显示成功消息
             ElMessage({

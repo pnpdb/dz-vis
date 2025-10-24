@@ -133,7 +133,7 @@ import {
     removeStartPointMarker,
     removeEndPointMarker
 } from '@/components/Scene3D/index.js';
-import { findNearestFreeSlot } from '@/utils/coordinateTransform.js';
+import { findNearestFreeSlot, modelToVehicleCoordinates } from '@/utils/coordinateTransform.js';
 
 const carStore = useCarStore();
 
@@ -258,41 +258,57 @@ const callTaxi = async () => {
             return;
         }
 
-        // 3. 生成订单ID
-        const orderId = socketManager.generateOrderId();
+        // 3. 查找离起点最近且导航状态为1或2的车辆
+        const assignedVehicleId = carStore.findNearestIdleVehicle(
+            carStore.taxi.startCoords.x,
+            carStore.taxi.startCoords.z
+        );
         
-        // 4. 调用车辆分配函数
-        const assignedVehicleId = await assignAvailableVehicle();
-        if (assignedVehicleId <= 0) {
+        if (!assignedVehicleId) {
             ElMessage({
-                message: '当前没有可用车辆，请稍后再试',
+                message: '当前没有可用车辆',
                 type: 'warning', 
                 duration: 3000
             });
             return;
         }
         
-        // 5. 发送出租车订单给指定车辆
-        const result = await socketManager.sendTaxiOrderToVehicle(
-            orderId,
-            assignedVehicleId,
+        // 4. 将模型坐标转换为车辆坐标系（用于发送协议）
+        const startVehicleCoords = modelToVehicleCoordinates(
             carStore.taxi.startCoords.x,
-            carStore.taxi.startCoords.z, // 注意：前端z对应后端y
+            carStore.taxi.startCoords.z
+        );
+        const endVehicleCoords = modelToVehicleCoordinates(
             carStore.taxi.endCoords.x,
             carStore.taxi.endCoords.z
         );
         
-        // 6. 发送成功，显示成功Toast
+        // 5. 生成订单ID
+        const orderId = socketManager.generateOrderId();
+        
+        // 6. 发送出租车订单给指定车辆（使用车辆坐标系）
+        const result = await socketManager.sendTaxiOrderToVehicle(
+            orderId,
+            assignedVehicleId,
+            startVehicleCoords.x,
+            startVehicleCoords.y,  // 车辆坐标系的Y
+            endVehicleCoords.x,
+            endVehicleCoords.y
+        );
+        
+        // 7. 发送成功，显示成功Toast
         ElMessage({
             message: `出租车订单已发送给${assignedVehicleId}号车，请等待车辆响应`,
             type: 'success',
             duration: 3000
         });
         
-        console.debug(`🚕 出租车订单发送成功 - 订单: ${orderId}, 车辆: ${assignedVehicleId}, 起点: (${carStore.taxi.startCoords.x}, ${carStore.taxi.startCoords.z}), 终点: (${carStore.taxi.endCoords.x}, ${carStore.taxi.endCoords.z})`);
+        console.debug(`🚕 出租车订单发送成功 - 订单: ${orderId}, 车辆: ${assignedVehicleId}`);
+        console.debug(`   起点（车辆坐标）: (${startVehicleCoords.x.toFixed(3)}, ${startVehicleCoords.y.toFixed(3)})`);
+        console.debug(`   终点（车辆坐标）: (${endVehicleCoords.x.toFixed(3)}, ${endVehicleCoords.y.toFixed(3)})`);
         
     } catch (error) {
-        // 7. 发送失败，显示失败Toast
+        // 8. 发送失败，显示失败Toast
         ElMessage({
             message: `呼叫出租车失败: ${error.message || error}`,
             type: 'error',
@@ -418,14 +434,20 @@ const selectStartPoint = () => {
         // 结束选择模式
         stopPointSelectionMode();
         
-        // 创建起点标记
+        // 创建起点标记（使用模型坐标）
         const result = createStartPointMarker(x, z);
         if (result) {
-            // 更新数据到store
-            carStore.setTaxiStartPoint(`X: ${x.toFixed(3)}, Y: ${z.toFixed(3)}`, { x, z });
+            // 将模型坐标转换为车辆坐标系用于显示
+            const vehicleCoords = modelToVehicleCoordinates(x, z);
+            
+            // 保存模型坐标到store（用于后续计算距离）
+            carStore.setTaxiStartPoint(
+                `X: ${vehicleCoords.x.toFixed(3)}m, Y: ${vehicleCoords.y.toFixed(3)}m`, 
+                { x, z }
+            );
             
             ElMessage.success('起点已选择');
-            console.log(`🚀 起点已选择: (${x.toFixed(3)}, ${z.toFixed(3)})`);
+            console.log(`🚀 起点 - 车辆坐标: (${vehicleCoords.x.toFixed(3)}, ${vehicleCoords.y.toFixed(3)}), 模型坐标: (${x.toFixed(3)}, ${z.toFixed(3)})`);
         } else {
             ElMessage.error('起点标记创建失败');
         }
@@ -441,14 +463,20 @@ const selectEndPoint = () => {
         // 结束选择模式
         stopPointSelectionMode();
         
-        // 创建终点标记
+        // 创建终点标记（使用模型坐标）
         const result = createEndPointMarker(x, z);
         if (result) {
-            // 更新数据到store
-            carStore.setTaxiEndPoint(`X: ${x.toFixed(3)}, Y: ${z.toFixed(3)}`, { x, z });
+            // 将模型坐标转换为车辆坐标系用于显示
+            const vehicleCoords = modelToVehicleCoordinates(x, z);
+            
+            // 保存模型坐标到store（用于后续计算距离）
+            carStore.setTaxiEndPoint(
+                `X: ${vehicleCoords.x.toFixed(3)}m, Y: ${vehicleCoords.y.toFixed(3)}m`, 
+                { x, z }
+            );
             
             ElMessage.success('终点已选择');
-            console.log(`🏁 终点已选择: (${x.toFixed(3)}, ${z.toFixed(3)})`);
+            console.log(`🏁 终点 - 车辆坐标: (${vehicleCoords.x.toFixed(3)}, ${vehicleCoords.y.toFixed(3)}), 模型坐标: (${x.toFixed(3)}, ${z.toFixed(3)})`);
         } else {
             ElMessage.error('终点标记创建失败');
         }
@@ -520,44 +548,6 @@ const clearTaxiSelection = () => {
     console.log('🧹 出租车起点和终点选择已清除');
 };
 
-// TODO
-// 车辆分配函数
-const assignAvailableVehicle = async () => {
-    try {
-        // 直接从后端获取当前连接状态（避免前端状态不同步的问题）
-        const { invoke } = await import('@tauri-apps/api/core');
-        const serverStatus = await invoke('get_socket_server_status');
-        
-        console.log('🔍 后端连接状态:', serverStatus);
-        
-        // 检查1号车是否在连接列表中
-        const connectedVehicles = serverStatus.connected_vehicles || [];
-        const vehicle1Connected = connectedVehicles.some(v => {
-            const vehicleId = v.vehicle_id;
-            return vehicleId === 1;
-        });
-        
-        if (vehicle1Connected) {
-            console.log('🚕 分配车辆: 1号车 (后端确认在线)');
-            return 1;
-        }
-        
-        // 如果1号车不在线，检查其他可用车辆
-        if (connectedVehicles.length > 0) {
-            const firstVehicle = connectedVehicles[0];
-            const vehicleId = firstVehicle.vehicle_id; // 使用正确的字段名
-            console.log(`🚕 1号车不在线，分配第一个可用车辆: ${vehicleId}号车`);
-            return vehicleId;
-        }
-        
-        console.warn('🚕 没有可用车辆在线');
-        return 0;
-        
-    } catch (error) {
-        console.error('车辆分配失败:', error);
-        return 0;
-    }
-};
 </script>
 
 <style lang="scss" scoped>

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { VehicleConnectionAPI } from '@/utils/vehicleAPI.js';
 import { normalizeVehicleList, parseVehicleId, compareVehicleId } from '@/utils/vehicleTypes.js';
+import { vehicleToModelCoordinates } from '@/utils/coordinateTransform.js';
 
 const filePath = localStorage.getItem('filePath') || '';
 
@@ -27,10 +28,6 @@ export const useCarStore = defineStore('car', {
         
         // 沙盘连接状态
         sandboxConnected: false,
-        
-        // 坐标偏移量设置（用于坐标转换）
-        coordinateOffsetX: 0.0,
-        coordinateOffsetY: 0.0,
     }),
     getters: {
         selectedCar: state => {
@@ -139,12 +136,16 @@ export const useCarStore = defineStore('car', {
             const state = this.getOrCreateVehicleState(vehicleId);
             if (!state) return;
             
-            // 应用坐标偏移量转换（如果vehicleInfo有位置信息）
+            // 应用坐标系转换（车辆坐标系 → 模型坐标系）
             let transformedPosition = vehicleInfo.position || state.state.position;
             if (vehicleInfo.position) {
+                const modelCoords = vehicleToModelCoordinates(
+                    vehicleInfo.position.x, 
+                    vehicleInfo.position.y
+                );
                 transformedPosition = {
-                    x: vehicleInfo.position.x + this.coordinateOffsetX,
-                    y: vehicleInfo.position.y + this.coordinateOffsetY
+                    x: modelCoords.x,
+                    y: modelCoords.z  // 车辆的Y对应模型的Z
                 };
             }
             
@@ -314,6 +315,34 @@ export const useCarStore = defineStore('car', {
         getVehicleParkingSlot(vehicleId) {
             const state = this.getVehicleState(vehicleId);
             return state ? state.parking.slotId : 0;
+        },
+        
+        /**
+         * 检查指定车位是否被占用
+         * @param {number} slotId - 车位编号
+         * @returns {boolean} 是否被占用
+         */
+        isParkingSlotOccupied(slotId) {
+            for (const state of this.vehicles.values()) {
+                if (state.parking.slotId === slotId) {
+                    return true;
+                }
+            }
+            return false;
+        },
+        
+        /**
+         * 获取所有已占用的车位列表
+         * @returns {Array<{vehicleId: number, slotId: number}>}
+         */
+        getOccupiedSlots() {
+            const occupied = [];
+            for (const [vehicleId, state] of this.vehicles.entries()) {
+                if (state.parking.slotId > 0) {
+                    occupied.push({ vehicleId, slotId: state.parking.slotId });
+                }
+            }
+            return occupied;
         },
         
         /**

@@ -1871,7 +1871,7 @@ const setupMouseEventListeners = () => {
 
 // 鼠标按下事件
 const onMouseDown = (event) => {
-    if (!isPoseSelectionMode && !isPointSelectionMode) return;
+    if (!isPoseSelectionMode && !isPointSelectionMode && !isParkingSlotSelectionMode) return;
     
     if (event.button === 0) { // 左键
         event.preventDefault();
@@ -1898,7 +1898,7 @@ const onMouseDown = (event) => {
             startPosition.y = 0;
             currentPosition = startPosition.clone();
             
-            // 只在位姿选择模式下创建位置标记（点选择模式不需要）
+            // 只在位姿选择模式下创建位置标记（点选择模式和车位选择模式不需要）
             if (isPoseSelectionMode) {
                 createPositionMarker(startPosition);
             }
@@ -1911,8 +1911,8 @@ const onMouseDown = (event) => {
 
 // 鼠标移动事件
 const onMouseMove = (event) => {
-    // 点选择模式下不处理鼠标移动（不需要朝向线）
-    if (isPointSelectionMode) return;
+    // 点选择模式和车位选择模式下不处理鼠标移动（不需要朝向线）
+    if (isPointSelectionMode || isParkingSlotSelectionMode) return;
     
     if (!isPoseSelectionMode || !isMouseDown || !startPosition) return;
     
@@ -1939,7 +1939,7 @@ const onMouseMove = (event) => {
 
 // 鼠标释放事件
 const onMouseUp = (event) => {
-    if ((!isPoseSelectionMode && !isPointSelectionMode) || !isMouseDown) return;
+    if ((!isPoseSelectionMode && !isPointSelectionMode && !isParkingSlotSelectionMode) || !isMouseDown) return;
     
     if (event.button === 0) { // 左键
         event.preventDefault();
@@ -1948,7 +1948,30 @@ const onMouseUp = (event) => {
         // 重新启用相机控制
         if (controls) controls.enabled = true;
         
-        if (isPointSelectionMode && startPosition) {
+        if (isParkingSlotSelectionMode && startPosition) {
+            // 车位选择模式：查找最近的空闲车位
+            if (parkingSlotSelectionCallback) {
+                // 获取沙盘模型，将世界坐标转换为模型局部坐标
+                const sandboxModel = models.get('sandbox');
+                let localX = startPosition.x;
+                let localZ = startPosition.z;
+                
+                if (sandboxModel) {
+                    // 将世界坐标转换为沙盘模型的局部坐标
+                    const localPos = sandboxModel.worldToLocal(startPosition.clone());
+                    localX = localPos.x;
+                    localZ = localPos.z;
+                    console.log(`🔄 坐标转换: 世界坐标 (${startPosition.x.toFixed(3)}, ${startPosition.z.toFixed(3)}) → 局部坐标 (${localX.toFixed(3)}, ${localZ.toFixed(3)})`);
+                } else {
+                    console.warn('⚠️ 沙盘模型未找到，使用世界坐标');
+                }
+                
+                parkingSlotSelectionCallback({
+                    x: localX,
+                    z: localZ
+                });
+            }
+        } else if (isPointSelectionMode && startPosition) {
             // 点选择模式：直接返回点击位置，不需要朝向
             if (pointSelectionCallback) {
                 pointSelectionCallback({
@@ -2231,6 +2254,10 @@ export const startPoseSelectionMode = (callback) => {
 let isPointSelectionMode = false;
 let pointSelectionCallback = null;
 
+// 车位选择模式（用于AVP选择车位）
+let isParkingSlotSelectionMode = false;
+let parkingSlotSelectionCallback = null;
+
 export const startPointSelectionMode = (callback) => {
     if (!scene) {
         console.warn('Scene not initialized');
@@ -2270,6 +2297,49 @@ export const stopPointSelectionMode = () => {
     }
     
     console.log('📍 点选择模式已停止');
+};
+
+// 开始车位选择模式
+export const startParkingSlotSelectionMode = (callback) => {
+    if (!scene) {
+        console.warn('Scene not initialized');
+        return false;
+    }
+    
+    isParkingSlotSelectionMode = true;
+    parkingSlotSelectionCallback = callback;
+    
+    // 创建地面检测平面
+    createGroundPlane();
+    
+    // 修改鼠标样式为pointer（表示可点击）
+    if (container) {
+        container.style.cursor = 'pointer';
+    }
+    
+    console.log('🅿️ 车位选择模式已启动');
+    return true;
+};
+
+// 停止车位选择模式
+export const stopParkingSlotSelectionMode = () => {
+    isParkingSlotSelectionMode = false;
+    parkingSlotSelectionCallback = null;
+    
+    // 清除地面平面
+    if (groundPlane) {
+        scene.remove(groundPlane);
+        groundPlane.geometry.dispose();
+        groundPlane.material.dispose();
+        groundPlane = null;
+    }
+    
+    // 恢复鼠标样式
+    if (container) {
+        container.style.cursor = 'default';
+    }
+    
+    console.log('🅿️ 车位选择模式已停止');
 };
 
 // 停止位姿选择模式

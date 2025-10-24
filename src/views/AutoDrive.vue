@@ -120,17 +120,20 @@
 
 <script setup>
 import { ref, watch, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { useCarStore } from '@/stores/car.js';
 import { socketManager } from '@/utils/socketManager.js';
 import { 
     startPointSelectionMode, 
-    stopPointSelectionMode, 
+    stopPointSelectionMode,
+    startParkingSlotSelectionMode,
+    stopParkingSlotSelectionMode,
     createStartPointMarker, 
     createEndPointMarker,
     removeStartPointMarker,
     removeEndPointMarker
 } from '@/components/Scene3D/index.js';
+import { findNearestFreeSlot } from '@/utils/coordinateTransform.js';
 
 const carStore = useCarStore();
 
@@ -222,7 +225,8 @@ const handleDataRecordChange = async (newValue) => {
 // 停车相关数据
 const parking = ref({
     car: '',
-    point: '',
+    point: '',  // 显示文本
+    slotId: null  // 实际车位编号（1或2）
 });
 
 // 取车相关数据
@@ -312,7 +316,17 @@ const startParking = async () => {
             return;
         }
 
-        // 2. 检查该车辆是否在线
+        // 2. 检查是否选择了车位
+        if (!parking.value.slotId) {
+            ElMessage({
+                message: '请先选择车位',
+                type: 'warning',
+                duration: 3000
+            });
+            return;
+        }
+
+        // 3. 检查该车辆是否在线
         const isOnline = socketManager.isVehicleConnected(parking.value.car);
         if (!isOnline) {
             ElMessage({
@@ -323,20 +337,20 @@ const startParking = async () => {
             return;
         }
 
-        // 3. 车辆在线，发送AVP泊车指令
-        const result = await socketManager.sendAvpParking(parking.value.car);
+        // 4. 车辆在线，发送AVP泊车指令（带实际车位编号）
+        const result = await socketManager.sendAvpParking(parking.value.car, parking.value.slotId);
         
-        // 4. 发送成功，显示成功Toast
+        // 5. 发送成功，显示成功Toast
         ElMessage({
-            message: 'AVP泊车指令发送成功，车辆正在执行泊车',
+            message: `AVP泊车指令发送成功，车辆正在前往${parking.value.slotId}号车位`,
             type: 'success',
             duration: 3000
         });
         
-        console.debug(`AVP泊车指令发送成功 - 车辆: ${parking.value.car}, 结果: ${result}`);
+        console.debug(`AVP泊车指令发送成功 - 车辆: ${parking.value.car}, 车位: ${parking.value.slotId}, 结果: ${result}`);
         
     } catch (error) {
-        // 5. 发送失败，显示失败Toast
+        // 6. 发送失败，显示失败Toast
         ElMessage({
             message: `AVP泊车指令发送失败: ${error.message || error}`,
             type: 'error',
@@ -442,7 +456,54 @@ const selectEndPoint = () => {
 };
 
 const selectParkingSpot = () => {
-    ElMessage.info('请在地图上点击选择停车位');
+    ElMessage.info('请在沙盘上点击选择停车位');
+    
+    // 启动车位选择模式
+    startParkingSlotSelectionMode(async (position) => {
+        // 停止选择模式
+        stopParkingSlotSelectionMode();
+        
+        console.log('🅿️ 点击位置:', position);
+        
+        // 查找最近的空闲车位
+        const nearestSlot = findNearestFreeSlot(
+            position.x,
+            position.z,
+            (slotId) => carStore.isParkingSlotOccupied(slotId)
+        );
+        
+        // 如果没有空闲车位
+        if (!nearestSlot) {
+            ElMessage.warning('当前没有空闲车位');
+            return;
+        }
+        
+        console.log(`🅿️ 找到最近的空闲车位: ${nearestSlot.slotId}号 (距离: ${nearestSlot.distance.toFixed(3)}m)`);
+        
+        // 弹出确认对话框
+        try {
+            await ElMessageBox.confirm(
+                `已找到最近的空闲车位：${nearestSlot.slotId}号车位`,
+                '确认车位选择',
+                {
+                    confirmButtonText: '确认',
+                    cancelButtonText: '取消',
+                    type: 'info'
+                }
+            );
+            
+            // 确认后保存车位信息
+            parking.value.point = `${nearestSlot.slotId}号车位`;
+            parking.value.slotId = nearestSlot.slotId;
+            
+            ElMessage.success(`已选择${nearestSlot.slotId}号车位`);
+            console.log(`✅ 车位选择完成: ${nearestSlot.slotId}号`);
+            
+        } catch (error) {
+            // 用户取消
+            console.log('❌ 用户取消车位选择');
+        }
+    });
 };
 
 // 清除出租车起点和终点选择

@@ -404,6 +404,101 @@ def parse_received_message(data):
 
 force_parallel_until = 0
 
+# 车辆路径状态管理（每辆车独立维护）
+vehicle_paths = {}
+
+class VehiclePath:
+    """车辆路径管理类 - 沿沙盘道路绕圈"""
+    def __init__(self, vehicle_id):
+        self.vehicle_id = vehicle_id
+        
+        # 沙盘尺寸（米）
+        self.SANDBOX_WIDTH = 4.81
+        self.SANDBOX_DEPTH = 2.81
+        
+        # 道路边距（稍微往里一点，因为道路不在最边缘）
+        self.MARGIN_X = 0.35  # X轴边距
+        self.MARGIN_Y = 0.25  # Y轴边距
+        
+        # 定义矩形路径的四个角点（顺时针绕行）
+        # 左下 -> 右下 -> 右上 -> 左上 -> 左下
+        self.path_points = [
+            (self.MARGIN_X, self.MARGIN_Y),                                      # 左下角
+            (self.SANDBOX_WIDTH - self.MARGIN_X, self.MARGIN_Y),                # 右下角
+            (self.SANDBOX_WIDTH - self.MARGIN_X, self.SANDBOX_DEPTH - self.MARGIN_Y),  # 右上角
+            (self.MARGIN_X, self.SANDBOX_DEPTH - self.MARGIN_Y),                # 左上角
+        ]
+        
+        # 车辆状态
+        self.current_segment = 0  # 当前在哪个路段（0-3）
+        self.progress = 0.0  # 当前路段的进度（0.0-1.0）
+        self.position_x = self.path_points[0][0]
+        self.position_y = self.path_points[0][1]
+        self.orientation = 0.0  # 朝向角度（度）
+        self.battery = 85.0  # 初始电量
+        
+        # 移动参数
+        self.speed = 0.25  # 固定速度 0.25 m/s (模拟慢速行驶)
+        self.step_distance = self.speed * 2.0  # 每2秒移动的距离
+        
+    def update_position(self):
+        """更新车辆位置（每次调用前进一步）"""
+        import math
+        
+        # 获取当前路段的起点和终点
+        start_point = self.path_points[self.current_segment]
+        end_point = self.path_points[(self.current_segment + 1) % len(self.path_points)]
+        
+        # 计算路段长度
+        segment_length = math.sqrt(
+            (end_point[0] - start_point[0])**2 + 
+            (end_point[1] - start_point[1])**2
+        )
+        
+        # 更新进度
+        self.progress += self.step_distance / segment_length
+        
+        # 如果超过当前路段，切换到下一路段
+        if self.progress >= 1.0:
+            self.progress = 0.0
+            self.current_segment = (self.current_segment + 1) % len(self.path_points)
+            start_point = self.path_points[self.current_segment]
+            end_point = self.path_points[(self.current_segment + 1) % len(self.path_points)]
+        
+        # 计算当前位置（线性插值）
+        self.position_x = start_point[0] + (end_point[0] - start_point[0]) * self.progress
+        self.position_y = start_point[1] + (end_point[1] - start_point[1]) * self.progress
+        
+        # 计算朝向（根据移动方向）
+        dx = end_point[0] - start_point[0]
+        dy = end_point[1] - start_point[1]
+        
+        # 使用atan2计算角度（注意：车辆坐标系Y向上为正）
+        # 0度 = X正向（向右）
+        # 90度 = Y正向（向上）
+        self.orientation = math.degrees(math.atan2(dy, dx))
+        if self.orientation < 0:
+            self.orientation += 360
+        
+        # 电量缓慢下降（模拟消耗）
+        self.battery = max(20.0, self.battery - 0.05)
+    
+    def get_current_state(self):
+        """获取当前状态"""
+        return {
+            'position_x': self.position_x,
+            'position_y': self.position_y,
+            'orientation': self.orientation,
+            'speed': self.speed,
+            'battery': self.battery
+        }
+
+def get_vehicle_path(vehicle_id):
+    """获取或创建车辆路径对象"""
+    if vehicle_id not in vehicle_paths:
+        vehicle_paths[vehicle_id] = VehiclePath(vehicle_id)
+    return vehicle_paths[vehicle_id]
+
 def create_vehicle_info_data(vehicle_id=1):
     """
     创建车辆信息协议数据域 (54字节)
@@ -411,37 +506,48 @@ def create_vehicle_info_data(vehicle_id=1):
     """
     import random
     
+    # 获取车辆路径管理器并更新位置
+    path = get_vehicle_path(vehicle_id)
+    path.update_position()
+    state = path.get_current_state()
+    
     data = bytearray()
     
     # 车辆编号 (1字节, UINT8)
     data.extend(struct.pack('<B', vehicle_id))
     
-    # 车速 (8字节, DOUBLE) - 范围 0-1 m/s
-    speed = random.uniform(0.0, 1.0)
+    # 车速 (8字节, DOUBLE) - 使用固定速度
+    speed = state['speed']
     data.extend(struct.pack('<d', speed))
     
-    # 位置X (8字节, DOUBLE)
-    position_x = random.uniform(0.0, 1080.0)
+    # 位置X (8字节, DOUBLE) - 从路径管理器获取
+    position_x = state['position_x']
     data.extend(struct.pack('<d', position_x))
     
-    # 位置Y (8字节, DOUBLE)  
-    position_y = random.uniform(0.0, 785.0)
+    # 位置Y (8字节, DOUBLE) - 从路径管理器获取
+    position_y = state['position_y']
     data.extend(struct.pack('<d', position_y))
     
-    # 朝向 (8字节, DOUBLE) - 范围 0-360 度
-    orientation = random.uniform(0.0, 360.0)
+    # 朝向 (8字节, DOUBLE) - 从路径管理器获取（自动根据移动方向计算）
+    orientation = state['orientation']
     data.extend(struct.pack('<d', orientation))
     
-    # 电池电量 (8字节, DOUBLE) - 范围 0-100%
-    battery = random.uniform(20.0, 100.0)
+    # 电池电量 (8字节, DOUBLE) - 从路径管理器获取（缓慢下降）
+    battery = state['battery']
     data.extend(struct.pack('<d', battery))
     
-    # 档位 (1字节, UINT8) - 1:P 2:R 3:N 4:D
-    gear = random.choice([1, 2, 3, 4, 5, 6, 7, 8, 9])
+    # 档位 (1字节, UINT8) - 行驶中固定为D1档（4）
+    gear = 4  # D1档
     data.extend(struct.pack('<B', gear))
     
-    # 方向盘转角 (8字节, DOUBLE) - 角度 -540~540 示例
-    steering_angle = random.uniform(-540.0, 540.0)
+    # 方向盘转角 (8字节, DOUBLE) - 根据当前路段设置转角
+    # 直线路段转角为0，转弯路段根据朝向设置小转角
+    if path.progress < 0.1 or path.progress > 0.9:
+        # 接近转弯点，设置转角
+        steering_angle = 15.0 if path.current_segment in [1, 3] else -15.0
+    else:
+        # 直线行驶
+        steering_angle = 0.0
     data.extend(struct.pack('<d', steering_angle))
     
     # 导航状态 (1字节, UINT8) - 新定义 1..15 (注意10为终点)
@@ -449,32 +555,32 @@ def create_vehicle_info_data(vehicle_id=1):
     if now_ms < force_parallel_until:
         nav_status = 15
     else:
-        nav_status = random.choice([1,2,3,4,5,6,7,8,9,10,11,12,13,14])
+        nav_status = 5  # 5 = 正常导航中
     data.extend(struct.pack('<B', nav_status))
     
-    # 相机状态 (1字节, UINT8) - 0:异常, 1:正常
-    camera_status = random.choice([0, 1])
+    # 相机状态 (1字节, UINT8) - 0:异常, 1:正常（模拟正常工作）
+    camera_status = 1
     data.extend(struct.pack('<B', camera_status))
     
-    # 激光雷达状态 (1字节, UINT8) - 0:异常, 1:正常
-    lidar_status = random.choice([0, 1])
+    # 激光雷达状态 (1字节, UINT8) - 0:异常, 1:正常（模拟正常工作）
+    lidar_status = 1
     data.extend(struct.pack('<B', lidar_status))
     
-    # 陀螺仪状态 (1字节, UINT8) - 0:异常, 1:正常
-    gyro_status = random.choice([0, 1])
+    # 陀螺仪状态 (1字节, UINT8) - 0:异常, 1:正常（模拟正常工作）
+    gyro_status = 1
     data.extend(struct.pack('<B', gyro_status))
 
-    # 车位占用状态 (1字节, UINT8) - 0:未占用，其它为车位编号
-    parking_slot = random.choice([0, 0, 0, 1, 2, 3])
+    # 车位占用状态 (1字节, UINT8) - 0:未占用（行驶中不占用车位）
+    parking_slot = 0
     data.extend(struct.pack('<B', parking_slot))
 
-    print(f" 车辆信息 - ID: {vehicle_id}, 速度: {speed:.3f}m/s, 位置: ({position_x:.2f}, {position_y:.2f}), 朝向: {orientation:.1f}°, 电量: {battery:.1f}%, 档位: {gear}, 方向盘: {steering_angle:.1f}°, 导航状态码: {nav_status}, 车位占用: {parking_slot}")
-    print(f" 传感器状态 - 相机: {'正常' if camera_status else '异常'}, 雷达: {'正常' if lidar_status else '异常'}, 陀螺仪: {'正常' if gyro_status else '异常'}")
+    print(f"🚗 车辆{vehicle_id} - 速度: {speed:.3f}m/s, 位置: ({position_x:.3f}m, {position_y:.3f}m), 朝向: {orientation:.1f}°, 电量: {battery:.1f}%, 路段: {path.current_segment}, 进度: {path.progress:.2f}")
+    print(f"   传感器状态 - 相机: 正常, 雷达: 正常, 陀螺仪: 正常, 方向盘: {steering_angle:.1f}°")
     
     return bytes(data)
 
 class TestClient:
-    def __init__(self, server_host='192.168.1.69', server_port=8888, vehicle_id=1):
+    def __init__(self, server_host='127.0.0.1', server_port=8888, vehicle_id=1):
         self.server_host = server_host
         self.server_port = server_port
         self.vehicle_id = vehicle_id

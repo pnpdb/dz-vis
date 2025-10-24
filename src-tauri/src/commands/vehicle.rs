@@ -371,11 +371,11 @@ pub async fn broadcast_taxi_order(
 
 /// 发送AVP停车指令
 #[tauri::command]
-pub async fn send_avp_parking(app: tauri::AppHandle, vehicle_id: i32) -> Result<String, String> {
+pub async fn send_avp_parking(app: tauri::AppHandle, vehicle_id: i32, parking_spot: u8) -> Result<String, String> {
     // 1. 构建AVP泊车协议数据域 (2字节)
     let parking_payload = VehicleService::new().build_avp_parking_payload(&AvpParkingData {
         vehicle_id: vehicle_id as u8,
-        parking_spot: 1,
+        parking_spot,
     });
 
     // 2. 发送消息给指定车辆
@@ -389,14 +389,14 @@ pub async fn send_avp_parking(app: tauri::AppHandle, vehicle_id: i32) -> Result<
             if let Some(db) = app.try_state::<VehicleDatabase>() {
                 let avp_parking_request = CreateAvpParkingRequest {
                     vehicle_id,
-                    parking_spot: 1, // 写死为1号车位
+                    parking_spot: parking_spot as i32,
                 };
 
                 match db.create_avp_parking(avp_parking_request).await {
                     Ok(_) => {
                         info!(
                             "✅ AVP泊车记录已保存到数据库: 车辆{}, 车位{}",
-                            vehicle_id, 1
+                            vehicle_id, parking_spot
                         );
                     }
                     Err(e) => {
@@ -406,7 +406,7 @@ pub async fn send_avp_parking(app: tauri::AppHandle, vehicle_id: i32) -> Result<
                 }
             }
 
-            Ok("AVP泊车指令发送成功".to_string())
+            Ok(format!("AVP泊车指令已发送到车辆 {} (车位: {})", vehicle_id, parking_spot))
         }
         Err(e) => Err(format!("发送AVP泊车指令失败: {}", e)),
     }

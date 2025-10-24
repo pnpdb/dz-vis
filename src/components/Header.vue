@@ -213,30 +213,6 @@
                 </el-tab-pane>
                 <el-tab-pane label="模型设置" name="model">
                     <el-form label-width="140px">
-                        <el-form-item label="坐标X轴偏移量">
-                            <el-input-number
-                                v-model="settings.coordinateOffsetX"
-                                :step="0.1"
-                                :precision="2"
-                                controls-position="right"
-                                style="width: 200px;"
-                            />
-                            <div class="setting-description">
-                                车辆X坐标偏移量（可正可负），用于坐标转换
-                            </div>
-                        </el-form-item>
-                        <el-form-item label="坐标Y轴偏移量">
-                            <el-input-number
-                                v-model="settings.coordinateOffsetY"
-                                :step="0.1"
-                                :precision="2"
-                                controls-position="right"
-                                style="width: 200px;"
-                            />
-                            <div class="setting-description">
-                                车辆Y坐标偏移量（可正可负），用于坐标转换
-                            </div>
-                        </el-form-item>
                         <el-form-item label="显示坐标轴">
                             <el-switch 
                                 v-model="modelSettings.showAxes" 
@@ -608,9 +584,7 @@ const settings = ref({
     autoStart: false,
     logLevel: 'INFO',
     cacheSize: 1000,
-    appTitle: '渡众智能沙盘云控平台',
-    coordinateOffsetX: 0.0,
-    coordinateOffsetY: 0.0
+    appTitle: '渡众智能沙盘云控平台'
 });
 
 // 动态标题
@@ -899,8 +873,8 @@ const saveSettings = async () => {
             log_level: settings.value.logLevel,
             cache_size: settings.value.cacheSize,
             app_title: settings.value.appTitle,
-            coordinate_offset_x: settings.value.coordinateOffsetX,
-            coordinate_offset_y: settings.value.coordinateOffsetY
+            coordinate_offset_x: 0.0,  // 保留字段但不再使用，坐标转换已改用新的工具
+            coordinate_offset_y: 0.0
         };
         const res = await invoke('update_app_settings', { request: payload });
         
@@ -919,11 +893,6 @@ const saveSettings = async () => {
         
         // 更新动态标题
         appTitle.value = settings.value.appTitle;
-        
-        // 同步坐标偏移量到carStore（用于车辆位置转换）
-        carStore.coordinateOffsetX = settings.value.coordinateOffsetX;
-        carStore.coordinateOffsetY = settings.value.coordinateOffsetY;
-        console.info(`[App] 坐标偏移量已更新: X=${settings.value.coordinateOffsetX}, Y=${settings.value.coordinateOffsetY}`);
         
         settingsDialogVisible.value = false;
     } catch (e) {
@@ -1102,12 +1071,6 @@ onMounted(() => {
             settings.value.logLevel = (res.log_level || 'INFO').toUpperCase();
             settings.value.cacheSize = Number(res.cache_size ?? 1000);
             settings.value.appTitle = res.app_title || '渡众智能沙盘云控平台';
-            settings.value.coordinateOffsetX = Number(res.coordinate_offset_x ?? 0.0);
-            settings.value.coordinateOffsetY = Number(res.coordinate_offset_y ?? 0.0);
-            
-            // 同步坐标偏移量到carStore（用于车辆位置转换）
-            carStore.coordinateOffsetX = settings.value.coordinateOffsetX;
-            carStore.coordinateOffsetY = settings.value.coordinateOffsetY;
             
             // 同步动态标题
             appTitle.value = settings.value.appTitle;
@@ -1119,7 +1082,6 @@ onMounted(() => {
             }
             
             console.info(`[App] 应用标题已加载: ${appTitle.value}`);
-            console.info(`[App] 坐标偏移量已加载: X=${settings.value.coordinateOffsetX}, Y=${settings.value.coordinateOffsetY}`);
         }
     }).catch((e) => {
         console.warn('加载应用设置失败:', e);

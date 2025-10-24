@@ -580,9 +580,9 @@ const loadEnvironment = () => {
 const loadModelsWithProgress = async () => {
     const loader = new GLTFLoader();
     
-    // 配置 DRACO 压缩（如果需要）
+    // 配置 DRACO 压缩（使用本地解码器，离线可用）
     const dracoLoader = new DRACOLoader();
-    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
+    dracoLoader.setDecoderPath('/draco/');
     loader.setDRACOLoader(dracoLoader);
 
     console.info('开始异步模型加载');
@@ -665,8 +665,8 @@ const loadModelsWithProgress = async () => {
                         });
                         console.log('  - 网格数量:', meshCount);
                         
-                        // 🎯 对齐沙盘和小车模型
-                        alignSandboxAndCar(sandboxModel, models, scene, '异步加载');
+                        // 🎯 对齐沙盘模型
+                        alignSandbox(sandboxModel, scene, '异步加载');
                     } else {
                         console.error('❌ 无法从models中获取沙盘模型！');
                     }
@@ -697,9 +697,9 @@ const loadModelsWithProgress = async () => {
 const loadModels = () => {
     const loader = new GLTFLoader();
     
-    // 配置 DRACO 压缩（如果需要）
+    // 配置 DRACO 压缩（使用本地解码器，离线可用）
     const dracoLoader = new DRACOLoader();
-    dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
+    dracoLoader.setDecoderPath('/draco/');
     loader.setDRACOLoader(dracoLoader);
 
     console.log('开始渐进式模型加载...');
@@ -1004,9 +1004,9 @@ const loadModel = (loader, url, key, options = {}) => {
                 });
                 console.log('  - 网格数量:', meshCount);
                 
-                // 🎯 对齐沙盘和小车模型（延迟确保模型完全加载到场景）
+                // 🎯 对齐沙盘模型（延迟确保模型完全加载到场景）
                 setTimeout(() => {
-                    alignSandboxAndCar(model, models, scene, '同步加载');
+                    alignSandbox(model, scene, '同步加载');
                 }, 100);
             }
         },
@@ -1359,13 +1359,12 @@ const createCoordinateAxes = () => {
 };
 
 /**
- * 对齐沙盘和小车模型
+ * 对齐沙盘模型（车辆模型现在是动态加载，在 vehicleManager 中对齐）
  * @param {Object} sandboxModel - 沙盘模型
- * @param {Map} modelsMap - 所有模型的Map
  * @param {THREE.Scene} scene - Three.js场景
  * @param {string} loadMode - 加载模式标识（用于日志）
  */
-const alignSandboxAndCar = (sandboxModel, modelsMap, scene, loadMode = '') => {
+const alignSandbox = (sandboxModel, scene, loadMode = '') => {
     if (!sandboxModel) {
         console.error('❌ 沙盘模型未找到，无法对齐');
         return;
@@ -1373,7 +1372,7 @@ const alignSandboxAndCar = (sandboxModel, modelsMap, scene, loadMode = '') => {
     
     const logPrefix = loadMode ? `(${loadMode})` : '';
     
-    // 1️⃣ 对齐沙盘：让沙盘底座贴地（Y=0）
+    // 对齐沙盘：让沙盘底座贴地（Y=0）
     const sandboxBox = new Box3().setFromObject(sandboxModel);
     const offsetY = -sandboxBox.min.y;
     sandboxModel.position.y = offsetY;
@@ -1383,41 +1382,7 @@ const alignSandboxAndCar = (sandboxModel, modelsMap, scene, loadMode = '') => {
     console.log(`  - 偏移量: ${offsetY.toFixed(3)}`);
     console.log(`  - 调整后沙盘位置: Y=${sandboxModel.position.y.toFixed(3)} (底座贴地)`);
     
-    // 2️⃣ 对齐小车：让小车底部贴在道路表面（沙盘底部）
-    const carModel = modelsMap.get('cars');
-    if (carModel) {
-        console.log(`🚗 开始调整小车位置${logPrefix}...`);
-        
-        // 重新计算沙盘的包围盒（位置已经调整过了）
-        const newSandboxBox = new Box3().setFromObject(sandboxModel);
-        const roadSurfaceY = newSandboxBox.min.y;  // 道路表面 = 沙盘底部
-        
-        // 计算小车的包围盒
-        const carBox = new Box3().setFromObject(carModel);
-        const carBottomY = carBox.min.y;
-        
-        // 计算需要移动的距离
-        const moveDistance = roadSurfaceY - carBottomY;
-        carModel.position.y += moveDistance;
-        
-        // 验证对齐结果
-        const verifyCarBox = new Box3().setFromObject(carModel);
-        const alignError = verifyCarBox.min.y - roadSurfaceY;
-        
-        console.log(`  - 道路表面(沙盘底部): Y=${roadSurfaceY.toFixed(3)}`);
-        console.log(`  - 小车调整前底部: Y=${carBottomY.toFixed(3)}`);
-        console.log(`  - 移动距离: ${moveDistance.toFixed(3)}`);
-        console.log(`  - 小车调整后position.y: ${carModel.position.y.toFixed(3)}`);
-        console.log(`  - 验证：对齐误差 ${alignError.toFixed(6)} (应该≈0)`);
-        
-        if (Math.abs(alignError) > 0.001) {
-            console.warn(`⚠️ 对齐误差较大: ${alignError.toFixed(6)}`);
-        }
-    } else {
-        console.warn(`⚠️ 小车模型未找到，无法调整位置${logPrefix}`);
-    }
-    
-    // 3️⃣ 添加调试坐标轴（检查是否已存在，避免重复添加）
+    // 添加调试坐标轴（检查是否已存在，避免重复添加）
     if (!scene.getObjectByName('SandboxAxes')) {
         const sandboxAxes = new AxesHelper(8);
         sandboxAxes.name = 'SandboxAxes';
@@ -1436,7 +1401,7 @@ const alignSandboxAndCar = (sandboxModel, modelsMap, scene, loadMode = '') => {
         scene.add(centerAxes);
     }
     
-    console.log(`✅ 沙盘和小车位置对齐完成${logPrefix}`);
+    console.log(`✅ 沙盘位置对齐完成${logPrefix} (车辆模型将在连接时动态添加并对齐)`);
 };
 
 // 计算沙盘模型尺寸的工具函数

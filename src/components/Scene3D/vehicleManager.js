@@ -32,8 +32,9 @@ let loadingPromise = null;
 const getSharedDracoLoader = () => {
     if (!sharedDracoLoader) {
         sharedDracoLoader = new DRACOLoader();
-        sharedDracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
-        console.info('✅ DRACOLoader 单例已创建');
+        // 使用本地解码器文件（离线可用）
+        sharedDracoLoader.setDecoderPath('/draco/');
+        console.info('✅ DRACOLoader 单例已创建（本地解码器）');
     }
     return sharedDracoLoader;
 };

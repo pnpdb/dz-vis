@@ -133,7 +133,7 @@ import {
     removeStartPointMarker,
     removeEndPointMarker
 } from '@/components/Scene3D/index.js';
-import { findNearestFreeSlot, modelToVehicleCoordinates } from '@/utils/coordinateTransform.js';
+import { findNearestFreeSlot, modelToVehicleCoordinates, applyOffsetToSend } from '@/utils/coordinateTransform.js';
 
 const carStore = useCarStore();
 
@@ -273,7 +273,7 @@ const callTaxi = async () => {
             return;
         }
         
-        // 4. 将模型坐标转换为车辆坐标系（用于发送协议）
+        // 4. 将模型坐标转换为车辆坐标系
         const startVehicleCoords = modelToVehicleCoordinates(
             carStore.taxi.startCoords.x,
             carStore.taxi.startCoords.z
@@ -283,17 +283,21 @@ const callTaxi = async () => {
             carStore.taxi.endCoords.z
         );
         
-        // 5. 生成订单ID
+        // 5. 应用偏移量（发送坐标减偏移量）
+        const finalStartCoords = applyOffsetToSend(startVehicleCoords.x, startVehicleCoords.y);
+        const finalEndCoords = applyOffsetToSend(endVehicleCoords.x, endVehicleCoords.y);
+        
+        // 6. 生成订单ID
         const orderId = socketManager.generateOrderId();
         
-        // 6. 发送出租车订单给指定车辆（使用车辆坐标系）
+        // 7. 发送出租车订单给指定车辆（使用应用偏移后的车辆坐标系）
         const result = await socketManager.sendTaxiOrderToVehicle(
             orderId,
             assignedVehicleId,
-            startVehicleCoords.x,
-            startVehicleCoords.y,  // 车辆坐标系的Y
-            endVehicleCoords.x,
-            endVehicleCoords.y
+            finalStartCoords.x,
+            finalStartCoords.y,
+            finalEndCoords.x,
+            finalEndCoords.y
         );
         
         // 7. 发送成功，显示成功Toast

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { VehicleConnectionAPI } from '@/utils/vehicleAPI.js';
 import { normalizeVehicleList, parseVehicleId, compareVehicleId } from '@/utils/vehicleTypes.js';
-import { vehicleToModelCoordinates } from '@/utils/coordinateTransform.js';
+import { vehicleToModelCoordinates, applyOffsetToReceived } from '@/utils/coordinateTransform.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
 import { throttle } from '@/utils/throttle.js';
 import { deepClone } from '@/utils/stateManager.js';
@@ -167,13 +167,16 @@ export const useCarStore = defineStore('car', {
             const state = this.getOrCreateVehicleState(vehicleId);
             if (!state) return;
             
-            // 保存原始的车辆坐标系值（用于显示）
-            const originalPosition = vehicleInfo.position || state.state.position;
+            // 1️⃣ 获取原始坐标
+            const rawPosition = vehicleInfo.position || state.state.position;
+            
+            // 2️⃣ 应用坐标偏移量（接收坐标加偏移量）
+            const offsetPosition = applyOffsetToReceived(rawPosition.x, rawPosition.y);
             
             // 不可变更新运行状态（架构优化：避免直接修改，使用不可变更新）
             state.state = {
                 ...state.state,
-                position: originalPosition,  // 保存原始车辆坐标系（0-4.81, 0-2.81）
+                position: offsetPosition,  // 保存应用偏移后的车辆坐标系（用于显示）
                 speed: vehicleInfo.speed ?? state.state.speed,
                 battery: vehicleInfo.battery ?? state.state.battery,
                 gear: vehicleInfo.gear || state.state.gear,
@@ -195,14 +198,14 @@ export const useCarStore = defineStore('car', {
             // 触发状态更新事件（传递完整的车辆信息，包括传感器状态等）
             eventBus.emit(EVENTS.VEHICLE_INFO_UPDATE, {
                 vehicleId,
-                ...state.state,  // 展开所有状态字段（包含原始车辆坐标系的position）
+                ...state.state,  // 展开所有状态字段（包含应用偏移后的车辆坐标系position）
                 sensors: state.state.sensors || { camera: false, lidar: false, gyro: false }
             });
             
-            // 转换为模型坐标系（用于3D模型渲染）
+            // 3️⃣ 转换为模型坐标系（用于3D模型渲染）
             const modelCoords = vehicleToModelCoordinates(
-                originalPosition.x, 
-                originalPosition.y
+                offsetPosition.x, 
+                offsetPosition.y
             );
             const modelPosition = {
                 x: modelCoords.x,

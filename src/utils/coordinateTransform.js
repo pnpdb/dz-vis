@@ -33,6 +33,65 @@ export const PARKING_SLOTS = {
     2: { x: 3.93503, y: 0.72991 }   // 2号车位
 };
 
+// ============ 全局坐标偏移量管理 ============
+
+/**
+ * 坐标偏移量（单位：米）
+ * - 接收车辆坐标时：先加上偏移量，再转换为模型坐标
+ * - 发送车辆坐标时：转换为车辆坐标后，再减去偏移量
+ */
+let globalCoordinateOffset = {
+    x: 0,
+    y: 0
+};
+
+/**
+ * 设置全局坐标偏移量
+ * @param {number} offsetX - X轴偏移量（米，可正可负）
+ * @param {number} offsetY - Y轴偏移量（米，可正可负）
+ */
+export function setCoordinateOffset(offsetX, offsetY) {
+    globalCoordinateOffset.x = Number(offsetX) || 0;
+    globalCoordinateOffset.y = Number(offsetY) || 0;
+    console.info(`✅ [坐标偏移] 已设置: X=${globalCoordinateOffset.x}m, Y=${globalCoordinateOffset.y}m`);
+}
+
+/**
+ * 获取当前坐标偏移量
+ * @returns {{x: number, y: number}} 当前偏移量
+ */
+export function getCoordinateOffset() {
+    return { ...globalCoordinateOffset };
+}
+
+/**
+ * 应用偏移量到接收的坐标（加法）
+ * 用于处理从车端接收的坐标
+ * @param {number} x - 原始X坐标（车辆坐标系）
+ * @param {number} y - 原始Y坐标（车辆坐标系）
+ * @returns {{x: number, y: number}} 应用偏移后的坐标
+ */
+export function applyOffsetToReceived(x, y) {
+    return {
+        x: x + globalCoordinateOffset.x,
+        y: y + globalCoordinateOffset.y
+    };
+}
+
+/**
+ * 应用偏移量到发送的坐标（减法）
+ * 用于处理发送给车端的坐标
+ * @param {number} x - 原始X坐标（车辆坐标系）
+ * @param {number} y - 原始Y坐标（车辆坐标系）
+ * @returns {{x: number, y: number}} 应用偏移后的坐标
+ */
+export function applyOffsetToSend(x, y) {
+    return {
+        x: x - globalCoordinateOffset.x,
+        y: y - globalCoordinateOffset.y
+    };
+}
+
 // ============ 坐标转换函数 ============
 
 /**

@@ -106,7 +106,7 @@ import { ElMessage, ElDialog, ElButton } from 'element-plus';
 import { socketManager } from '@/utils/socketManager.js';
 import { useCarStore } from '@/stores/car.js';
 import { startPoseSelectionMode, stopPoseSelectionMode } from '@/components/Scene3D/index.js';
-import { modelToVehicleCoordinates } from '@/utils/coordinateTransform.js';
+import { modelToVehicleCoordinates, applyOffsetToSend } from '@/utils/coordinateTransform.js';
 
 const carStore = useCarStore();
 
@@ -251,10 +251,13 @@ const confirmPoseInitialization = () => {
     const modelPose = selectedPoseModelData.value;
     const vehicleId = selectedVehicleId.value;
     
-    // 转换为车辆坐标系发送
+    // 转换为车辆坐标系
     const vehicleCoords = modelToVehicleCoordinates(modelPose.x, modelPose.z);
     
-    executePoseInitialization(vehicleId, vehicleCoords.x, vehicleCoords.y, modelPose.orientation);
+    // 应用偏移量（发送坐标减偏移量）
+    const finalCoords = applyOffsetToSend(vehicleCoords.x, vehicleCoords.y);
+    
+    executePoseInitialization(vehicleId, finalCoords.x, finalCoords.y, modelPose.orientation);
     showPoseDialog.value = false;
 };
 

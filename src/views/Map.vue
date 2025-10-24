@@ -170,7 +170,7 @@ import { SEND_MESSAGE_TYPES, CONSTRUCTION_MARKER_PROTOCOL } from '@/constants/me
 import vehicleBridge from '@/utils/vehicleBridge.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
 import { TIMING } from '@/config/constants.js';
-import { modelToVehicleCoordinates } from '@/utils/coordinateTransform.js';
+import { modelToVehicleCoordinates, applyOffsetToSend } from '@/utils/coordinateTransform.js';
 import { useCarStore } from '@/stores/car.js';
 
 // 实时数据
@@ -362,14 +362,16 @@ const confirmConstructionPoint = async () => {
             // 转换为车辆坐标系用于广播
             const markersInVehicleCoords = allMarkers.map(marker => {
                 const vehicleCoords = modelToVehicleCoordinates(marker.modelX, marker.modelZ);
+                // 应用偏移量（发送坐标减偏移量）
+                const finalCoords = applyOffsetToSend(vehicleCoords.x, vehicleCoords.y);
                 return {
                     id: marker.id,
-                    x: vehicleCoords.x,  // 车辆坐标系
-                    z: vehicleCoords.y   // 车辆坐标系的Y映射到协议的Z
+                    x: finalCoords.x,  // 应用偏移后的车辆坐标系
+                    z: finalCoords.y   // 车辆坐标系的Y映射到协议的Z
                 };
             });
             
-            console.log('🚧 广播施工标记（车辆坐标系）:', markersInVehicleCoords);
+            console.log('🚧 广播施工标记（应用偏移后）:', markersInVehicleCoords);
             
             const result = await vehicleBridge.broadcastAllConstructionMarkers(markersInVehicleCoords);
             

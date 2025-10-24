@@ -142,7 +142,7 @@ class ErrorHandler {
             this.errorHistory.shift();
         }
     }
-    
+
     /**
      * 日志输出
      */
@@ -169,7 +169,7 @@ class ErrorHandler {
                 console.log(`[${error.category}]`, logData);
         }
     }
-    
+
     /**
      * 通知监听器
      */
@@ -182,7 +182,7 @@ class ErrorHandler {
             }
         });
     }
-    
+
     /**
      * 获取错误历史
      */
@@ -200,7 +200,7 @@ class ErrorHandler {
     clearHistory() {
         this.errorHistory = [];
     }
-    
+
     /**
      * 获取错误统计
      */
@@ -218,7 +218,7 @@ class ErrorHandler {
             // 按类别统计
             stats.byCategory[error.category] = (stats.byCategory[error.category] || 0) + 1;
         });
-        
+
         return stats;
     }
 }

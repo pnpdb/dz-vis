@@ -213,6 +213,36 @@
                 </el-tab-pane>
                 <el-tab-pane label="模型设置" name="model">
                     <el-form label-width="140px">
+                        <el-form-item label="坐标X轴偏移量">
+                            <el-input-number
+                                v-model="settings.coordinateOffsetX"
+                                :precision="3"
+                                :step="0.1"
+                                :min="-10"
+                                :max="10"
+                                controls-position="right"
+                                style="width: 200px"
+                            />
+                            <span style="margin-left: 8px; color: var(--text-secondary);">m</span>
+                            <div class="setting-description">
+                                接收坐标加此值，发送坐标减此值（可正可负）
+                            </div>
+                        </el-form-item>
+                        <el-form-item label="坐标Y轴偏移量">
+                            <el-input-number
+                                v-model="settings.coordinateOffsetY"
+                                :precision="3"
+                                :step="0.1"
+                                :min="-10"
+                                :max="10"
+                                controls-position="right"
+                                style="width: 200px"
+                            />
+                            <span style="margin-left: 8px; color: var(--text-secondary);">m</span>
+                            <div class="setting-description">
+                                接收坐标加此值，发送坐标减此值（可正可负）
+                            </div>
+                        </el-form-item>
                         <el-form-item label="显示坐标轴">
                             <el-switch 
                                 v-model="modelSettings.showAxes" 
@@ -584,7 +614,9 @@ const settings = ref({
     autoStart: false,
     logLevel: 'INFO',
     cacheSize: 1000,
-    appTitle: '渡众智能沙盘云控平台'
+    appTitle: '渡众智能沙盘云控平台',
+    coordinateOffsetX: 0,
+    coordinateOffsetY: 0
 });
 
 // 动态标题
@@ -873,8 +905,8 @@ const saveSettings = async () => {
             log_level: settings.value.logLevel,
             cache_size: settings.value.cacheSize,
             app_title: settings.value.appTitle,
-            coordinate_offset_x: 0.0,  // 保留字段但不再使用，坐标转换已改用新的工具
-            coordinate_offset_y: 0.0
+            coordinate_offset_x: settings.value.coordinateOffsetX || 0,
+            coordinate_offset_y: settings.value.coordinateOffsetY || 0
         };
         const res = await invoke('update_app_settings', { request: payload });
         
@@ -894,6 +926,12 @@ const saveSettings = async () => {
         // 更新动态标题
         appTitle.value = settings.value.appTitle;
         
+        // 同步坐标偏移量到coordinateTransform模块
+        import('@/utils/coordinateTransform.js').then(module => {
+            module.setCoordinateOffset(settings.value.coordinateOffsetX, settings.value.coordinateOffsetY);
+            console.info(`[坐标偏移] 已更新: X=${settings.value.coordinateOffsetX}m, Y=${settings.value.coordinateOffsetY}m`);
+        });
+        
         settingsDialogVisible.value = false;
     } catch (e) {
         console.error('❌ 保存应用设置失败:', e);
@@ -911,7 +949,9 @@ const resetSettings = () => {
         autoStart: false,
         logLevel: 'INFO',
         cacheSize: 1000,
-        appTitle: '渡众智能沙盘云控平台'
+        appTitle: '渡众智能沙盘云控平台',
+        coordinateOffsetX: 0,
+        coordinateOffsetY: 0
     };
     
     // 重置模型设置
@@ -1071,9 +1111,17 @@ onMounted(() => {
             settings.value.logLevel = (res.log_level || 'INFO').toUpperCase();
             settings.value.cacheSize = Number(res.cache_size ?? 1000);
             settings.value.appTitle = res.app_title || '渡众智能沙盘云控平台';
+            settings.value.coordinateOffsetX = Number(res.coordinate_offset_x ?? 0);
+            settings.value.coordinateOffsetY = Number(res.coordinate_offset_y ?? 0);
             
             // 同步动态标题
             appTitle.value = settings.value.appTitle;
+            
+            // 同步坐标偏移量到coordinateTransform模块
+            import('@/utils/coordinateTransform.js').then(module => {
+                module.setCoordinateOffset(settings.value.coordinateOffsetX, settings.value.coordinateOffsetY);
+                console.info(`[坐标偏移] 已加载: X=${settings.value.coordinateOffsetX}m, Y=${settings.value.coordinateOffsetY}m`);
+            });
             
             // 根据读取到的设置初始化前端日志级别
             if (settings.value?.logLevel) {

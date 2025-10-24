@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { VehicleConnectionAPI } from '@/utils/vehicleAPI.js';
 import { normalizeVehicleList, parseVehicleId, compareVehicleId } from '@/utils/vehicleTypes.js';
 import { vehicleToModelCoordinates } from '@/utils/coordinateTransform.js';
+import eventBus, { EVENTS } from '@/utils/eventBus.js';
 
 const filePath = localStorage.getItem('filePath') || '';
 
@@ -127,6 +128,12 @@ export const useCarStore = defineStore('car', {
                 // 清理导航状态
                 state.state.navigation = { code: 0, text: '未知状态' };
             }
+            
+            // 触发车辆连接状态变化事件（用于3D模型管理）
+            eventBus.emit(EVENTS.VEHICLE_CONNECTION_CHANGED, {
+                vehicleId,
+                isOnline
+            });
         },
         
         /**
@@ -138,22 +145,12 @@ export const useCarStore = defineStore('car', {
             const state = this.getOrCreateVehicleState(vehicleId);
             if (!state) return;
             
-            // 应用坐标系转换（车辆坐标系 → 模型坐标系）
-            let transformedPosition = vehicleInfo.position || state.state.position;
-            if (vehicleInfo.position) {
-                const modelCoords = vehicleToModelCoordinates(
-                    vehicleInfo.position.x, 
-                    vehicleInfo.position.y
-                );
-                transformedPosition = {
-                    x: modelCoords.x,
-                    y: modelCoords.z  // 车辆的Y对应模型的Z
-                };
-            }
+            // 保存原始的车辆坐标系值（用于显示）
+            const originalPosition = vehicleInfo.position || state.state.position;
             
-            // 更新运行状态
+            // 更新运行状态（保存原始车辆坐标系值）
             Object.assign(state.state, {
-                position: transformedPosition,
+                position: originalPosition,  // 保存原始车辆坐标系（0-4.81, 0-2.81）
                 speed: vehicleInfo.speed ?? state.state.speed,
                 battery: vehicleInfo.battery ?? state.state.battery,
                 gear: vehicleInfo.gear || state.state.gear,
@@ -168,6 +165,30 @@ export const useCarStore = defineStore('car', {
             if (vehicleInfo.parkingSlot !== undefined) {
                 state.parking.slotId = vehicleInfo.parkingSlot;
             }
+            
+            // 触发状态更新事件（传递完整的车辆信息，包括传感器状态等）
+            eventBus.emit(EVENTS.VEHICLE_INFO_UPDATE, {
+                vehicleId,
+                ...state.state,  // 展开所有状态字段（包含原始车辆坐标系的position）
+                sensors: state.state.sensors || { camera: false, lidar: false, gyro: false }
+            });
+            
+            // 转换为模型坐标系（用于3D模型渲染）
+            const modelCoords = vehicleToModelCoordinates(
+                originalPosition.x, 
+                originalPosition.y
+            );
+            const modelPosition = {
+                x: modelCoords.x,
+                z: modelCoords.z  // 车辆的Y对应模型的Z
+            };
+            
+            // 触发车辆状态更新事件（用于3D模型位置更新，传递模型坐标系）
+            eventBus.emit(EVENTS.VEHICLE_STATE_UPDATED, {
+                vehicleId,
+                position: modelPosition,  // 模型坐标系
+                orientation: vehicleInfo.orientation ?? state.state.orientation
+            });
         },
         
         /**

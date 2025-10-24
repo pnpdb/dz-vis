@@ -41,7 +41,16 @@ import {
     SRGBColorSpace,
 } from 'three';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
-import eventBus, { EVENTS } from '@/utils/eventBus.js'
+import eventBus, { EVENTS } from '@/utils/eventBus.js';
+import { 
+    initVehicleManager, 
+    addVehicle as addVehicleToScene, 
+    removeVehicle as removeVehicleFromScene, 
+    updateVehiclePosition as updateVehicleInScene,
+    clearAllVehicles,
+    getAllVehicleIds,
+    hasVehicle
+} from './vehicleManager.js';
 
 let scene, camera, container, renderer, controls, stats, clock;
 let models = new Map(); // 模型缓存
@@ -324,6 +333,9 @@ const initSceneCore = async () => {
         // 异步加载模型（不阻塞，带进度反馈）
         loadModelsWithProgress();
         
+        // 初始化车辆管理器
+        initVehicleManager(modelsGroup, models);
+        
         // 🔍 暴露调试对象到 window (仅开发环境)
         if (import.meta.env.DEV || true) {  // 暂时在所有环境都启用，便于诊断
             window.__scene3d__ = {
@@ -581,34 +593,34 @@ const loadModelsWithProgress = async () => {
     
     // 更新总进度的函数
     const updateTotalProgress = () => {
-        // 70% 基础场景 + 15% 小车模型 + 15% 沙盘模型 = 100%
-        const totalProgress = 70 + (carsProgress * 0.15) + (finalProgress * 0.15);
+        // 70% 基础场景 + 30% 沙盘模型 = 100% (不再加载小车模型)
+        const totalProgress = 70 + (finalProgress * 0.30);
         eventBus.emit(EVENTS.SCENE3D_PROGRESS, Math.round(totalProgress));
     };
 
-    // 异步加载小车模型
-    const loadCarsModel = async () => {
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                console.info('开始加载小车模型');
-                loadModelAsync(loader, '/models/car.glb', 'cars', {
-                    scale: 6,
-                    position: [0, 0, 0],  // 初始位置，稍后会根据沙盘自动调整
-                    priority: 'high'
-                }, (progress) => {
-                    carsProgress = progress;
-                    updateTotalProgress();
-                    console.debug(`小车模型加载进度: ${progress}%`);
-                }).then(() => {
-                    console.info('小车模型加载完成');
-                    resolve();
-                }).catch((error) => {
-                    console.error('小车模型加载失败:', error);
-                    resolve(); // 即使失败也继续
-                });
-            }, 100);
-        });
-    };
+    // 异步加载小车模型 - 已禁用，改为动态加载
+    // const loadCarsModel = async () => {
+    //     return new Promise((resolve) => {
+    //         setTimeout(() => {
+    //             console.info('开始加载小车模型');
+    //             loadModelAsync(loader, '/models/car.glb', 'cars', {
+    //                 scale: 6,
+    //                 position: [0, 0, 0],  // 初始位置，稍后会根据沙盘自动调整
+    //                 priority: 'high'
+    //             }, (progress) => {
+    //                 carsProgress = progress;
+    //                 updateTotalProgress();
+    //                 console.debug(`小车模型加载进度: ${progress}%`);
+    //             }).then(() => {
+    //                 console.info('小车模型加载完成');
+    //                 resolve();
+    //             }).catch((error) => {
+    //                 console.error('小车模型加载失败:', error);
+    //                 resolve(); // 即使失败也继续
+    //             });
+    //         }, 100);
+    //     });
+    // };
 
     // 异步加载沙盘模型
     const loadFinalModel = async () => {
@@ -668,14 +680,11 @@ const loadModelsWithProgress = async () => {
         });
     };
 
-    // 并行异步加载两个模型
+    // 加载沙盘模型（小车模型改为动态加载）
     try {
-        await Promise.all([
-            loadCarsModel(),
-            loadFinalModel()
-        ]);
+        await loadFinalModel();
         
-        console.info('所有模型加载完成');
+        console.info('沙盘模型加载完成');
         eventBus.emit(EVENTS.SCENE3D_PROGRESS, 100);
         
     } catch (error) {
@@ -695,15 +704,14 @@ const loadModels = () => {
 
     console.log('开始渐进式模型加载...');
 
-    // 渐进式加载：先加载小模型，再加载大模型
-     // 小模型加载不会阻塞界面交互
-     setTimeout(() => {
-         loadModel(loader, '/models/car.glb', 'cars', {
-             scale: 6,  // 小车模型缩放比例
-             position: [0, 0, 0],  // 初始位置，稍后会根据沙盘自动调整
-            priority: 'high'
-        });
-    }, 100);
+    // 渐进式加载：小车模型改为动态加载（当车辆连接时才加载）
+     // setTimeout(() => {
+     //     loadModel(loader, '/models/car.glb', 'cars', {
+     //         scale: 6,  // 小车模型缩放比例
+     //         position: [0, 0, 0],  // 初始位置，稍后会根据沙盘自动调整
+     //        priority: 'high'
+     //    });
+     //}, 100);
 
      // 延迟加载大模型，给界面更多响应时间
      setTimeout(() => {
@@ -2843,4 +2851,16 @@ export const clearTaxiPoints = () => {
     removeStartPointMarker();
     removeEndPointMarker();
     console.log('🚕 所有出租车路径标记已清除');
+};
+
+// ========================================
+// 🚗 导出车辆管理函数
+// ========================================
+export { 
+    addVehicleToScene as addVehicle, 
+    removeVehicleFromScene as removeVehicle, 
+    updateVehicleInScene as updateVehiclePosition,
+    clearAllVehicles,
+    getAllVehicleIds,
+    hasVehicle
 };

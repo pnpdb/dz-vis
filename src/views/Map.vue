@@ -165,12 +165,13 @@ import Scene3D from '@/components/Scene3D/index.vue';
 import VehicleTimeChart from '@/components/VehicleTimeChart.vue';
 import DrivingBehaviorChart from '@/components/DrivingBehaviorChart.vue';
 import { socketManager } from '@/utils/socketManager.js';
-import { startPoseSelectionMode, stopPoseSelectionMode, startPointSelectionMode, stopPointSelectionMode, createConstructionMarkerAt, removeConstructionMarker, getConstructionMarkersDetails } from '@/components/Scene3D/index.js';
+import { startPoseSelectionMode, stopPoseSelectionMode, startPointSelectionMode, stopPointSelectionMode, createConstructionMarkerAt, removeConstructionMarker, getConstructionMarkersDetails, addVehicle, removeVehicle, updateVehiclePosition } from '@/components/Scene3D/index.js';
 import { SEND_MESSAGE_TYPES, CONSTRUCTION_MARKER_PROTOCOL } from '@/constants/messageTypes.js';
 import vehicleBridge from '@/utils/vehicleBridge.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
 import { TIMING } from '@/config/constants.js';
 import { modelToVehicleCoordinates } from '@/utils/coordinateTransform.js';
+import { useCarStore } from '@/stores/car.js';
 
 // 实时数据
 const networkDelay = ref(12);
@@ -185,6 +186,9 @@ const serverStatus = ref({
 
 // 菜单可见性控制
 const showDrivingBehaviorChart = ref(true); // 默认显示，跟随"自动驾驶"菜单的可见性
+
+// 车辆状态管理
+const carStore = useCarStore();
 
 // 应用启动时间
 const appStartTime = Date.now();
@@ -247,6 +251,27 @@ const handleOnlineVehiclesCountChanged = ({ count, vehicleIds }) => {
     // console.debug(`📊 主界面在线车辆数量更新: ${count}台, 车辆ID: [${vehicleIds.join(', ')}]`)
 }
 
+// ============ 车辆模型动态管理 ============
+// 监听车辆状态更新
+const handleVehicleStateUpdate = (vehicleInfo) => {
+    const { vehicleId, position, orientation } = vehicleInfo;
+    
+    // position 已经是模型坐标系了（从 car.js 转换后传递过来的）
+    // 直接使用即可，不需要再次转换
+    addVehicle(vehicleId, position, orientation).catch(error => {
+        console.error(`添加/更新车辆 ${vehicleId} 失败:`, error);
+    });
+};
+
+// 监听车辆连接状态
+const handleVehicleConnectionChange = ({ vehicleId, isOnline }) => {
+    if (!isOnline) {
+        // 车辆断开连接，移除模型
+        removeVehicle(vehicleId);
+        console.info(`🚗 车辆 ${vehicleId} 断开连接，已从场景移除`);
+    }
+};
+
 onMounted(() => {
     updateData()
     dataUpdateInterval = setInterval(updateData, TIMING.DATA_UPDATE_INTERVAL)
@@ -255,6 +280,12 @@ onMounted(() => {
     serverStatusInterval = setInterval(updateServerStatus, TIMING.SERVER_STATUS_INTERVAL)
 
     eventBus.on(EVENTS.ONLINE_VEHICLES_COUNT_CHANGED, handleOnlineVehiclesCountChanged)
+    
+    // 监听车辆状态更新（用于更新模型位置）
+    eventBus.on(EVENTS.VEHICLE_STATE_UPDATED, handleVehicleStateUpdate)
+    
+    // 监听车辆连接状态变化（用于添加/移除模型）
+    eventBus.on(EVENTS.VEHICLE_CONNECTION_CHANGED, handleVehicleConnectionChange)
 
     onlineVehicles.value = socketManager.getOnlineVehicleCount()
     console.debug(`🚗 初始在线车辆数量: ${onlineVehicles.value}台`)
@@ -269,6 +300,8 @@ onBeforeUnmount(() => {
     }
 
     eventBus.off(EVENTS.ONLINE_VEHICLES_COUNT_CHANGED, handleOnlineVehiclesCountChanged)
+    eventBus.off(EVENTS.VEHICLE_STATE_UPDATED, handleVehicleStateUpdate)
+    eventBus.off(EVENTS.VEHICLE_CONNECTION_CHANGED, handleVehicleConnectionChange)
 })
 
 // 交互：发送事件给3D场景

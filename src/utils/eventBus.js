@@ -5,6 +5,8 @@ export const EVENTS = {
     VEHICLE_CONNECTION_STATUS: 'vehicle-connection-status',
     REQUEST_VEHICLE_STATUS: 'request-vehicle-status',
     ONLINE_VEHICLES_COUNT_CHANGED: 'online-vehicles-count-changed',
+    VEHICLE_STATE_UPDATED: 'vehicle-state-updated',  // 车辆状态更新（位置、朝向等）
+    VEHICLE_CONNECTION_CHANGED: 'vehicle-connection-changed',  // 车辆连接状态变化
     CONSTRUCTION_MARKER_ADDED: 'construction-marker-added',
     CONSTRUCTION_MARKER_REMOVED: 'construction-marker-removed',
     FPS_UPDATE: 'fps-update',

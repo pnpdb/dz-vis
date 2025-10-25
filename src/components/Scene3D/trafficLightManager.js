@@ -373,9 +373,10 @@ function turnOffAllLights(index) {
     // 熄灭红灯（只控制发光，保持原始底色）
     if (light.redLight && light.redLight.material) {
         // 恢复原始底色
-        if (light.redLight.originalColor) {
-            light.redLight.material.color.copy(light.redLight.originalColor);
-        }
+        // if (light.redLight.originalColor) {
+        //     light.redLight.material.color.copy(light.redLight.originalColor);
+        // }
+        light.redLight.material.color.setHex(0x770000);  // 很暗的红色
         // 关闭发光
         light.redLight.material.emissive.setHex(0x000000);
         light.redLight.material.emissiveIntensity = LIGHT_OFF_INTENSITY;
@@ -384,10 +385,11 @@ function turnOffAllLights(index) {
     
     // 熄灭黄灯
     if (light.yellowLight && light.yellowLight.material) {
-        // 恢复原始底色
-        if (light.yellowLight.originalColor) {
-            light.yellowLight.material.color.copy(light.yellowLight.originalColor);
-        }
+        // // 恢复原始底色
+        // if (light.yellowLight.originalColor) {
+        //     light.yellowLight.material.color.copy(light.yellowLight.originalColor);
+        // }
+        light.yellowLight.material.color.setHex(0x007700);  // 很暗的黄色
         // 关闭发光
         light.yellowLight.material.emissive.setHex(0x000000);
         light.yellowLight.material.emissiveIntensity = LIGHT_OFF_INTENSITY;
@@ -396,10 +398,11 @@ function turnOffAllLights(index) {
     
     // 熄灭绿灯
     if (light.greenLight && light.greenLight.material) {
-        // 恢复原始底色
-        if (light.greenLight.originalColor) {
-            light.greenLight.material.color.copy(light.greenLight.originalColor);
-        }
+        // // 恢复原始底色
+        // if (light.greenLight.originalColor) {
+        //     light.greenLight.material.color.copy(light.greenLight.originalColor);
+        // }
+        light.greenLight.material.color.setHex(0x777700);  // 很暗的绿色
         // 关闭发光
         light.greenLight.material.emissive.setHex(0x000000);
         light.greenLight.material.emissiveIntensity = LIGHT_OFF_INTENSITY;
@@ -441,7 +444,7 @@ export function setTrafficLightState(index, color, countdown) {
         case TRAFFIC_LIGHT_COLORS.RED:
             if (light.redLight && light.redLight.material) {
                 // 亮灯时：底色用中等红色，发光用鲜艳红色，适中强度
-                light.redLight.material.color.setHex(0x880000);     // 中等红色底色
+                light.redLight.material.color.setHex(0x550000);     // 中等红色底色
                 light.redLight.material.emissive.setHex(0xff0000);  // 鲜艳红色发光
                 light.redLight.material.emissiveIntensity = LIGHT_ON_INTENSITY;
                 light.redLight.material.needsUpdate = true;
@@ -457,7 +460,7 @@ export function setTrafficLightState(index, color, countdown) {
         case TRAFFIC_LIGHT_COLORS.GREEN:
             if (light.greenLight && light.greenLight.material) {
                 // 亮灯时：底色用中等绿色，发光用鲜艳绿色，适中强度
-                light.greenLight.material.color.setHex(0x008800);   // 中等绿色底色
+                light.greenLight.material.color.setHex(0x550000);   // 中等绿色底色
                 light.greenLight.material.emissive.setHex(0x00ff00);  // 鲜艳绿色发光
                 light.greenLight.material.emissiveIntensity = LIGHT_ON_INTENSITY;
                 light.greenLight.material.needsUpdate = true;
@@ -473,7 +476,7 @@ export function setTrafficLightState(index, color, countdown) {
         case TRAFFIC_LIGHT_COLORS.YELLOW:
             if (light.yellowLight && light.yellowLight.material) {
                 // 亮灯时：底色用中等黄色，发光用鲜艳黄色，适中强度
-                light.yellowLight.material.color.setHex(0x888800);   // 中等黄色底色
+                light.yellowLight.material.color.setHex(0x550000);   // 中等黄色底色
                 light.yellowLight.material.emissive.setHex(0xffff00);  // 鲜艳黄色发光
                 light.yellowLight.material.emissiveIntensity = LIGHT_ON_INTENSITY;
                 light.yellowLight.material.needsUpdate = true;

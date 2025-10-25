@@ -268,13 +268,73 @@ pub fn run() {
             batch_check_vehicle_states,
             // 批量操作命令
             batch_send_to_vehicles,
-            batch_broadcast_to_vehicles
+            batch_broadcast_to_vehicles,
+            // 路径数据命令
+            get_merged_path_data,
+            get_loaded_paths_info,
+            reload_all_paths
         ])
         .setup(move |app| {
             info!("应用启动: {}", env!("CARGO_PKG_NAME"));
 
             // 输出端口配置信息
             config::AppConfig::global().ports.log_config();
+
+            // 初始化路径加载器并预加载所有路径文件
+            info!("🚀 初始化路径加载器...");
+            let app_handle = app.handle().clone();
+            
+            // 在开发模式下，使用项目根目录的 public/routes
+            // 在生产模式下，使用资源目录的 routes
+            let routes_dir = if cfg!(debug_assertions) {
+                // 开发模式：使用项目根目录的 public/routes
+                let current_dir = std::env::current_dir().expect("无法获取当前目录");
+                info!("当前工作目录: {:?}", current_dir);
+                
+                // 尝试几个可能的路径
+                let possible_paths = vec![
+                    current_dir.join("public").join("routes"),              // 如果当前在项目根目录
+                    current_dir.parent().unwrap().join("public").join("routes"), // 如果当前在 src-tauri
+                ];
+                
+                let dev_routes = possible_paths.into_iter()
+                    .find(|p| p.exists())
+                    .unwrap_or_else(|| current_dir.join("public").join("routes"));
+                
+                info!("🔧 开发模式 - 路径文件目录: {:?}", dev_routes);
+                dev_routes
+            } else {
+                // 生产模式：使用资源目录
+                let prod_routes = app_handle
+                    .path()
+                    .resource_dir()
+                    .expect("无法获取资源目录")
+                    .join("routes");
+                info!("📦 生产模式 - 路径文件目录: {:?}", prod_routes);
+                prod_routes
+            };
+            
+            // 检查目录是否存在
+            if !routes_dir.exists() {
+                error!("❌ 路径文件目录不存在: {:?}", routes_dir);
+            } else {
+                info!("✅ 路径文件目录存在: {:?}", routes_dir);
+            }
+            
+            let path_loader = services::path_loader::PathLoader::new(routes_dir);
+            
+            // 预加载所有路径文件
+            match path_loader.preload_all_paths() {
+                Ok(count) => {
+                    info!("✅ 成功预加载 {} 个路径文件", count);
+                }
+                Err(e) => {
+                    error!("❌ 路径文件预加载失败: {}", e);
+                }
+            }
+            
+            // 将路径加载器注册为全局状态
+            app.manage(path_loader);
             #[cfg(desktop)]
             {
                 use tauri_plugin_autostart::MacosLauncher;

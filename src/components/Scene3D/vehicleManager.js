@@ -177,7 +177,7 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
         modelAdded = true;
         vehicleModels.set(vehicleId, vehicleModel);
 
-        console.info(`✅ 车辆 ${vehicleId} 已添加到场景 位置: (${position.x?.toFixed(2) ?? 'N/A'}, ${position.z?.toFixed(2) ?? 'N/A'})`);
+        // console.info(`✅ 车辆 ${vehicleId} 已添加到场景 位置: (${position.x?.toFixed(2) ?? 'N/A'}, ${position.z?.toFixed(2) ?? 'N/A'})`);
         return vehicleModel;
 
     } catch (error) {
@@ -214,7 +214,7 @@ export const removeVehicle = (vehicleId) => {
         });
 
         vehicleModels.delete(vehicleId);
-        console.info(`✅ 车辆 ${vehicleId} 已从场景移除并释放资源`);
+        // console.info(`✅ 车辆 ${vehicleId} 已从场景移除并释放资源`);
         return true;
     }
     return false;

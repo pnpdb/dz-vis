@@ -25,6 +25,7 @@ import { logger } from '@/utils/logger.js';
 import { invoke } from '@tauri-apps/api/core';
 import { debug as jsDebug, info as jsInfo, warn as jsWarn, error as jsError } from '@tauri-apps/plugin-log';
 import { loadMessageTypesConfig } from '@/constants/messageTypesLoader.js';
+import { initPathManager } from '@/utils/pathManager.js';
 
 // 在Tauri环境启动时初始化配置
 if (Environment.isTauri()) {
@@ -77,6 +78,9 @@ app.component('fa', FontAwesomeIcon);
 
 // 挂载应用
 const mountedApp = app.mount('#app');
+
+// 初始化路径管理器
+initPathManager();
 
 // 初始化应用数据
 async function initializeApp() {

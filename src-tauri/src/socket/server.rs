@@ -399,6 +399,27 @@ impl SocketServer {
             } else {
                 return None;
             }
+        } else if message.message_type == MessageTypes::PATH_FILE_SELECTION {
+            // 处理路径文件选择协议（0x0003）
+            let mut parser = ProcessingProtocolParser::new(false);
+            let result = parser.parse_protocol(message.message_type, &message.data);
+            if result.success {
+                if let Some(ParsedProtocolData::PathFileSelection(selection)) = result.data {
+                    info!(
+                        "路径文件选择 - 车辆ID: {}, 路径数量: {}, 路径编号: {:?}",
+                        selection.vehicle_id,
+                        selection.path_file_ids.len(),
+                        selection.path_file_ids
+                    );
+                    parsed_payload = Some(serde_json::json!({
+                        "type": "path_file_selection",
+                        "vehicle_id": selection.vehicle_id,
+                        "path_file_ids": selection.path_file_ids
+                    }));
+                }
+            } else if let Some(err) = result.error {
+                warn!("路径文件选择解析失败: {}", err);
+            }
         } else if message.message_type == MessageTypes::SANDBOX_TRAFFIC_LIGHT_STATUS {
             let mut parser = ProcessingProtocolParser::new(false);
             let result = parser.parse_protocol(message.message_type, &message.data);

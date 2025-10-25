@@ -55,6 +55,7 @@ import { VehicleConnectionAPI } from '@/utils/vehicleAPI.js';
 import { socketManager } from '@/utils/socketManager.js';
 import { ElMessage } from 'element-plus';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
+import { pathEnabledVehicles, enablePath, disablePath, enablePaths, clearAllPaths } from '@/utils/pathManager.js';
 
 const selectedCar = ref('');
 const showAllPaths = ref(false);
@@ -62,8 +63,7 @@ const vehicleList = ref([]);
 const loading = ref(false);
 const isRestoringState = ref(false); // 防止递归更新的标志位
 
-// 保存当前开启路径显示的车辆ID集合
-const pathEnabledVehicles = ref(new Set());
+// 使用全局的 pathEnabledVehicles (从 pathManager.js)
 
 // 计算按钮文字：根据选中车辆是否在 map 中
 const pathButtonText = computed(() => {
@@ -82,7 +82,7 @@ const handleVehicleConnectionStatus = (payload) => {
     // 只有在"显示所有路径"开启时，才自动添加新连接的车辆
     if (isConnected && showAllPaths.value) {
         console.log(`车辆 ${carId} 已连接，自动开启路径显示`);
-        pathEnabledVehicles.value.add(carId);
+        enablePath(carId); // 使用全局方法
         
         // 发送路径显示指令给新连接的车辆
         socketManager.sendVehiclePathDisplay(carId, 1).catch(error => {
@@ -153,20 +153,26 @@ const handleViewVehiclePath = async () => {
         // 如果已开启，则关闭（第二个字节为0）；如果未开启，则开启（第二个字节为1）
         const displayPath = isPathEnabled ? 0 : 1;
         
+        // 【重要】先更新本地状态，再发送协议
+        // 因为车端收到协议后会立即返回0x0003，此时需要确保车辆已在集合中
+        if (isPathEnabled) {
+            // 关闭路径显示，从集合中移除
+            disablePath(selectedCar.value);
+        } else {
+            // 开启路径显示，添加到集合中
+            enablePath(selectedCar.value);
+        }
+        
         // 发送车辆路径显示控制指令
         await socketManager.sendVehiclePathDisplay(selectedCar.value, displayPath);
         
-        // 更新路径显示集合
+        // 显示提示消息
         if (isPathEnabled) {
-            // 关闭路径显示，从集合中移除
-            pathEnabledVehicles.value.delete(selectedCar.value);
             ElMessage.success({
                 message: '已关闭车辆路径显示',
                 duration: 3000
             });
         } else {
-            // 开启路径显示，添加到集合中
-            pathEnabledVehicles.value.add(selectedCar.value);
             ElMessage.success({
                 message: '已开启车辆路径显示',
                 duration: 3000
@@ -209,9 +215,7 @@ watch(showAllPaths, async (newValue, oldValue) => {
             }
             
             // 将所有在线车辆添加到路径显示集合
-            onlineVehicleIds.forEach(id => {
-                pathEnabledVehicles.value.add(id);
-            });
+            enablePaths(onlineVehicleIds); // 使用全局方法
             
             // 批量发送路径显示控制指令给所有在线车辆
             await socketManager.sendBatchVehiclePathDisplay(onlineVehicleIds, 1);
@@ -221,15 +225,17 @@ watch(showAllPaths, async (newValue, oldValue) => {
                 duration: 3000
             });
         } else {
-            // 关闭操作：清空路径显示集合
+            // 关闭操作：先获取需要关闭的车辆列表
             const vehicleIdsToDisable = Array.from(pathEnabledVehicles.value);
-            pathEnabledVehicles.value.clear();
             
             // 如果没有车辆需要关闭，静默跳过
             if (vehicleIdsToDisable.length === 0) {
                 console.log('没有开启路径显示的车辆，跳过关闭操作');
                 return;
             }
+            
+            // 【重要】先清空路径显示集合，再发送协议
+            clearAllPaths();
             
             // 批量发送关闭指令给所有之前开启的车辆
             await socketManager.sendBatchVehiclePathDisplay(vehicleIdsToDisable, 0);

@@ -10,6 +10,7 @@ pub mod video_processing;
 pub mod protocol_processing;
 pub mod protocol_config;
 pub mod vehicle_state;
+pub mod path;
 
 // 导出命令供 lib.rs 使用
 pub use system::{
@@ -75,4 +76,11 @@ pub use protocol_config::{
 pub use vehicle_state::{
     is_vehicle_state_changed,
     batch_check_vehicle_states,
+};
+
+// 路径数据命令
+pub use path::{
+    get_merged_path_data,
+    get_loaded_paths_info,
+    reload_all_paths,
 };

@@ -20,7 +20,8 @@ export const EVENTS = {
     VIDEO_STREAM_TIMEOUT: 'video-stream-timeout',
     SANDBOX_CONNECTION_STATUS: 'sandbox-connection-status',
     SOCKET_SERVER_STARTED: 'socket-server-started',
-    MENU_VISIBILITY_CHANGED: 'menu-visibility-changed'
+    MENU_VISIBILITY_CHANGED: 'menu-visibility-changed',
+    VEHICLE_PATH_UPDATE: 'vehicle-path-update'  // 车辆路径更新（用于绘制路径）
 };
 
 const eventBus = {

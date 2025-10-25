@@ -12,6 +12,7 @@
 export const RECEIVE_MESSAGE_TYPES = {
     HEARTBEAT: 0x0001,           // 心跳包
     VEHICLE_INFO: 0x0002,        // 车辆信息协议（车辆编号+速度+位置+电量+传感器状态）
+    PATH_FILE_SELECTION: 0x0003, // 路径文件选择（车辆发送路径编号列表）
 };
 
 // 发送消息类型 (发送给客户端)

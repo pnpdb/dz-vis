@@ -51,6 +51,11 @@ import {
     getAllVehicleIds,
     hasVehicle
 } from './vehicleManager.js';
+import { 
+    initPathRenderer, 
+    destroyPathRenderer,
+    clearAllPaths
+} from './pathRenderer.js';
 
 let scene, camera, container, renderer, controls, stats, clock;
 let models = new Map(); // 模型缓存
@@ -335,6 +340,10 @@ const initSceneCore = async () => {
         
         // 初始化车辆管理器
         initVehicleManager(modelsGroup, models);
+        
+        // 注意：路径渲染器需要在沙盘模型加载完成后才能正确初始化
+        // 所以在这里先不初始化，等沙盘加载完成后再初始化
+        // initPathRenderer(scene, modelsGroup);
         
         // 🔍 暴露调试对象到 window (仅开发环境)
         if (import.meta.env.DEV || true) {  // 暂时在所有环境都启用，便于诊断
@@ -643,6 +652,10 @@ const loadModelsWithProgress = async () => {
                     // 获取加载的沙盘模型并计算尺寸
                     const sandboxModel = models.get('sandbox');
                     if (sandboxModel) {
+                        // 初始化路径渲染器（现在沙盘模型已加载）
+                        initPathRenderer(scene, sandboxModel);
+                        console.log('✅ 路径渲染器已初始化（使用沙盘模型）');
+                        
                         // 🔍 添加详细的模型调试信息
                         console.log('🔍 沙盘模型调试信息:');
                         console.log('  - 位置:', sandboxModel.position);

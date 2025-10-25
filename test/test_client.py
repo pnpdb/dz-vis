@@ -21,6 +21,7 @@ VERSION = 0x10
 RECEIVE_MESSAGE_TYPES = {
     'HEARTBEAT': 0x0001,        # 心跳包
     'VEHICLE_INFO': 0x0002,     # 车辆信息协议（新协议）
+    'PATH_FILE_SELECTION': 0x0003,  # 路径文件选择
 }
 
 # 发送消息类型 (发送给客户端)
@@ -673,6 +674,30 @@ class TestClient:
         thread.start()
         print(" 数据模拟发送已启动")
         
+    def send_path_file_selection(self, path_ids):
+        """
+        发送路径文件选择协议 (0x0003)
+        数据域: 车辆编号(1字节) + 路径编号列表(N字节)
+        """
+        try:
+            # 构建数据域
+            data = bytearray()
+            data.append(self.vehicle_id)  # 车辆编号
+            data.extend(path_ids)         # 路径编号列表
+            
+            # 发送协议
+            if self.send_message(RECEIVE_MESSAGE_TYPES['PATH_FILE_SELECTION'], bytes(data)):
+                print(f"🛣️ [发送] 路径文件选择 (0x0003):")
+                print(f"   车辆ID: {self.vehicle_id}")
+                print(f"   路径编号: {path_ids}")
+                return True
+            else:
+                print(f"❌ 发送路径文件选择失败")
+                return False
+        except Exception as e:
+            print(f"❌ 发送路径文件选择异常: {e}")
+            return False
+    
     def listen_for_commands(self):
         """监听服务器命令"""
         def listen_loop():
@@ -843,6 +868,8 @@ class TestClient:
                 if path_info['vehicle_id'] == self.vehicle_id:
                     if path_info['display_path'] == 1:
                         print(f" 车辆{self.vehicle_id}开始发送路径数据到服务端")
+                        # 收到开启路径显示指令后，主动发送路径文件选择（0x0003）
+                        self.send_path_file_selection([1, 2, 3, 4, 5, 6, 7, 8])
                     else:
                         print(f" 车辆{self.vehicle_id}停止发送路径数据到服务端")
                 else:

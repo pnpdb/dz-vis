@@ -4,4 +4,5 @@
 
 pub mod vehicle;
 pub mod sandbox;
+pub mod path_loader;
 

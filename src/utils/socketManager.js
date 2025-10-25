@@ -195,8 +195,13 @@ class SocketManager {
                 socketLogger.warn(`收到的车辆信息缺少解析数据 - 车辆: ${carId}`);
                 return;
             }
-            socketLogger.info(`收到车辆信息 - 车辆: ${carId}`);
+            // socketLogger.info(`收到车辆信息 - 车辆: ${carId}`);
             this.updateVehicleInfoFromParsed(carId, parsed, timestamp);
+        });
+
+        // 路径文件选择协议处理（0x0003）
+        this.setMessageHandler(RECEIVE_MESSAGE_TYPES.PATH_FILE_SELECTION, async (carId, parsed, timestamp) => {
+            await this.handlePathFileSelection(carId, parsed, timestamp);
         });
     }
 
@@ -471,7 +476,7 @@ class SocketManager {
                 timestamp: Date.now()
         });
         
-        socketLogger.info(`车辆连接状态更新 - 车辆: ${carId}, 状态: ${isConnected ? '连接' : '断开'}, 在线数量: ${store.getOnlineVehicleCount()}`);
+        // socketLogger.info(`车辆连接状态更新 - 车辆: ${carId}, 状态: ${isConnected ? '连接' : '断开'}, 在线数量: ${store.getOnlineVehicleCount()}`);
     }
 
     /**
@@ -747,6 +752,47 @@ class SocketManager {
         } catch (error) {
             socketLogger.error(`发送车辆功能设置指令失败 - 车辆: ${vehicleId}:`, error);
             throw error;
+        }
+    }
+
+    /**
+     * 处理路径文件选择协议（0x0003）
+     * @param {number} carId - 车辆ID
+     * @param {Object} parsed - 解析后的路径选择数据
+     * @param {number} timestamp - 时间戳
+     */
+    async handlePathFileSelection(carId, parsed, timestamp) {
+        try {
+            // 调试：输出 parsed 对象的完整内容
+            socketLogger.debug(`收到路径文件选择原始数据 - 车辆: ${carId}, parsed:`, JSON.stringify(parsed));
+            
+            // 检查 parsed 对象
+            if (!parsed) {
+                socketLogger.error(`路径文件选择数据为空 - 车辆: ${carId}`);
+                return;
+            }
+            
+            const pathFileIds = parsed.path_file_ids || [];
+            socketLogger.info(`收到路径文件选择 - 车辆: ${carId}, 路径编号: [${pathFileIds.join(', ')}], 数量: ${pathFileIds.length}`);
+            
+            // 检查路径编号列表
+            if (pathFileIds.length === 0) {
+                socketLogger.warn(`车辆 ${carId} 的路径编号列表为空`);
+                return;
+            }
+            
+            // 发送事件到 pathManager
+            eventBus.emit(EVENTS.VEHICLE_PATH_UPDATE, {
+                vehicleId: carId,
+                pathFileIds: pathFileIds,
+                timestamp
+            });
+            
+            socketLogger.debug(`✅ 路径选择事件已发送 - 车辆: ${carId}`);
+        } catch (error) {
+            socketLogger.error(`处理路径文件选择失败 - 车辆: ${carId}:`, error);
+            socketLogger.error(`错误详情: ${error.message || '未知错误'}`);
+            socketLogger.error(`错误堆栈:`, error.stack || '无堆栈信息');
         }
     }
 

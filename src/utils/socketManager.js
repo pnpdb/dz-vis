@@ -181,14 +181,6 @@ class SocketManager {
     handleIncomingMessage(payload) {
         const { vehicle_id, message_type, timestamp, parsed } = payload;
         
-        // 🔍 特殊调试：红绿灯协议
-        if (message_type === 0x3001) {
-            socketLogger.info(`🚦 收到红绿灯协议 0x3001`);
-            socketLogger.info(`   vehicle_id: ${vehicle_id}`);
-            socketLogger.info(`   timestamp: ${timestamp}`);
-            socketLogger.info(`   parsed:`, JSON.stringify(parsed, null, 2));
-        }
-        
         socketLogger.debug(`收到消息 - 车辆: ${vehicle_id}, 类型: 0x${message_type.toString(16).toUpperCase()}`);
         socketLogger.trace?.('socket-message payload', { ...payload, parsed });
         
@@ -203,17 +195,14 @@ class SocketManager {
         // 调用对应的消息处理器
         const handler = this.messageHandlers.get(message_type);
         if (handler) {
-            socketLogger.info(`📞 找到消息类型 ${typeName} 的处理器，准备调用`);
             try {
                 handler(vehicle_id, parsed, timestamp);
-                socketLogger.info(`✅ 消息类型 ${typeName} 处理器调用完成`);
             } catch (error) {
                 socketLogger.error(`处理消息类型 ${typeName} 失败:`, error);
                 plError(`处理消息类型 ${typeName} 失败: ${error}`).catch(() => {});
             }
         } else {
             socketLogger.warn(`未找到消息类型 ${typeName} (0x${message_type.toString(16)}) 的处理器`);
-            socketLogger.warn(`当前已注册的处理器数量: ${this.messageHandlers.size}`);
         }
     }
 
@@ -856,11 +845,6 @@ class SocketManager {
      * @param {number} timestamp - 时间戳
      */
     async handleTrafficLightStatus(carId, parsed, timestamp) {
-        socketLogger.info(`🚦 [handleTrafficLightStatus] 被调用`);
-        socketLogger.info(`   carId: ${carId}`);
-        socketLogger.info(`   parsed:`, parsed);
-        socketLogger.info(`   timestamp: ${timestamp}`);
-        
         try {
             if (!parsed) {
                 socketLogger.error(`红绿灯状态数据为空`);
@@ -869,7 +853,6 @@ class SocketManager {
 
             // 从解析数据中提取两组红绿灯的状态
             const lights = parsed.lights || [];
-            socketLogger.info(`   lights 数量: ${lights.length}`);
             
             if (lights.length < 2) {
                 socketLogger.warn(`红绿灯状态数据不完整，需要2组数据，实际收到: ${lights.length}组`);

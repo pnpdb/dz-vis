@@ -302,25 +302,40 @@ impl ProtocolParser {
 
     /// 解析沙盘红绿灯状态协议
     fn parse_sandbox_traffic_light_status(&mut self, data: &[u8]) -> Result<ParsedProtocolData, ProtocolError> {
-        if data.is_empty() {
-            return Ok(ParsedProtocolData::SandboxTrafficLightStatus(SandboxTrafficLightStatusData { lights: Vec::new() }));
+        // 协议格式：每组2字节（1字节颜色 + 1字节倒计时），2组共4字节
+        const BYTES_PER_GROUP: usize = 2;
+        const NUM_GROUPS: usize = 2;
+        const EXPECTED_SIZE: usize = BYTES_PER_GROUP * NUM_GROUPS;
+
+        if data.len() < EXPECTED_SIZE {
+            return Err(ProtocolError::InsufficientData {
+                required: EXPECTED_SIZE,
+                actual: data.len(),
+            });
         }
 
-        if data.len() % 2 != 0 {
-            return Err(ProtocolError::InvalidPayloadLength { length: data.len() });
-        }
-
-        let count = data.len() / 2;
-        let mut lights = Vec::with_capacity(count);
-        for i in 0..count {
-            let color = data[i * 2];
-            let remaining = data[i * 2 + 1];
+        let mut lights = Vec::with_capacity(NUM_GROUPS);
+        
+        // 解析每组数据
+        for i in 0..NUM_GROUPS {
+            let offset = i * BYTES_PER_GROUP;
+            let color = data[offset];
+            let remaining = data[offset + 1];  // 1字节倒计时
+            
             lights.push(SandboxTrafficLightState {
-                index: (i + 1) as u8,
+                index: i as u8,  // 0 = 1组(6个红绿灯), 1 = 2组(2个红绿灯)
                 color,
                 remaining,
             });
         }
+
+        log::info!(
+            "解析红绿灯状态: 组0(1组-6个灯)={}/{}, 组1(2组-2个灯)={}/{}",
+            lights[0].color,
+            lights[0].remaining,
+            lights[1].color,
+            lights[1].remaining
+        );
 
         Ok(ParsedProtocolData::SandboxTrafficLightStatus(SandboxTrafficLightStatusData { lights }))
     }

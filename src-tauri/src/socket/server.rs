@@ -260,7 +260,17 @@ impl SocketServer {
                                 if let Some(parser) = sandbox_parser.as_mut() {
                                     parser.feed_data(&buffer[..n]);
                                     while let Ok(Some(message)) = parser.try_parse_message() {
+                                        // 记录日志
                                         sandbox_logger::handle_parsed_message(&message);
+                                        // 发送到前端
+                                        Self::handle_message(
+                                            message,
+                                            vehicle_id,
+                                            &vehicle_name,
+                                            &app_handle,
+                                            vehicle_state.clone(),
+                                            connections.clone(),
+                                        ).await;
                                     }
                                 }
                             } else {

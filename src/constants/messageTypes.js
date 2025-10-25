@@ -10,9 +10,10 @@
 // 接收消息类型 (从客户端接收)
 // 这些是默认值，实际值在应用启动时从Rust加载
 export const RECEIVE_MESSAGE_TYPES = {
-    HEARTBEAT: 0x0001,           // 心跳包
-    VEHICLE_INFO: 0x0002,        // 车辆信息协议（车辆编号+速度+位置+电量+传感器状态）
-    PATH_FILE_SELECTION: 0x0003, // 路径文件选择（车辆发送路径编号列表）
+    HEARTBEAT: 0x0001,                      // 心跳包
+    VEHICLE_INFO: 0x0002,                   // 车辆信息协议（车辆编号+速度+位置+电量+传感器状态）
+    PATH_FILE_SELECTION: 0x0003,            // 路径文件选择（车辆发送路径编号列表）
+    SANDBOX_TRAFFIC_LIGHT_STATUS: 0x3001,   // 沙盘红绿灯状态（沙盘服务发送）
 };
 
 // 发送消息类型 (发送给客户端)
@@ -221,6 +222,32 @@ export const SANDBOX_LIGHTING_PROTOCOL = {
     STATUS_ON: 1,
 };
 
+// 沙盘红绿灯状态协议数据域定义 (4字节)
+// 协议包含2个红绿灯组的状态（每组2字节）
+export const SANDBOX_TRAFFIC_LIGHT_PROTOCOL = {
+    // 红绿灯组1（索引为1组，包含6个红绿灯）
+    GROUP1_COLOR_OFFSET: 0,      // 组1灯光颜色偏移 (1字节, UINT8): 1=红 2=绿 3=黄
+    GROUP1_COUNTDOWN_OFFSET: 1,  // 组1倒计时偏移 (1字节, UINT8): 剩余秒数 (0-255)
+    
+    // 红绿灯组2（索引为2组，包含2个红绿灯）
+    GROUP2_COLOR_OFFSET: 2,      // 组2灯光颜色偏移 (1字节, UINT8): 1=红 2=绿 3=黄
+    GROUP2_COUNTDOWN_OFFSET: 3,  // 组2倒计时偏移 (1字节, UINT8): 剩余秒数 (0-255)
+    
+    TOTAL_SIZE: 4,               // 总大小 4字节
+    
+    // 灯光颜色定义
+    COLOR_RED: 1,                // 红灯
+    COLOR_GREEN: 2,              // 绿灯
+    COLOR_YELLOW: 3,             // 黄灯
+    
+    // 颜色名称映射
+    COLOR_NAMES: {
+        1: '红灯',
+        2: '绿灯',
+        3: '黄灯'
+    }
+};
+
 // 协议常量
 export const PROTOCOL_CONSTANTS = {
     HEADER: [0xEF, 0xEF, 0xEF, 0xEF],        // 帧头
@@ -283,6 +310,7 @@ export default {
     VEHICLE_CAMERA_PROTOCOL,
     CONSTRUCTION_MARKER_PROTOCOL,
     SANDBOX_LIGHTING_PROTOCOL,
+    SANDBOX_TRAFFIC_LIGHT_PROTOCOL,
     PROTOCOL_CONSTANTS,
     MessageTypeUtils
 };

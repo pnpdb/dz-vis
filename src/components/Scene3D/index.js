@@ -56,6 +56,12 @@ import {
     destroyPathRenderer,
     clearAllPaths
 } from './pathRenderer.js';
+import {
+    initTrafficLightManager,
+    updateTrafficLightGroup,
+    destroyTrafficLightManager,
+    isInitialized as isTrafficLightManagerInitialized
+} from './trafficLightManager.js';
 
 let scene, camera, container, renderer, controls, stats, clock;
 let models = new Map(); // 模型缓存
@@ -655,6 +661,14 @@ const loadModelsWithProgress = async () => {
                         // 初始化路径渲染器（现在沙盘模型已加载）
                         initPathRenderer(scene, sandboxModel);
                         console.log('✅ 路径渲染器已初始化（使用沙盘模型）');
+                        
+                        // 初始化红绿灯管理器
+                        const trafficLightInitSuccess = initTrafficLightManager(sandboxModel);
+                        if (trafficLightInitSuccess) {
+                            console.log('✅ 红绿灯管理器已初始化');
+                        } else {
+                            console.warn('⚠️ 红绿灯管理器初始化失败');
+                        }
                         
                         // 🔍 添加详细的模型调试信息
                         console.log('🔍 沙盘模型调试信息:');
@@ -2869,5 +2883,7 @@ export {
     updateVehicleInScene as updateVehiclePosition,
     clearAllVehicles,
     getAllVehicleIds,
-    hasVehicle
+    hasVehicle,
+    updateTrafficLightGroup,
+    isTrafficLightManagerInitialized
 };

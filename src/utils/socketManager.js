@@ -7,7 +7,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import vehicleBridge from '@/utils/vehicleBridge.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
-import { RECEIVE_MESSAGE_TYPES, MessageTypeUtils, VEHICLE_CONTROL_PROTOCOL, SEND_MESSAGE_TYPES, AVP_PARKING_PROTOCOL, VEHICLE_CAMERA_PROTOCOL, DATA_RECORDING_PROTOCOL, SANDBOX_LIGHTING_PROTOCOL } from '@/constants/messageTypes.js';
+import { RECEIVE_MESSAGE_TYPES, MessageTypeUtils, VEHICLE_CONTROL_PROTOCOL, SEND_MESSAGE_TYPES, AVP_PARKING_PROTOCOL, VEHICLE_CAMERA_PROTOCOL, DATA_RECORDING_PROTOCOL, SANDBOX_LIGHTING_PROTOCOL, SANDBOX_TRAFFIC_LIGHT_PROTOCOL } from '@/constants/messageTypes.js';
 import { ElMessage } from 'element-plus';
 import { createLogger, logger } from '@/utils/logger.js';
 import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log';
@@ -181,11 +181,21 @@ class SocketManager {
     handleIncomingMessage(payload) {
         const { vehicle_id, message_type, timestamp, parsed } = payload;
         
+        // 🔍 特殊调试：红绿灯协议
+        if (message_type === 0x3001) {
+            socketLogger.info(`🚦 收到红绿灯协议 0x3001`);
+            socketLogger.info(`   vehicle_id: ${vehicle_id}`);
+            socketLogger.info(`   timestamp: ${timestamp}`);
+            socketLogger.info(`   parsed:`, JSON.stringify(parsed, null, 2));
+        }
+        
         socketLogger.debug(`收到消息 - 车辆: ${vehicle_id}, 类型: 0x${message_type.toString(16).toUpperCase()}`);
         socketLogger.trace?.('socket-message payload', { ...payload, parsed });
         
-        // 更新车辆连接状态为在线
-        this.updateVehicleStatus(vehicle_id, true);
+        // 只有车辆消息才更新车辆状态（沙盘消息的 vehicle_id 可能无效）
+        if (vehicle_id && vehicle_id > 0) {
+            this.updateVehicleStatus(vehicle_id, true);
+        }
         
         // 获取消息类型名称
         const typeName = MessageTypeUtils.getReceiveTypeName(message_type);
@@ -193,14 +203,17 @@ class SocketManager {
         // 调用对应的消息处理器
         const handler = this.messageHandlers.get(message_type);
         if (handler) {
+            socketLogger.info(`📞 找到消息类型 ${typeName} 的处理器，准备调用`);
             try {
                 handler(vehicle_id, parsed, timestamp);
+                socketLogger.info(`✅ 消息类型 ${typeName} 处理器调用完成`);
             } catch (error) {
                 socketLogger.error(`处理消息类型 ${typeName} 失败:`, error);
                 plError(`处理消息类型 ${typeName} 失败: ${error}`).catch(() => {});
             }
         } else {
             socketLogger.warn(`未找到消息类型 ${typeName} (0x${message_type.toString(16)}) 的处理器`);
+            socketLogger.warn(`当前已注册的处理器数量: ${this.messageHandlers.size}`);
         }
     }
 
@@ -227,6 +240,11 @@ class SocketManager {
         // 路径文件选择协议处理（0x0003）
         this.setMessageHandler(RECEIVE_MESSAGE_TYPES.PATH_FILE_SELECTION, async (carId, parsed, timestamp) => {
             await this.handlePathFileSelection(carId, parsed, timestamp);
+        });
+
+        // 沙盘红绿灯状态协议处理（0x3001）
+        this.setMessageHandler(RECEIVE_MESSAGE_TYPES.SANDBOX_TRAFFIC_LIGHT_STATUS, async (carId, parsed, timestamp) => {
+            await this.handleTrafficLightStatus(carId, parsed, timestamp);
         });
     }
 
@@ -826,6 +844,61 @@ class SocketManager {
             });
         } catch (error) {
             socketLogger.error(`处理路径文件选择失败 - 车辆: ${carId}:`, error);
+            socketLogger.error(`错误详情: ${error.message || '未知错误'}`);
+            socketLogger.error(`错误堆栈:`, error.stack || '无堆栈信息');
+        }
+    }
+
+    /**
+     * 处理沙盘红绿灯状态协议（0x3001）
+     * @param {number} carId - 车辆ID（沙盘消息此参数无效，可忽略）
+     * @param {Object} parsed - 解析后的红绿灯状态数据
+     * @param {number} timestamp - 时间戳
+     */
+    async handleTrafficLightStatus(carId, parsed, timestamp) {
+        socketLogger.info(`🚦 [handleTrafficLightStatus] 被调用`);
+        socketLogger.info(`   carId: ${carId}`);
+        socketLogger.info(`   parsed:`, parsed);
+        socketLogger.info(`   timestamp: ${timestamp}`);
+        
+        try {
+            if (!parsed) {
+                socketLogger.error(`红绿灯状态数据为空`);
+                return;
+            }
+
+            // 从解析数据中提取两组红绿灯的状态
+            const lights = parsed.lights || [];
+            socketLogger.info(`   lights 数量: ${lights.length}`);
+            
+            if (lights.length < 2) {
+                socketLogger.warn(`红绿灯状态数据不完整，需要2组数据，实际收到: ${lights.length}组`);
+                return;
+            }
+
+            socketLogger.info(
+                `收到红绿灯状态 - ` +
+                `1组(6个): ${SANDBOX_TRAFFIC_LIGHT_PROTOCOL.COLOR_NAMES[lights[0].color] || '未知'} ${lights[0].remaining}秒, ` +
+                `2组(2个): ${SANDBOX_TRAFFIC_LIGHT_PROTOCOL.COLOR_NAMES[lights[1].color] || '未知'} ${lights[1].remaining}秒`
+            );
+
+            // 动态导入 Scene3D 模块（避免循环依赖）
+            const { updateTrafficLightGroup, isTrafficLightManagerInitialized } = await import('@/components/Scene3D/index.js');
+            
+            // 检查红绿灯管理器是否已初始化
+            if (!isTrafficLightManagerInitialized()) {
+                socketLogger.warn('红绿灯管理器未初始化，跳过更新');
+                return;
+            }
+
+            // 更新两组红绿灯状态
+            // lights[0] -> 1组（6个红绿灯）-> groupIndex = 1
+            // lights[1] -> 2组（2个红绿灯）-> groupIndex = 0
+            updateTrafficLightGroup(1, lights[0].color, lights[0].remaining);
+            updateTrafficLightGroup(0, lights[1].color, lights[1].remaining);
+
+        } catch (error) {
+            socketLogger.error(`处理红绿灯状态失败:`, error);
             socketLogger.error(`错误详情: ${error.message || '未知错误'}`);
             socketLogger.error(`错误堆栈:`, error.stack || '无堆栈信息');
         }

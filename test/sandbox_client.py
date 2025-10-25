@@ -35,11 +35,12 @@ def build_traffic_light_packet(lights: list) -> bytes:
     """
     构建红绿灯数据包
     :param lights: [(color, remaining), ...] 灯的状态列表
+    协议格式：每组2字节 (1字节颜色 + 1字节倒计时)，2组共4字节
     """
     payload = bytearray()
     for color, remaining in lights:
-        payload.append(color)
-        payload.append(remaining)
+        payload.append(color)      # 1字节：颜色 (1=红, 2=绿, 3=黄)
+        payload.append(remaining)  # 1字节：剩余秒数 (0-255)
 
     timestamp = int(time.time() * 1000)
     message_type = 0x3001

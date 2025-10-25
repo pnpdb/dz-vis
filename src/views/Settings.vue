@@ -42,24 +42,54 @@
 
             <button class="btn btn-secondary" @click="handleViewVehiclePath">
                 <fa icon="route" />
-                查看车辆路径
+                {{ pathButtonText }}
             </button>
         </div>
     </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed, onBeforeUnmount } from 'vue';
 // import CarSettings from '@/components/CarSettings.vue';  // 车辆设置已禁用
 import { VehicleConnectionAPI } from '@/utils/vehicleAPI.js';
 import { socketManager } from '@/utils/socketManager.js';
 import { ElMessage } from 'element-plus';
+import eventBus, { EVENTS } from '@/utils/eventBus.js';
 
 const selectedCar = ref('');
 const showAllPaths = ref(false);
 const vehicleList = ref([]);
 const loading = ref(false);
 const isRestoringState = ref(false); // 防止递归更新的标志位
+
+// 保存当前开启路径显示的车辆ID集合
+const pathEnabledVehicles = ref(new Set());
+
+// 计算按钮文字：根据选中车辆是否在 map 中
+const pathButtonText = computed(() => {
+    if (!selectedCar.value) {
+        return '查看车辆路径';
+    }
+    return pathEnabledVehicles.value.has(selectedCar.value) 
+        ? '关闭全局路径' 
+        : '查看车辆路径';
+});
+
+// 处理车辆连接事件
+const handleVehicleConnectionStatus = (payload) => {
+    const { carId, isConnected } = payload;
+    
+    // 只有在"显示所有路径"开启时，才自动添加新连接的车辆
+    if (isConnected && showAllPaths.value) {
+        console.log(`车辆 ${carId} 已连接，自动开启路径显示`);
+        pathEnabledVehicles.value.add(carId);
+        
+        // 发送路径显示指令给新连接的车辆
+        socketManager.sendVehiclePathDisplay(carId, 1).catch(error => {
+            console.error(`为新连接车辆 ${carId} 开启路径显示失败:`, error);
+        });
+    }
+};
 
 // 加载车辆连接数据
 const loadVehicleConnections = async () => {
@@ -117,14 +147,31 @@ const handleViewVehiclePath = async () => {
     }
 
     try {
-        // 发送车辆路径显示控制指令（开启路径发送）
-        await socketManager.sendVehiclePathDisplay(selectedCar.value, 1);
+        // 判断车辆是否已经在路径显示集合中
+        const isPathEnabled = pathEnabledVehicles.value.has(selectedCar.value);
         
-        // 成功提示
-        ElMessage.success({
-            message: '车辆路径显示指令发送成功',
-            duration: 3000
-        });
+        // 如果已开启，则关闭（第二个字节为0）；如果未开启，则开启（第二个字节为1）
+        const displayPath = isPathEnabled ? 0 : 1;
+        
+        // 发送车辆路径显示控制指令
+        await socketManager.sendVehiclePathDisplay(selectedCar.value, displayPath);
+        
+        // 更新路径显示集合
+        if (isPathEnabled) {
+            // 关闭路径显示，从集合中移除
+            pathEnabledVehicles.value.delete(selectedCar.value);
+            ElMessage.success({
+                message: '已关闭车辆路径显示',
+                duration: 3000
+            });
+        } else {
+            // 开启路径显示，添加到集合中
+            pathEnabledVehicles.value.add(selectedCar.value);
+            ElMessage.success({
+                message: '已开启车辆路径显示',
+                duration: 3000
+            });
+        }
         
     } catch (error) {
         console.error('发送车辆路径显示指令失败:', error);
@@ -147,34 +194,51 @@ watch(showAllPaths, async (newValue, oldValue) => {
         // 获取所有在线车辆
         const onlineVehicleIds = socketManager.getOnlineVehicleIds();
         
-        // 如果是打开操作（从 false 到 true），检查是否有在线车辆
-        if (newValue && onlineVehicleIds.length === 0) {
-            ElMessage.warning({
-                message: '当前未有车辆在线',
+        // 如果是打开操作（从 false 到 true）
+        if (newValue) {
+            // 检查是否有在线车辆
+            if (onlineVehicleIds.length === 0) {
+                ElMessage.warning({
+                    message: '当前未有车辆在线',
+                    duration: 3000
+                });
+                // 恢复开关到关闭状态
+                isRestoringState.value = true;
+                showAllPaths.value = false;
+                return;
+            }
+            
+            // 将所有在线车辆添加到路径显示集合
+            onlineVehicleIds.forEach(id => {
+                pathEnabledVehicles.value.add(id);
+            });
+            
+            // 批量发送路径显示控制指令给所有在线车辆
+            await socketManager.sendBatchVehiclePathDisplay(onlineVehicleIds, 1);
+            
+            ElMessage.success({
+                message: `已开启 ${onlineVehicleIds.length} 辆车的路径显示`,
                 duration: 3000
             });
-            // 恢复开关到关闭状态
-            isRestoringState.value = true;
-            showAllPaths.value = false;
-            return;
+        } else {
+            // 关闭操作：清空路径显示集合
+            const vehicleIdsToDisable = Array.from(pathEnabledVehicles.value);
+            pathEnabledVehicles.value.clear();
+            
+            // 如果没有车辆需要关闭，静默跳过
+            if (vehicleIdsToDisable.length === 0) {
+                console.log('没有开启路径显示的车辆，跳过关闭操作');
+                return;
+            }
+            
+            // 批量发送关闭指令给所有之前开启的车辆
+            await socketManager.sendBatchVehiclePathDisplay(vehicleIdsToDisable, 0);
+            
+            ElMessage.success({
+                message: `已关闭 ${vehicleIdsToDisable.length} 辆车的路径显示`,
+                duration: 3000
+            });
         }
-        
-        // 如果是关闭操作且没有在线车辆，静默跳过
-        if (!newValue && onlineVehicleIds.length === 0) {
-            console.log('没有在线车辆，跳过批量路径显示指令发送');
-            return;
-        }
-        
-        // 批量发送路径显示控制指令给所有在线车辆
-        const displayPath = newValue ? 1 : 0;
-        await socketManager.sendBatchVehiclePathDisplay(onlineVehicleIds, displayPath);
-        
-        ElMessage.success({
-            message: newValue 
-                ? `已开启 ${onlineVehicleIds.length} 辆车的路径显示` 
-                : `已关闭 ${onlineVehicleIds.length} 辆车的路径显示`,
-            duration: 3000
-        });
     } catch (error) {
         console.error('批量发送路径显示指令失败:', error);
         ElMessage.error({
@@ -187,9 +251,18 @@ watch(showAllPaths, async (newValue, oldValue) => {
     }
 });
 
-// 组件挂载时加载数据
+// 组件挂载时加载数据和监听事件
 onMounted(() => {
     loadVehicleConnections();
+    
+    // 监听车辆连接状态变化事件
+    eventBus.on(EVENTS.VEHICLE_CONNECTION_STATUS, handleVehicleConnectionStatus);
+});
+
+// 组件卸载时移除事件监听
+onBeforeUnmount(() => {
+    // 移除事件监听，防止内存泄漏
+    eventBus.off(EVENTS.VEHICLE_CONNECTION_STATUS, handleVehicleConnectionStatus);
 });
 </script>
 

@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """
 沙盘客户端测试程序
-连接到界面端(Tauri Socket服务器)，接收沙盘相关协议并打印信息。
+连接到界面端(Tauri Socket服务器)，发送红绿灯状态并接收沙盘相关协议。
 
-支持:
+发送协议:
+- 0x3001: 红绿灯状态（2个灯，每秒发送一次）
+  - 1号灯：红10秒 -> 黄10秒 -> 绿5秒（循环）
+  - 2号灯：绿10秒 -> 黄5秒 -> 红10秒（循环）
+
+接收协议:
 - 0x2001: 自动/平行驾驶模式
 - 0x2002: 红绿灯时长设置
+- 0x2003: 沙盘灯光控制
 
 使用方式:
   python3 sandbox_client.py [host] [port]
@@ -25,13 +31,11 @@ FOOTER = b'\xFE\xFE\xFE\xFE'
 
 LIGHT_COLORS = [1, 2, 3]  # 1:红, 2:绿, 3:黄
 
-def build_traffic_light_packet(light_count: int) -> bytes:
-    lights = []
-    for idx in range(light_count):
-        color = random.choice(LIGHT_COLORS)
-        remaining = random.randint(5, 30)
-        lights.append((color, remaining))
-
+def build_traffic_light_packet(lights: list) -> bytes:
+    """
+    构建红绿灯数据包
+    :param lights: [(color, remaining), ...] 灯的状态列表
+    """
     payload = bytearray()
     for color, remaining in lights:
         payload.append(color)
@@ -85,29 +89,85 @@ def parse_packet(packet: bytes):
         'data': data,
     }
 
-def send_traffic_light_loop(sock, light_count):
+def send_traffic_light_loop(sock, _unused=None):
+    """
+    发送红绿灯状态，每秒一次
+    1号灯：红10秒 -> 黄10秒 -> 绿5秒
+    2号灯：绿10秒 -> 黄5秒 -> 红10秒
+    """
+    # 1号灯状态机：[(颜色, 持续时间)]
+    light1_cycle = [
+        (1, 10),  # 红10秒
+        (3, 10),  # 黄10秒
+        (2, 5),   # 绿5秒
+    ]
+    
+    # 2号灯状态机：[(颜色, 持续时间)]
+    light2_cycle = [
+        (2, 10),  # 绿10秒
+        (3, 5),   # 黄5秒
+        (1, 10),  # 红10秒
+    ]
+    
+    # 初始化状态
+    light1_state_idx = 0  # 当前处于哪个状态
+    light1_remaining = light1_cycle[0][1]  # 当前状态剩余秒数
+    
+    light2_state_idx = 0
+    light2_remaining = light2_cycle[0][1]
+    
+    print(f"🚦 开始发送红绿灯状态（每秒一次）")
+    print(f"   1号灯：红10秒 -> 黄10秒 -> 绿5秒")
+    print(f"   2号灯：绿10秒 -> 黄5秒 -> 红10秒")
+    
     while True:
-        actual_count = light_count if light_count else random.randint(1, 3)
-        packet = build_traffic_light_packet(actual_count)
+        # 获取当前状态
+        light1_color = light1_cycle[light1_state_idx][0]
+        light2_color = light2_cycle[light2_state_idx][0]
+        
+        # 构建灯状态列表
+        lights = [
+            (light1_color, light1_remaining),
+            (light2_color, light2_remaining),
+        ]
+        
+        # 发送数据包
+        packet = build_traffic_light_packet(lights)
         try:
             sock.sendall(packet)
+            color_names = {1: '红', 2: '绿', 3: '黄'}
+            print(f"📤 1号灯:{color_names[light1_color]}({light1_remaining}s), 2号灯:{color_names[light2_color]}({light2_remaining}s)")
         except Exception as e:
             print(f"❌ 发送 0x3001 失败: {e}")
             break
+        
+        # 等待1秒
         time.sleep(1)
+        
+        # 更新剩余时间
+        light1_remaining -= 1
+        light2_remaining -= 1
+        
+        # 1号灯状态切换
+        if light1_remaining <= 0:
+            light1_state_idx = (light1_state_idx + 1) % len(light1_cycle)
+            light1_remaining = light1_cycle[light1_state_idx][1]
+        
+        # 2号灯状态切换
+        if light2_remaining <= 0:
+            light2_state_idx = (light2_state_idx + 1) % len(light2_cycle)
+            light2_remaining = light2_cycle[light2_state_idx][1]
 
 
 def main():
     host = sys.argv[1] if len(sys.argv) > 1 else '192.168.1.12'
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 8888
-    light_count = int(sys.argv[3]) if len(sys.argv) > 3 else 0
-    light_count = max(0, min(light_count, 3))
 
     print(f"🧪 沙盘客户端连接 {host}:{port}")
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((host, port))
 
-    sender_thread = threading.Thread(target=send_traffic_light_loop, args=(s, light_count), daemon=True)
+    sender_thread = threading.Thread(target=send_traffic_light_loop, args=(s, None), daemon=True)
     sender_thread.start()
 
     try:

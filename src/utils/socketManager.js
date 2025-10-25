@@ -58,6 +58,31 @@ class SocketManager {
     }
 
     /**
+     * 转换颜色格式：rgb(r, g, b) 或 #RRGGBB -> #RRGGBB
+     * @param {string} color - 颜色字符串
+     * @returns {string|null} 十六进制颜色或null
+     */
+    convertColorToHex(color) {
+        if (!color) return null;
+        
+        // 已经是十六进制格式
+        if (color.startsWith('#')) {
+            return color;
+        }
+        
+        // rgb(r, g, b) 格式
+        const rgbMatch = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+        if (rgbMatch) {
+            const r = parseInt(rgbMatch[1]);
+            const g = parseInt(rgbMatch[2]);
+            const b = parseInt(rgbMatch[3]);
+            return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+        }
+        
+        return null;
+    }
+
+    /**
      * 启动Socket服务器
      */
     async startServer() {
@@ -781,14 +806,24 @@ class SocketManager {
                 return;
             }
             
-            // 发送事件到 pathManager
+            // 获取车辆颜色（从 carStore.carList）
+            let vehicleColor = null;
+            const carStore = this.ensureCarStore();
+            if (carStore && Array.isArray(carStore.carList)) {
+                const vehicle = carStore.carList.find(v => v.id === carId);
+                if (vehicle && vehicle.color) {
+                    // 转换颜色格式：rgb(r, g, b) -> #RRGGBB
+                    vehicleColor = this.convertColorToHex(vehicle.color);
+                }
+            }
+            
+            // 发送事件到 pathManager（包含颜色信息）
             eventBus.emit(EVENTS.VEHICLE_PATH_UPDATE, {
                 vehicleId: carId,
                 pathFileIds: pathFileIds,
+                color: vehicleColor,
                 timestamp
             });
-            
-            socketLogger.debug(`✅ 路径选择事件已发送 - 车辆: ${carId}`);
         } catch (error) {
             socketLogger.error(`处理路径文件选择失败 - 车辆: ${carId}:`, error);
             socketLogger.error(`错误详情: ${error.message || '未知错误'}`);

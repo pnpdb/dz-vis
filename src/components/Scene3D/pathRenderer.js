@@ -77,10 +77,10 @@ export function destroyPathRenderer() {
 
 /**
  * 处理路径绘制事件
- * @param {Object} payload - 事件载荷
+ * @param {Object} payload - 事件载荷 {vehicleId, pathPoints, color?, timestamp}
  */
 function handlePathDraw(payload) {
-    const { vehicleId, pathPoints, timestamp } = payload;
+    const { vehicleId, pathPoints, color, timestamp } = payload;
     
     logger.info(`绘制车辆路径 - 车辆: ${vehicleId}, 点数: ${pathPoints.length}`);
     
@@ -95,8 +95,8 @@ function handlePathDraw(payload) {
             removePath(vehicleId);
         }
         
-        // 创建新的路径
-        createPath(vehicleId, pathPoints);
+        // 创建新的路径（传递颜色）
+        createPath(vehicleId, pathPoints, color);
         
         logger.info(`✅ 车辆 ${vehicleId} 的路径已绘制`);
     } catch (error) {
@@ -125,8 +125,9 @@ function handlePathClear(payload) {
  * 创建路径线（使用 Line2 支持粗线）
  * @param {number} vehicleId - 车辆ID
  * @param {Array} pathPoints - 路径点数组 [{x, y, z}, ...]
+ * @param {string} color - 车辆颜色（可选，格式：#RRGGBB）
  */
-function createPath(vehicleId, pathPoints) {
+function createPath(vehicleId, pathPoints, color = null) {
     // 将路径点转换为扁平数组 [x1, y1, z1, x2, y2, z2, ...]
     const positions = [];
     pathPoints.forEach(p => {
@@ -137,11 +138,14 @@ function createPath(vehicleId, pathPoints) {
     const geometry = new LineGeometry();
     geometry.setPositions(positions);
     
-    // 获取车辆颜色（十六进制数字）
-    const colorHex = getVehicleColor(vehicleId);
-    
-    // 转换为 THREE.Color 对象
-    const colorObj = new THREE.Color(colorHex);
+    // 获取车辆颜色
+    let colorObj;
+    if (color) {
+        colorObj = new THREE.Color(color);
+    } else {
+        const colorHex = getVehicleColor(vehicleId);
+        colorObj = new THREE.Color(colorHex);
+    }
     
     // 创建 LineMaterial（支持粗线）
     const material = new LineMaterial({

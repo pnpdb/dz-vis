@@ -86,6 +86,7 @@ export const normalizeVehicleData = (vehicleData) => {
     name: vehicleData.name || `车辆${vehicleId}`,
     ipAddress: vehicleData.ipAddress || vehicleData.ip_address,
     port: vehicleData.port,
+    color: vehicleData.color, // 车辆颜色
     isActive: Boolean(vehicleData.isActive || vehicleData.is_active),
     position: vehicleData.position || { x: 0, y: 0 },
     speed: Number(vehicleData.speed) || 0,

@@ -150,6 +150,15 @@ const handleViewVehiclePath = async () => {
         // 判断车辆是否已经在路径显示集合中
         const isPathEnabled = pathEnabledVehicles.value.has(selectedCar.value);
         
+        // 如果"显示所有路径"已开启，且用户尝试关闭单个车辆路径，则阻止操作
+        if (showAllPaths.value && isPathEnabled) {
+            ElMessage.warning({
+                message: '当前所有路径显示处于启用状态',
+                duration: 3000
+            });
+            return;
+        }
+        
         // 如果已开启，则关闭（第二个字节为0）；如果未开启，则开启（第二个字节为1）
         const displayPath = isPathEnabled ? 0 : 1;
         

@@ -74,7 +74,7 @@ export function enablePaths(vehicleIds) {
  */
 export async function handleVehiclePathUpdate(payload) {
     try {
-        const { vehicleId, pathFileIds, timestamp } = payload;
+        const { vehicleId, pathFileIds, color, timestamp } = payload;
         
         logger.info(`处理车辆路径更新 - 车辆: ${vehicleId}, 路径编号: [${pathFileIds.join(', ')}]`);
         
@@ -130,6 +130,7 @@ export async function handleVehiclePathUpdate(payload) {
         eventBus.emit('vehicle-path-draw', {
             vehicleId,
             pathPoints: modelPoints,
+            color: color, // 传递车辆颜色（可能为 null，pathRenderer 会使用默认颜色）
             timestamp
         });
         

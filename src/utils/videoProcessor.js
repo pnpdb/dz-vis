@@ -5,7 +5,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { logger } from './logger.js';
-import { TIMING } from '@/config/constants.js';
+import { TIMING } from '@/constants';
 
 /**
  * 视频处理器类

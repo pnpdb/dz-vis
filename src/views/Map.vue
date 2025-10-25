@@ -169,7 +169,7 @@ import { startPoseSelectionMode, stopPoseSelectionMode, startPointSelectionMode,
 import { SEND_MESSAGE_TYPES, CONSTRUCTION_MARKER_PROTOCOL } from '@/constants/messageTypes.js';
 import vehicleBridge from '@/utils/vehicleBridge.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
-import { TIMING } from '@/config/constants.js';
+import { TIMING } from '@/constants';
 import { modelToVehicleCoordinates, applyOffsetToSend } from '@/utils/coordinateTransform.js';
 import { useCarStore } from '@/stores/car.js';
 

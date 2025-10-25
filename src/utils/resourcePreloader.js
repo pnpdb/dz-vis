@@ -4,7 +4,7 @@
  */
 
 import { logger } from '@/utils/logger';
-import { TIMING } from '@/config/constants.js';
+import { TIMING } from '@/constants';
 
 /**
  * 预加载图片

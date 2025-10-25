@@ -8,6 +8,7 @@ import { createLogger } from './logger.js';
 import eventBus, { EVENTS } from './eventBus.js';
 import { invoke } from '@tauri-apps/api/core';
 import { getCoordinateOffset, vehicleToModelCoordinates, applyOffsetToReceived } from './coordinateTransform.js';
+import { getRoadSurfaceY } from '@/components/Scene3D/index.js';
 
 const logger = createLogger('PathManager');
 
@@ -111,13 +112,16 @@ export async function handleVehiclePathUpdate(payload) {
         
         logger.info(`✅ 成功获取车辆 ${vehicleId} 的路径数据 - ${result.point_count} 个点`);
         
+        // 获取道路表面高度
+        const roadY = getRoadSurfaceY();
+        
         // 将路径点转换为模型坐标系
         const modelPoints = result.points.map(point => {
             // point已经包含了偏移量，直接转换为模型坐标
             const modelCoords = vehicleToModelCoordinates(point.x, point.y);
             return {
                 x: modelCoords.x,
-                y: 0.05, // 路径线的高度（稍微抬高避免Z-fighting）
+                y: roadY + 0.01, // 使用道路表面高度，稍微抬高避免Z-fighting
                 z: modelCoords.z
             };
         });

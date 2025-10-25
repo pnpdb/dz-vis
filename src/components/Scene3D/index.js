@@ -1630,6 +1630,29 @@ export const getSandboxDimensionsInfo = () => {
     return calculateSandboxDimensions(sandboxModel);
 };
 
+// ============ 道路表面高度管理 ============
+let cachedRoadSurfaceY = null; // 缓存道路表面高度
+
+/**
+ * 获取沙盘道路表面的Y坐标（局部坐标系）
+ * @returns {number} 道路表面的Y坐标
+ */
+export const getRoadSurfaceY = () => {
+    if (cachedRoadSurfaceY !== null) {
+        return cachedRoadSurfaceY;
+    }
+    
+    const sandboxModel = models.get('sandbox');
+    if (sandboxModel) {
+        const box = new Box3().setFromObject(sandboxModel);
+        cachedRoadSurfaceY = box.min.y;
+        return cachedRoadSurfaceY;
+    }
+    
+    // 沙盘未加载时返回默认值
+    return 0;
+};
+
 // ============ 标记管理（施工标记、起点、终点） ============
 let constructionMarkers = new Map(); // id -> Sprite
 let nextConstructionId = 1;
@@ -1756,7 +1779,9 @@ export const createConstructionMarkerAt = (x, z, options = {}) => {
     sprite.scale.set(width, height, 1);
     
     // 使用沙盘模型的局部坐标系（x, z是沙盘的局部坐标）
-    sprite.position.set(x, 0.05, z);
+    // Y坐标使用道路表面高度，稍微抬高一点避免Z-fighting
+    const roadY = getRoadSurfaceY();
+    sprite.position.set(x, roadY + 0.01, z);
     sprite.name = 'ConstructionMarker';
 
     // 将标记添加到沙盘模型内部，而不是modelsGroup
@@ -2679,14 +2704,16 @@ export const createStartPointMarker = (x, z) => {
     sprite.scale.set(width, height, 1);
     
     // 使用沙盘模型的局部坐标系（x, z是沙盘的局部坐标）
-    sprite.position.set(x, 0.05, z);
+    // Y坐标使用道路表面高度，稍微抬高一点避免Z-fighting
+    const roadY = getRoadSurfaceY();
+    sprite.position.set(x, roadY + 0.01, z);
     sprite.name = 'StartPointMarker';
 
     // 将标记添加到沙盘模型内部，而不是modelsGroup
     sandboxModel.add(sprite);
     startPointMarker = sprite;
     
-    console.log(`🚀 起点标记已创建在沙盘局部坐标: (${x.toFixed(3)}, ${z.toFixed(3)})`);
+    console.log(`🚀 起点标记已创建在沙盘局部坐标: (${x.toFixed(3)}, ${roadY.toFixed(3)}, ${z.toFixed(3)})`);
     
     return { x, z };
 };
@@ -2736,14 +2763,16 @@ export const createEndPointMarker = (x, z) => {
     sprite.scale.set(width, height, 1);
     
     // 使用沙盘模型的局部坐标系（x, z是沙盘的局部坐标）
-    sprite.position.set(x, 0.05, z);
+    // Y坐标使用道路表面高度，稍微抬高一点避免Z-fighting
+    const roadY = getRoadSurfaceY();
+    sprite.position.set(x, roadY + 0.01, z);
     sprite.name = 'EndPointMarker';
 
     // 将标记添加到沙盘模型内部，而不是modelsGroup
     sandboxModel.add(sprite);
     endPointMarker = sprite;
     
-    console.log(`🏁 终点标记已创建在沙盘局部坐标: (${x.toFixed(3)}, ${z.toFixed(3)})`);
+    console.log(`🏁 终点标记已创建在沙盘局部坐标: (${x.toFixed(3)}, ${roadY.toFixed(3)}, ${z.toFixed(3)})`);
     
     return { x, z };
 };

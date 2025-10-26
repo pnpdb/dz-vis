@@ -213,7 +213,7 @@
                 </el-tab-pane>
                 <el-tab-pane label="模型设置" name="model">
                     <el-form label-width="140px">
-                        <el-form-item label="坐标X轴偏移量">
+                        <el-form-item label="X轴坐标偏移量">
                             <el-input-number
                                 v-model="settings.coordinateOffsetX"
                                 :precision="3"
@@ -228,7 +228,7 @@
                                 接收坐标加此值，发送坐标减此值（可正可负）
                             </div>
                         </el-form-item>
-                        <el-form-item label="坐标Y轴偏移量">
+                        <el-form-item label="Y轴坐标偏移量">
                             <el-input-number
                                 v-model="settings.coordinateOffsetY"
                                 :precision="3"
@@ -251,7 +251,7 @@
                                 inactive-text="关闭"
                             />
                             <div class="setting-description">
-                                控制沙盘和小车模型的XYZ坐标轴显示
+                                控制沙盘模型的XYZ坐标轴显示
                             </div>
                         </el-form-item>
                         <el-form-item label="显示地图网格">

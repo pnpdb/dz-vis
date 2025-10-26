@@ -1368,17 +1368,10 @@ const createCoordinateAxes = () => {
     gridHelper.visible = false; // 默认隐藏
     scene.add(gridHelper);
     
-    // 为小车模型位置创建小坐标轴 - 默认隐藏
-    const carAxes = new AxesHelper(8);
-    carAxes.name = 'CarAxes';
-    carAxes.position.set(0, 0.5, 0); // 小车模型位置
-    carAxes.visible = false; // 默认隐藏
-    scene.add(carAxes);
-    
     console.log('🔧 坐标系统已添加到场景 (默认隐藏):');
     console.log('  - 主坐标轴: 原点 (0,0,0)，长度30 [隐藏]');
     console.log('  - 地面网格: 50x50，蓝色线条 [隐藏]');
-    console.log('  - 小车坐标轴: 位置 (0,0.5,0)，长度8 [隐藏]');
+    console.log('  - 沙盘坐标轴: 将在沙盘加载时自动添加');
     console.log('  - 红色轴: X轴 (左右方向)');
     console.log('  - 绿色轴: Y轴 (上下方向)');
     console.log('  - 蓝色轴: Z轴 (前后方向)');
@@ -1593,10 +1586,9 @@ const calculateSandboxDimensions = (model) => {
 // 控制坐标轴显示的函数
 export const toggleAxesVisibility = (visible) => {
     const axesToToggle = [
-        'MainCoordinateAxes',
-        'CarAxes', 
-        'SandboxAxes',
-        'SandboxCenterAxes'
+        'MainCoordinateAxes',    // 主坐标轴（原点）
+        'SandboxAxes',           // 沙盘坐标轴
+        'SandboxCenterAxes'      // 沙盘中心坐标轴
     ];
     
     if (!scene) {

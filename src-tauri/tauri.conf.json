@@ -51,7 +51,9 @@
     "shortDescription": "Car Management System",
     "longDescription": "A comprehensive car management system for autonomous vehicle monitoring and control.",
     "externalBin": [],
-    "resources": [],
+    "resources": {
+      "../public/routes/*.txt": "routes/"
+    },
     "linux": {
       "deb": {
         "depends": []

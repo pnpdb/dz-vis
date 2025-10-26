@@ -161,7 +161,7 @@ def send_traffic_light_loop(sock, _unused=None):
 
 
 def main():
-    host = sys.argv[1] if len(sys.argv) > 1 else '192.168.1.12'
+    host = sys.argv[1] if len(sys.argv) > 1 else '192.168.1.69'
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 8888
 
     print(f"🧪 沙盘客户端连接 {host}:{port}")

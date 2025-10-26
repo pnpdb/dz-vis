@@ -550,7 +550,7 @@ def create_vehicle_info_data(vehicle_id=1):
         nav_status = 15
     else:
         nav_status = 5  # 5 = 正常导航中
-    data.extend(struct.pack('<B', nav_status))
+    data.extend(struct.pack('<B', 1))
     
     # 相机状态 (1字节, UINT8) - 0:异常, 1:正常（模拟正常工作）
     camera_status = 1
@@ -591,7 +591,7 @@ def create_vehicle_info_data(vehicle_id=1):
     return bytes(data)
 
 class TestClient:
-    def __init__(self, server_host='127.0.0.1', server_port=8888, vehicle_id=1):
+    def __init__(self, server_host='192.168.1.69', server_port=8888, vehicle_id=1):
         self.server_host = server_host
         self.server_port = server_port
         self.vehicle_id = vehicle_id

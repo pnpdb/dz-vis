@@ -43,7 +43,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useCarStore } from '@/stores/car.js';
 import { VehicleConnectionAPI } from '@/utils/vehicleAPI.js';
 import { socketManager } from '@/utils/socketManager.js';
-import { ElMessage } from 'element-plus';
+import Toast from '@/utils/toast.js';
 
 const carStore = useCarStore();
 
@@ -149,10 +149,7 @@ onMounted(() => {
 
 // 显示功能禁用提示消息
 const showDisabledMessage = () => {
-    ElMessage.warning({
-        message: '管理员已禁用该功能',
-        duration: 3000
-    });
+    Toast.warning('管理员已禁用该功能');
 };
 </script>
 

@@ -53,7 +53,7 @@ import { ref, onMounted, watch, computed, onBeforeUnmount } from 'vue';
 // import CarSettings from '@/components/CarSettings.vue';  // 车辆设置已禁用
 import { VehicleConnectionAPI } from '@/utils/vehicleAPI.js';
 import { socketManager } from '@/utils/socketManager.js';
-import { ElMessage } from 'element-plus';
+import Toast from '@/utils/toast.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
 import { pathEnabledVehicles, enablePath, disablePath, enablePaths, clearAllPaths } from '@/utils/pathManager.js';
 
@@ -130,19 +130,13 @@ const loadVehicleConnections = async () => {
 const handleViewVehiclePath = async () => {
     // 检查是否选择了车辆
     if (!selectedCar.value) {
-        ElMessage.warning({
-            message: '请先选择车辆',
-            duration: 3000
-        });
+        Toast.warning('请先选择车辆');
         return;
     }
 
     // 检查选中的车辆是否在线
     if (!socketManager.isVehicleConnected(selectedCar.value)) {
-        ElMessage.warning({
-            message: '选中的车辆未在线',
-            duration: 3000
-        });
+        Toast.warning('当前车辆离线');
         return;
     }
 
@@ -152,10 +146,7 @@ const handleViewVehiclePath = async () => {
         
         // 如果"显示所有路径"已开启，且用户尝试关闭单个车辆路径，则阻止操作
         if (showAllPaths.value && isPathEnabled) {
-            ElMessage.warning({
-                message: '当前所有路径显示处于启用状态',
-                duration: 3000
-            });
+            Toast.warning('当前所有路径显示处于启用状态');
             return;
         }
         
@@ -177,23 +168,14 @@ const handleViewVehiclePath = async () => {
         
         // 显示提示消息
         if (isPathEnabled) {
-            ElMessage.success({
-                message: '已关闭车辆路径显示',
-                duration: 3000
-            });
+            Toast.success('已关闭车辆路径显示');
         } else {
-            ElMessage.success({
-                message: '已开启车辆路径显示',
-                duration: 3000
-            });
+            Toast.success('已开启车辆路径显示');
         }
         
     } catch (error) {
         console.error('发送车辆路径显示指令失败:', error);
-        ElMessage.error({
-            message: '发送车辆路径显示指令失败: ' + error.message,
-            duration: 3000
-        });
+        Toast.error('发送车辆路径显示指令失败: ' + error.message);
     }
 };
 
@@ -213,10 +195,7 @@ watch(showAllPaths, async (newValue, oldValue) => {
         if (newValue) {
             // 检查是否有在线车辆
             if (onlineVehicleIds.length === 0) {
-                ElMessage.warning({
-                    message: '当前未有车辆在线',
-                    duration: 3000
-                });
+                Toast.warning('当前未有车辆在线');
                 // 恢复开关到关闭状态
                 isRestoringState.value = true;
                 showAllPaths.value = false;
@@ -229,10 +208,7 @@ watch(showAllPaths, async (newValue, oldValue) => {
             // 批量发送路径显示控制指令给所有在线车辆
             await socketManager.sendBatchVehiclePathDisplay(onlineVehicleIds, 1);
             
-            ElMessage.success({
-                message: `已开启 ${onlineVehicleIds.length} 辆车的路径显示`,
-                duration: 3000
-            });
+            Toast.success(`已开启 ${onlineVehicleIds.length} 辆车的路径显示`);
         } else {
             // 关闭操作：先获取需要关闭的车辆列表
             const vehicleIdsToDisable = Array.from(pathEnabledVehicles.value);
@@ -249,17 +225,11 @@ watch(showAllPaths, async (newValue, oldValue) => {
             // 批量发送关闭指令给所有之前开启的车辆
             await socketManager.sendBatchVehiclePathDisplay(vehicleIdsToDisable, 0);
             
-            ElMessage.success({
-                message: `已关闭 ${vehicleIdsToDisable.length} 辆车的路径显示`,
-                duration: 3000
-            });
+            Toast.success(`已关闭 ${vehicleIdsToDisable.length} 辆车的路径显示`);
         }
     } catch (error) {
         console.error('批量发送路径显示指令失败:', error);
-        ElMessage.error({
-            message: '批量发送路径显示指令失败: ' + error.message,
-            duration: 3000
-        });
+        Toast.error('批量发送路径显示指令失败: ' + error.message);
         // 发送失败时恢复开关状态
         isRestoringState.value = true;
         showAllPaths.value = !newValue;

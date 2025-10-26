@@ -149,7 +149,7 @@
 import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
-import { ElMessage } from 'element-plus'
+import Toast from '@/utils/toast.js'
 import { parseVehicleId, compareVehicleId } from '@/utils/vehicleTypes.js'
 import eventBus, { EVENTS } from '@/utils/eventBus.js'
 import { useCarStore } from '@/stores/car.js'
@@ -359,16 +359,16 @@ const goBack = async () => {
     // 发送退出平行驾驶指令到沙盘
     const vehicleId = Number(currentVehicleId.value ?? 1)
     if (Number.isNaN(vehicleId)) {
-      ElMessage.error('无效的车辆ID')
+      Toast.error('无效的车辆ID')
       return
     }
     
     await invoke('send_sandbox_exit_control', { vehicleId: vehicleId })
-    ElMessage.success('已发送退出平行驾驶指令')
+    Toast.success('已发送退出平行驾驶指令')
     
   } catch (e) {
     console.error('发送退出平行驾驶指令失败:', e)
-    ElMessage.error(`发送退出指令失败: ${e}`)
+    Toast.error(`发送退出指令失败: ${e}`)
   } finally {
     // 无论发送是否成功，都返回主界面（路由守卫会自动处理渲染恢复）
     router.push('/')

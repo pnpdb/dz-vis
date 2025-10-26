@@ -128,7 +128,7 @@
                         :min="1" 
                         :max="999"
                         placeholder="1"
-                        controls-position="right"
+                        :controls="false"
                         style="width: 100%"
                         :disabled="!!editingConnection"
                     />
@@ -179,7 +179,8 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessageBox } from 'element-plus';
+import Toast from '@/utils/toast.js';
 import VehicleConnectionAPI from '@/utils/vehicleAPI.js';
 import { useCarStore } from '@/stores/car.js';
 
@@ -248,7 +249,7 @@ const loadVehicleConnections = async () => {
         vehicleConnections.value = sortedConnections;
         carStore.applyVehicleConnections(sortedConnections);
     } else {
-        ElMessage.error(`获取车辆连接列表失败: ${result.error}`);
+        Toast.error(`获取车辆连接列表失败: ${result.error}`);
     }
     
     loading.value = false;
@@ -318,11 +319,11 @@ const submitForm = async () => {
     }
     
     if (result.success) {
-        ElMessage.success(editingConnection.value ? '车辆连接更新成功！' : '车辆连接添加成功！');
+        Toast.success(editingConnection.value ? '车辆连接更新成功！' : '车辆连接添加成功！');
         dialogVisible.value = false;
         await loadVehicleConnections();
     } else {
-        ElMessage.error(`操作失败: ${result.error}`);
+        Toast.error(`操作失败: ${result.error}`);
     }
     
     submitting.value = false;
@@ -337,11 +338,11 @@ const toggleConnectionStatus = async (connection) => {
     });
     
     if (result.success) {
-        ElMessage.success(`车辆 ${connection.name} ${connection.is_active ? '已启用' : '已禁用'}`);
+        Toast.success(`车辆 ${connection.name} ${connection.is_active ? '已启用' : '已禁用'}`);
     } else {
         // 恢复状态
         connection.is_active = !connection.is_active;
-        ElMessage.error(`更新状态失败: ${result.error}`);
+        Toast.error(`更新状态失败: ${result.error}`);
     }
     
     updating.value = null;
@@ -366,16 +367,16 @@ const deleteConnection = async (connection) => {
         const result = await VehicleConnectionAPI.deleteConnection(connection.id);
         
         if (result.success) {
-            ElMessage.success('车辆连接删除成功！');
+            Toast.success('车辆连接删除成功！');
             await loadVehicleConnections();
         } else {
-            ElMessage.error(`删除失败: ${result.error}`);
+            Toast.error(`删除失败: ${result.error}`);
         }
         
     } catch (error) {
         if (error !== 'cancel') {
             console.error('❌ 删除连接失败:', error);
-            ElMessage.error(`删除失败: ${error}`);
+            Toast.error(`删除失败: ${error}`);
         }
     } finally {
         updating.value = null;

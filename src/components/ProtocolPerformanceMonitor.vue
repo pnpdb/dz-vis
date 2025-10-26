@@ -142,7 +142,8 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
-import { ElButton, ElMessage } from 'element-plus'
+import { ElButton } from 'element-plus'
+import Toast from '@/utils/toast.js'
 import protocolProcessor from '@/utils/protocolProcessor.js'
 
 // 响应式数据
@@ -221,7 +222,7 @@ const startMonitoring = async () => {
       }
     }, 2000) // 每2秒更新一次
     
-    ElMessage.success('协议处理性能监控已启动')
+    Toast.success('协议处理性能监控已启动')
   } catch (err) {
     error.value = `启动监控失败: ${err.message}`
     isMonitoring.value = false
@@ -234,7 +235,7 @@ const stopMonitoring = () => {
     monitoringInterval = null
   }
   isMonitoring.value = false
-  ElMessage.info('协议处理性能监控已停止')
+  Toast.info('协议处理性能监控已停止')
 }
 
 const resetStats = async () => {
@@ -244,13 +245,13 @@ const resetStats = async () => {
       stats.value = null
       chartData.value = []
       await loadInitialStats()
-      ElMessage.success('统计信息已重置')
+      Toast.success('统计信息已重置')
     } else {
       throw new Error('重置失败')
     }
   } catch (err) {
     error.value = `重置统计信息失败: ${err.message}`
-    ElMessage.error(error.value)
+    Toast.error(error.value)
   }
 }
 

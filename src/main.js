@@ -8,8 +8,8 @@ import router from './router';
 // 解决 Ubuntu WebKit compositing 模式下 SVG 图标不显示的问题
 import '@fortawesome/fontawesome-free/css/all.css';
 
-import ElementPlus from 'element-plus';
-import 'element-plus/theme-chalk/dark/css-vars.css';
+import ElementPlus, { ElMessage } from 'element-plus';
+// import 'element-plus/theme-chalk/dark/css-vars.css';  // 注释掉深色模式，避免影响自定义 Toast
 import 'element-plus/dist/index.css';
 import './styles/main.css';
 import './styles/customer.scss';
@@ -26,6 +26,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { debug as jsDebug, info as jsInfo, warn as jsWarn, error as jsError } from '@tauri-apps/plugin-log';
 import { loadMessageTypesConfig } from '@/constants/messageTypesLoader.js';
 import { initPathManager } from '@/utils/pathManager.js';
+import Toast from '@/utils/toast.js';
+
+// 将 Toast 暴露到 window 对象供全局使用
+window.Toast = Toast;
 
 // 在Tauri环境启动时初始化配置
 if (Environment.isTauri()) {
@@ -69,7 +73,7 @@ app.use(router);
 
 app.use(ElementPlus, {
     message: {
-        offset: 40  // 为自定义标题栏（30px）留出空间，额外留10px边距
+        max: 0  // 禁用 Element Plus 的 Message 组件
     }
 });
 
@@ -78,6 +82,32 @@ app.component('fa', FontAwesomeIcon);
 
 // 挂载应用
 const mountedApp = app.mount('#app');
+
+// 完全禁用 Element Plus 的全局 Message，防止误触发
+if (app.config.globalProperties.$message) {
+    app.config.globalProperties.$message = () => {
+        console.warn('Element Plus Message 已被禁用，请使用自定义 Toast');
+    };
+}
+
+// 覆盖 Element Plus 的 Message 函数，重定向到自定义 Toast
+const originalElMessage = ElMessage;
+// 重写 ElMessage 的所有方法，重定向到自定义 Toast
+['success', 'warning', 'info', 'error'].forEach(type => {
+    ElMessage[type] = (message, options) => {
+        console.warn(`Element Plus Message.${type} 被调用，已重定向到自定义 Toast:`, message);
+        return Toast[type](typeof message === 'string' ? message : message.message);
+    };
+});
+// 重写主函数
+const newElMessage = (options) => {
+    const type = options.type || 'info';
+    const message = options.message || options;
+    console.warn(`Element Plus Message() 被调用，已重定向到自定义 Toast:`, message);
+    return Toast[type](typeof message === 'string' ? message : message.message || message);
+};
+Object.assign(newElMessage, ElMessage);
+ElMessage.prototype = newElMessage;
 
 // 初始化路径管理器
 initPathManager();

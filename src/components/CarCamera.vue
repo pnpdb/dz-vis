@@ -32,7 +32,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import Toast from '@/utils/toast.js'
 import { useRouter } from 'vue-router'
 import { useCarStore } from '@/stores/car.js'
 import eventBus, { EVENTS } from '@/utils/eventBus.js'
@@ -111,7 +111,7 @@ const handleVideoFrame = ({ blobUrl, frame }) => {
 const toggleCamera = async () => {
   const vehicleId = currentVehicleId.value
   if (!vehicleId) {
-    ElMessage.error('请先选择车辆')
+    Toast.warning('请先选择车辆')
     return
   }
 
@@ -129,7 +129,7 @@ const toggleCamera = async () => {
   } catch (error) {
     carStore.setCameraEnabled(!willEnable)
     carStore.setManualCameraState(vehicleId, !willEnable)
-    ElMessage.error(`摄像头开关操作失败: ${error}`)
+    Toast.warning('当前车辆离线')
   }
 }
 
@@ -142,7 +142,7 @@ const handleTimeout = ({ vehicleId }) => {
 
 const requestParallelDriving = () => {
   if (!currentVehicleId.value) {
-    ElMessage.error('请先选择车辆')
+    Toast.warning('请先选择车辆')
     return
   }
   router.push({

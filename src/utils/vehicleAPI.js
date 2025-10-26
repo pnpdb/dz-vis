@@ -4,7 +4,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core';
-import { ElMessage } from 'element-plus';
+// Toast 在使用时已经通过 window.Toast 全局引用
 
 export class VehicleConnectionAPI {
     /**

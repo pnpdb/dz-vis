@@ -8,7 +8,7 @@ import { listen } from '@tauri-apps/api/event';
 import vehicleBridge from '@/utils/vehicleBridge.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
 import { RECEIVE_MESSAGE_TYPES, MessageTypeUtils, VEHICLE_CONTROL_PROTOCOL, SEND_MESSAGE_TYPES, AVP_PARKING_PROTOCOL, VEHICLE_CAMERA_PROTOCOL, DATA_RECORDING_PROTOCOL, SANDBOX_LIGHTING_PROTOCOL, SANDBOX_TRAFFIC_LIGHT_PROTOCOL } from '@/constants/messageTypes.js';
-import { ElMessage } from 'element-plus';
+import Toast from '@/utils/toast.js';
 import { createLogger, logger } from '@/utils/logger.js';
 import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log';
 import logHelper from '@/utils/logHelper.js'
@@ -110,7 +110,7 @@ class SocketManager {
             return result;
         } catch (error) {
             socketLogger.error('启动Socket服务器失败:', error);
-            ElMessage.error(`启动Socket服务器失败: ${error}`);
+            Toast.warning(`启动Socket服务器失败: ${error}`);
             throw error;
         }
     }
@@ -433,7 +433,7 @@ class SocketManager {
             return result;
         } catch (error) {
             socketLogger.error(`发送消息失败 - 车辆: ${carId}:`, error);
-            ElMessage.error(`发送消息失败: ${error}`);
+            Toast.warning(`发送消息失败: ${error}`);
             throw error;
         }
     }
@@ -454,7 +454,7 @@ class SocketManager {
             return result;
         } catch (error) {
             socketLogger.error('广播消息失败:', error);
-            ElMessage.error(`广播消息失败: ${error}`);
+            Toast.warning(`广播消息失败: ${error}`);
             throw error;
         }
     }

@@ -204,7 +204,7 @@
                                 :min="10"
                                 :max="10240"
                                 :step="10"
-                                controls-position="right"
+                                :controls="false"
                                 style="vertical-align: middle;"
                             />
                             <span style="margin-left: 8px; color: var(--text-secondary);">MB</span>
@@ -220,7 +220,7 @@
                                 :step="0.1"
                                 :min="-10"
                                 :max="10"
-                                controls-position="right"
+                                :controls="false"
                                 style="width: 200px"
                             />
                             <span style="margin-left: 8px; color: var(--text-secondary);">m</span>
@@ -235,7 +235,7 @@
                                 :step="0.1"
                                 :min="-10"
                                 :max="10"
-                                controls-position="right"
+                                :controls="false"
                                 style="width: 200px"
                             />
                             <span style="margin-left: 8px; color: var(--text-secondary);">m</span>
@@ -519,7 +519,8 @@ import { useRouter, useRoute } from 'vue-router';
 import { TauriUtils } from '@/utils/tauri.js';
 import { invoke } from '@tauri-apps/api/core';
 import { logger } from '@/utils/logger.js';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessageBox } from 'element-plus';
+import Toast from '@/utils/toast.js';
 import VehicleConnectionManager from '@/components/VehicleConnectionManager.vue';
 import SandboxSettingsManager from '@/components/SandboxSettingsManager.vue';
 import MenuVisibilitySettings from '@/components/MenuVisibilitySettings.vue';
@@ -884,12 +885,12 @@ const handleLogin = async () => {
         
         // 硬编码的账号密码
         if (username === 'dz' && password === '123456') {
-            ElMessage.success('登录成功！');
+            Toast.success('登录成功！');
             loginDialogVisible.value = false;
             settingsDialogVisible.value = true;
             activeSettingsTab.value = 'basic';
         } else {
-            ElMessage.error('账号或密码错误！');
+            Toast.error('账号或密码错误！');
         }
         
         loginLoading.value = false;
@@ -915,7 +916,7 @@ const saveSettings = async () => {
             await menuVisibilitySettingsRef.value.saveSettings();
         }
         
-        ElMessage.success('设置已保存！');
+        Toast.success('设置已保存！');
         
         // 运行时动态应用前端日志级别
         if (settings.value?.logLevel) {
@@ -935,7 +936,7 @@ const saveSettings = async () => {
         settingsDialogVisible.value = false;
     } catch (e) {
         console.error('❌ 保存应用设置失败:', e);
-        ElMessage.error(`保存失败: ${e}`);
+        Toast.error(`保存失败: ${e}`);
     }
 };
 
@@ -969,16 +970,16 @@ const resetSettings = () => {
         menuVisibilitySettingsRef.value.resetSettings();
     }
     
-    ElMessage.info('设置已重置！');
+    Toast.info('设置已重置！');
 };
 
 // 处理坐标轴显示切换
 const handleAxesVisibilityChange = (visible) => {
     const success = toggleAxesVisibility(visible);
     if (success) {
-        ElMessage.success(visible ? '坐标轴已显示' : '坐标轴已隐藏');
+        Toast.success(visible ? '坐标轴已显示' : '坐标轴已隐藏');
     } else {
-        ElMessage.warning('操作失败，场景可能尚未初始化');
+        Toast.warning('操作失败，场景可能尚未初始化');
         // 回滚设置
         modelSettings.value.showAxes = !visible;
     }
@@ -988,9 +989,9 @@ const handleAxesVisibilityChange = (visible) => {
 const handleGridVisibilityChange = (visible) => {
     const success = toggleGridVisibility(visible);
     if (success) {
-        ElMessage.success(visible ? '地面网格已显示' : '地面网格已隐藏');
+        Toast.success(visible ? '地面网格已显示' : '地面网格已隐藏');
     } else {
-        ElMessage.warning('操作失败，场景可能尚未初始化');
+        Toast.warning('操作失败，场景可能尚未初始化');
         // 回滚设置
         modelSettings.value.showGrid = !visible;
     }
@@ -1001,7 +1002,7 @@ const showSandboxDimensions = () => {
     const dimensions = getSandboxDimensionsInfo();
     
     if (!dimensions) {
-        ElMessage.warning('沙盘模型尚未加载完成，请稍后再试');
+        Toast.warning('沙盘模型尚未加载完成，请稍后再试');
         return;
     }
     
@@ -1054,13 +1055,13 @@ const openLocalDocument = async () => {
             documentType.value = 'other';
             documentTitle.value = '文档打开';
             documentUrl.value = '';
-            ElMessage.info('已使用系统默认程序打开该文件');
+            Toast.info('已使用系统默认程序打开该文件');
         } else {
-            ElMessage.warning('不支持的文件类型');
+            Toast.warning('不支持的文件类型');
         }
     } catch (error) {
         console.error('打开文档失败:', error);
-        ElMessage.error(`打开文档失败: ${error}`);
+        Toast.error(`打开文档失败: ${error}`);
     }
 };
 
@@ -1436,12 +1437,18 @@ onMounted(() => {
     border-radius: 16px !important;
     z-index: 3000 !important; /* 确保在HUD层之上 */
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 240, 255, 0.1) !important;
+    isolation: isolate !important; /* 创建独立的堆叠上下文，防止3D元素穿透 */
+    contain: layout style paint !important; /* 限制渲染范围 */
+    overflow: hidden !important; /* 防止内容溢出 */
+    position: relative !important; /* 确保定位上下文 */
 }
 
 :deep(.el-overlay) {
     z-index: 2999 !important; /* 遮罩层也需要设置高z-index */
     background: rgba(0, 10, 20, 0.8) !important; /* 深色科技感遮罩 */
     backdrop-filter: blur(8px) !important;
+    isolation: isolate !important; /* 创建独立的堆叠上下文 */
+    contain: layout style paint !important; /* 限制渲染范围 */
 }
 
 /* 登录模态框特定样式 */
@@ -1616,6 +1623,9 @@ onMounted(() => {
 :deep(.el-dialog__body) {
     padding: 30px !important;
     background: transparent !important;
+    overflow: hidden !important; /* 防止内容溢出 */
+    position: relative !important; /* 确保定位上下文 */
+    isolation: isolate !important; /* 创建独立的堆叠上下文 */
 }
 
 :deep(.el-dialog__footer) {
@@ -1696,11 +1706,15 @@ onMounted(() => {
 
 /* 设置对话框Tab样式 */
 :deep(.el-tabs) {
+    overflow: hidden !important; /* 防止内容溢出 */
+    position: relative !important; /* 确保定位上下文 */
+    
     .el-tabs__header {
         background: rgba(0, 15, 30, 0.5) !important;
         border-radius: 8px !important;
         padding: 5px !important;
         border: 1px solid rgba(0, 240, 255, 0.2) !important;
+        overflow: hidden !important; /* 防止header溢出 */
     }
     
     .el-tabs__nav-wrap {
@@ -1740,6 +1754,9 @@ onMounted(() => {
     
     .el-tabs__content {
         padding: 20px 0 !important;
+        overflow: hidden !important; /* 防止内容溢出 */
+        position: relative !important; /* 确保定位上下文 */
+        isolation: isolate !important; /* 创建独立的堆叠上下文 */
     }
 }
 
@@ -1903,6 +1920,79 @@ onMounted(() => {
 ::deep(.basic-settings-form .el-input-number),
 ::deep(.basic-settings-form .el-select .el-input__wrapper) {
     height: 32px;
+}
+
+/* 修复el-input-number在不同操作系统下的显示问题 - 使用!important强制覆盖 */
+::deep(.el-input-number) {
+    line-height: normal !important;
+    position: relative !important;
+}
+
+::deep(.el-input-number .el-input__wrapper) {
+    padding: 0 32px 0 11px !important;
+    display: flex !important;
+    align-items: center !important;
+    position: relative !important;
+}
+
+::deep(.el-input-number .el-input-number__increase) {
+    position: absolute !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    height: 50% !important;
+    width: 32px !important;
+    right: 0 !important;
+    top: 0 !important;
+    background-color: var(--el-fill-color-light) !important;
+    color: var(--el-text-color-regular) !important;
+    cursor: pointer !important;
+    user-select: none !important;
+    border-radius: 0 var(--el-input-border-radius) 0 0 !important;
+    border-bottom: 1px solid var(--el-border-color) !important;
+    line-height: 1 !important;
+}
+
+::deep(.el-input-number .el-input-number__decrease) {
+    position: absolute !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    height: 50% !important;
+    width: 32px !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+    background-color: var(--el-fill-color-light) !important;
+    color: var(--el-text-color-regular) !important;
+    cursor: pointer !important;
+    user-select: none !important;
+    border-radius: 0 0 var(--el-input-border-radius) 0 !important;
+    line-height: 1 !important;
+}
+
+::deep(.el-input-number .el-input-number__increase:hover) {
+    background-color: var(--el-fill-color) !important;
+    color: var(--el-color-primary) !important;
+}
+
+::deep(.el-input-number .el-input-number__decrease:hover) {
+    background-color: var(--el-fill-color) !important;
+    color: var(--el-color-primary) !important;
+}
+
+::deep(.el-input-number .el-input__inner) {
+    text-align: left !important;
+    padding: 0 !important;
+    height: 100% !important;
+    line-height: normal !important;
+}
+
+/* 确保图标垂直居中 */
+::deep(.el-input-number .el-input-number__increase .el-icon,
+.el-input-number .el-input-number__decrease .el-icon) {
+    margin: 0 !important;
+    line-height: 1 !important;
 }
 
 /* 提升"日志级别"下拉弹层层级，防止被对话框或HUD遮挡 */

@@ -102,11 +102,12 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { ElMessage, ElDialog, ElButton } from 'element-plus';
+import { ElDialog, ElButton } from 'element-plus';
 import { socketManager } from '@/utils/socketManager.js';
 import { useCarStore } from '@/stores/car.js';
 import { startPoseSelectionMode, stopPoseSelectionMode } from '@/components/Scene3D/index.js';
 import { modelToVehicleCoordinates, applyOffsetToSend } from '@/utils/coordinateTransform.js';
+import Toast from '@/utils/toast.js';
 
 const carStore = useCarStore();
 
@@ -122,17 +123,9 @@ const selectedVehicleId = ref(null);
 // 显示成功或失败消息，持续时间3秒
 const showMsg = (isSuccess, message) => {
     if (isSuccess) {
-        ElMessage({
-            message: message || '操作成功',
-            type: 'success',
-            duration: 3000
-        });
+        Toast.success(message || '操作成功');
     } else {
-        ElMessage({
-            message: message || '操作失败',
-            type: 'error',
-            duration: 3000
-        });
+        Toast.error(message || '操作失败');
     }
 };
 
@@ -140,11 +133,7 @@ const showMsg = (isSuccess, message) => {
 const checkVehicleOnline = (vehicleId) => {
     const isOnline = socketManager.isVehicleConnected(vehicleId);
     if (!isOnline) {
-        ElMessage({
-            message: `当前车辆${vehicleId}离线，请检查连接状态`,
-            type: 'warning',
-            duration: 3000
-        });
+        Toast.warning('当前车辆离线');
     }
     return isOnline;
 };

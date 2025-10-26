@@ -40,6 +40,40 @@ DZ-VIZ 是一个基于 **Tauri + Vue 3 + Three.js** 的自动驾驶车辆可视�
 
 ---
 
+## 🧭 快速进入新会话（当前进度与已知问题）
+
+> 本小节帮助你在新会话中快速同步上下文并继续推进。
+
+### A. Ubuntu 下 Element Plus Toast 跨平台问题（进行中）
+
+- 现象（仅 Ubuntu WebKitGTK）：
+  1)Ubuntu下弹出的 toast 没有左侧小 icon；
+  2) toast 背景宽度不是按文案自适应，文案很短时背景仍然较宽。
+- macOS 下一切正常。
+- 涉及文件：
+  - 触发逻辑：`src/components/CarButton.vue`（已统一使用 `ElMessage.warning('...')` 等简写）
+  - 样式兜底：`src/styles/main.css` 中 `.el-message` 与 `.el-message__icon` 相关规则
+- 当前状态：
+  - 背景色在 Ubuntu 已修复为正常浅色风格；
+  - 待修复：左侧 icon 不显示；宽度未完全随文案自适应（可能由最小宽度与 flex 行为引起）。
+- 建议推进方向：
+  - 将 `.el-message` 调整为 `inline-flex` 并使用 `width:auto; max-width:80vw`；
+  - 强化 `.el-message__icon svg, .el-message__icon i { display:inline-block; width:1em; height:1em; fill:currentColor; }`；
+  - 若仍不显示 icon，可在 `ElMessage` 传入 FontAwesome 文本图标作为兜底。
+
+### B. 3D 红绿灯倒计时（UV 映射待模型侧修复）
+
+- 目标：使用 `CanvasTexture` 直接驱动原模型数字区域（性能最佳）。
+- 现状：模型数字区域 UV 映射异常，导致数字错位或像“8 的两竖”；
+- 过渡实现：曾用 `Sprite`/`Mesh Plane` 绕过，但带来朝向/大小等副作用，最终方案仍回到原网格贴图；
+- 已输出给建模的要求与诊断：
+  - 诊断脚本：`scripts/check_countdown_uv.js`
+  - 说明文档：`COUNTDOWN_BRIEF_FOR_MODELER.md`、`UV_MAPPING_ISSUE.md`
+  - 要求：仅修正数字区域 UV；不改变红绿灯几何与朝向；保证单/双位数字居中，个位数时不显示前导位。
+- 当前动作：等待建模工程师修复 UV 后，切回 `CanvasTexture + emissiveMap` 的终态实现。
+
+---
+
 ## 🎯 核心概念：坐标系统（重要！）
 
 ### 1. 车辆坐标系统（用户视角）

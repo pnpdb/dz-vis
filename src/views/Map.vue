@@ -157,7 +157,7 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue';
-import { ElMessage } from 'element-plus';
+import Toast from '@/utils/toast.js';
 import ErrorBoundary from '@/components/ErrorBoundary.vue';
 import CarList from '@/components/CarList.vue';
 import CarButton from '@/components/CarButton.vue';
@@ -376,19 +376,11 @@ const confirmConstructionPoint = async () => {
             const result = await vehicleBridge.broadcastAllConstructionMarkers(markersInVehicleCoords);
             
             // 显示成功消息
-            ElMessage({
-                message: result,
-                type: 'success',
-                duration: 3000
-            });
+            Toast.success(result);
         }
     } catch (error) {
         console.error('广播所有施工标记失败:', error);
-        ElMessage({
-            message: '广播所有施工标记失败: ' + error,
-            type: 'error',
-            duration: 3000
-        });
+        Toast.error('广播所有施工标记失败: ' + error);
     }
     
     constructionDialogVisible.value = false;

@@ -179,10 +179,10 @@ div[class*="el-dialog"] {
     z-index: 99999 !important;
 }
 
-/* 调整 Element Plus Message 组件位置，避免被自定义标题栏遮挡 */
+/* Element Plus Message 已弃用，使用自定义 Toast 系统 */
+/* 保留样式配置以防万一有遗漏的地方还在使用 */
 .el-message {
-    top: 50px !important;  /* 标题栏30px + 额外边距20px */
-    z-index: 10001 !important;  /* 确保在标题栏之上 */
+    display: none !important;  /* 隐藏 Element Plus 的 Message，统一使用自定义 Toast */
 }
 
 /* 调整 Element Plus Notification 组件位置 */
@@ -431,4 +431,16 @@ div[class*="el-dialog"] {
         /* min-width: 300px; */
         height: 100%;
     }
+}
+
+/* 防止WebGL canvas在Tauri生产环境下穿透到对话框 */
+canvas {
+    position: relative !important;
+    z-index: auto !important;
+}
+
+/* 3D场景容器的z-index限制 */
+#scene3D canvas,
+.scene3d-container canvas {
+    z-index: 0 !important;
 }

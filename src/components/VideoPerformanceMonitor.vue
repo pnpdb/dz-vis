@@ -111,7 +111,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { videoProcessor } from '@/utils/videoProcessor.js'
-import { ElMessage } from 'element-plus'
+import Toast from '@/utils/toast.js'
 
 const loading = ref(false)
 const autoRefresh = ref(true)
@@ -141,7 +141,7 @@ const refreshStats = async () => {
     
   } catch (error) {
     console.error('刷新统计数据失败:', error)
-    ElMessage.error(`刷新统计失败: ${error.message}`)
+    Toast.error(`刷新统计失败: ${error.message}`)
   } finally {
     loading.value = false
   }
@@ -154,10 +154,10 @@ const clearStats = async () => {
     summary.value = null
     comparison.value = null
     vehicleStats.value = []
-    ElMessage.success('已清空所有统计数据')
+    Toast.success('已清空所有统计数据')
   } catch (error) {
     console.error('清空统计失败:', error)
-    ElMessage.error(`清空统计失败: ${error.message}`)
+    Toast.error(`清空统计失败: ${error.message}`)
   }
 }
 

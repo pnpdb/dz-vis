@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { pauseRendering, resumeRendering } from '@/components/Scene3D/index.js'
-import { ElMessage } from 'element-plus'
+import Toast from '@/utils/toast.js'
 import { invoke } from '@tauri-apps/api/core'
 import { useCarStore } from '@/stores/car.js'
 
@@ -52,26 +52,26 @@ router.beforeEach(async (to, from, next) => {
     if (to.name === 'ParallelDriving') {
       const sandboxOk = window.socketManager?.isSandboxConnected?.()
       if (!sandboxOk) {
-        ElMessage.error('云服务离线')
+        Toast.warning('沙盘服务离线')
         return next(false)
       }
 
       const vehicleId = Number(to.query.vehicleId || window?.socketManager?.getSelectedVehicleId?.() || 0)
       if (!vehicleId) {
-        ElMessage.error('车辆离线')
+        Toast.warning('车辆离线')
         return next(false)
       }
 
       const vehicleOnline = window.socketManager?.isVehicleConnected?.(vehicleId)
       if (!vehicleOnline) {
-        ElMessage.error(`车辆${vehicleId}离线`)
+        Toast.warning(`车辆${vehicleId}离线`)
         return next(false)
       }
 
       try {
         await invoke('send_sandbox_control', { vehicleId })
       } catch (error) {
-        ElMessage.error(`发送进入平行驾驶指令失败: ${error}`)
+        Toast.warning(`发送进入平行驾驶指令失败: ${error}`)
         return next(false)
       }
 

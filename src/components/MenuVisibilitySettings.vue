@@ -50,7 +50,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { ElMessage } from 'element-plus';
+import Toast from '@/utils/toast.js';
 import eventBus, { EVENTS } from '@/utils/eventBus';
 
 const loading = ref(false);
@@ -88,7 +88,7 @@ const loadSettings = async () => {
         }
     } catch (error) {
         console.error('❌ 加载菜单可见性设置失败:', error);
-        ElMessage.error(`加载菜单可见性设置失败: ${error}`);
+        Toast.error(`加载菜单可见性设置失败: ${error}`);
     } finally {
         loading.value = false;
     }

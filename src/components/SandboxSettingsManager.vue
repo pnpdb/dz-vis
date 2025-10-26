@@ -30,7 +30,7 @@
                             v-model="serviceForm.trafficLightCount" 
                             :min="0"
                             :step="1"
-                            controls-position="right"
+                            :controls="false"
                             placeholder="请输入红绿灯数量"
                             style="width: 100%"
                         />
@@ -182,7 +182,7 @@
                     <el-input-number 
                         v-model="cameraForm.deviceIndex" 
                         :min="0" 
-                        controls-position="right"
+                        :controls="false"
                         placeholder="请输入设备文件索引"
                         style="width: 100%"
                     />
@@ -206,7 +206,8 @@
 
 <script setup>
 import { ref, onMounted, reactive } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessageBox } from 'element-plus';
+import Toast from '@/utils/toast.js';
 import { SandboxAPI } from '@/utils/vehicleAPI.js';
 
 // 服务设置相关
@@ -330,7 +331,7 @@ const loadServiceSettings = async () => {
         }
     } catch (error) {
         console.error('❌ 加载沙盘服务设置失败:', error);
-        ElMessage.error(`加载沙盘服务设置失败: ${error}`);
+        Toast.error(`加载沙盘服务设置失败: ${error}`);
         hasServiceSettings.value = false;
     } finally {
         serviceLoading.value = false;
@@ -353,14 +354,14 @@ const saveServiceSettings = async () => {
         
         const result = await SandboxAPI.createOrUpdateServiceSettings(settingsData);
         if (result.success) {
-            ElMessage.success('沙盘服务设置保存成功！');
+            Toast.success('沙盘服务设置保存成功！');
             hasServiceSettings.value = true;
         } else {
-            ElMessage.error(`保存沙盘服务设置失败: ${result.error}`);
+            Toast.error(`保存沙盘服务设置失败: ${result.error}`);
         }
     } catch (error) {
         console.error('❌ 保存沙盘服务设置失败:', error);
-        ElMessage.error(`保存沙盘服务设置失败: ${error}`);
+        Toast.error(`保存沙盘服务设置失败: ${error}`);
     } finally {
         serviceSaving.value = false;
     }
@@ -383,17 +384,17 @@ const deleteServiceSettings = async () => {
         const result = await SandboxAPI.deleteServiceSettings();
         
         if (result.success) {
-            ElMessage.success('沙盘服务设置删除成功！');
+            Toast.success('沙盘服务设置删除成功！');
             serviceForm.ipAddress = '';
             serviceForm.port = 8080;
             hasServiceSettings.value = false;
         } else {
-            ElMessage.error(`删除沙盘服务设置失败: ${result.error}`);
+            Toast.error(`删除沙盘服务设置失败: ${result.error}`);
         }
     } catch (error) {
         if (error === 'cancel') return;
         console.error('❌ 删除沙盘服务设置失败:', error);
-        ElMessage.error(`删除沙盘服务设置失败: ${error}`);
+        Toast.error(`删除沙盘服务设置失败: ${error}`);
     } finally {
         serviceDeleting.value = false;
     }
@@ -414,12 +415,12 @@ const loadCameras = async () => {
         } else {
             cameras.value = [];
             if (result.error) {
-                ElMessage.error(`加载摄像头列表失败: ${result.error}`);
+                Toast.error(`加载摄像头列表失败: ${result.error}`);
             }
         }
     } catch (error) {
         console.error('❌ 加载摄像头列表失败:', error);
-        ElMessage.error(`加载摄像头列表失败: ${error}`);
+        Toast.error(`加载摄像头列表失败: ${error}`);
         cameras.value = [];
     } finally {
         camerasLoading.value = false;
@@ -460,15 +461,15 @@ const deleteCamera = async (camera) => {
         
         const result = await SandboxAPI.deleteCamera(camera.id);
         if (result.success) {
-            ElMessage.success('摄像头删除成功！');
+            Toast.success('摄像头删除成功！');
             await loadCameras();
         } else {
-            ElMessage.error(`删除摄像头失败: ${result.error}`);
+            Toast.error(`删除摄像头失败: ${result.error}`);
         }
     } catch (error) {
         if (error === 'cancel') return;
         console.error('❌ 删除摄像头失败:', error);
-        ElMessage.error(`删除摄像头失败: ${error}`);
+        Toast.error(`删除摄像头失败: ${error}`);
     }
 };
 
@@ -492,12 +493,12 @@ const saveCameraSettings = async () => {
         if (isEditingCamera.value) {
             result = await SandboxAPI.updateCamera(editingCameraId.value, request);
             if (result.success) {
-                ElMessage.success('摄像头更新成功！');
+                Toast.success('摄像头更新成功！');
             }
         } else {
             result = await SandboxAPI.createCamera(request);
             if (result.success) {
-                ElMessage.success('摄像头创建成功！');
+                Toast.success('摄像头创建成功！');
             }
         }
         
@@ -505,11 +506,11 @@ const saveCameraSettings = async () => {
             cameraDialogVisible.value = false;
             await loadCameras();
         } else {
-            ElMessage.error(`保存摄像头设置失败: ${result.error}`);
+            Toast.error(`保存摄像头设置失败: ${result.error}`);
         }
     } catch (error) {
         console.error('❌ 保存摄像头设置失败:', error);
-        ElMessage.error(`保存摄像头设置失败: ${error}`);
+        Toast.error(`保存摄像头设置失败: ${error}`);
     } finally {
         cameraSaving.value = false;
     }

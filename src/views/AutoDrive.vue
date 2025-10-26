@@ -120,7 +120,8 @@
 
 <script setup>
 import { ref, watch, onMounted } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessageBox } from 'element-plus';
+import Toast from '@/utils/toast.js';
 import { useCarStore } from '@/stores/car.js';
 import { socketManager } from '@/utils/socketManager.js';
 import { 
@@ -170,11 +171,7 @@ const handleDataRecordChange = async (newValue) => {
     
     // 2. 检查是否选择了车辆
     if (!currentCarId) {
-        ElMessage({
-            message: '请先选择车辆',
-            type: 'warning',
-            duration: 3000
-        });
+        Toast.warning('请先选择车辆');
         // 回滚开关状态
         dataRecord.value = !newValue;
         return;
@@ -184,11 +181,7 @@ const handleDataRecordChange = async (newValue) => {
     const isOnline = socketManager.isVehicleConnected(currentCarId);
     
     if (!isOnline) {
-        ElMessage({
-            message: `当前车辆${currentCarId}离线，请检查连接状态`,
-            type: 'warning',
-            duration: 3000
-        });
+        Toast.warning(`当前车辆${currentCarId}离线，请检查连接状态`);
         // 回滚开关状态
         dataRecord.value = !newValue;
         return;
@@ -200,20 +193,12 @@ const handleDataRecordChange = async (newValue) => {
         
         // 5. 发送成功，显示成功Toast
         const statusText = newValue ? '开启' : '关闭';
-        ElMessage({
-            message: `数据记录${statusText}指令发送成功`,
-            type: 'success',
-            duration: 3000
-        });
+        Toast.success(`数据记录${statusText}指令发送成功`);
         
     } catch (error) {
         // 6. 发送失败，显示失败Toast并回滚
         const statusText = newValue ? '开启' : '关闭';
-        ElMessage({
-            message: `数据记录${statusText}指令发送失败: ${error.message || error}`,
-            type: 'error',
-            duration: 3000
-        });
+        Toast.error(`数据记录${statusText}指令发送失败: ${error.message || error}`);
         
         // 回滚开关状态
         dataRecord.value = !newValue;
@@ -240,21 +225,13 @@ const callTaxi = async () => {
         // 1. 检查是否有在线车辆
         const onlineVehicleCount = socketManager.getOnlineVehicleCount();
         if (onlineVehicleCount === 0) {
-            ElMessage({
-                message: '当前没有可用车辆',
-                type: 'warning',
-                duration: 3000
-            });
+            Toast.warning('当前没有可用车辆');
             return;
         }
 
         // 2. 检查是否已选择起点和终点
         if (!carStore.taxi.startCoords || !carStore.taxi.endCoords) {
-            ElMessage({
-                message: '请先选择起点和终点位置',
-                type: 'warning',
-                duration: 3000
-            });
+            Toast.warning('请先选择起点和终点位置');
             return;
         }
 
@@ -265,11 +242,7 @@ const callTaxi = async () => {
         );
         
         if (!assignedVehicleId) {
-            ElMessage({
-                message: '当前没有可用车辆',
-                type: 'warning', 
-                duration: 3000
-            });
+            Toast.warning('当前没有可用车辆');
             return;
         }
         
@@ -301,11 +274,7 @@ const callTaxi = async () => {
         );
         
         // 7. 发送成功，显示成功Toast
-        ElMessage({
-            message: `出租车订单已发送给${assignedVehicleId}号车，请等待车辆响应`,
-            type: 'success',
-            duration: 3000
-        });
+        Toast.success(`出租车订单已发送给${assignedVehicleId}号车，请等待车辆响应`);
         
         console.debug(`🚕 出租车订单发送成功 - 订单: ${orderId}, 车辆: ${assignedVehicleId}`);
         console.debug(`   起点（车辆坐标）: (${startVehicleCoords.x.toFixed(3)}, ${startVehicleCoords.y.toFixed(3)})`);
@@ -313,11 +282,7 @@ const callTaxi = async () => {
         
     } catch (error) {
         // 8. 发送失败，显示失败Toast
-        ElMessage({
-            message: `呼叫出租车失败: ${error.message || error}`,
-            type: 'error',
-            duration: 3000
-        });
+        Toast.error(`呼叫出租车失败: ${error.message || error}`);
         
         console.error('呼叫出租车失败:', error);
     }
@@ -328,32 +293,20 @@ const startParking = async () => {
     try {
         // 1. 检查是否选择了车辆
         if (!parking.value.car) {
-            ElMessage({
-                message: '请先选择车辆',
-                type: 'warning',
-                duration: 3000
-            });
+            Toast.warning('请先选择车辆');
             return;
         }
 
         // 2. 检查是否选择了车位
         if (!parking.value.slotId) {
-            ElMessage({
-                message: '请先选择车位',
-                type: 'warning',
-                duration: 3000
-            });
+            Toast.warning('请先选择车位');
             return;
         }
 
         // 3. 检查该车辆是否在线
         const isOnline = socketManager.isVehicleConnected(parking.value.car);
         if (!isOnline) {
-            ElMessage({
-                message: '选中的车辆当前离线，无法执行泊车操作',
-                type: 'warning',
-                duration: 3000
-            });
+            Toast.warning('选中的车辆当前离线，无法执行泊车操作');
             return;
         }
 
@@ -361,21 +314,13 @@ const startParking = async () => {
         const result = await socketManager.sendAvpParking(parking.value.car, parking.value.slotId);
         
         // 5. 发送成功，显示成功Toast
-        ElMessage({
-            message: `AVP泊车指令发送成功，车辆正在前往${parking.value.slotId}号车位`,
-            type: 'success',
-            duration: 3000
-        });
+        Toast.success(`AVP泊车指令发送成功，车辆正在前往${parking.value.slotId}号车位`);
         
         console.debug(`AVP泊车指令发送成功 - 车辆: ${parking.value.car}, 车位: ${parking.value.slotId}, 结果: ${result}`);
         
     } catch (error) {
         // 6. 发送失败，显示失败Toast
-        ElMessage({
-            message: `AVP泊车指令发送失败: ${error.message || error}`,
-            type: 'error',
-            duration: 3000
-        });
+        Toast.error(`AVP泊车指令发送失败: ${error.message || error}`);
         
         console.error('AVP泊车指令发送失败:', error);
     }
@@ -386,22 +331,14 @@ const pickupCar = async () => {
     try {
         // 1. 检查是否选择了车辆
         if (!pickup.value.car) {
-            ElMessage({
-                message: '请先选择车辆',
-                type: 'warning',
-                duration: 3000
-            });
+            Toast.warning('请先选择车辆');
             return;
         }
 
         // 2. 检查该车辆是否在线
         const isOnline = socketManager.isVehicleConnected(pickup.value.car);
         if (!isOnline) {
-            ElMessage({
-                message: '选中的车辆当前离线，无法执行取车操作',
-                type: 'warning',
-                duration: 3000
-            });
+            Toast.warning('选中的车辆当前离线，无法执行取车操作');
             return;
         }
 
@@ -409,21 +346,13 @@ const pickupCar = async () => {
         const result = await socketManager.sendAvpPickup(pickup.value.car);
         
         // 4. 发送成功，显示成功Toast
-        ElMessage({
-            message: 'AVP取车指令发送成功，车辆正在执行取车',
-            type: 'success',
-            duration: 3000
-        });
+        Toast.success('AVP取车指令发送成功，车辆正在执行取车');
         
         console.debug(`AVP取车指令发送成功 - 车辆: ${pickup.value.car}, 结果: ${result}`);
         
     } catch (error) {
         // 5. 发送失败，显示失败Toast
-        ElMessage({
-            message: `AVP取车指令发送失败: ${error.message || error}`,
-            type: 'error',
-            duration: 3000
-        });
+        Toast.error(`AVP取车指令发送失败: ${error.message || error}`);
         
         console.error('AVP取车指令发送失败:', error);
     }
@@ -431,7 +360,7 @@ const pickupCar = async () => {
 
 // 选择起点
 const selectStartPoint = () => {
-    ElMessage.info('请在地图上点击选择起点位置');
+    Toast.info('请在地图上点击选择起点位置');
     
     // 启动点选择模式
     startPointSelectionMode(({ x, z }) => {
@@ -450,17 +379,17 @@ const selectStartPoint = () => {
                 { x, z }
             );
             
-            ElMessage.success('起点已选择');
+            Toast.success('起点已选择');
             console.log(`🚀 起点 - 车辆坐标: (${vehicleCoords.x.toFixed(3)}, ${vehicleCoords.y.toFixed(3)}), 模型坐标: (${x.toFixed(3)}, ${z.toFixed(3)})`);
         } else {
-            ElMessage.error('起点标记创建失败');
+            Toast.error('起点标记创建失败');
         }
     });
 };
 
 // 选择终点
 const selectEndPoint = () => {
-    ElMessage.info('请在地图上点击选择终点位置');
+    Toast.info('请在地图上点击选择终点位置');
     
     // 启动点选择模式
     startPointSelectionMode(({ x, z }) => {
@@ -479,16 +408,16 @@ const selectEndPoint = () => {
                 { x, z }
             );
             
-            ElMessage.success('终点已选择');
+            Toast.success('终点已选择');
             console.log(`🏁 终点 - 车辆坐标: (${vehicleCoords.x.toFixed(3)}, ${vehicleCoords.y.toFixed(3)}), 模型坐标: (${x.toFixed(3)}, ${z.toFixed(3)})`);
         } else {
-            ElMessage.error('终点标记创建失败');
+            Toast.error('终点标记创建失败');
         }
     });
 };
 
 const selectParkingSpot = () => {
-    ElMessage.info('请在沙盘上点击选择停车位');
+    Toast.info('请在沙盘上点击选择停车位');
     
     // 启动车位选择模式
     startParkingSlotSelectionMode(async (position) => {
@@ -506,7 +435,7 @@ const selectParkingSpot = () => {
         
         // 如果没有空闲车位
         if (!nearestSlot) {
-            ElMessage.warning('当前没有空闲车位');
+            Toast.warning('当前没有空闲车位');
             return;
         }
         
@@ -528,7 +457,7 @@ const selectParkingSpot = () => {
             parking.value.point = `${nearestSlot.slotId}号车位`;
             parking.value.slotId = nearestSlot.slotId;
             
-            ElMessage.success(`已选择${nearestSlot.slotId}号车位`);
+            Toast.success(`已选择${nearestSlot.slotId}号车位`);
             console.log(`✅ 车位选择完成: ${nearestSlot.slotId}号`);
             
         } catch (error) {
@@ -548,7 +477,7 @@ const clearTaxiSelection = () => {
     // 清除store中的数据
     carStore.clearTaxiPoints();
     
-    ElMessage.info('已清除起点和终点选择');
+    Toast.info('已清除起点和终点选择');
     console.log('🧹 出租车起点和终点选择已清除');
 };
 

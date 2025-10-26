@@ -94,7 +94,7 @@ import TitleBar from '@/components/TitleBar.vue';
 import Header from '@/components/Header.vue';
 import Map from '@/views/Map.vue';
 import { getConstructionMarkersDetails, removeConstructionMarker } from '@/components/Scene3D/index.js';
-import { ElMessage } from 'element-plus';
+import Toast from '@/utils/toast.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
 import vehicleBridge from '@/utils/vehicleBridge.js';
 import { modelToVehicleCoordinates } from '@/utils/coordinateTransform.js';
@@ -189,26 +189,14 @@ const deleteConstructionMarker = async (markerId) => {
             const result = await vehicleBridge.broadcastAllConstructionMarkers(markersInVehicleCoords);
             
             // 显示成功消息
-            ElMessage({
-                message: result,
-                type: 'success',
-                duration: 3000
-            });
+            Toast.success(result);
         } else {
             console.warn(`删除施工标记 ${markerId} 失败`);
-            ElMessage({
-                message: `删除施工标记 ${markerId} 失败`,
-                type: 'error',
-                duration: 3000
-            });
+            Toast.error(`删除施工标记 ${markerId} 失败`);
         }
     } catch (error) {
         console.error('删除施工标记时出错:', error);
-        ElMessage({
-            message: '删除施工标记失败: ' + error,
-            type: 'error',
-            duration: 3000
-        });
+        Toast.error('删除施工标记失败: ' + error);
     }
 };
 

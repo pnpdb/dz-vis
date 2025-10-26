@@ -138,6 +138,8 @@ onUnmounted(() => {
   border-radius: 8px;
   position: relative;
   overflow: hidden;
+  z-index: 1; /* 确保3D场景在最底层 */
+  isolation: isolate; /* 创建独立的层叠上下文 */
 }
 
 .loading-overlay {

@@ -212,6 +212,13 @@ const initSceneCore = async () => {
         
         // 设置渲染器尺寸
         renderer.setSize(container.clientWidth, container.clientHeight);
+        
+        // 设置canvas的层级，确保不会穿透到对话框上
+        renderer.domElement.style.position = 'absolute';
+        renderer.domElement.style.top = '0';
+        renderer.domElement.style.left = '0';
+        renderer.domElement.style.zIndex = '0';
+        
         container.appendChild(renderer.domElement);
 
         // 步骤5：性能自适应和事件处理 (60%)

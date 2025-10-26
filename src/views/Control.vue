@@ -165,7 +165,7 @@
 
 <script setup>
 import { ref, onMounted, watch, onBeforeUnmount, computed, nextTick } from 'vue';
-import { ElMessage } from 'element-plus';
+import Toast from '@/utils/toast.js';
 import { TrafficLightAPI, SandboxAPI } from '@/utils/vehicleAPI.js';
 import { SANDBOX_LIGHTING_PROTOCOL } from '@/constants/messageTypes.js';
 import { invoke } from '@tauri-apps/api/core';
@@ -245,7 +245,7 @@ const enqueueLightingUpdate = () => {
             await window.socketManager.sendSandboxLightingControl(payload);
         } catch (error) {
             console.error('❌ 发送沙盘灯光控制失败:', error);
-            ElMessage.error('发送灯光控制指令失败');
+            Toast.warning('发送灯光控制指令失败');
             throw error;
         }
     });
@@ -275,11 +275,11 @@ const loadTrafficLightSettings = async () => {
             console.log('✅ 交通灯设置加载成功:', result.data);
         } else {
             console.error('❌ 交通灯设置加载失败:', result.error);
-            ElMessage.error('加载交通灯设置失败: ' + result.error);
+            Toast.warning('加载交通灯设置失败: ' + result.error);
         }
     } catch (error) {
         console.error('❌ 交通灯设置加载异常:', error);
-        ElMessage.error('加载交通灯设置异常');
+        Toast.warning('加载交通灯设置异常');
     }
 };
 
@@ -287,12 +287,12 @@ const loadTrafficLightSettings = async () => {
 const updateTrafficLightSettings = async () => {
     // 验证输入
     if (trafficSettings.value.redLight < 1 || trafficSettings.value.redLight > 300) {
-        ElMessage.warning('红灯时长必须在1-300秒之间');
+        Toast.warning('红灯时长必须在1-300秒之间');
         return;
     }
     
     if (trafficSettings.value.greenLight < 1 || trafficSettings.value.greenLight > 300) {
-        ElMessage.warning('绿灯时长必须在1-300秒之间');
+        Toast.warning('绿灯时长必须在1-300秒之间');
         return;
     }
 
@@ -302,7 +302,7 @@ const updateTrafficLightSettings = async () => {
         // 发送到沙盘：先检查沙盘是否在线（有无沙盘连接）
         try {
             if (!trafficLightOptions.value.includes(selectedTrafficLightId.value)) {
-                ElMessage.warning('请选择有效的红绿灯编号');
+                Toast.warning('请选择有效的红绿灯编号');
                 return;
             }
             await invoke('send_sandbox_traffic_light_duration', {
@@ -310,7 +310,7 @@ const updateTrafficLightSettings = async () => {
                 redSeconds: trafficSettings.value.redLight,
                 greenSeconds: trafficSettings.value.greenLight
             });
-            ElMessage.success('发送成功');
+            Toast.success('发送成功');
             // 发送成功后保存到DB，并刷新显示
             const save = await TrafficLightAPI.updateLightItem(
                 Number(selectedTrafficLightId.value),
@@ -324,10 +324,10 @@ const updateTrafficLightSettings = async () => {
             }
         } catch (e) {
             // Rust端如果未连接会返回错误"设备离线"或其它
-            ElMessage.error('设备离线');
+            Toast.warning('沙盘服务离线');
         }
     } catch (error) {
-        ElMessage.error('更新异常: ' + error.message);
+        Toast.warning('更新异常: ' + error.message);
         console.error('❌ 交通灯设置更新异常:', error);
     } finally {
         updating.value = false;
@@ -399,7 +399,7 @@ const startVideoStream = async (camera) => {
         }
     } catch (error) {
         try { await plError(`❌ 启动视频流失败: ${error.message || error}`); } catch (_) {}
-        ElMessage.error(`连接摄像头失败: ${error.message || error}`);
+        Toast.warning(`连接摄像头失败: ${error.message || error}`);
         isStreaming.value = false;
     } finally {
         isLoading.value = false;
@@ -706,7 +706,7 @@ const onVideoError = (event) => {
                         videoRef.value.load();
                     } catch (retryError) {
                         console.error('❌ 重试失败:', retryError);
-                        ElMessage.error('RTSP转换失败，请检查RTSP流是否可用');
+                        Toast.warning('RTSP转换失败，请检查RTSP流是否可用');
                     }
                 }
             }, 3000); // 再等3秒
@@ -715,7 +715,7 @@ const onVideoError = (event) => {
         
         // 只有在真正出错时才显示错误消息，避免切换时的误报
         if (isStreaming.value || isLoading.value) {
-            ElMessage.error(userMessage);
+            Toast.warning(userMessage);
         }
     }
     
@@ -741,7 +741,7 @@ watch(cameraId, async (newCameraId, oldCameraId) => {
             }
         } catch (error) {
             console.error('❌ 摄像头切换失败:', error);
-            ElMessage.error(`摄像头切换失败: ${error.message}`);
+            Toast.warning(`摄像头切换失败: ${error.message}`);
         }
     }
 });
@@ -754,7 +754,7 @@ const checkCameraPermission = async () => {
         console.log('📹 摄像头权限状态:', permission.state);
         
         if (permission.state === 'denied') {
-            ElMessage.warning('摄像头权限被拒绝，请在浏览器设置中允许摄像头访问');
+            Toast.warning('摄像头权限被拒绝，请在浏览器设置中允许摄像头访问');
         }
         
         return permission.state;

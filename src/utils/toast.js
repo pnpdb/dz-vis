@@ -11,7 +11,7 @@ const TOAST_TYPES = {
     success: {
         icon: '✓',
         color: '#67c23a',
-        bgColor: '#f0f9ff',
+        bgColor: '#f0f9eb',
         borderColor: '#67c23a'
     },
     warning: {

@@ -97,8 +97,11 @@ const loadVehicleConnections = async () => {
     try {
         const result = await VehicleConnectionAPI.getAllConnections();
         if (result.success) {
-            // 转换数据库数据为组件需要的格式
-            vehicleList.value = result.data.map(connection => ({
+            // 转换并按车辆ID升序排序
+            vehicleList.value = result.data
+                .slice()
+                .sort((a, b) => (a.vehicle_id ?? 0) - (b.vehicle_id ?? 0))
+                .map(connection => ({
                 id: connection.vehicle_id,
                 name: connection.name, // 只显示车辆名称
                 vehicleId: connection.vehicle_id,

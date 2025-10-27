@@ -40,6 +40,24 @@
     overflow: visible; /* 允许对话框显示 */
 }
 
+/* 移除所有调试边框和outline - Ubuntu WebKitGTK兼容性修复 */
+* {
+    outline: none !important;
+}
+
+*:focus {
+    outline: none !important;
+}
+
+/* 移除可能的调试边框 */
+.speedometer *,
+.battery-display *,
+.gear-display *,
+.instrument-card * {
+    outline: none !important;
+    box-sizing: border-box !important;
+}
+
 /* 紧凑下拉框的全局样式 */
 .compact-select-dropdown {
     z-index: 9999 !important; /* 确保显示在最上层 */

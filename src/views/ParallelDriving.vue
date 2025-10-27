@@ -54,21 +54,19 @@
         <!-- 车速仪表盘 -->
         <div class="instrument-card">
           <div class="instrument-title">车速</div>
-          <div class="speedometer">
-            <div class="speedometer-circle">
-              <div class="speed-gradient-arc"></div>
-              <div class="speed-needle" :style="{ transform: `rotate(${speedAngle}deg)` }"></div>
-              <div class="speed-center">
-                <div class="speed-value">{{ displaySpeed }}</div>
-                <div class="speed-unit">速度</div>
-              </div>
-            </div>
-            <div class="speed-scale">
-              <div v-for="mark in speedMarks" :key="mark.value" 
-                   class="speed-mark" 
-                   :style="{ transform: `rotate(${mark.angle}deg)` }">
-                <div class="mark-line"></div>
-                <div class="mark-text">{{ mark.value }}</div>
+          <div class="dashboard-wrap center">
+            <div :class="['out-circle', { 'out-circle_rotate': currentSpeed > 0 }, 'center']">
+              <div
+                v-for="item in 60"
+                :key="item"
+                :style="`--i: ${item}; `"
+                :class="['scend', { scend_active: item <= (currentSpeed * 60) }]"
+              ></div>
+              <div class="inner-circle">
+                <div class="speed">
+                  <span class="speed-counter">{{ displaySpeed }}</span>
+                </div>
+                <div class="unit">速度</div>
               </div>
             </div>
           </div>
@@ -92,22 +90,38 @@
         <!-- 电池和档位 -->
         <div class="battery-gear-row">
           <!-- 电池电量 -->
-          <div class="instrument-card small">
-            <div class="instrument-title">电池电量</div>
-            <div class="battery-display">
-              <div class="battery-shell">
-                <div class="battery-fill" :style="{ width: batteryLevel + '%' }"></div>
-                <div class="battery-tip"></div>
+          <div class="manual-card">
+            <div class="manual-card-border"></div>
+            <div class="manual-card-bg"></div>
+            <div class="manual-card-content">
+              <div class="instrument-title">电池电量</div>
+              <div class="battery-content-wrapper">
+                <div class="battery-wrapper">
+                  <div class="battery-outer">
+                    <div 
+                      class="battery-inner"
+                      :style="{
+                        width: batteryLevel + '%',
+                        backgroundColor: batteryLevel > 50 ? '#66bb6a' : (batteryLevel > 20 ? '#ffa726' : '#ff4757')
+                      }"
+                    ></div>
+                  </div>
+                  <div class="battery-pole"></div>
+                </div>
+                <div class="battery-text">{{ batteryLevel }}%</div>
               </div>
-              <div class="battery-percentage">{{ batteryLevel }}%</div>
             </div>
           </div>
 
           <!-- 档位 -->
-          <div class="instrument-card small">
-            <div class="instrument-title">档位</div>
-            <div class="gear-display">
-              <div class="gear-indicator">{{ currentGear }}</div>
+          <div class="manual-card">
+            <div class="manual-card-border"></div>
+            <div class="manual-card-bg"></div>
+            <div class="manual-card-content">
+              <div class="instrument-title">档位</div>
+              <div class="gear-content-wrapper">
+                <div class="gear-box">{{ currentGear }}</div>
+              </div>
             </div>
           </div>
         </div>
@@ -207,22 +221,13 @@ const vehiclePosition = computed(() => {
   }
 })
 
-const displaySpeed = computed(() => currentSpeed.value.toFixed(2))
-const speedAngle = computed(() => {
-  const maxSpeed = 1
-  const minAngle = -135
-  const maxAngle = 135
-  return minAngle + Math.min(currentSpeed.value, maxSpeed) * (maxAngle - minAngle)
+const displaySpeed = computed(() => {
+  const numSpeed = Number(currentSpeed.value)
+  if (numSpeed === 0) {
+    return '0'
+  }
+  return numSpeed.toFixed(2)
 })
-
-const speedMarks = [
-  { value: '0.0', angle: -135 },
-  { value: '0.2', angle: -81 },
-  { value: '0.4', angle: -27 },
-  { value: '0.6', angle: 27 },
-  { value: '0.8', angle: 81 },
-  { value: '1.0', angle: 135 },
-]
 
 const resetVideoState = () => {
   if (videoSrc.value && videoSrc.value.startsWith('blob:')) {
@@ -449,8 +454,9 @@ const goBack = async () => {
 .nav-section {
   width: 100%;
   padding: 10px 0;
-  background: rgba(0, 15, 30, 0.6);
-  backdrop-filter: blur(10px);
+  background: rgb(0, 15, 30) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   display: flex !important;
   justify-content: center;
   align-items: center;
@@ -459,6 +465,8 @@ const goBack = async () => {
   min-height: 60px;
   z-index: 900;
   position: relative;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
   
   /* 启用窗口拖动 */
   -webkit-app-region: drag;
@@ -542,7 +550,7 @@ const goBack = async () => {
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: rgba(0, 15, 30, 0.8);
+  background: rgb(0, 15, 30) !important;
   border: 1px solid rgba(255, 255, 255, 0.2);
   display: flex;
   align-items: center;
@@ -554,7 +562,10 @@ const goBack = async () => {
   font-weight: 800;
   font-size: 20px;
   font-style: normal;
-  backdrop-filter: blur(10px);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
 .back-btn.notification-btn:hover {
@@ -572,6 +583,7 @@ const goBack = async () => {
   gap: 20px;
   padding: 20px;
   overflow: hidden;
+  min-height: 0;
 }
 
 /* 左侧摄像头区域 */
@@ -579,15 +591,19 @@ const goBack = async () => {
   flex: 3;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 .video-container {
   flex: 1;
-  background: rgba(0, 15, 30, 0.8);
+  background: rgb(0, 15, 30) !important;
   border: 2px solid rgba(0, 240, 255, 0.3);
   border-radius: 12px;
   overflow: hidden;
   position: relative;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  z-index: 1;
 }
 
 .video-frame {
@@ -650,13 +666,16 @@ const goBack = async () => {
   position: absolute;
   top: 16px;
   left: 16px;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgb(0, 0, 0) !important;
   color: #ffffff;
   padding: 8px 12px;
   border-radius: 6px;
   font-size: 14px;
   font-family: 'Orbitron', monospace;
-  backdrop-filter: blur(4px);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
 @keyframes pulse {
@@ -670,24 +689,34 @@ const goBack = async () => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  overflow-y: auto;
+  overflow: hidden;
+  min-height: 0;
 }
 
 .instrument-card {
-  background: rgba(0, 15, 30, 0.85);
-  border: 2px solid rgba(0, 240, 255, 0.3);
-  border-radius: 8px;
-  padding: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  background: rgb(0, 15, 30) !important;
+  border: 2px solid rgba(0, 240, 255, 0.3) !important;
+  border-radius: 8px !important;
+  padding: 8px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  display: flex !important;
+  flex-direction: column !important;
+  flex-shrink: 1;
+  min-height: 0;
 }
 
 .instrument-card.small {
-  flex: 1;
+  flex: 0 0 auto;
+  min-height: 0;
 }
 
 .instrument-card.map-card {
-  flex: 2;
-  min-height: 250px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .instrument-title {
@@ -717,121 +746,117 @@ const goBack = async () => {
   font-size: 11px;
   color: #ffffff;
   font-family: 'Orbitron', monospace;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgb(0, 0, 0) !important;
   padding: 4px 10px;
   border-radius: 4px;
   border: 1px solid rgba(0, 240, 255, 0.3);
-  backdrop-filter: blur(4px);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   white-space: nowrap;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
-/* 速度仪表盘 */
-.speedometer {
+/* 速度仪表盘 - Dashboard样式 */
+.dashboard-wrap {
+  flex-grow: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.out-circle {
+  min-width: 120px;
+  min-height: 120px;
+  border-radius: 50%;
+  perspective: 500px;
+  transform-style: preserve-3d;
   position: relative;
-  width: 120px;
-  height: 120px;
-  margin: 0 auto;
 }
 
-.speedometer-circle {
+.out-circle_rotate::after {
+  position: absolute;
   width: 100%;
   height: 100%;
-  border: 3px solid rgba(0, 240, 255, 0.3);
   border-radius: 50%;
-  position: relative;
-  background: radial-gradient(circle, rgba(0, 15, 30, 0.8) 0%, rgba(0, 50, 100, 0.2) 100%);
-}
-
-.speed-gradient-arc {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 90%;
-  height: 90%;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  background: conic-gradient(
-    from 225deg,
-    transparent 0deg,
-    #00ff00 0deg,
-    #66ff00 60deg,
-    #ffff00 120deg,
-    #ff9900 180deg,
-    #ff4400 240deg,
-    #ff0000 270deg,
-    transparent 270deg
+  content: '';
+  border: 1px solid #39485b;
+  background-image: conic-gradient(
+    from 46deg at 50% 50%,
+    transparent,
+    #24b8ee90 20%,
+    #70ffae31 27%,
+    transparent 17%
   );
-  mask: radial-gradient(circle, transparent 65%, black 65%, black 85%, transparent 85%);
-  -webkit-mask: radial-gradient(circle, transparent 65%, black 65%, black 85%, transparent 85%);
-  opacity: 0.8;
-  z-index: 1;
+  border-right: 2px #24ddee solid;
+  animation: rotate 3s linear infinite;
 }
 
-.speed-needle {
+@keyframes rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.scend {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 2px;
-  height: 50px;
-  background: linear-gradient(180deg, #ff4757, #00f0ff);
-  transform-origin: bottom center;
-  margin-left: -1px;
-  margin-top: -50px;
-  border-radius: 1px;
-  transition: transform 0.3s ease;
-  box-shadow: 0 0 8px rgba(255, 71, 87, 0.6);
-  z-index: 3;
+  height: 50%;
+  width: 1px;
+  border-bottom: 6px solid #39485b;
+  transform-origin: top center;
+  transform: rotate(calc(var(--i) * 6deg));
+  transition: all 0.3s ease-in-out;
 }
 
-.speed-center {
+.scend_active {
+  width: 4px;
+  border-bottom: 10px solid var(--primary);
+}
+
+.inner-circle {
+  width: 96px;
+  height: 96px;
   position: absolute;
+  z-index: 9;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  text-align: center;
-  z-index: 2;
+  border-radius: 50%;
+  box-shadow: #24b8ee90 0px 0px 20px inset;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
-.speed-value {
-  font-size: 24px;
-  font-weight: bold;
-  color: #ffffff;
-  text-shadow: 0 0 8px rgba(0, 240, 255, 0.8);
+.speed {
+  color: rgb(255, 255, 255);
+  font-size: 26px;
+  font-weight: 700;
+  font-family: 'Orbitron', sans-serif !important;
+  text-shadow:
+    0px 1px 0px #17c0ff,
+    0px 2px 0px #17c0ff,
+    0px 3px 0px #17c0ff,
+    0px 4px 0px #17c0ff,
+    0px 5px 10px rgba(23, 192, 255, 0.5);
 }
 
-.speed-unit {
-  font-size: 12px;
+.unit {
+  font-size: 14px;
   color: #94a3b8;
-}
-
-.speed-scale {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.speed-mark {
-  position: absolute;
-  top: 10px;
-  left: 50%;
-  transform-origin: 50% 60px;
-  margin-left: -1px;
-}
-
-.mark-line {
-  width: 2px;
-  height: 8px;
-  background: rgba(0, 240, 255, 0.6);
-  margin: 0 auto;
-}
-
-.mark-text {
-  font-size: 10px;
-  color: #94a3b8;
-  text-align: center;
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
 /* 方向盘 */
@@ -872,59 +897,102 @@ const goBack = async () => {
 .battery-gear-row {
   display: flex;
   gap: 16px;
+  flex: 0 0 auto;
 }
 
-/* 电池显示 */
-.battery-display {
-  text-align: center;
+/* 手动绘制的卡片 - 用div模拟边框 */
+.manual-card {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+  padding: 8px;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
-.battery-shell {
+.manual-card-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgb(0, 15, 30);
+  border-radius: 8px;
+  z-index: 1;
+}
+
+.manual-card-border {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  border-radius: 8px;
+  box-shadow: 
+    0 0 0 2px rgba(0, 240, 255, 0.3);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.manual-card-content {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* 电池和档位内容包装器 */
+.battery-content-wrapper,
+.gear-content-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+/* 电池样式 */
+.battery-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.battery-outer {
   width: 80px;
   height: 36px;
   border: 2px solid rgba(0, 240, 255, 0.6);
   border-radius: 4px;
-  position: relative;
-  margin: 0 auto 8px;
-  background: rgba(0, 15, 30, 0.8);
+  background: transparent;
+  overflow: hidden;
 }
 
-.battery-fill {
+.battery-inner {
   height: 100%;
-  background: linear-gradient(90deg, #ff4757 0%, #ffa726 50%, #66bb6a 100%);
-  border-radius: 2px;
   transition: width 0.5s ease;
-  position: relative;
 }
 
-.battery-tip {
-  position: absolute;
-  right: -6px;
-  top: 50%;
-  transform: translateY(-50%);
+.battery-pole {
   width: 4px;
   height: 16px;
   background: rgba(0, 240, 255, 0.6);
   border-radius: 0 2px 2px 0;
 }
 
-.battery-percentage {
+.battery-text {
   font-size: 16px;
   font-weight: bold;
   color: #ffffff;
   text-shadow: 0 0 8px rgba(0, 240, 255, 0.8);
 }
 
-/* 档位显示 */
-.gear-display {
-  text-align: center;
-}
-
-.gear-indicator {
+/* 档位样式 */
+.gear-box {
   width: 60px;
   height: 60px;
-  margin: 0 auto;
-  background: rgba(0, 50, 100, 0.4);
+  background: rgb(0, 30, 60);
   border: 3px solid #00f0ff;
   border-radius: 12px;
   display: flex;

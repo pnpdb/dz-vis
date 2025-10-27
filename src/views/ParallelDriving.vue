@@ -147,13 +147,13 @@
                 </span>
               </div>
               <div class="map-coordinates-header">
-                [X: {{ vehicleCoords.x.toFixed(1) }}, Y: {{ vehicleCoords.y.toFixed(1) }}]
+                [X: {{ vehicleCoords.x.toFixed(2) }} m, Y: {{ vehicleCoords.y.toFixed(2) }} m]
                 <span v-if="!vehicleConnected" class="disconnected-text">(断开连接)</span>
               </div>
             </div>
             <div class="minimap">
               <div class="map-background">
-                <img src="/Image/map.jpg" alt="地图" class="map-image" />
+                <img src="/Image/map.png" alt="地图" class="map-image" />
                 <div class="vehicle-marker" 
                      :class="{ 'disconnected': !vehicleConnected }"
                      :style="{ 
@@ -223,13 +223,29 @@ const currentSpeed = ref(0)
 const steeringAngle = ref(0)
 const batteryLevel = ref(0)
 const currentGear = ref('P')
-const vehicleCoords = ref({ x: 540, y: 392.5 })
+const vehicleCoords = ref({ x: 2.405, y: 1.405 })
+
+// 位置地图坐标转换
+// 图片尺寸：481px × 281px，宽高比：481/281 ≈ 1.711
+// 对应范围：0-4.81m × 0-2.81m
+// 车辆坐标系：X(0-4.81), Y(0-2.81)
 const vehiclePosition = computed(() => {
-  const mapWidth = 1080
-  const mapHeight = 785
+  const mapWidthM = 4.81   // 地图宽度（米）
+  const mapHeightM = 2.81  // 地图高度（米）
+  const imageRatio = 481 / 281  // 图片宽高比 ≈ 1.711
+  
+  // 计算图片在容器中的实际显示区域
+  // 假设容器尺寸和图片比例不完全一致，图片会居中显示
+  // object-fit: contain 会让图片等比例缩放
+  
+  // 简化处理：直接基于图片比例计算
+  // 车辆坐标转换为图片上的百分比位置
+  const xPercent = (vehicleCoords.value.x / mapWidthM) * 100
+  const yPercent = 100 - (vehicleCoords.value.y / mapHeightM) * 100
+  
   return {
-    x: (vehicleCoords.value.x / mapWidth) * 100,
-    y: 100 - (vehicleCoords.value.y / mapHeight) * 100,
+    x: xPercent,
+    y: yPercent
   }
 })
 
@@ -316,7 +332,11 @@ const handleVehicleInfoUpdate = (payload) => {
   const gear = detail.gear ?? 'P'
   currentGear.value = typeof gear === 'string' ? gear : String(gear)
   if (detail.position?.x !== undefined && detail.position?.y !== undefined) {
-    vehicleCoords.value = { x: detail.position.x, y: detail.position.y }
+    // detail.position 已经包含了偏移（在car.js的store中已处理）
+    vehicleCoords.value = { 
+      x: detail.position.x, 
+      y: detail.position.y 
+    }
   }
 }
 
@@ -1061,7 +1081,7 @@ const goBack = async () => {
 .map-image {
   width: 100%;
   height: 100%;
-  object-fit: contain; /* 保持宽高比，完整显示，两侧可能有空隙 */
+  object-fit: fill;
   opacity: 0.8;
 }
 

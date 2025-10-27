@@ -51,10 +51,10 @@ const COUNTDOWN_ON_INTENSITY = 5;  // 倒计时数字亮起时的发光强度
 // 红绿灯分组配置
 // 根据用户提供的信息：2组有2个红绿灯，1组有6个红绿灯
 const TRAFFIC_LIGHT_GROUPS = {
-    // 2组（索引0和2）
-    GROUP_2: [0, 2],  // Zu1(无编号), Zu3(2)
-    // 1组（索引1,3,4,5,6,7）
-    GROUP_1: [1, 3, 4, 5, 6, 7]  // Zu2(1), Zu4(3), Zu5(4), Zu6(5), Zu7(6), Zu8(7)
+    // 2组（索引0和2）- Zu1 和 Zu3
+    GROUP_2: [0, 2],  // Zu1(无后缀) 和 Zu3(_(2)后缀)
+    // 1组（索引1,3,4,5,6,7）- Zu2, Zu4-Zu8
+    GROUP_1: [1, 3, 4, 5, 6, 7]  // Zu2(_(1)) 到 Zu8(_(7))
 };
 
 // 红绿灯对象存储
@@ -80,7 +80,7 @@ export function initTrafficLightManager(sandbox) {
     trafficLights = [];
 
     try {
-        // 查找所有8个红绿灯组
+        // 查找所有8个红绿灯组 (Zu1-Zu8)
         const groups = [];
         
         // 按顺序查找 Zu1 到 Zu8
@@ -96,6 +96,7 @@ export function initTrafficLightManager(sandbox) {
             
             if (group) {
                 groups.push(group);
+                logger.debug(`找到红绿灯组 ${i-1}: ${groupName}`);
             } else {
                 logger.warn(`未找到红绿灯组: ${groupName}`);
             }
@@ -126,9 +127,9 @@ export function initTrafficLightManager(sandbox) {
                         
                         // 使用 emissiveMap 而不是 map，这样数字会发光
                         trafficLight.countdown.material.emissiveMap = texture;
-                        // 设置基础颜色为白色，让纹理正确显示
-                        trafficLight.countdown.material.color.setHex(0xffffff);
-                        // 设置自发光颜色为白色
+                        // 设置基础颜色为深灰色（暗色系背景）
+                        trafficLight.countdown.material.color.setHex(0x464646);
+                        // 设置自发光颜色为白色（让纹理上的彩色数字能正确发光显示）
                         trafficLight.countdown.material.emissive.setHex(0xffffff);
                         trafficLight.countdown.material.emissiveIntensity = 1;
                         trafficLight.countdown.material.needsUpdate = true;
@@ -173,10 +174,12 @@ export function initTrafficLightManager(sandbox) {
 /**
  * 从红绿灯组中提取各个组件
  * @param {THREE.Object3D} group - 红绿灯组对象
- * @param {number} index - 红绿灯索引
+ * @param {number} index - 红绿灯索引 (Zu1=0, Zu2=1, ..., Zu8=7)
  * @returns {Object|null} 红绿灯组件对象
  */
 function extractTrafficLightComponents(group, index) {
+    // 新模型使用下划线+括号格式：_(1), _(2), ..., _(7)
+    // Zu1 (索引0) 无后缀，Zu2-Zu8 (索引1-7) 使用 _(N) 后缀
     const suffix = index === 0 ? '' : `_(${index})`;
     
     const components = {
@@ -185,8 +188,7 @@ function extractTrafficLightComponents(group, index) {
         redLight: null,
         yellowLight: null,
         greenLight: null,
-        countdown: null,
-        grayBackground: null
+        countdown: null
     };
 
     // 在组内查找各个组件
@@ -201,10 +203,8 @@ function extractTrafficLightComponents(group, index) {
             components.yellowLight = child;
         } else if (name === `MD_HongLvDeng_Lv${suffix}`) {
             components.greenLight = child;
-        } else if (name === `MD_HongLvDeng_WenZi${suffix}`) {
-            components.countdown = child;
         } else if (name === `MD_HongLvDeng_Hui${suffix}`) {
-            components.grayBackground = child;
+            components.countdown = child;
         }
     });
 
@@ -276,23 +276,33 @@ function createCountdownCanvas(index) {
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
     
+    // 保存原始状态
+    ctx.save();
+    
+    // 应用变换：只做垂直翻转（上下翻转）
+    ctx.translate(centerX, centerY);
+    ctx.scale(1, -1);  // 只垂直翻转，不水平翻转
+    
     ctx.font = COUNTDOWN_FONT;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     
-    // 绘制高对比度数字 "0"
+    // 绘制高对比度数字 "0"（坐标现在相对于变换后的原点）
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 20;
-    ctx.strokeText('0', centerX, centerY);
+    ctx.strokeText('0', 0, 0);
     
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('0', centerX, centerY);
+    ctx.fillText('0', 0, 0);
     
     // 再次绘制增加亮度
     ctx.globalCompositeOperation = 'lighter';
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('0', centerX, centerY);
+    ctx.fillText('0', 0, 0);
     ctx.globalCompositeOperation = 'source-over';
+    
+    // 恢复状态
+    ctx.restore();
     
     // 创建纹理
     const texture = new THREE.CanvasTexture(canvas);
@@ -330,6 +340,13 @@ function updateCountdownCanvas(index, countdown, color) {
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
     
+    // 保存原始状态
+    ctx.save();
+    
+    // 应用变换：只做垂直翻转（上下翻转）
+    ctx.translate(centerX, centerY);
+    ctx.scale(1, -1);  // 只垂直翻转，不水平翻转
+    
     // 设置字体
     ctx.font = COUNTDOWN_FONT;
     ctx.textAlign = 'center';
@@ -338,19 +355,22 @@ function updateCountdownCanvas(index, countdown, color) {
     // 1. 绘制黑色描边（增加对比度）
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 20;
-    ctx.strokeText(text, centerX, centerY);
+    ctx.strokeText(text, 0, 0);
     
     // 2. 绘制主体文字（更亮的颜色）
     ctx.fillStyle = color;
-    ctx.fillText(text, centerX, centerY);
+    ctx.fillText(text, 0, 0);
     
     // 3. 再次绘制一层更亮的文字（增加发光效果）
     ctx.globalCompositeOperation = 'lighter';
     ctx.fillStyle = color;
-    ctx.fillText(text, centerX, centerY);
+    ctx.fillText(text, 0, 0);
     
     // 恢复默认混合模式
     ctx.globalCompositeOperation = 'source-over';
+    
+    // 恢复状态
+    ctx.restore();
     
     // 通知纹理更新
     const texture = countdownTextures.get(index);

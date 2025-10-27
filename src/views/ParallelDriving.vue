@@ -146,12 +146,12 @@
                   <fa :icon="vehicleConnected ? 'circle' : 'times-circle'" />
                 </span>
               </div>
+            </div>
+            <div class="minimap">
               <div class="map-coordinates-header">
                 [X: {{ vehicleCoords.x.toFixed(2) }} m, Y: {{ vehicleCoords.y.toFixed(2) }} m]
                 <span v-if="!vehicleConnected" class="disconnected-text">(断开连接)</span>
               </div>
-            </div>
-            <div class="minimap">
               <div class="map-background">
                 <img src="/Image/map.png" alt="地图" class="map-image" />
                 <div class="vehicle-marker" 
@@ -746,16 +746,12 @@ const goBack = async () => {
 
 /* 地图头部布局 */
 .map-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
 .map-header .instrument-title {
   margin-bottom: 0;
   text-align: left;
-  flex: 1;
 }
 
 .map-coordinates-header {
@@ -771,6 +767,8 @@ const goBack = async () => {
   white-space: nowrap;
   transform: translateZ(0);
   -webkit-transform: translateZ(0);
+  width: fit-content;
+  margin: 0 auto 8px auto; /* 水平居中，底部留间距 */
 }
 
 /* 速度仪表盘 - Dashboard样式 */
@@ -1008,13 +1006,17 @@ const goBack = async () => {
 /* 小地图 */
 .minimap {
   width: 100%;
-  height: 100%;
-  position: relative;
+  flex: 1 1 auto; /* 自适应剩余空间 */
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* 垂直居中 */
+  min-height: 0; /* 允许缩小 */
 }
 
 .map-background {
   width: 100%;
-  height: calc(100% - 30px);
+  max-height: 100%; /* 限制最大高度 */
+  aspect-ratio: 481 / 281; /* 保持图片原始宽高比 */
   position: relative;
   border: 2px solid rgba(0, 240, 255, 0.3);
   border-radius: 8px;
@@ -1025,7 +1027,7 @@ const goBack = async () => {
 .map-image {
   width: 100%;
   height: 100%;
-  object-fit: fill;
+  object-fit: contain; /* 按比例缩放，不拉伸变形 */
   opacity: 0.8;
 }
 

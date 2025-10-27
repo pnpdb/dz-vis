@@ -15,6 +15,84 @@ DZ-VIZ 是一个基于 **Tauri + Vue 3 + Three.js** 的自动驾驶车辆可视�
 
 ---
 
+## ✨ 最近更新 (2025-10-27)
+
+### 1. 平行驾驶界面优化
+
+**位置地图显示优化**（`src/views/ParallelDriving.vue`）：
+```vue
+<!-- 地图容器使用 aspect-ratio 保持图片比例 -->
+<div class="map-background">
+  <img 
+    src="/Image/map.jpg" 
+    class="map-image" 
+    style="object-fit: contain"  <!-- 按比例缩放，不变形 -->
+  />
+  <div 
+    class="position-dot" 
+    :style="{ left: vehiclePosition.x + '%', top: vehiclePosition.y + '%' }"
+  />
+</div>
+
+<style>
+/* 关键CSS：使用aspect-ratio确保容器按图片比例缩放 */
+.map-background {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 481 / 281;  /* 地图图片的宽高比 */
+  max-height: 100%;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.map-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;  /* 按比例填充，不裁剪 */
+}
+
+/* 使用百分比定位红点，确保坐标准确 */
+.position-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: red;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+</style>
+```
+
+**关键要点**：
+- 使用 `aspect-ratio` 而不是固定高度，确保图片按比例缩放
+- `object-fit: contain` 保证图片不会变形
+- 百分比定位红点，与坐标转换函数配合使用
+- 地图容器垂直居中：`.minimap { justify-content: center }`
+
+### 2. CardWithBorder 通用组件
+
+**新增组件**（`src/components/CardWithBorder.vue`）：
+```vue
+<template>
+  <CardWithBorder :custom-class="'my-panel'" :custom-style="{ width: '300px' }">
+    <h3>标题</h3>
+    <p>内容...</p>
+  </CardWithBorder>
+</template>
+
+<script setup>
+import CardWithBorder from '@/components/CardWithBorder.vue';
+</script>
+```
+
+**特性**：
+- 统一的深蓝色背景 + 青色边框样式
+- 支持自定义class和style
+- 使用slot插槽，灵活组合内容
+- 自动处理事件穿透（`pointer-events`）
+
+---
+
 ## 🛠️ 技术栈
 
 ### 前端
@@ -44,33 +122,114 @@ DZ-VIZ 是一个基于 **Tauri + Vue 3 + Three.js** 的自动驾驶车辆可视�
 
 > 本小节帮助你在新会话中快速同步上下文并继续推进。
 
-### A. Ubuntu 下 Element Plus Toast 跨平台问题（进行中）
+### A. Toast 通知系统 ✅ **已完成自定义实现** (2025-10-27)
 
-- 现象（仅 Ubuntu WebKitGTK）：
-  1)Ubuntu下弹出的 toast 没有左侧小 icon；
-  2) toast 背景宽度不是按文案自适应，文案很短时背景仍然较宽。
-- macOS 下一切正常。
-- 涉及文件：
-  - 触发逻辑：`src/components/CarButton.vue`（已统一使用 `ElMessage.warning('...')` 等简写）
-  - 样式兜底：`src/styles/main.css` 中 `.el-message` 与 `.el-message__icon` 相关规则
-- 当前状态：
-  - 背景色在 Ubuntu 已修复为正常浅色风格；
-  - 待修复：左侧 icon 不显示；宽度未完全随文案自适应（可能由最小宽度与 flex 行为引起）。
-- 建议推进方向：
-  - 将 `.el-message` 调整为 `inline-flex` 并使用 `width:auto; max-width:80vw`；
-  - 强化 `.el-message__icon svg, .el-message__icon i { display:inline-block; width:1em; height:1em; fill:currentColor; }`；
-  - 若仍不显示 icon，可在 `ElMessage` 传入 FontAwesome 文本图标作为兜底。
+- **问题**：Element Plus 的 `ElMessage` 在 Ubuntu WebKitGTK 下存在兼容性问题（icon不显示、背景色异常）
+- **解决方案**：实现了完全自定义的 Toast 系统，完全替代 Element Plus Message
 
-### B. 3D 红绿灯倒计时（UV 映射待模型侧修复）
+- **核心实现**（`src/utils/toast.js`）：
+  ```javascript
+  // 1. 对象池优化（减少DOM创建/销毁）
+  const toastPool = [];
+  const MAX_POOL_SIZE = 5;
+  
+  function getToastFromPool() {
+    return toastPool.length > 0 ? toastPool.pop() : document.createElement('div');
+  }
+  
+  function returnToastToPool(toast) {
+    toast.className = '';
+    toast.style.cssText = '';
+    toast.innerHTML = '';
+    if (toastPool.length < MAX_POOL_SIZE) {
+      toastPool.push(toast);
+    }
+  }
+  
+  // 2. Vue插件化
+  Toast.install = (app) => {
+    app.config.globalProperties.$toast = Toast;
+    app.provide('toast', Toast);
+  };
+  // 可以在main.js中: app.use(Toast)
+  
+  // 3. 内存泄漏修复
+  if (toastContainer && toastContainer.children.length === 0) {
+    if (toastContainer.parentNode) {
+      toastContainer.parentNode.removeChild(toastContainer);
+    }
+    toastContainer = null;
+  }
+  ```
 
-- 目标：使用 `CanvasTexture` 直接驱动原模型数字区域（性能最佳）。
-- 现状：模型数字区域 UV 映射异常，导致数字错位或像“8 的两竖”；
-- 过渡实现：曾用 `Sprite`/`Mesh Plane` 绕过，但带来朝向/大小等副作用，最终方案仍回到原网格贴图；
-- 已输出给建模的要求与诊断：
-  - 诊断脚本：`scripts/check_countdown_uv.js`
-  - 说明文档：`COUNTDOWN_BRIEF_FOR_MODELER.md`、`UV_MAPPING_ISSUE.md`
-  - 要求：仅修正数字区域 UV；不改变红绿灯几何与朝向；保证单/双位数字居中，个位数时不显示前导位。
-- 当前动作：等待建模工程师修复 UV 后，切回 `CanvasTexture + emissiveMap` 的终态实现。
+- **使用方式**：
+  ```javascript
+  import Toast from '@/utils/toast.js';
+  
+  Toast.success('操作成功');
+  Toast.warning('当前车辆离线');
+  Toast.error('操作失败');
+  Toast.info('提示信息');
+  ```
+
+- **跨平台兼容**：
+  - 使用纯CSS和JavaScript实现
+  - 所有样式使用 `!important` 确保优先级
+  - 使用 `rgb()` 颜色替代 `rgba()`（避免WebKitGTK渲染问题）
+  - 移除 `backdrop-filter`（Ubuntu不兼容）
+
+### B. 3D 红绿灯倒计时 ✅ **已解决** (2025-10-27)
+
+- **最终实现**：使用 `CanvasTexture + emissiveMap` 直接驱动原模型数字区域（性能最佳）。
+- **模型更新**（2025-10-27）：
+  - 倒计时区域名称：`MD_HongLvDeng_WenZi` → `MD_HongLvDeng_Hui`
+  - 后缀格式：空格+括号 ` (1)` → 下划线+括号 `_(1)`
+  - 组结构：保留 `MD_HongLvDeng_Zu1` ~ `MD_HongLvDeng_Zu8`
+  - 已移除装饰性的"88"数字
+
+- **关键技术细节**：
+  ```javascript
+  // 文件：src/components/Scene3D/trafficLightManager.js
+  
+  // 1. 红绿灯分组（重要！）
+  const TRAFFIC_LIGHT_GROUPS = {
+    GROUP_2: [0, 2],  // Zu1, Zu3 - 2组（2个红绿灯）
+    GROUP_1: [1, 3, 4, 5, 6, 7]  // Zu2, Zu4-Zu8 - 1组（6个红绿灯）
+  };
+  
+  // 2. 命名规则
+  // Zu1 (索引0): 无后缀
+  //   - MD_HongLvDeng_Hong, MD_HongLvDeng_Huang, MD_HongLvDeng_Lv, MD_HongLvDeng_Hui
+  // Zu2-Zu8 (索引1-7): 使用 _(N) 后缀
+  //   - MD_HongLvDeng_Hong_(1), MD_HongLvDeng_Huang_(1), ...
+  
+  // 3. Canvas纹理翻转（修正UV坐标系差异）
+  const ctx = canvas.getContext('2d');
+  ctx.save();
+  ctx.translate(centerX, centerY);
+  ctx.scale(1, -1);  // 只垂直翻转，不水平翻转
+  ctx.fillText(text, 0, 0);
+  ctx.restore();
+  
+  // 4. 材质配置（暗色背景 + 亮色数字）
+  material.color.setHex(0x323232);      // 深灰色背景（可调整）
+  material.emissive.setHex(0xffffff);   // 白色发光（让数字显示彩色）
+  material.emissiveIntensity = 1;
+  
+  // 5. 数字颜色（根据灯状态）
+  // 红灯：#ff0000, 绿灯：#00ff00, 黄灯：#ffff00
+  ```
+
+- **诊断工具**：
+  - `scripts/check_countdown_uv.js` - UV映射检查（已更新）
+  - `scripts/debug_traffic_light_names.js` - 对象名称调试
+  
+- **可调参数**（`trafficLightManager.js` 顶部）：
+  - `COUNTDOWN_CANVAS_SIZE` - Canvas尺寸（默认512）
+  - `COUNTDOWN_FONT_SIZE` - 字体大小（默认320）
+  - `LIGHT_ON_INTENSITY` - 灯光强度（默认3）
+  - `COUNTDOWN_ON_INTENSITY` - 数字发光强度（默认5）
+  - 倒计时背景颜色：第131行 `material.color.setHex(0x??????)`
 
 ---
 
@@ -164,6 +323,46 @@ function applyOffsetToSend(x, y) {
     y: y + coordinateOffset.y
   };
 }
+```
+
+#### E. 车辆坐标 → 地图百分比 ✨ **新增** (2025-10-27)
+```javascript
+// 文件：src/utils/coordinateTransform.js
+// 用途：在平行驾驶界面显示车辆在小地图上的位置（红点）
+function vehicleToMapPercent(vehicleX, vehicleY) {
+  // 沙盘尺寸（硬编码）
+  const SANDBOX_DIMENSIONS = {
+    width: 4.81,   // X方向
+    depth: 2.81    // Y方向
+  };
+  
+  // 参数验证
+  if (typeof vehicleX !== 'number' || typeof vehicleY !== 'number') {
+    console.error('❌ 地图坐标转换参数必须为数字:', { vehicleX, vehicleY });
+    return { x: 50, y: 50 };
+  }
+  
+  if (isNaN(vehicleX) || isNaN(vehicleY)) {
+    console.error('❌ 地图坐标转换参数不能为NaN:', { vehicleX, vehicleY });
+    return { x: 50, y: 50 };
+  }
+  
+  // 转换为百分比（0-100）
+  const xPercent = (vehicleX / SANDBOX_DIMENSIONS.width) * 100;
+  
+  // Y轴需要翻转（车辆坐标系Y向上，地图坐标系Y向下）
+  const yPercent = 100 - (vehicleY / SANDBOX_DIMENSIONS.depth) * 100;
+  
+  return {
+    x: xPercent,  // 0-100
+    y: yPercent   // 0-100
+  };
+}
+
+// 使用示例（在 ParallelDriving.vue 中）
+const vehiclePosition = computed(() => {
+  return vehicleToMapPercent(vehicleCoords.value.x, vehicleCoords.value.y)
+})
 ```
 
 ### 5. 车辆朝向转换
@@ -585,6 +784,130 @@ onBeforeUnmount(() => {
   eventBus.off(EVENTS.VEHICLE_STATE_UPDATED);
 });
 ```
+
+---
+
+## 🧹 代码质量与最佳实践 (2025-10-27)
+
+### 1. 代码清理原则
+
+**定期清理项目**：
+- ✅ 删除未使用的变量和导入
+- ✅ 删除注释掉的调试代码（`console.log`, `console.debug`）
+- ✅ 删除废弃的CSS规则
+- ✅ 删除未使用的组件导入
+
+**示例（已完成）**：
+```javascript
+// ❌ 删除未使用的变量（main.js）
+// const originalElMessage = ElMessage;
+
+// ❌ 删除注释的导入
+// import 'element-plus/theme-chalk/dark/css-vars.css';
+
+// ❌ 删除调试日志（Header.vue, Map.vue等）
+// console.log('打开对话框', dialogName);
+// logHelper.debug('按钮点击', data);
+
+// ❌ 删除未使用的CSS（main.css）
+// .el-message { display: none !important; }
+
+// ❌ 删除注释的组件导入（Settings.vue）
+// import CarSettings from '@/components/CarSettings.vue';
+```
+
+### 2. 性能优化
+
+**Toast对象池**（`src/utils/toast.js`）：
+```javascript
+// 避免频繁创建和销毁DOM元素
+const toastPool = [];
+const MAX_POOL_SIZE = 5;
+
+// 复用DOM元素
+function getToastFromPool() {
+  return toastPool.length > 0 ? toastPool.pop() : document.createElement('div');
+}
+
+function returnToastToPool(toast) {
+  // 清理状态后放回池中
+  toast.className = '';
+  toast.style.cssText = '';
+  toast.innerHTML = '';
+  if (toastPool.length < MAX_POOL_SIZE) {
+    toastPool.push(toast);
+  }
+}
+```
+
+**定时器清理**：
+```javascript
+// ✅ 组件卸载时清理定时器（ParallelDriving.vue）
+onBeforeUnmount(() => {
+  if (refreshTimer) {
+    clearTimeout(refreshTimer);
+    refreshTimer = null;
+  }
+});
+```
+
+**事件监听器清理**：
+```javascript
+// ✅ 移除事件监听（防止内存泄漏）
+onBeforeUnmount(() => {
+  eventBus.off(EVENTS.VEHICLE_STATE_UPDATED);
+  eventBus.off(EVENTS.ONLINE_VEHICLES_COUNT_CHANGED);
+});
+```
+
+### 3. 代码复用
+
+**封装通用函数**：
+```javascript
+// ✅ 坐标转换函数封装（coordinateTransform.js）
+// 之前：在多个组件中重复计算
+// 现在：统一使用 vehicleToMapPercent()
+
+export function vehicleToMapPercent(vehicleX, vehicleY) {
+  // 参数验证
+  if (typeof vehicleX !== 'number' || typeof vehicleY !== 'number') {
+    return { x: 50, y: 50 };
+  }
+  
+  // 统一的转换逻辑
+  const xPercent = (vehicleX / SANDBOX_DIMENSIONS.width) * 100;
+  const yPercent = 100 - (vehicleY / SANDBOX_DIMENSIONS.depth) * 100;
+  
+  return { x: xPercent, y: yPercent };
+}
+```
+
+**组件化**：
+```javascript
+// ✅ 提取通用UI组件（CardWithBorder.vue）
+// 之前：在多个组件中重复写边框样式
+// 现在：统一使用 <CardWithBorder> 组件
+```
+
+### 4. 生产环境优化
+
+**禁用调试日志**：
+```javascript
+// logger.js 中根据环境变量控制
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+export const logger = {
+  debug: isDevelopment ? console.log : () => {},
+  info: console.info,
+  warn: console.warn,
+  error: console.error
+};
+```
+
+**资源优化**：
+- 使用 Draco 压缩 3D 模型
+- 离线 Draco 解码器（避免CDN依赖）
+- 图片资源优化（WebP格式）
 
 ---
 
@@ -1093,7 +1416,14 @@ npm run tauri:build
 
 ---
 
-**最后更新**: 2025-10-25  
+**最后更新**: 2025-10-27  
 **作者**: AI Assistant  
-**版本**: v1.0
+**版本**: v1.2
+**更新内容**: 
+- 红绿灯系统适配新模型（命名规则、Canvas翻转、材质配置）
+- Toast系统优化（对象池、Vue插件化、内存泄漏修复）
+- 坐标转换封装（vehicleToMapPercent）
+- 平行驾驶界面优化（地图aspect-ratio自适应）
+- 代码质量提升（删除未使用代码、注释清理）
+- CardWithBorder通用组件
 

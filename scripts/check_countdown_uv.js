@@ -15,10 +15,10 @@
         return;
     }
 
-    // 查找所有倒计时对象
+    // 查找所有倒计时对象（新模型使用 MD_HongLvDeng_Hui 作为倒计时区域）
     const countdowns = [];
     sandboxModel.traverse((child) => {
-        if (child.name && child.name.includes('WenZi') && child.geometry) {
+        if (child.name && child.name.includes('MD_HongLvDeng_Hui') && child.geometry) {
             countdowns.push(child);
         }
     });
@@ -115,28 +115,28 @@
     console.log('='.repeat(80));
     console.log('📋 给建模工程师的说明：');
     console.log('');
-    console.log('1. 倒计时对象名称: MD_HongLvDeng_WenZi (及其带后缀的实例)');
+    console.log('1. 倒计时对象名称: MD_HongLvDeng_Hui (及其带后缀的实例)');
+    console.log('   注意：新模型已将倒计时区域从 MD_HongLvDeng_WenZi 改为 MD_HongLvDeng_Hui');
+    console.log('   并且移除了上面的88装饰数字');
     console.log('');
     console.log('2. UV坐标要求:');
-    console.log('   - UV范围应该覆盖整个纹理空间 [0,0] 到 [1,1]');
-    console.log('   - 或者至少覆盖中心区域，如 [0.2,0.2] 到 [0.8,0.8]');
-    console.log('   - 当前如果覆盖范围 < 10%，数字将无法显示');
+    console.log('   - ✅ 理想状态：UV范围覆盖整个纹理空间 [0,0] 到 [1,1]');
+    console.log('   - ⚠️  最低要求：UV覆盖至少 50% 的纹理空间');
+    console.log('   - ❌ 问题状态：UV覆盖范围 < 10% 时，数字将无法显示');
     console.log('');
     console.log('3. 纹理尺寸: 512x512像素');
     console.log('   - 数字绘制在Canvas中心区域');
-    console.log('   - 单个数字约在 (316, 256) 位置');
-    console.log('   - 两个数字约在 (150-200, 256) 和 (312-360, 256)');
+    console.log('   - 单个数字约在 (256, 256) 位置，字体大小320px');
+    console.log('   - 两个数字会水平居中排列');
     console.log('');
-    console.log('4. 建议的UV布局:');
-    console.log('   - 理想情况：UV完全展开，覆盖 [0,0] 到 [1,1]');
-    console.log('   - 可接受：UV覆盖至少 50% 的纹理空间');
-    console.log('');
-    console.log('5. 如何修改（在Blender中）:');
-    console.log('   - 选择倒计时对象');
-    console.log('   - 进入UV编辑模式');
-    console.log('   - 选择所有UV点（A键）');
-    console.log('   - 使用 "Smart UV Project" 或 "Unwrap"');
-    console.log('   - 缩放UV到完整的[0,1]范围');
+    console.log('4. 如何修复UV（在Blender中）:');
+    console.log('   a) 选择倒计时对象 MD_HongLvDeng_Hui');
+    console.log('   b) Tab键进入编辑模式');
+    console.log('   c) 切换到UV编辑器');
+    console.log('   d) A键选择所有UV点');
+    console.log('   e) U键 → "Unwrap" 或 "Smart UV Project"');
+    console.log('   f) S键缩放UV，使其完全覆盖[0,0]到[1,1]区域');
+    console.log('   g) 确保UV不超出[0,1]范围');
     console.log('');
     console.log('='.repeat(80));
 })();

@@ -52,37 +52,45 @@
       <!-- 右侧仪表盘区域 -->
       <div class="dashboard-panel">
         <!-- 车速仪表盘 -->
-        <div class="instrument-card">
-          <div class="instrument-title">车速</div>
-          <div class="dashboard-wrap center">
-            <div :class="['out-circle', { 'out-circle_rotate': currentSpeed > 0 }, 'center']">
-              <div
-                v-for="item in 60"
-                :key="item"
-                :style="`--i: ${item}; `"
-                :class="['scend', { scend_active: item <= (currentSpeed * 60) }]"
-              ></div>
-              <div class="inner-circle">
-                <div class="speed">
-                  <span class="speed-counter">{{ displaySpeed }}</span>
+        <div class="manual-card">
+          <div class="manual-card-border"></div>
+          <div class="manual-card-bg"></div>
+          <div class="manual-card-content">
+            <div class="instrument-title">车速</div>
+            <div class="dashboard-wrap center">
+              <div :class="['out-circle', { 'out-circle_rotate': currentSpeed > 0 }, 'center']">
+                <div
+                  v-for="item in 60"
+                  :key="item"
+                  :style="`--i: ${item}; `"
+                  :class="['scend', { scend_active: item <= (currentSpeed * 60) }]"
+                ></div>
+                <div class="inner-circle">
+                  <div class="speed">
+                    <span class="speed-counter">{{ displaySpeed }}</span>
+                  </div>
+                  <div class="unit">速度</div>
                 </div>
-                <div class="unit">速度</div>
               </div>
             </div>
           </div>
         </div>
 
         <!-- 方向盘 -->
-        <div class="instrument-card">
-          <div class="instrument-title">方向盘</div>
-          <div class="steering-wheel">
-            <div class="wheel-container">
-              <div class="wheel" :style="{ transform: `rotate(${steeringAngle}deg)` }">
-                <img src="/Image/wheel.svg" alt="方向盘" class="wheel-svg" />
+        <div class="manual-card">
+          <div class="manual-card-border"></div>
+          <div class="manual-card-bg"></div>
+          <div class="manual-card-content">
+            <div class="instrument-title">方向盘</div>
+            <div class="steering-wheel">
+              <div class="wheel-container">
+                <div class="wheel" :style="{ transform: `rotate(${steeringAngle}deg)` }">
+                  <img src="/Image/wheel.svg" alt="方向盘" class="wheel-svg" />
+                </div>
               </div>
-            </div>
-            <div class="steering-angle">
-              {{ Math.abs(steeringAngle).toFixed(0) }}°
+              <div class="steering-angle">
+                {{ Math.abs(steeringAngle).toFixed(0) }}°
+              </div>
             </div>
           </div>
         </div>
@@ -127,29 +135,33 @@
         </div>
 
         <!-- 位置地图 -->
-        <div class="instrument-card map-card">
-          <div class="map-header">
-            <div class="instrument-title">
-              位置地图
-              <span class="connection-indicator" :class="{ connected: vehicleConnected, disconnected: !vehicleConnected }">
-                <fa :icon="vehicleConnected ? 'circle' : 'times-circle'" />
-              </span>
+        <div class="manual-card map-card-manual">
+          <div class="manual-card-border"></div>
+          <div class="manual-card-bg"></div>
+          <div class="manual-card-content">
+            <div class="map-header">
+              <div class="instrument-title">
+                位置地图
+                <span class="connection-indicator" :class="{ connected: vehicleConnected, disconnected: !vehicleConnected }">
+                  <fa :icon="vehicleConnected ? 'circle' : 'times-circle'" />
+                </span>
+              </div>
+              <div class="map-coordinates-header">
+                [X: {{ vehicleCoords.x.toFixed(1) }}, Y: {{ vehicleCoords.y.toFixed(1) }}]
+                <span v-if="!vehicleConnected" class="disconnected-text">(断开连接)</span>
+              </div>
             </div>
-            <div class="map-coordinates-header">
-              [X: {{ vehicleCoords.x.toFixed(1) }}, Y: {{ vehicleCoords.y.toFixed(1) }}]
-              <span v-if="!vehicleConnected" class="disconnected-text">(断开连接)</span>
-            </div>
-          </div>
-          <div class="minimap">
-            <div class="map-background">
-              <img src="/Image/map.jpg" alt="地图" class="map-image" />
-              <div class="vehicle-marker" 
-                   :class="{ 'disconnected': !vehicleConnected }"
-                   :style="{ 
-                     left: vehiclePosition.x + '%', 
-                     top: vehiclePosition.y + '%' 
-                   }">
-                <div class="vehicle-dot" :class="{ 'disconnected': !vehicleConnected }"></div>
+            <div class="minimap">
+              <div class="map-background">
+                <img src="/Image/map.jpg" alt="地图" class="map-image" />
+                <div class="vehicle-marker" 
+                     :class="{ 'disconnected': !vehicleConnected }"
+                     :style="{ 
+                       left: vehiclePosition.x + '%', 
+                       top: vehiclePosition.y + '%' 
+                     }">
+                  <div class="vehicle-dot" :class="{ 'disconnected': !vehicleConnected }"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -695,10 +707,11 @@ const goBack = async () => {
 
 .instrument-card {
   background: rgb(0, 15, 30) !important;
-  border: 2px solid rgba(0, 240, 255, 0.3) !important;
   border-radius: 8px !important;
   padding: 8px !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 
+    0 0 0 2px rgb(0, 240, 255),
+    0 4px 16px rgba(0, 0, 0, 0.3) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   transform: translateZ(0);
@@ -772,8 +785,8 @@ const goBack = async () => {
 }
 
 .out-circle {
-  min-width: 120px;
-  min-height: 120px;
+  min-width: 100px;
+  min-height: 100px;
   border-radius: 50%;
   perspective: 500px;
   transform-style: preserve-3d;
@@ -825,8 +838,8 @@ const goBack = async () => {
 }
 
 .inner-circle {
-  width: 96px;
-  height: 96px;
+  width: 80px;
+  height: 80px;
   position: absolute;
   z-index: 9;
   top: 50%;
@@ -842,7 +855,7 @@ const goBack = async () => {
 
 .speed {
   color: rgb(255, 255, 255);
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 700;
   font-family: 'Orbitron', sans-serif !important;
   text-shadow:
@@ -854,9 +867,9 @@ const goBack = async () => {
 }
 
 .unit {
-  font-size: 14px;
+  font-size: 12px;
   color: #94a3b8;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 /* 方向盘 */
@@ -865,9 +878,9 @@ const goBack = async () => {
 }
 
 .wheel-container {
-  width: 100px;
-  height: 100px;
-  margin: 0 auto 8px;
+  width: 85px;
+  height: 85px;
+  margin: 0 auto 6px;
   position: relative;
 }
 
@@ -886,10 +899,10 @@ const goBack = async () => {
 
 .steering-angle {
   text-align: center;
-  font-size: 16px;
+  font-size: 14px;
   color: #ffffff;
   font-weight: bold;
-  margin-top: 8px;
+  margin-top: 4px;
   text-shadow: 0 0 8px rgba(0, 240, 255, 0.8);
 }
 
@@ -902,12 +915,21 @@ const goBack = async () => {
 
 /* 手动绘制的卡片 - 用div模拟边框 */
 .manual-card {
-  flex: 1;
+  flex: 0 0 auto;
   position: relative;
-  min-height: 0;
   padding: 8px;
   border-radius: 8px;
   overflow: hidden;
+}
+
+/* 电池和档位在行内平分宽度 */
+.battery-gear-row .manual-card {
+  flex: 1 1 0;
+}
+
+.manual-card.map-card-manual {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .manual-card-bg {
@@ -923,13 +945,16 @@ const goBack = async () => {
 
 .manual-card-border {
   position: absolute;
-  top: 2px;
-  left: 2px;
-  right: 2px;
-  bottom: 2px;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   border-radius: 8px;
-  box-shadow: 
-    0 0 0 2px rgba(0, 240, 255, 0.3);
+  background: 
+    linear-gradient(rgba(0, 240, 255, 0.3), rgba(0, 240, 255, 0.3)) top left / 100% 2px no-repeat,
+    linear-gradient(rgba(0, 240, 255, 0.3), rgba(0, 240, 255, 0.3)) top right / 2px 100% no-repeat,
+    linear-gradient(rgba(0, 240, 255, 0.3), rgba(0, 240, 255, 0.3)) bottom left / 100% 2px no-repeat,
+    linear-gradient(rgba(0, 240, 255, 0.3), rgba(0, 240, 255, 0.3)) top left / 2px 100% no-repeat;
   z-index: 2;
   pointer-events: none;
 }

@@ -1002,15 +1002,15 @@ const goBack = async () => {
 
 /* 档位样式 */
 .gear-box {
-  width: 60px;
-  height: 60px;
+  width: 50px;
+  height: 50px;
   background: rgb(0, 0, 0);
   box-shadow: 0 0 0 2px rgb(0, 240, 255);
-  border-radius: 12px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 32px;
+  font-size: 28px;
   font-weight: bold;
   color: #00ff00;
   text-shadow: 0 0 12px rgba(0, 255, 0, 0.8);

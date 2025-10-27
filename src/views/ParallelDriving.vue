@@ -106,7 +106,7 @@
                       }"
                     ></div>
                   </div>
-                  <div style="width: 8px; min-width: 8px; height: 18px; min-height: 18px; background: rgb(0, 240, 255); background-color: rgb(0, 240, 255); border-radius: 0 3px 3px 0; flex-shrink: 0; flex-grow: 0; margin-left: 1px; box-shadow: 0 0 0 1px rgb(0, 240, 255), inset 0 0 0 10px rgb(0, 240, 255);"></div>
+                  <div style="width: 8px; min-width: 8px; height: 16px; min-height: 16px; background: rgb(0, 240, 255); background-color: rgb(0, 240, 255); border-radius: 0 3px 3px 0; flex-shrink: 0; flex-grow: 0; margin-left: 1px; box-shadow: 0 0 0 1px rgb(0, 240, 255), inset 0 0 0 10px rgb(0, 240, 255);"></div>
                 </div>
                 <div class="battery-text">{{ batteryLevel }}%</div>
               </div>
@@ -1004,8 +1004,8 @@ const goBack = async () => {
 .gear-box {
   width: 60px;
   height: 60px;
-  background: rgb(0, 30, 60);
-  border: 3px solid #00f0ff;
+  background: rgb(0, 0, 0);
+  box-shadow: 0 0 0 2px rgb(0, 240, 255);
   border-radius: 12px;
   display: flex;
   align-items: center;
@@ -1014,9 +1014,6 @@ const goBack = async () => {
   font-weight: bold;
   color: #00ff00;
   text-shadow: 0 0 12px rgba(0, 255, 0, 0.8);
-  box-shadow: 
-    inset 0 0 20px rgba(0, 240, 255, 0.2),
-    0 0 20px rgba(0, 240, 255, 0.3);
 }
 
 /* 小地图 */

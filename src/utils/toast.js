@@ -1,10 +1,15 @@
 /**
  * 自定义 Toast 通知系统
  * 解决 Ubuntu WebKitGTK 下 Element Plus Message 的兼容性问题
+ * 使用对象池优化性能，减少DOM创建/销毁开销
  */
 
 // Toast 容器
 let toastContainer = null;
+
+// Toast 对象池
+const toastPool = [];
+const MAX_POOL_SIZE = 5; // 最多缓存5个toast元素
 
 // Toast 类型配置
 const TOAST_TYPES = {
@@ -59,6 +64,36 @@ function initToastContainer() {
 }
 
 /**
+ * 从对象池获取toast元素
+ * @returns {HTMLElement} toast元素
+ */
+function getToastFromPool() {
+    if (toastPool.length > 0) {
+        return toastPool.pop();
+    }
+    // 池为空，创建新元素
+    const toast = document.createElement('div');
+    return toast;
+}
+
+/**
+ * 将toast元素归还到对象池
+ * @param {HTMLElement} toast - toast元素
+ */
+function returnToastToPool(toast) {
+    // 清理元素状态
+    toast.className = '';
+    toast.style.cssText = '';
+    toast.innerHTML = '';
+    
+    // 如果池未满，放入池中
+    if (toastPool.length < MAX_POOL_SIZE) {
+        toastPool.push(toast);
+    }
+    // 否则不缓存，让其被垃圾回收
+}
+
+/**
  * 显示 Toast
  * @param {string} message - 消息内容
  * @param {string} type - 消息类型：success, warning, error, info
@@ -69,8 +104,8 @@ function showToast(message, type = 'info', duration = 3000) {
     
     const config = TOAST_TYPES[type] || TOAST_TYPES.info;
     
-    // 创建 toast 元素
-    const toast = document.createElement('div');
+    // 从对象池获取 toast 元素
+    const toast = getToastFromPool();
     toast.className = 'custom-toast custom-toast-' + type;
     toast.style.cssText = `
         display: flex !important;
@@ -165,6 +200,9 @@ function showToast(message, type = 'info', duration = 3000) {
                 toastContainer.removeChild(toast);
             }
             
+            // 将toast归还到对象池
+            returnToastToPool(toast);
+            
             // 如果容器为空，完全移除容器（包括从DOM中移除）
             if (toastContainer && toastContainer.children.length === 0) {
                 if (toastContainer.parentNode) {
@@ -208,6 +246,27 @@ export const Toast = {
      */
     info(message, duration = 3000) {
         return showToast(message, 'info', duration);
+    },
+    
+    /**
+     * Vue插件安装函数
+     * 用法：
+     * import Toast from '@/utils/toast.js'
+     * app.use(Toast)
+     * 
+     * 然后在组件中使用：
+     * this.$toast.success('成功')
+     * 或在setup中使用：
+     * import { getCurrentInstance } from 'vue'
+     * const { proxy } = getCurrentInstance()
+     * proxy.$toast.success('成功')
+     */
+    install(app) {
+        // 注册全局属性
+        app.config.globalProperties.$toast = Toast;
+        
+        // 也可以通过provide/inject使用
+        app.provide('toast', Toast);
     }
 };
 

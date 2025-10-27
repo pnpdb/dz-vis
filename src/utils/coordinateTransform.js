@@ -246,6 +246,37 @@ export function isWithinBounds(vehicleX, vehicleY) {
 }
 
 /**
+ * 将车辆坐标转换为地图图片上的百分比位置
+ * 用于在地图上显示车辆的位置点
+ * @param {number} vehicleX - 车辆X坐标（0-4.81m）
+ * @param {number} vehicleY - 车辆Y坐标（0-2.81m）
+ * @returns {{x: number, y: number}} 百分比位置 {x: 0-100, y: 0-100}
+ */
+export function vehicleToMapPercent(vehicleX, vehicleY) {
+    // 参数验证
+    if (typeof vehicleX !== 'number' || typeof vehicleY !== 'number') {
+        console.error('❌ 地图坐标转换参数必须为数字:', { vehicleX, vehicleY });
+        return { x: 50, y: 50 }; // 返回地图中心
+    }
+    
+    if (isNaN(vehicleX) || isNaN(vehicleY)) {
+        console.error('❌ 地图坐标转换参数不能为NaN:', { vehicleX, vehicleY });
+        return { x: 50, y: 50 };
+    }
+    
+    // 转换为百分比
+    // X轴：0m -> 0%, 4.81m -> 100%
+    // Y轴：0m -> 100% (底部), 2.81m -> 0% (顶部) - 注意Y轴方向相反
+    const xPercent = (vehicleX / SANDBOX_DIMENSIONS.width) * 100;
+    const yPercent = 100 - (vehicleY / SANDBOX_DIMENSIONS.depth) * 100;
+    
+    return {
+        x: xPercent,
+        y: yPercent
+    };
+}
+
+/**
  * 获取所有车位信息（用于调试）
  * @returns {Array<{id: number, vehicle: {x, y}, model: {x, z}}>}
  */

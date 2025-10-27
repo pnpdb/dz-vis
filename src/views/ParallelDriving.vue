@@ -180,6 +180,7 @@ import { parseVehicleId, compareVehicleId } from '@/utils/vehicleTypes.js'
 import eventBus, { EVENTS } from '@/utils/eventBus.js'
 import { useCarStore } from '@/stores/car.js'
 import { videoStreamManager } from '@/utils/videoStreamManager.js'
+import { vehicleToMapPercent } from '@/utils/coordinateTransform.js'
 import TitleBar from '@/components/TitleBar.vue'
 
 const router = useRouter()
@@ -226,27 +227,9 @@ const currentGear = ref('P')
 const vehicleCoords = ref({ x: 2.405, y: 1.405 })
 
 // 位置地图坐标转换
-// 图片尺寸：481px × 281px，宽高比：481/281 ≈ 1.711
-// 对应范围：0-4.81m × 0-2.81m
-// 车辆坐标系：X(0-4.81), Y(0-2.81)
+// 使用封装的坐标转换函数将车辆坐标转换为地图上的百分比位置
 const vehiclePosition = computed(() => {
-  const mapWidthM = 4.81   // 地图宽度（米）
-  const mapHeightM = 2.81  // 地图高度（米）
-  const imageRatio = 481 / 281  // 图片宽高比 ≈ 1.711
-  
-  // 计算图片在容器中的实际显示区域
-  // 假设容器尺寸和图片比例不完全一致，图片会居中显示
-  // object-fit: contain 会让图片等比例缩放
-  
-  // 简化处理：直接基于图片比例计算
-  // 车辆坐标转换为图片上的百分比位置
-  const xPercent = (vehicleCoords.value.x / mapWidthM) * 100
-  const yPercent = 100 - (vehicleCoords.value.y / mapHeightM) * 100
-  
-  return {
-    x: xPercent,
-    y: yPercent
-  }
+  return vehicleToMapPercent(vehicleCoords.value.x, vehicleCoords.value.y)
 })
 
 const displaySpeed = computed(() => {

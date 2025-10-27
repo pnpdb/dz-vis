@@ -96,17 +96,17 @@
             <div class="manual-card-content">
               <div class="instrument-title">电池电量</div>
               <div class="battery-content-wrapper">
-                <div class="battery-wrapper">
-                  <div class="battery-outer">
+                <div style="display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 1px;">
+                  <div style="width: 80px; height: 36px; box-shadow: 0 0 0 2px rgb(0, 240, 255); border-radius: 4px; background: rgb(0, 0, 0); overflow: hidden; position: relative;">
                     <div 
-                      class="battery-inner"
                       :style="{
                         width: batteryLevel + '%',
+                        height: '100%',
                         backgroundColor: batteryLevel > 50 ? '#66bb6a' : (batteryLevel > 20 ? '#ffa726' : '#ff4757')
                       }"
                     ></div>
                   </div>
-                  <div class="battery-pole"></div>
+                  <div style="width: 8px; height: 24px; background: rgb(0, 240, 255); border-radius: 0 3px 3px 0; flex-shrink: 0;"></div>
                 </div>
                 <div class="battery-text">{{ batteryLevel }}%</div>
               </div>
@@ -955,30 +955,42 @@ const goBack = async () => {
 
 /* 电池样式 */
 .battery-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 0;
+  display: inline-flex !important;
+  align-items: center !important;
+  flex-direction: row !important;
 }
 
 .battery-outer {
-  width: 80px;
-  height: 36px;
-  border: 2px solid rgba(0, 240, 255, 0.6);
+  width: 80px !important;
+  height: 36px !important;
+  border: 2px solid rgb(0, 240, 255) !important;
   border-radius: 4px;
-  background: transparent;
+  background: rgb(0, 0, 0) !important;
   overflow: hidden;
+  box-shadow: 0 0 0 1px rgb(0, 240, 255);
+  flex-shrink: 0;
+  display: block;
 }
 
 .battery-inner {
-  height: 100%;
+  height: 100% !important;
   transition: width 0.5s ease;
+  display: block;
 }
 
 .battery-pole {
-  width: 4px;
-  height: 16px;
-  background: rgba(0, 240, 255, 0.6);
+  width: 6px !important;
+  height: 20px !important;
+  min-width: 6px !important;
+  min-height: 20px !important;
+  background: rgb(0, 240, 255) !important;
+  background-color: rgb(0, 240, 255) !important;
   border-radius: 0 2px 2px 0;
+  box-shadow: 0 0 4px rgba(0, 240, 255, 0.8) !important;
+  flex-shrink: 0 !important;
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
 .battery-text {

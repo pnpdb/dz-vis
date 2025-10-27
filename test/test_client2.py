@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Socket客户端测试程序 - 2号车
-模拟小车连接Tauri Socket服务器并发送协议数据
+模拟2号小车连接Tauri Socket服务器并发送协议数据
 """
 
 import socket
@@ -21,6 +21,7 @@ VERSION = 0x10
 RECEIVE_MESSAGE_TYPES = {
     'HEARTBEAT': 0x0001,        # 心跳包
     'VEHICLE_INFO': 0x0002,     # 车辆信息协议（新协议）
+    'PATH_FILE_SELECTION': 0x0003,  # 路径文件选择
 }
 
 # 发送消息类型 (发送给客户端)
@@ -409,7 +410,7 @@ force_parallel_until = 0
 vehicle_paths = {}
 
 class VehiclePath:
-    """车辆路径管理类 - 沿沙盘道路绕圈（2号车顺时针）"""
+    """车辆路径管理类 - 沿沙盘道路绕圈"""
     def __init__(self, vehicle_id):
         self.vehicle_id = vehicle_id
         
@@ -421,13 +422,13 @@ class VehiclePath:
         self.MARGIN_X = 0.23  # X轴边距
         self.MARGIN_Y = 0.23  # Y轴边距
         
-        # 定义矩形路径的四个角点（顺时针绕行，与1号车相反）
-        # 左下 -> 左上 -> 右上 -> 右下 -> 左下
+        # 定义矩形路径的四个角点（顺时针绕行）
+        # 左下 -> 右下 -> 右上 -> 左上 -> 左下
         self.path_points = [
             (self.MARGIN_X, self.MARGIN_Y),                                      # 左下角
-            (self.MARGIN_X, self.SANDBOX_DEPTH - self.MARGIN_Y),                # 左上角
-            (self.SANDBOX_WIDTH - self.MARGIN_X, self.SANDBOX_DEPTH - self.MARGIN_Y),  # 右上角
             (self.SANDBOX_WIDTH - self.MARGIN_X, self.MARGIN_Y),                # 右下角
+            (self.SANDBOX_WIDTH - self.MARGIN_X, self.SANDBOX_DEPTH - self.MARGIN_Y),  # 右上角
+            (self.MARGIN_X, self.SANDBOX_DEPTH - self.MARGIN_Y),                # 左上角
         ]
         
         # 车辆状态
@@ -436,7 +437,7 @@ class VehiclePath:
         self.position_x = self.path_points[0][0]
         self.position_y = self.path_points[0][1]
         self.orientation = 0.0  # 朝向角度（度）
-        self.battery = 90.0  # 初始电量（2号车稍高一点）
+        self.battery = 85.0  # 初始电量
         
         # 移动参数
         self.speed = 0.25  # 固定速度 0.25 m/s (模拟慢速行驶)
@@ -492,9 +493,9 @@ def get_vehicle_path(vehicle_id):
         vehicle_paths[vehicle_id] = VehiclePath(vehicle_id)
     return vehicle_paths[vehicle_id]
 
-def create_vehicle_info_data(vehicle_id=2):
+def create_vehicle_info_data(vehicle_id=1):
     """
-    创建车辆信息协议数据域 (54字节) - 2号车
+    创建车辆信息协议数据域 (54字节)
     格式：车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 朝向(8) + 电量(8) + 档位(1) + 方向盘转角(8) + 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1)
     """
     import random
@@ -514,11 +515,11 @@ def create_vehicle_info_data(vehicle_id=2):
     data.extend(struct.pack('<d', speed))
     
     # 位置X (8字节, DOUBLE) - 从路径管理器获取
-    position_x = state['position_x']
+    position_x = state['position_x'] + 0.18
     data.extend(struct.pack('<d', position_x))
     
     # 位置Y (8字节, DOUBLE) - 从路径管理器获取
-    position_y = state['position_y']
+    position_y = state['position_y'] + 0.18
     data.extend(struct.pack('<d', position_y))
     
     # 朝向 (8字节, DOUBLE) - 从路径管理器获取（自动根据移动方向计算）
@@ -548,8 +549,8 @@ def create_vehicle_info_data(vehicle_id=2):
     if now_ms < force_parallel_until:
         nav_status = 15
     else:
-        nav_status = 5  # 5 = 去往充电车位
-    data.extend(struct.pack('<B', nav_status))
+        nav_status = 5  # 5 = 正常导航中
+    data.extend(struct.pack('<B', 1))
     
     # 相机状态 (1字节, UINT8) - 0:异常, 1:正常（模拟正常工作）
     camera_status = 1
@@ -590,7 +591,7 @@ def create_vehicle_info_data(vehicle_id=2):
     return bytes(data)
 
 class TestClient:
-    def __init__(self, server_host='192.168.1.12', server_port=8888, vehicle_id=2):
+    def __init__(self, server_host='127.0.0.1', server_port=8888, vehicle_id=1):
         self.server_host = server_host
         self.server_port = server_port
         self.vehicle_id = vehicle_id
@@ -673,6 +674,30 @@ class TestClient:
         thread.start()
         print(" 数据模拟发送已启动")
         
+    def send_path_file_selection(self, path_ids):
+        """
+        发送路径文件选择协议 (0x0003)
+        数据域: 车辆编号(1字节) + 路径编号列表(N字节)
+        """
+        try:
+            # 构建数据域
+            data = bytearray()
+            data.append(self.vehicle_id)  # 车辆编号
+            data.extend(path_ids)         # 路径编号列表
+            
+            # 发送协议
+            if self.send_message(RECEIVE_MESSAGE_TYPES['PATH_FILE_SELECTION'], bytes(data)):
+                print(f"🛣️ [发送] 路径文件选择 (0x0003):")
+                print(f"   车辆ID: {self.vehicle_id}")
+                print(f"   路径编号: {path_ids}")
+                return True
+            else:
+                print(f"❌ 发送路径文件选择失败")
+                return False
+        except Exception as e:
+            print(f"❌ 发送路径文件选择异常: {e}")
+            return False
+    
     def listen_for_commands(self):
         """监听服务器命令"""
         def listen_loop():
@@ -741,11 +766,134 @@ class TestClient:
         print(f"   时间戳: {timestamp_dt}")
         print(f"   数据长度: {message['data_length']} 字节")
         
-        # 根据消息类型处理（省略详细处理，与1号车相同）
-        if message_type == SEND_MESSAGE_TYPES['VEHICLE_CONTROL']:
+        # 根据消息类型处理
+        if message_type == 0x2001:
+            # 来自界面端的平行驾驶请求（沙盘离线时的回退路径)
+            if len(data_domain) >= 1:
+                vid = data_domain[0]
+                if vid == self.vehicle_id:
+                    print(f"🎮 收到平行驾驶请求 -> 车辆{vid} 将在10秒内维持导航=15")
+                    global force_parallel_until
+                    force_parallel_until = int(time.time() * 1000) + 10000
+        elif message_type == SEND_MESSAGE_TYPES['VEHICLE_CONTROL']:
+            # 解析车辆控制指令
             control_info = parse_vehicle_control_message(data_domain)
-            if control_info and control_info['vehicle_id'] == self.vehicle_id:
-                print(f" 车辆{self.vehicle_id}收到控制指令: {control_info['command_name']}")
+            if control_info:
+                print(f" 车辆控制指令:")
+                print(f"   目标车辆: {control_info['vehicle_id']}")
+                print(f"   控制指令: {control_info['command_name']} ({control_info['control_command']})")
+                
+                if control_info['control_command'] == 4:  # 初始化位姿
+                    print(f"   位置X: {control_info['position_x']:.3f}")
+                    print(f"   位置Y: {control_info['position_y']:.3f}")
+                    print(f"   朝向: {control_info['orientation']:.3f}")
+                
+                # 模拟执行指令
+                print(f" 车辆{control_info['vehicle_id']}执行{control_info['command_name']}指令")
+                
+        elif message_type == SEND_MESSAGE_TYPES['DATA_RECORDING']:
+            # 解析数据记录控制指令
+            recording_info = parse_data_recording_message(data_domain)
+            if recording_info:
+                print(f" 数据记录控制指令:")
+                print(f"   目标车辆: {recording_info['vehicle_id']}")
+                print(f"   记录状态: {recording_info['status_name']} ({recording_info['recording_status']})")
+                
+                # 模拟执行指令
+                print(f" 车辆{recording_info['vehicle_id']}数据记录{recording_info['status_name']}")
+                
+        elif message_type == SEND_MESSAGE_TYPES['TAXI_ORDER']:
+            # 解析出租车订单指令
+            taxi_info = parse_taxi_order_message(data_domain)
+            if taxi_info:
+                print(f"出租车订单:")
+                print(f"   目标车辆: {taxi_info['vehicle_id']}")
+                print(f"   起点: ({taxi_info['start_x']:.3f}, {taxi_info['start_y']:.3f})")
+                print(f"   终点: ({taxi_info['end_x']:.3f}, {taxi_info['end_y']:.3f})")
+                
+                # 模拟接单处理
+                print(f" 车辆{self.vehicle_id}收到出租车订单，目标车辆: {taxi_info['vehicle_id']}")
+                
+        elif message_type == SEND_MESSAGE_TYPES['AVP_PARKING']:
+            # 解析AVP泊车指令
+            parking_info = parse_avp_parking_message(data_domain)
+            if parking_info:
+                print(f" AVP自主代客泊车指令:")
+                print(f"   目标车辆: {parking_info['vehicle_id']}")
+                print(f"   停车位: {parking_info['parking_spot']}号车位")
+                
+                # 模拟执行泊车
+                if parking_info['vehicle_id'] == self.vehicle_id:
+                    print(f" 车辆{self.vehicle_id}开始执行AVP泊车，目标车位: {parking_info['parking_spot']}号")
+                else:
+                    print(f" 泊车指令目标车辆({parking_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
+                    
+        elif message_type == SEND_MESSAGE_TYPES['AVP_PICKUP']:
+            # 解析AVP取车指令
+            pickup_info = parse_avp_pickup_message(data_domain)
+            if pickup_info:
+                print(f" AVP取车指令:")
+                print(f"   目标车辆: {pickup_info['vehicle_id']}")
+                
+                # 模拟执行取车
+                if pickup_info['vehicle_id'] == self.vehicle_id:
+                    print(f" 车辆{self.vehicle_id}开始执行AVP取车操作")
+                else:
+                    print(f" 取车指令目标车辆({pickup_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
+                    
+        elif message_type == SEND_MESSAGE_TYPES['VEHICLE_FUNCTION_SETTING']:
+            # 解析车辆功能设置指令
+            function_info = parse_vehicle_function_setting_message(data_domain)
+            if function_info:
+                print(f"🔧 车辆功能设置指令:")
+                print(f"   目标车辆: {function_info['vehicle_id']}")
+                print(f"   功能模块: {function_info['function_name']} ({function_info['function_id']})")
+                print(f"   设置状态: {function_info['status_name']} ({function_info['enable_status']})")
+                
+                # 模拟执行功能设置
+                if function_info['vehicle_id'] == self.vehicle_id:
+                    print(f" 车辆{self.vehicle_id}执行功能设置: {function_info['function_name']} -> {function_info['status_name']}")
+                else:
+                    print(f" 功能设置指令目标车辆({function_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
+                    
+        elif message_type == SEND_MESSAGE_TYPES['VEHICLE_PATH_DISPLAY']:
+            # 解析车辆路径显示控制指令
+            path_info = parse_vehicle_path_display_message(data_domain)
+            if path_info:
+                print(f"🛣️ 车辆路径显示控制指令:")
+                print(f"   目标车辆: {path_info['vehicle_id']}")
+                print(f"   显示路径: {path_info['display_name']} ({path_info['display_path']})")
+                
+                # 模拟执行路径显示控制
+                if path_info['vehicle_id'] == self.vehicle_id:
+                    if path_info['display_path'] == 1:
+                        print(f" 车辆{self.vehicle_id}开始发送路径数据到服务端")
+                        # 收到开启路径显示指令后，主动发送路径文件选择（0x0003）
+                        self.send_path_file_selection([1, 2, 3, 4, 5, 6, 7, 8])
+                    else:
+                        print(f" 车辆{self.vehicle_id}停止发送路径数据到服务端")
+                else:
+                    print(f"路径显示指令目标车辆({path_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
+                    
+        elif message_type == SEND_MESSAGE_TYPES['CONSTRUCTION_MARKER']:
+            # 解析施工标记指令 - 新格式：所有施工点坐标
+            marker_info = parse_construction_marker_message(data_domain)
+            if marker_info:
+                print(f"施工标记指令:")
+                print(f"   施工点数量: {marker_info['marker_count']} 个")
+                
+                if marker_info['marker_count'] == 0:
+                    print(f"   所有施工点已清除")
+                else:
+                    print(f"   当前所有施工点坐标:")
+                    for marker in marker_info['markers']:
+                        print(f"     施工点{marker['index']}: ({marker['position_x']:.3f}, {marker['position_y']:.3f})")
+                
+                # 模拟执行施工标记操作
+                print(f" 已更新本地施工点列表，共 {marker_info['marker_count']} 个施工点")
+        else:
+            print(f"   未知消息类型: 0x{message_type:04X}")
+            print(f"   数据: {data_domain.hex()}")
         
         print()  # 添加空行便于阅读
 
@@ -753,10 +901,16 @@ class TestClient:
 def main():
     import sys
     
-    # 固定为2号车
+    # 获取命令行参数 - 车辆ID（默认为2）
     vehicle_id = 2
+    if len(sys.argv) > 1:
+        try:
+            vehicle_id = int(sys.argv[1])
+        except ValueError:
+            print(" 车辆ID必须是数字")
+            sys.exit(1)
     
-    print(f" Socket客户端测试程序 - 车辆ID: {vehicle_id} (顺时针路径)")
+    print(f" Socket客户端测试程序 - 车辆ID: {vehicle_id}")
     print("=" * 50)
     
     # 创建测试客户端

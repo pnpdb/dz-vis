@@ -515,11 +515,11 @@ def create_vehicle_info_data(vehicle_id=1):
     data.extend(struct.pack('<d', speed))
     
     # 位置X (8字节, DOUBLE) - 从路径管理器获取
-    position_x = state['position_x']
+    position_x = state['position_x'] + 0.18
     data.extend(struct.pack('<d', position_x))
     
     # 位置Y (8字节, DOUBLE) - 从路径管理器获取
-    position_y = state['position_y']
+    position_y = state['position_y'] + 0.18
     data.extend(struct.pack('<d', position_y))
     
     # 朝向 (8字节, DOUBLE) - 从路径管理器获取（自动根据移动方向计算）
@@ -591,7 +591,7 @@ def create_vehicle_info_data(vehicle_id=1):
     return bytes(data)
 
 class TestClient:
-    def __init__(self, server_host='192.168.1.69', server_port=8888, vehicle_id=1):
+    def __init__(self, server_host='127.0.0.1', server_port=8888, vehicle_id=1):
         self.server_host = server_host
         self.server_port = server_port
         self.vehicle_id = vehicle_id

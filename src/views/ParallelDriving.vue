@@ -96,7 +96,7 @@
             <div class="manual-card-content">
               <div class="instrument-title">电池电量</div>
               <div class="battery-content-wrapper">
-                <div style="display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 1px;">
+                <div style="display: flex; flex-direction: row; align-items: center; justify-content: center;">
                   <div style="width: 80px; height: 36px; box-shadow: 0 0 0 2px rgb(0, 240, 255); border-radius: 4px; background: rgb(0, 0, 0); overflow: hidden; position: relative;">
                     <div 
                       :style="{
@@ -106,7 +106,7 @@
                       }"
                     ></div>
                   </div>
-                  <div style="width: 8px; height: 24px; background: rgb(0, 240, 255); border-radius: 0 3px 3px 0; flex-shrink: 0;"></div>
+                  <div style="width: 8px; min-width: 8px; height: 18px; min-height: 18px; background: rgb(0, 240, 255); background-color: rgb(0, 240, 255); border-radius: 0 3px 3px 0; flex-shrink: 0; flex-grow: 0; margin-left: 1px; box-shadow: 0 0 0 1px rgb(0, 240, 255), inset 0 0 0 10px rgb(0, 240, 255);"></div>
                 </div>
                 <div class="battery-text">{{ batteryLevel }}%</div>
               </div>

@@ -9,7 +9,6 @@ import router from './router';
 import '@fortawesome/fontawesome-free/css/all.css';
 
 import ElementPlus, { ElMessage } from 'element-plus';
-// import 'element-plus/theme-chalk/dark/css-vars.css';  // 注释掉深色模式，避免影响自定义 Toast
 import 'element-plus/dist/index.css';
 import './styles/main.css';
 import './styles/customer.scss';
@@ -30,6 +29,14 @@ import Toast from '@/utils/toast.js';
 
 // 将 Toast 暴露到 window 对象供全局使用
 window.Toast = Toast;
+
+// 生产环境禁用console.debug，提升性能
+if (!Environment.isDevelopment()) {
+    const noop = () => {};
+    console.debug = noop;
+    // 保留原始console用于必要时使用
+    window.__originalConsoleDebug = console.debug;
+}
 
 // 在Tauri环境启动时初始化配置
 if (Environment.isTauri()) {
@@ -91,8 +98,6 @@ if (app.config.globalProperties.$message) {
 }
 
 // 覆盖 Element Plus 的 Message 函数，重定向到自定义 Toast
-const originalElMessage = ElMessage;
-// 重写 ElMessage 的所有方法，重定向到自定义 Toast
 ['success', 'warning', 'info', 'error'].forEach(type => {
     ElMessage[type] = (message, options) => {
         console.warn(`Element Plus Message.${type} 被调用，已重定向到自定义 Toast:`, message);
@@ -130,9 +135,16 @@ async function initializeApp() {
     }
 }
 
+// 保存启动定时器ID，用于可能的清理
+const startupTimers = {
+    appInit: null,
+    socketInit: null
+};
+
 // 延迟初始化，确保应用完全挂载
-setTimeout(() => {
+startupTimers.appInit = setTimeout(() => {
     initializeApp();
+    startupTimers.appInit = null; // 执行后清除
 }, 1000);
 
 // 在Tauri环境中启动Socket服务器
@@ -140,14 +152,27 @@ const shouldStartSocket = Environment.isTauri() || import.meta.env.TAURI_ENV_PLA
 
 if (shouldStartSocket) {
     // 延迟启动Socket服务器，确保应用完全初始化
-    setTimeout(async () => {
+    startupTimers.socketInit = setTimeout(async () => {
         try {
             const result = await socketManager.startServer();
         } catch (error) {
             await jsError('Socket服务器启动失败:', error);
             await jsError('错误详情:', error.stack || error);
         }
-    }, 2000); // 增加延迟时间
+        startupTimers.socketInit = null; // 执行后清除
+    }, 2000);
 } else {
     await jsInfo('不启动Socket服务器');
 }
+
+// 暴露清理函数供测试或特殊情况使用
+window.__cleanupStartupTimers = () => {
+    if (startupTimers.appInit) {
+        clearTimeout(startupTimers.appInit);
+        startupTimers.appInit = null;
+    }
+    if (startupTimers.socketInit) {
+        clearTimeout(startupTimers.socketInit);
+        startupTimers.socketInit = null;
+    }
+};

@@ -197,12 +197,6 @@ div[class*="el-dialog"] {
     z-index: 99999 !important;
 }
 
-/* Element Plus Message 已弃用，使用自定义 Toast 系统 */
-/* 保留样式配置以防万一有遗漏的地方还在使用 */
-.el-message {
-    display: none !important;  /* 隐藏 Element Plus 的 Message，统一使用自定义 Toast */
-}
-
 /* 调整 Element Plus Notification 组件位置 */
 .el-notification {
     top: 50px !important;  /* 标题栏30px + 额外边距20px */

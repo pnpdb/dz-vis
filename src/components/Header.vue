@@ -666,12 +666,10 @@ const closeLogin = () => {
 
 // Element Plus对话框事件监听器
 const onDialogOpen = () => {
-    // console.log('🟢 对话框开始打开');
+    // 对话框开始打开
 };
 
 const onDialogOpened = () => {
-    // console.log('✅ 对话框完全打开');
-    
     // 立即检查对话框的实际渲染状态
     setTimeout(() => {
         const dialog = document.querySelector('.el-dialog');
@@ -680,14 +678,6 @@ const onDialogOpened = () => {
         if (dialog) {
             const dialogRect = dialog.getBoundingClientRect();
             const dialogStyles = getComputedStyle(dialog);
-            
-            // console.log('🔍 对话框实际状态检查:');
-            // console.log('位置:', dialogRect);
-            // console.log('z-index:', dialogStyles.zIndex);
-            // console.log('display:', dialogStyles.display);
-            // console.log('visibility:', dialogStyles.visibility);
-            // console.log('opacity:', dialogStyles.opacity);
-            // console.log('position:', dialogStyles.position);
             
             // 强制将对话框挂载到body，脱离父容器限制
             const dialogWrapper = dialog.closest('.el-overlay');
@@ -843,30 +833,22 @@ const onDialogClose = () => {
 };
 
 const onDialogClosed = () => {
-    // console.log('❌ 对话框完全关闭');
+    // 对话框完全关闭
 };
 
 // 显示登录框 - 简化版本
 const showLogin = () => {
-    // logHelper.debug('Header', '设置按钮被点击，显示登录框')
-    // 简单调试保留即可
-    // console.debug('设置按钮被点击，显示登录框');
-    
     // 清空表单
     loginForm.value = {
         username: '',
         password: ''
     };
     
-    // 简单设置状态，不进行复杂的DOM操作
     loginDialogVisible.value = true;
-    // console.log('登录框显示状态:', loginDialogVisible.value);
 };
 
 // 显示关于弹窗
 const showAbout = () => {
-    // logHelper.debug('Header', '关于按钮被点击，显示关于弹窗')
-    // console.debug('关于按钮被点击，显示关于弹窗');
     aboutDialogVisible.value = true;
 };
 

@@ -348,9 +348,6 @@ class SocketManager {
         logger.outputToPlugin('DEBUG', 'SocketManager.vehicleInfoUpdate', [
             `车辆:${vehicleId} 速:${speed.toFixed(3)} 位置:(${position.x?.toFixed?.(2) ?? position.x},${position.y?.toFixed?.(2) ?? position.y}) 电:${battery.toFixed?.(1) ?? battery}%`
         ], { throttle: true, throttleKey: `vinfo-ok-${vehicleId}`, interval: 500 });
-
-        // 注释掉：不需要在这里发送事件，因为store.updateVehicleState会发送（已包含偏移）
-        // this.throttledEmitters.vehicleInfo(vehicleInfo);
     }
 
     /**

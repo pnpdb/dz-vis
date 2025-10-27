@@ -165,9 +165,11 @@ function showToast(message, type = 'info', duration = 3000) {
                 toastContainer.removeChild(toast);
             }
             
-            // 如果容器为空，移除容器
-            if (toastContainer.children.length === 0) {
-                toastContainer.remove();
+            // 如果容器为空，完全移除容器（包括从DOM中移除）
+            if (toastContainer && toastContainer.children.length === 0) {
+                if (toastContainer.parentNode) {
+                    toastContainer.parentNode.removeChild(toastContainer);
+                }
                 toastContainer = null;
             }
         }, 300);

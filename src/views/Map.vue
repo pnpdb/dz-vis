@@ -248,7 +248,6 @@ let serverStatusInterval = null;
 // 处理在线车辆数量变化事件
 const handleOnlineVehiclesCountChanged = ({ count, vehicleIds }) => {
     onlineVehicles.value = count
-    // console.debug(`📊 主界面在线车辆数量更新: ${count}台, 车辆ID: [${vehicleIds.join(', ')}]`)
 }
 
 // ============ 车辆模型动态管理 ============

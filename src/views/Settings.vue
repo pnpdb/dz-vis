@@ -50,7 +50,6 @@
 
 <script setup>
 import { ref, onMounted, watch, computed, onBeforeUnmount } from 'vue';
-// import CarSettings from '@/components/CarSettings.vue';  // 车辆设置已禁用
 import { VehicleConnectionAPI } from '@/utils/vehicleAPI.js';
 import { socketManager } from '@/utils/socketManager.js';
 import Toast from '@/utils/toast.js';

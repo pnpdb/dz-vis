@@ -133,6 +133,7 @@ impl ProtocolValidator {
 
     fn validate_sandbox_lighting(&self, lighting: &SandboxLightingData) -> Result<(), ProtocolError> {
         for (field, value) in [
+            ("barrier", lighting.barrier),
             ("ambient", lighting.ambient),
             ("building", lighting.building),
             ("street", lighting.street),

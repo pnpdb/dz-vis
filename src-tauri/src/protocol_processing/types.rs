@@ -266,9 +266,10 @@ pub struct ConstructionMarkerData {
 /// 沙盘灯光控制数据
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SandboxLightingData {
-    pub ambient: u8,
-    pub building: u8,
-    pub street: u8,
+    pub barrier: u8,    // 停车抬杆
+    pub ambient: u8,    // 环境灯
+    pub building: u8,   // 建筑灯
+    pub street: u8,     // 路灯
 }
 
 /// 单个红绿灯状态

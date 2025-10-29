@@ -11,7 +11,7 @@
 接收协议:
 - 0x2001: 自动/平行驾驶模式
 - 0x2002: 红绿灯时长设置
-- 0x2003: 沙盘灯光控制
+- 0x2003: 沙盘灯光控制（4字节：停车抬杆、环境灯、建筑灯、路灯）
 
 使用方式:
   python3 sandbox_client.py [host] [port]
@@ -221,12 +221,12 @@ def main():
                         remaining = data[i * 2 + 1]
                         color_text = {1: '红', 2: '绿', 3: '黄'}.get(color, f'未知({color})')
                         print(f"   - 灯{i+1}: {color_text}, 剩余 {remaining} 秒")
-                elif mt == 0x2003 and len(data) >= 3:
-                    ambient, building, street = data[:3]
+                elif mt == 0x2003 and len(data) >= 4:
+                    barrier, ambient, building, street = data[:4]
                     def mk_text(flag, name):
                         status = "开启" if flag else "关闭"
                         return f"{name}:{status}"
-                    print(f"💡 {ts} 收到 0x2003 指令: {mk_text(ambient, '环境灯')}, {mk_text(building, '建筑灯')}, {mk_text(street, '路灯')}")
+                    print(f"💡 {ts} 收到 0x2003 指令: {mk_text(barrier, '停车抬杆')}, {mk_text(ambient, '环境灯')}, {mk_text(building, '建筑灯')}, {mk_text(street, '路灯')}")
                 else:
                     print(f"ℹ️ {ts} 收到消息: 0x{mt:04X}, 数据长度: {len(data)}")
     finally:

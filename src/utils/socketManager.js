@@ -1148,8 +1148,8 @@ class SocketManager {
         return this.parallelOverride.has(normalizedId);
     }
 
-    async sendSandboxLightingControl({ ambient, building, street }) {
-        const values = { ambient, building, street };
+    async sendSandboxLightingControl({ barrier, ambient, building, street }) {
+        const values = { barrier, ambient, building, street };
         for (const [name, value] of Object.entries(values)) {
             if (!Number.isInteger(value) || (value !== 0 && value !== 1)) {
                 throw new Error(`${name} 状态无效`);
@@ -1158,7 +1158,7 @@ class SocketManager {
 
         try {
             await invoke('send_sandbox_lighting_control', values);
-            socketLogger.info(`[SandboxLighting] 已发送灯光状态: 环境=${ambient}, 建筑=${building}, 路灯=${street}`);
+            socketLogger.info(`[SandboxLighting] 已发送灯光状态: 停车抬杆=${barrier}, 环境=${ambient}, 建筑=${building}, 路灯=${street}`);
         } catch (error) {
             socketLogger.error('发送沙盘灯光控制指令失败:', error);
             throw error;

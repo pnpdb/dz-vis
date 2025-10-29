@@ -232,6 +232,7 @@ let pendingLightingPromise = Promise.resolve();
 
 const enqueueLightingUpdate = () => {
     const payload = {
+        barrier: lightSettings.value.barrier ? SANDBOX_LIGHTING_PROTOCOL.STATUS_ON : SANDBOX_LIGHTING_PROTOCOL.STATUS_OFF,
         ambient: lightSettings.value.ambient ? SANDBOX_LIGHTING_PROTOCOL.STATUS_ON : SANDBOX_LIGHTING_PROTOCOL.STATUS_OFF,
         building: lightSettings.value.building ? SANDBOX_LIGHTING_PROTOCOL.STATUS_ON : SANDBOX_LIGHTING_PROTOCOL.STATUS_OFF,
         street: lightSettings.value.street ? SANDBOX_LIGHTING_PROTOCOL.STATUS_ON : SANDBOX_LIGHTING_PROTOCOL.STATUS_OFF,
@@ -253,7 +254,7 @@ const enqueueLightingUpdate = () => {
 
 // 监听灯光设置变化，只在用户手动操作时发送协议
 watch(
-    () => [lightSettings.value.ambient, lightSettings.value.building, lightSettings.value.street],
+    () => [lightSettings.value.barrier, lightSettings.value.ambient, lightSettings.value.building, lightSettings.value.street],
     () => {
         // 只在用户手动操作按钮时发送协议，不在初始化时发送
         enqueueLightingUpdate();

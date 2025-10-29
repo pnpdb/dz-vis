@@ -159,14 +159,15 @@ impl ProtocolBuilder {
         self.buffer.clone()
     }
 
-    /// 构建沙盘灯光控制协议
+    /// 构建沙盘灯光控制协议（4字节：停车抬杆、环境灯、建筑灯、路灯）
     pub fn build_sandbox_lighting(&mut self, lighting: &SandboxLightingData) -> Vec<u8> {
         let start_time = current_timestamp_us();
         self.buffer.clear();
 
-        self.buffer.push(lighting.ambient);
-        self.buffer.push(lighting.building);
-        self.buffer.push(lighting.street);
+        self.buffer.push(lighting.barrier);   // 停车抬杆
+        self.buffer.push(lighting.ambient);   // 环境灯
+        self.buffer.push(lighting.building);  // 建筑灯
+        self.buffer.push(lighting.street);    // 路灯
 
         self.update_stats(start_time);
         self.buffer.clone()

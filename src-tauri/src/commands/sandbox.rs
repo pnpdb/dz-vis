@@ -100,15 +100,16 @@ pub async fn send_sandbox_exit_control(
         .map_err(|e| format!("发送失败: {}", e))
 }
 
-/// 发送沙盘灯光控制指令（0x2003）
+/// 发送沙盘灯光控制指令（0x2003）- 4字节数据域：停车抬杆、环境灯、建筑灯、路灯
 #[tauri::command]
 pub async fn send_sandbox_lighting_control(
     app: tauri::AppHandle,
+    barrier: u8,
     ambient: u8,
     building: u8,
     street: u8,
 ) -> Result<String, String> {
-    for (name, value) in [("ambient", ambient), ("building", building), ("street", street)] {
+    for (name, value) in [("barrier", barrier), ("ambient", ambient), ("building", building), ("street", street)] {
         if !matches!(value, 0 | 1) {
             return Err(format!("{} 状态无效，必须为 0 或 1", name));
         }
@@ -120,6 +121,7 @@ pub async fn send_sandbox_lighting_control(
     }
 
     let payload = SandboxService::new().build_lighting_payload(&SandboxLightingData {
+        barrier,
         ambient,
         building,
         street,

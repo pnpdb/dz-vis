@@ -1,0 +1,114 @@
+# MediaMTX 配置 - 为 dz-viz 优化的低延迟 WebRTC 配置
+# 仅启用必要的协议，最小化资源占用
+
+###############################################
+# 全局设置
+###############################################
+
+# 日志级别：info（正常），debug（调试）
+logLevel: info
+logDestinations: [stdout]
+
+# 超时设置
+readTimeout: 10s
+writeTimeout: 10s
+writeQueueSize: 512
+
+# 认证设置 - 本地开发环境（允许所有本地连接）
+# 注意：生产环境应启用认证！
+# 不设置 authMethod 使用默认值（允许所有连接）
+
+###############################################
+# RTSP 服务器（接收 RTSP 源）
+###############################################
+
+rtsp: yes
+rtspAddress: :8554
+rtspTransports: [tcp]  # 仅 TCP，更稳定
+rtspEncryption: "no"
+rtspAuthMethods: [basic]
+
+###############################################
+# RTMP 服务器（接收 RTMP 源）
+###############################################
+
+rtmp: yes
+rtmpAddress: :1935
+rtmpEncryption: "no"
+
+###############################################
+# WebRTC 服务器（低延迟播放）
+###############################################
+
+webrtc: yes
+# WebRTC HTTP 服务器端口（前端通过此端口连接）
+webrtcAddress: :8889
+webrtcEncryption: no
+# 允许跨域（前端在 Tauri 内运行）
+webrtcAllowOrigin: '*'
+# 本地 UDP 监听（接收 WebRTC 连接）
+webrtcLocalUDPAddress: :8189
+webrtcLocalTCPAddress: ''
+# 从接口自动获取 IP
+webrtcIPsFromInterfaces: yes
+webrtcIPsFromInterfacesList: []
+# ICE 服务器（使用 Google STUN）
+webrtcICEServers2:
+  - url: stun:stun.l.google.com:19302
+# WebRTC 握手超时
+webrtcHandshakeTimeout: 10s
+webrtcTrackGatherTimeout: 2s
+
+###############################################
+# HLS 服务器（禁用，我们只用 WebRTC）
+###############################################
+
+hls: no
+
+###############################################
+# SRT 服务器（禁用）
+###############################################
+
+srt: no
+
+###############################################
+# API/监控
+###############################################
+
+# 启用 API 用于流状态检测
+api: yes
+apiAddress: :9997
+
+# 其他监控功能保持禁用
+metrics: no
+pprof: no
+playback: no
+
+###############################################
+# 默认路径设置
+###############################################
+
+pathDefaults:
+  # 源类型：publisher（客户端推流）或 URL（拉流）
+  source: publisher
+  
+  # 最大读取者数量（0 = 无限制）
+  maxReaders: 0
+  
+  # 不记录流
+  record: no
+  
+  # 允许覆盖发布者
+  overridePublisher: yes
+  
+  # RTSP 传输协议
+  rtspTransport: tcp
+
+###############################################
+# 路径配置
+###############################################
+
+paths:
+  # 所有未匹配的路径使用默认设置
+  all_others:
+

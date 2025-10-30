@@ -6,6 +6,7 @@ pub mod settings;
 pub mod vehicle;
 pub mod sandbox;
 pub mod media;
+pub mod mediamtx;
 pub mod video_processing;
 pub mod protocol_processing;
 pub mod protocol_config;
@@ -50,6 +51,12 @@ pub use media::{
     start_rtsp_conversion, stop_rtsp_conversion, get_hls_url, start_hls_server,
     start_udp_video_server, stop_udp_video_server, get_udp_video_server_stats,
     get_media_server_ports
+};
+
+pub use mediamtx::{
+    start_mediamtx_stream, stop_mediamtx_stream,
+    get_mediamtx_webrtc_url, is_mediamtx_running, is_ffmpeg_stream_active,
+    check_mediamtx_stream_ready
 };
 
 // 导出视频处理命令

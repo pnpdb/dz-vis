@@ -14,6 +14,7 @@ mod services;
 mod socket;
 mod udp_video;
 mod video_processing;
+mod mediamtx_manager;
 mod utils;
 
 use commands::protocol_processing::ProtocolProcessorState;
@@ -238,6 +239,13 @@ pub fn run() {
             send_vehicle_path_display_command,
             send_vehicle_camera_toggle_command,
             send_sandbox_lighting_control,
+            // MediaMTX 命令
+            start_mediamtx_stream,
+            stop_mediamtx_stream,
+            get_mediamtx_webrtc_url,
+            is_mediamtx_running,
+            is_ffmpeg_stream_active,
+            check_mediamtx_stream_ready,
             // 视频处理命令
             process_video_frame,
             quick_validate_jpeg_base64,
@@ -405,6 +413,15 @@ pub fn run() {
             // 初始化协议处理器状态
             app.manage(ProtocolProcessorState::new());
             info!("✅ 协议处理器初始化成功");
+
+            // 初始化并启动 MediaMTX
+            info!("🚀 初始化 MediaMTX 服务...");
+            let mediamtx_manager = mediamtx_manager::MediaMTXManager::new();
+            if let Err(e) = mediamtx_manager.start(app.handle()) {
+                error!("❌ MediaMTX 启动失败: {}", e);
+            }
+            app.manage(mediamtx_manager);
+            info!("✅ MediaMTX 服务已就绪");
 
             // UDP视频服务器自动启动已移至媒体命令模块，可通过API手动启动
 

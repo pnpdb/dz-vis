@@ -177,6 +177,7 @@ const cameraId = ref('');
 const selectedCamera = computed(() => cameras.value.find(cam => cam.id === cameraId.value));
 const isLoading = ref(false);
 const isStreaming = ref(false);
+const isConnectingWebRTC = ref(false); // 标记正在建立 WebRTC 连接
 const videoRef = ref();
 const cameraPreviewRef = ref();
 
@@ -509,83 +510,194 @@ const waitForHLSReady = async (hlsUrl, maxRetries = 10, delay = 1000) => {
     console.warn('⚠️ HLS流可能还未完全就绪，但将尝试播放');
 };
 
-// RTSP摄像头处理（通过Rust后端转换为HLS）
+// RTSP摄像头处理（通过 MediaMTX WebRTC）
 const startRTSPCamera = async (camera) => {
     if (!camera.rtsp_url) {
         throw new Error('RTSP地址不能为空');
     }
 
     try {
-        try { await plInfo(`🎥 启动RTSP到HLS转换: ${camera.rtsp_url}`); } catch (_) {}
+        try { await plInfo(`🎥 启动 MediaMTX WebRTC 流: ${camera.rtsp_url}`); } catch (_) {}
         
-        // 先启动HLS服务器
-        try {
-            await invoke('start_hls_server', { port: 9002 });
-            console.debug('✅ HLS服务器已启动');
-        } catch (error) {
-            console.debug('ℹ️ HLS服务器已在运行或启动中');
-        }
+        // 标记正在建立 WebRTC 连接，避免 video 元素的初始错误触发 toast
+        isConnectingWebRTC.value = true;
         
-        // 启动RTSP到HLS转换
-        const hlsPath = await invoke('start_rtsp_conversion', {
+        // 1. 先启动 FFmpeg 推流到 MediaMTX
+        console.log('📡 启动 FFmpeg 推流到 MediaMTX...');
+        console.log('   📹 RTSP URL:', camera.rtsp_url);
+        console.log('   🎯 摄像头 ID:', camera.id);
+        
+        const whepUrl = await invoke('start_mediamtx_stream', {
             cameraId: camera.id,
             rtspUrl: camera.rtsp_url
         });
+        console.log('✅ FFmpeg 推流已启动');
+        console.log('📡 WHEP URL:', whepUrl);
         
-        console.debug(`🔄 HLS路径: ${hlsPath}`);
+        // 验证 FFmpeg 进程是否真的在运行
+        const ffmpegActive = await invoke('is_ffmpeg_stream_active', { cameraId: camera.id });
+        console.log('🔍 FFmpeg 进程状态:', ffmpegActive ? '运行中' : '未运行');
         
-        // 等待一下让FFmpeg开始处理
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        // 等待 FFmpeg 连接并开始推流到 MediaMTX
+        // 使用 MediaMTX API 真正检查流是否就绪
+        console.log('⏳ 等待 FFmpeg 连接 RTSP 源并建立流...');
         
-        // 获取完整的HLS URL
-        const hlsUrl = await invoke('get_hls_url', {
-            cameraId: camera.id,
-            hlsPort: 9002
-        });
+        const streamName = `camera_${camera.id}`;
+        let streamReady = false;
+        const maxRetries = 30; // 最多等待 15 秒
+        const checkInterval = 500; // 每 500ms 检查一次
         
-        console.debug(`🎬 HLS URL: ${hlsUrl}`);
+        for (let i = 0; i < maxRetries; i++) {
+            try {
+                // 🔥 关键改动：使用 Rust 命令通过 MediaMTX API 检查流状态
+                const ready = await invoke('check_mediamtx_stream_ready', { 
+                    streamName 
+                });
+                
+                if (ready) {
+                    streamReady = true;
+                    const elapsedTime = ((i + 1) * checkInterval / 1000).toFixed(1);
+                    console.log(`✅ MediaMTX 流已就绪 (${elapsedTime}秒)`);
+                    break;
+                }
+            } catch (error) {
+                // API 请求失败（可能 MediaMTX 未启动）
+                console.debug(`🔍 检查流状态失败 (${i + 1}/${maxRetries}):`, error);
+            }
+            
+            // 等待后再次检查
+            await new Promise(resolve => setTimeout(resolve, checkInterval));
+            
+            // 每 2 秒输出一次进度日志
+            if ((i + 1) % 4 === 0) {
+                const elapsed = ((i + 1) * checkInterval / 1000).toFixed(1);
+                const total = (maxRetries * checkInterval / 1000).toFixed(1);
+                console.log(`⏳ 仍在等待流准备... (${elapsed}秒/${total}秒)`);
+            }
+        }
         
-        // 检查HLS流是否真的可用
-        await waitForHLSReady(hlsUrl);
+        if (!streamReady) {
+            // 检查 FFmpeg 是否还在运行
+            const ffmpegStillActive = await invoke('is_ffmpeg_stream_active', { cameraId: camera.id });
+            console.error('❌ 流准备超时');
+            console.error('   FFmpeg 状态:', ffmpegStillActive ? '仍在运行' : '已停止');
+            console.error('   RTSP URL:', camera.rtsp_url);
+            console.error('   等待时间: 15 秒');
+            
+            throw new Error(
+                `等待流准备超时（15秒）\n` +
+                `FFmpeg 状态: ${ffmpegStillActive ? '运行中' : '已停止'}\n` +
+                `可能原因:\n` +
+                `1. RTSP 源连接缓慢或无法访问\n` +
+                `2. 网络问题\n` +
+                `3. FFmpeg 配置问题\n` +
+                `请检查 Rust 日志查看详细错误`
+            );
+        }
         
-        // 先设置streaming状态让video元素显示
+        // 2. 设置streaming状态让video元素显示
         isStreaming.value = true;
-        
-        // 等待DOM更新，确保video元素已创建
         await nextTick();
         
-        if (videoRef.value) {
-            // 清除之前的源
-            videoRef.value.src = '';
-            videoRef.value.srcObject = null;
-            
-            // 设置播放属性优化性能
-            videoRef.value.autoplay = true;
-            videoRef.value.muted = true;
-            videoRef.value.playsInline = true;
-            // controls已在模板中设置
-            
-            // 设置HLS URL到video元素
-            videoRef.value.src = hlsUrl;
-            
-            // 尝试播放
-            try {
-                await videoRef.value.play();
-                console.log('✅ HLS流播放成功');
-            } catch (playError) {
-                console.warn('⚠️ 自动播放失败，用户可手动点击播放:', playError.message);
-                // 不设置为false，保持视频元素显示，用户可以手动播放
-            }
-        } else {
-            // 如果还是找不到video元素，重置状态
-            isStreaming.value = false;
+        if (!videoRef.value) {
             throw new Error('video元素未找到，请重试');
         }
         
+            // 清除之前的源
+            videoRef.value.srcObject = null;
+        videoRef.value.src = '';
+        
+        // 3. 创建 WebRTC PeerConnection (WHEP 协议)
+        console.log('🔄 创建 WebRTC PeerConnection (WHEP)...');
+        
+        const configuration = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' }
+            ]
+        };
+        const pc = new RTCPeerConnection(configuration);
+        
+        // 添加 recvonly transceiver（WHEP 协议只接收）
+        pc.addTransceiver('video', { direction: 'recvonly' });
+        pc.addTransceiver('audio', { direction: 'recvonly' });
+        
+        // 监听接收到的媒体流
+        pc.ontrack = (event) => {
+            console.log('📹 收到 WebRTC 媒体流');
+            if (videoRef.value && event.streams && event.streams[0]) {
+                videoRef.value.srcObject = event.streams[0];
+                console.log('✅ srcObject 已设置');
+                
+                // 自动播放
+                videoRef.value.play().catch(e => {
+                    console.error('❌ 播放失败:', e);
+                });
+            }
+        };
+        
+        // 监听连接状态
+        pc.onconnectionstatechange = () => {
+            console.log('🔗 WebRTC 连接状态:', pc.connectionState);
+            if (pc.connectionState === 'failed') {
+                console.error('❌ WebRTC 连接失败');
+                Toast.error('视频流连接失败');
+            }
+        };
+        
+        pc.oniceconnectionstatechange = () => {
+            console.log('🧊 ICE 连接状态:', pc.iceConnectionState);
+        };
+        
+        // 4. 创建 Offer 并发送到 MediaMTX
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        
+        console.log('📤 发送 WHEP Offer 到 MediaMTX...');
+        const response = await fetch(whepUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/sdp',
+            },
+            body: pc.localDescription.sdp
+        });
+        
+        if (!response.ok) {
+            throw new Error(`WHEP 请求失败: ${response.status} ${response.statusText}`);
+        }
+        
+        // 5. 获取 Answer SDP 并设置
+        const answerSdp = await response.text();
+        console.log('📥 收到 Answer SDP');
+        
+        await pc.setRemoteDescription({
+            type: 'answer',
+            sdp: answerSdp
+        });
+        
+        console.log('✅ MediaMTX WebRTC (WHEP) 连接建立成功');
+        
+        // 连接成功，清除标志，允许后续错误提示
+        isConnectingWebRTC.value = false;
+        
+        // 保存 PeerConnection 以便后续关闭
+        if (!window.activePeerConnections) {
+            window.activePeerConnections = new Map();
+        }
+        window.activePeerConnections.set(camera.id, pc);
+        
     } catch (error) {
-        try { await plError(`❌ RTSP摄像头连接失败: ${error.message || error}`); } catch (_) {}
-        isStreaming.value = false; // 发生错误时重置状态
-        throw new Error(`RTSP流连接失败: ${error.message || error}`);
+        try { await plError(`❌ WebRTC摄像头连接失败: ${error.message || error}`); } catch (_) {}
+        isStreaming.value = false;
+        isConnectingWebRTC.value = false; // 清除标志
+        
+        // 发生错误时停止推流
+        try {
+            await invoke('stop_mediamtx_stream', { cameraId: camera.id });
+        } catch (e) {
+            console.warn('停止推流失败:', e);
+        }
+        
+        throw new Error(`WebRTC流连接失败: ${error.message || error}`);
     }
 };
 
@@ -596,7 +708,7 @@ const stopVideoStream = async () => {
     try {
         // 停止USB摄像头流
         if (videoRef.value && videoRef.value.srcObject) {
-            console.debug('📹 停止USB摄像头流');
+            console.debug('📹 停止USB摄像头流/WebRTC流');
             const tracks = videoRef.value.srcObject.getTracks();
             tracks.forEach(track => {
                 track.stop();
@@ -605,7 +717,7 @@ const stopVideoStream = async () => {
             videoRef.value.srcObject = null;
         }
         
-        // 停止RTSP/HLS流
+        // 停止RTSP/HLS流（已废弃，但保留兼容）
         if (videoRef.value && videoRef.value.src) {
             console.debug('📺 停止RTSP/HLS流');
             videoRef.value.pause(); // 暂停播放
@@ -613,13 +725,22 @@ const stopVideoStream = async () => {
             videoRef.value.load(); // 清除缓冲
         }
         
-        // 如果当前摄像头是RTSP类型，停止后端转换
+        // 如果当前摄像头是RTSP类型（MediaMTX WebRTC），停止后端推流
         if (selectedCamera.value && selectedCamera.value.camera_type === 'RJ45') {
             try {
-                await invoke('stop_rtsp_conversion', { cameraId: selectedCamera.value.id });
-                console.debug('🛑 RTSP转换已停止');
+                // 关闭 WebRTC PeerConnection
+                if (window.activePeerConnections && window.activePeerConnections.has(selectedCamera.value.id)) {
+                    const pc = window.activePeerConnections.get(selectedCamera.value.id);
+                    pc.close();
+                    window.activePeerConnections.delete(selectedCamera.value.id);
+                    console.debug('🔌 WebRTC PeerConnection 已关闭');
+                }
+                
+                // 停止 MediaMTX 推流
+                await invoke('stop_mediamtx_stream', { cameraId: selectedCamera.value.id });
+                console.debug('🛑 MediaMTX 推流已停止');
             } catch (error) {
-                console.warn('⚠️ 停止RTSP转换时出现警告:', error);
+                console.warn('⚠️ 停止推流时出现警告:', error);
             }
         }
         
@@ -663,6 +784,12 @@ const onVideoCanPlay = () => {
 };
 
 const onVideoError = (event) => {
+    // 如果正在建立 WebRTC 连接，忽略初始错误
+    if (isConnectingWebRTC.value) {
+        console.debug('⏳ WebRTC 连接建立中，忽略初始视频错误');
+        return;
+    }
+    
     console.error('❌ 视频加载错误:', event);
     const videoEl = event.target;
     
@@ -707,7 +834,8 @@ const onVideoError = (event) => {
                         videoRef.value.load();
                     } catch (retryError) {
                         console.error('❌ 重试失败:', retryError);
-                        Toast.warning('RTSP转换失败，请检查RTSP流是否可用');
+                        // WebRTC 不需要 HLS 重试提示
+                        // Toast.warning('RTSP转换失败，请检查RTSP流是否可用');
                     }
                 }
             }, 3000); // 再等3秒

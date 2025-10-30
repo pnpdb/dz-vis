@@ -22,7 +22,7 @@
     "@fontsource/orbitron": "^5.2.6",
     "@fontsource/roboto": "^5.2.6",
     "@fortawesome/fontawesome-free": "^7.1.0",
-    "@tauri-apps/api": "^2",
+    "@tauri-apps/api": "^2.9.0",
     "@tauri-apps/plugin-autostart": "^2.5.0",
     "@tauri-apps/plugin-dialog": "^2.4.0",
     "@tauri-apps/plugin-log": "^2.7.0",

@@ -106,6 +106,13 @@ const initSceneAsync = async (container) => {
 };
 
 onUnmounted(() => {
+  // 清理模型进度监听器
+  if (modelProgressHandler) {
+    eventBus.off(EVENTS.SCENE3D_PROGRESS, modelProgressHandler);
+    modelProgressHandler = null;
+  }
+  
+  // 销毁场景
   destroyScene();
   
   // 清理 window 事件监听器

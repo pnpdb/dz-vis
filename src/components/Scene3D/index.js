@@ -81,6 +81,10 @@ let lastRenderTime = 0;
 const targetFPS = 60;
 const frameInterval = 1000 / targetFPS;
 
+// 定时器追踪（防止内存泄漏）
+let performanceAdjustTimer = null;
+let batchProcessingTimers = [];
+
 // 场景组织
 let sceneGroup = null;
 let lightsGroup = null;
@@ -317,15 +321,25 @@ const initSceneCore = async () => {
                 if (performanceMode === 'auto') {
                     if (currentFPS < 15 && !isPerformanceAdjusting) {
                         isPerformanceAdjusting = true;
-                        setTimeout(() => {
+                        // 清除之前的定时器
+                        if (performanceAdjustTimer) {
+                            clearTimeout(performanceAdjustTimer);
+                        }
+                        performanceAdjustTimer = setTimeout(() => {
                             switchToLowPerformance();
                             isPerformanceAdjusting = false;
+                            performanceAdjustTimer = null;
                         }, 2000);
                     } else if (currentFPS > 55 && !isPerformanceAdjusting) {
                         isPerformanceAdjusting = true;
-                        setTimeout(() => {
+                        // 清除之前的定时器
+                        if (performanceAdjustTimer) {
+                            clearTimeout(performanceAdjustTimer);
+                        }
+                        performanceAdjustTimer = setTimeout(() => {
                             switchToHighPerformance();
                             isPerformanceAdjusting = false;
+                            performanceAdjustTimer = null;
                         }, 2000);
                     }
                 }
@@ -961,9 +975,10 @@ const optimizeGeometryAsync = async (model) => {
             
             // 处理下一批
             if (endIndex < meshes.length) {
-                setTimeout(() => {
+                const timer = setTimeout(() => {
                     processBatch(endIndex);
                 }, 0);
+                batchProcessingTimers.push(timer);
             } else {
                 resolve();
             }
@@ -2488,6 +2503,16 @@ export const destroyScene = () => {
     if (renderer) {
         renderer.setAnimationLoop(null);
     }
+    
+    // 清理性能调整定时器
+    if (performanceAdjustTimer) {
+        clearTimeout(performanceAdjustTimer);
+        performanceAdjustTimer = null;
+    }
+    
+    // 清理所有批处理定时器
+    batchProcessingTimers.forEach(timer => clearTimeout(timer));
+    batchProcessingTimers = [];
     
     // ============ 清理所有事件监听器 ============
     

@@ -14,9 +14,59 @@ class Logger {
         // 高频日志节流（每 key 至多 interval 输出一次到插件日志）
         this.throttleMap = new Map(); // key -> { last:number, timer:any, pending:{level,component,args} }
         this.defaultThrottleMs = 200; // 200ms 合并一次
+        this.maxThrottleMapSize = 100; // 限制 throttleMap 大小，防止内存泄漏
 
         // 订阅者（用于前端实时日志查看器）
         this.listeners = new Set(); // (entry) => void
+        
+        // 定期清理 throttleMap 中过期的键
+        this.startThrottleMapCleanup();
+    }
+    
+    /**
+     * 启动 throttleMap 清理定时器（防止无限增长）
+     */
+    startThrottleMapCleanup() {
+        if (typeof window === 'undefined') return;
+        
+        this.throttleMapCleanupTimer = setInterval(() => {
+            if (this.throttleMap.size <= this.maxThrottleMapSize) return;
+            
+            const now = Date.now();
+            const maxAge = 60000; // 1分钟未使用的键视为过期
+            const keysToDelete = [];
+            
+            for (const [key, value] of this.throttleMap.entries()) {
+                if (now - value.last > maxAge) {
+                    if (value.timer) clearTimeout(value.timer);
+                    keysToDelete.push(key);
+                }
+            }
+            
+            keysToDelete.forEach(key => this.throttleMap.delete(key));
+            
+            if (keysToDelete.length > 0) {
+                console.debug(`🧹 Logger throttleMap 清理了 ${keysToDelete.length} 个过期键`);
+            }
+        }, 30000); // 每30秒清理一次
+    }
+    
+    /**
+     * 清理所有资源
+     */
+    cleanup() {
+        if (this.throttleMapCleanupTimer) {
+            clearInterval(this.throttleMapCleanupTimer);
+            this.throttleMapCleanupTimer = null;
+        }
+        
+        // 清理所有待处理的定时器
+        for (const [key, value] of this.throttleMap.entries()) {
+            if (value.timer) clearTimeout(value.timer);
+        }
+        this.throttleMap.clear();
+        
+        console.log('✅ Logger 资源已清理');
     }
 
     /**

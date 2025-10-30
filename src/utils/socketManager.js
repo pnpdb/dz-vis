@@ -28,6 +28,9 @@ class SocketManager {
         this.carStore = null;
         this._rustCompareErrorLogged = false; // 避免重复记录Rust比对错误
         
+        // Tauri 事件监听器清理函数（防止内存泄漏）
+        this.unlisteners = [];
+        
         // 创建节流的事件发射器（性能优化）
         this.throttledEmitters = {
             vehicleInfo: createThrottledEmitter(eventBus, EVENTS.VEHICLE_INFO_UPDATE, 50), // 50ms节流
@@ -121,34 +124,65 @@ class SocketManager {
     async startListening() {
         try {
             // 监听来自Rust端的Socket消息
-            await listen('socket-message', (event) => {
+            const unlisten1 = await listen('socket-message', (event) => {
                 this.handleIncomingMessage(event.payload);
             });
+            this.unlisteners.push(unlisten1);
             
             // 监听车辆连接事件
-            await listen('vehicle-connect', (event) => {
+            const unlisten2 = await listen('vehicle-connect', (event) => {
                 this.handleVehicleConnect(event.payload);
             });
+            this.unlisteners.push(unlisten2);
 
             // 监听车辆断开连接事件
-            await listen('vehicle-disconnect', (event) => {
+            const unlisten3 = await listen('vehicle-disconnect', (event) => {
                 this.handleVehicleDisconnect(event.payload);
             });
+            this.unlisteners.push(unlisten3);
 
             // 监听沙盘客户端连接事件
-            await listen('sandbox-connect', (event) => {
+            const unlisten4 = await listen('sandbox-connect', (event) => {
                 this.handleSandboxConnect(event.payload)
             });
+            this.unlisteners.push(unlisten4);
 
-            await listen('sandbox-disconnect', (event) => {
+            const unlisten5 = await listen('sandbox-disconnect', (event) => {
                 this.handleSandboxDisconnect(event.payload)
             });
+            this.unlisteners.push(unlisten5);
             
             socketLogger.info('开始监听Socket消息和断开连接事件');
         } catch (error) {
             socketLogger.error('监听Socket事件失败:', error);
             plError(`监听Socket事件失败: ${error}`).catch(() => {});
         }
+    }
+
+    /**
+     * 清理所有资源（应用关闭时调用）
+     */
+    cleanup() {
+        socketLogger.info('🧹 清理 SocketManager 资源...');
+        
+        // 清理所有 Tauri 事件监听器
+        this.unlisteners.forEach(unlisten => {
+            try {
+                unlisten();
+            } catch (error) {
+                console.warn('清理监听器失败:', error);
+            }
+        });
+        this.unlisteners = [];
+        
+        // 清理节流器
+        Object.values(this.throttledEmitters).forEach(emitter => {
+            if (emitter && emitter.cancel) {
+                emitter.cancel();
+            }
+        });
+        
+        socketLogger.info('✅ SocketManager 资源清理完成');
     }
 
     /**

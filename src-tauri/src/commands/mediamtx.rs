@@ -1,9 +1,10 @@
 use crate::mediamtx_manager::MediaMTXManager;
 use log::{error, info};
 use std::collections::HashMap;
-use std::process::{Child, Command, Stdio};
+use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use tauri::State;
+use tokio::process::{Child, Command};
 
 /// FFmpeg 推流进程管理器
 static FFMPEG_PROCESSES: once_cell::sync::Lazy<Arc<Mutex<HashMap<i64, Child>>>> =
@@ -57,36 +58,35 @@ pub async fn start_mediamtx_stream(camera_id: i64, rtsp_url: String) -> Result<S
         .spawn()
     {
         Ok(mut child) => {
-            let pid = child.id();
+            let pid = child.id().unwrap_or(0);
             info!("✅ FFmpeg 推流已启动: PID={}", pid);
             
-            // 捕获 stderr 输出以便调试
+            // 捕获 stderr 输出以便调试（使用异步 I/O 避免阻塞）
             if let Some(stderr) = child.stderr.take() {
-                use std::io::{BufRead, BufReader};
+                use tokio::io::{AsyncBufReadExt, BufReader};
                 let camera_id_clone = camera_id;
                 
                 tokio::spawn(async move {
                     let reader = BufReader::new(stderr);
-                    for line in reader.lines() {
-                        if let Ok(line) = line {
-                            // 记录所有重要信息
-                            let line_lower = line.to_lowercase();
-                            
-                            if line_lower.contains("error") || line_lower.contains("failed") || 
-                               line_lower.contains("invalid") || line_lower.contains("timeout") {
-                                log::error!("FFmpeg[{}] 错误: {}", camera_id_clone, line);
-                            } else if line_lower.contains("opening") || line_lower.contains("connection") {
-                                log::info!("FFmpeg[{}] 连接: {}", camera_id_clone, line);
-                            } else if line.contains("Input #") || line.contains("Output #") ||
-                                      line.contains("Stream #") {
-                                log::info!("FFmpeg[{}] 流信息: {}", camera_id_clone, line);
-                            } else if line_lower.contains("speed=") {
-                                // 每隔几行记录一次进度，避免日志过多
-                                // speed= 行表示正在处理
-                                // 我们只记录第一次出现
-                            }
+                    let mut lines = reader.lines();
+                    
+                    while let Ok(Some(line)) = lines.next_line().await {
+                        // 记录所有重要信息
+                        let line_lower = line.to_lowercase();
+                        
+                        if line_lower.contains("error") || line_lower.contains("failed") || 
+                           line_lower.contains("invalid") || line_lower.contains("timeout") {
+                            log::error!("FFmpeg[{}] 错误: {}", camera_id_clone, line);
+                        } else if line_lower.contains("opening") || line_lower.contains("connection") {
+                            log::info!("FFmpeg[{}] 连接: {}", camera_id_clone, line);
+                        } else if line.contains("Input #") || line.contains("Output #") ||
+                                  line.contains("Stream #") {
+                            log::info!("FFmpeg[{}] 流信息: {}", camera_id_clone, line);
                         }
+                        // speed= 行不记录，避免日志过多
                     }
+                    // 当 FFmpeg 进程结束或 stderr 关闭时，此任务自动结束
+                    log::debug!("FFmpeg[{}] stderr 读取任务结束", camera_id_clone);
                 });
             }
             
@@ -110,19 +110,16 @@ pub async fn start_mediamtx_stream(camera_id: i64, rtsp_url: String) -> Result<S
 pub async fn stop_mediamtx_stream(camera_id: i64) -> Result<(), String> {
     info!("🛑 停止 MediaMTX 推流: camera_id={}", camera_id);
     
-    let mut processes = FFMPEG_PROCESSES.lock().unwrap();
+    let child = {
+        let mut processes = FFMPEG_PROCESSES.lock().unwrap();
+        processes.remove(&camera_id)
+    };
     
-    if let Some(mut child) = processes.remove(&camera_id) {
-        match child.kill() {
-            Ok(_) => {
-                info!("✅ FFmpeg 推流已停止: camera_id={}", camera_id);
-                let _ = child.wait(); // 等待进程退出，忽略错误
-            }
-            Err(e) => {
-                error!("❌ 停止 FFmpeg 推流失败: camera_id={}, error={}", camera_id, e);
-                return Err(format!("停止推流失败: {}", e));
-            }
-        }
+    if let Some(mut child) = child {
+        // 停止 FFmpeg 进程（异步）
+        let _ = child.kill().await;
+        let _ = child.wait().await;
+        info!("✅ FFmpeg 推流已停止: camera_id={}", camera_id);
     }
     
     Ok(())

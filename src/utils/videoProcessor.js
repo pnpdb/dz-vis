@@ -441,12 +441,25 @@ export class VideoProcessor {
 // 全局单例
 export const videoProcessor = new VideoProcessor();
 
-// 自动清理任务
+// 自动清理任务（保存定时器引用以便清理）
+let statsCleanupTimer = null;
 if (typeof window !== 'undefined') {
     // 定期清理超时统计
-    setInterval(() => {
+    statsCleanupTimer = setInterval(() => {
         videoProcessor.cleanupStaleStats(300).catch(console.warn);
     }, TIMING.STATS_CLEANUP_INTERVAL);
+    
+    // 确保应用关闭时清理
+    if (window.__videoProcessorCleanup) {
+        window.__videoProcessorCleanup();
+    }
+    window.__videoProcessorCleanup = () => {
+        if (statsCleanupTimer) {
+            clearInterval(statsCleanupTimer);
+            statsCleanupTimer = null;
+            console.log('✅ VideoProcessor 清理定时器已清理');
+        }
+    };
 }
 
 export default videoProcessor;

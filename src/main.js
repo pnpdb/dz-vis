@@ -176,3 +176,28 @@ window.__cleanupStartupTimers = () => {
         startupTimers.socketInit = null;
     }
 };
+
+// 应用关闭时清理所有资源
+window.addEventListener('beforeunload', () => {
+    console.log('🧹 应用关闭，清理资源...');
+    
+    // 清理启动定时器
+    window.__cleanupStartupTimers();
+    
+    // 清理 SocketManager
+    if (socketManager && socketManager.cleanup) {
+        socketManager.cleanup();
+    }
+    
+    // 清理 VideoProcessor
+    if (window.__videoProcessorCleanup) {
+        window.__videoProcessorCleanup();
+    }
+    
+    // 清理 Logger
+    if (logger && logger.cleanup) {
+        logger.cleanup();
+    }
+    
+    console.log('✅ 应用资源清理完成');
+});

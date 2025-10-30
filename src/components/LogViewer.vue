@@ -122,6 +122,12 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
     if (unsub) unsub();
+    
+    // 清理可能残留的 window 事件监听器
+    window.removeEventListener('mousemove', onDrag);
+    window.removeEventListener('mouseup', stopDrag);
+    window.removeEventListener('mousemove', onResize);
+    window.removeEventListener('mouseup', stopResize);
 });
 
 const format = (entry) => {

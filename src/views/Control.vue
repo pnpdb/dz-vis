@@ -222,7 +222,7 @@ const trafficLightOptions = computed(() => {
 });
 
 const lightSettings = ref({
-    barrier: true, // 停车抬杠
+    barrier: false, // 停车抬杠 - 默认关闭
     ambient: true, // 环境灯
     building: true, // 建筑灯
     street: true, // 路灯

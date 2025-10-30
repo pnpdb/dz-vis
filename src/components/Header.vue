@@ -282,7 +282,7 @@
                 <el-tab-pane label="沙盘设置" name="sandbox">
                     <SandboxSettingsManager />
                 </el-tab-pane>
-                <el-tab-pane label="菜单设置" name="menu">
+                <el-tab-pane label="显示设置" name="menu">
                     <MenuVisibilitySettings ref="menuVisibilitySettingsRef" />
                 </el-tab-pane>
             </el-tabs>

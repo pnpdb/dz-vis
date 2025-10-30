@@ -44,6 +44,23 @@
                 />
             </el-form-item>
         </el-form>
+
+        <div class="settings-header" style="margin-top: 32px;">
+            <h4 class="settings-title">
+                <fa icon="toggle-on" />
+                功能显示设置
+            </h4>
+        </div>
+
+        <el-form v-loading="loading" label-width="140px">
+            <el-form-item label="平行驾驶">
+                <el-switch
+                    v-model="settings.show_parallel_driving"
+                    active-text="显示"
+                    inactive-text="隐藏"
+                />
+            </el-form-item>
+        </el-form>
     </div>
 </template>
 
@@ -59,7 +76,8 @@ const settings = ref({
     show_vehicle_info: true,
     show_auto_drive: true,
     show_sandbox_control: true,
-    show_settings: true
+    show_settings: true,
+    show_parallel_driving: true
 });
 
 // 保存原始设置（用于重置）
@@ -67,7 +85,8 @@ const originalSettings = ref({
     show_vehicle_info: true,
     show_auto_drive: true,
     show_sandbox_control: true,
-    show_settings: true
+    show_settings: true,
+    show_parallel_driving: true
 });
 
 // 加载菜单可见性设置
@@ -80,7 +99,8 @@ const loadSettings = async () => {
                 show_vehicle_info: result.show_vehicle_info,
                 show_auto_drive: result.show_auto_drive,
                 show_sandbox_control: result.show_sandbox_control,
-                show_settings: result.show_settings
+                show_settings: result.show_settings,
+                show_parallel_driving: result.show_parallel_driving
             };
             settings.value = { ...loadedSettings };
             originalSettings.value = { ...loadedSettings };
@@ -101,7 +121,8 @@ const saveSettings = async () => {
             show_vehicle_info: settings.value.show_vehicle_info,
             show_auto_drive: settings.value.show_auto_drive,
             show_sandbox_control: settings.value.show_sandbox_control,
-            show_settings: settings.value.show_settings
+            show_settings: settings.value.show_settings,
+            show_parallel_driving: settings.value.show_parallel_driving
         };
 
         const result = await invoke('update_menu_visibility_settings', { request });
@@ -125,7 +146,8 @@ const resetSettings = () => {
         show_vehicle_info: true,
         show_auto_drive: true,
         show_sandbox_control: true,
-        show_settings: true
+        show_settings: true,
+        show_parallel_driving: true
     };
     console.log('✅ 菜单可见性设置已重置为默认状态（全部显示）');
 };

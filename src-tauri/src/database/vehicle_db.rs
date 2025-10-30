@@ -327,11 +327,17 @@ impl VehicleDatabase {
                 show_auto_drive BOOLEAN NOT NULL DEFAULT 1,
                 show_sandbox_control BOOLEAN NOT NULL DEFAULT 1,
                 show_settings BOOLEAN NOT NULL DEFAULT 1,
+                show_parallel_driving BOOLEAN NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
             "#
         ).execute(&self.pool).await?;
+        
+        // 为现有表添加 show_parallel_driving 列（兼容旧数据库）
+        let _ = sqlx::query(
+            "ALTER TABLE menu_visibility_settings ADD COLUMN show_parallel_driving BOOLEAN NOT NULL DEFAULT 1"
+        ).execute(&self.pool).await;
 
         // 初始化默认菜单可见性设置
         self.init_default_menu_visibility_settings().await?;
@@ -1224,6 +1230,7 @@ impl VehicleDatabase {
             show_auto_drive: row.get("show_auto_drive"),
             show_sandbox_control: row.get("show_sandbox_control"),
             show_settings: row.get("show_settings"),
+            show_parallel_driving: row.get("show_parallel_driving"),
             created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))
                 .unwrap_or_default()
                 .with_timezone(&chrono::Utc),
@@ -1242,6 +1249,7 @@ impl VehicleDatabase {
         let show_auto_drive = req.show_auto_drive.unwrap_or(current.show_auto_drive);
         let show_sandbox_control = req.show_sandbox_control.unwrap_or(current.show_sandbox_control);
         let show_settings = req.show_settings.unwrap_or(current.show_settings);
+        let show_parallel_driving = req.show_parallel_driving.unwrap_or(current.show_parallel_driving);
         let now = Utc::now();
 
         sqlx::query(
@@ -1251,6 +1259,7 @@ impl VehicleDatabase {
                 show_auto_drive = ?, 
                 show_sandbox_control = ?, 
                 show_settings = ?,
+                show_parallel_driving = ?,
                 updated_at = ?
             WHERE id = ?
             "#
@@ -1259,6 +1268,7 @@ impl VehicleDatabase {
         .bind(show_auto_drive)
         .bind(show_sandbox_control)
         .bind(show_settings)
+        .bind(show_parallel_driving)
         .bind(now.to_rfc3339())
         .bind(current.id)
         .execute(&self.pool)
@@ -1270,6 +1280,7 @@ impl VehicleDatabase {
             show_auto_drive,
             show_sandbox_control,
             show_settings,
+            show_parallel_driving,
             created_at: current.created_at,
             updated_at: now,
         })
@@ -1286,11 +1297,12 @@ impl VehicleDatabase {
             sqlx::query(
                 r#"
                 INSERT INTO menu_visibility_settings 
-                (show_vehicle_info, show_auto_drive, show_sandbox_control, show_settings, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                (show_vehicle_info, show_auto_drive, show_sandbox_control, show_settings, show_parallel_driving, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 "#
             )
-            .bind(true)  // 默认显示所有菜单
+            .bind(true)  // 默认显示所有菜单和功能
+            .bind(true)
             .bind(true)
             .bind(true)
             .bind(true)

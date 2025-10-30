@@ -337,6 +337,7 @@ pub struct MenuVisibilitySettings {
     pub show_auto_drive: bool,        // 显示"自动驾驶"菜单
     pub show_sandbox_control: bool,   // 显示"沙盘控制"菜单
     pub show_settings: bool,          // 显示"功能设置"菜单
+    pub show_parallel_driving: bool,  // 显示"平行驾驶"按钮（车辆信息右侧）
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -348,4 +349,5 @@ pub struct UpdateMenuVisibilityRequest {
     pub show_auto_drive: Option<bool>,
     pub show_sandbox_control: Option<bool>,
     pub show_settings: Option<bool>,
+    pub show_parallel_driving: Option<bool>,
 }

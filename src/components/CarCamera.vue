@@ -23,7 +23,7 @@
             <!-- <button class="btn btn-secondary">
                 <fa icon="camera" /> 连接/断开摄像头
             </button> -->
-            <button class="btn btn-primary" @click="requestParallelDriving">
+            <button v-if="showParallelDrivingBtn" class="btn btn-primary" @click="requestParallelDriving">
                 <fa icon="gamepad" /> 平行驾驶
             </button>
         </div>
@@ -37,6 +37,7 @@ import { useRouter } from 'vue-router'
 import { useCarStore } from '@/stores/car.js'
 import eventBus, { EVENTS } from '@/utils/eventBus.js'
 import { videoStreamManager } from '@/utils/videoStreamManager.js'
+import { invoke } from '@tauri-apps/api/core'
 
 const carStore = useCarStore()
 const router = useRouter()
@@ -45,6 +46,7 @@ const videoSrc = ref('')
 const lastFrameTime = ref(0)
 const videoImg = ref(null)
 const aspectRatio = ref(4 / 3)
+const showParallelDrivingBtn = ref(true) // 默认显示平行驾驶按钮
 
 const cameraEnabled = computed(() => carStore.cameraEnabled)
 const currentRouteName = computed(() => router.currentRoute.value?.name)
@@ -230,15 +232,41 @@ watch(currentVehicleId, async (newVehicleId, oldVehicleId) => {
   }
 })
 
+// 加载平行驾驶按钮显示设置
+const loadParallelDrivingSettings = async () => {
+  try {
+    const result = await invoke('get_menu_visibility_settings')
+    if (result) {
+      showParallelDrivingBtn.value = result.show_parallel_driving ?? true
+      console.log('✅ 平行驾驶按钮显示设置加载成功:', showParallelDrivingBtn.value)
+    }
+  } catch (error) {
+    console.error('❌ 加载平行驾驶按钮显示设置失败:', error)
+    // 加载失败时保持默认显示
+    showParallelDrivingBtn.value = true
+  }
+}
+
+// 监听菜单设置变化
+const handleMenuVisibilityChanged = (settings) => {
+  if (settings && typeof settings.show_parallel_driving === 'boolean') {
+    showParallelDrivingBtn.value = settings.show_parallel_driving
+    console.log('✅ 平行驾驶按钮显示状态已更新:', showParallelDrivingBtn.value)
+  }
+}
+
 onMounted(() => {
   updateVideoReceiver()
+  loadParallelDrivingSettings()
   eventBus.on(EVENTS.VIDEO_STREAM_TIMEOUT, handleTimeout)
+  eventBus.on(EVENTS.MENU_VISIBILITY_CHANGED, handleMenuVisibilityChanged)
   window.socketManager?.enforceCameraStatesOnShow?.(currentVehicleId.value)
 })
 
 onBeforeUnmount(() => {
   unsubscribeVideo()
   eventBus.off(EVENTS.VIDEO_STREAM_TIMEOUT, handleTimeout)
+  eventBus.off(EVENTS.MENU_VISIBILITY_CHANGED, handleMenuVisibilityChanged)
 
   if (router.currentRoute.value?.name !== 'ParallelDriving') {
     window.socketManager?.enforceCameraStatesOnHide?.(currentVehicleId.value)

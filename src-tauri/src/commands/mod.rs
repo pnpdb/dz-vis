@@ -6,7 +6,7 @@ pub mod settings;
 pub mod vehicle;
 pub mod sandbox;
 pub mod media;
-pub mod mediamtx;
+pub mod mse;
 pub mod video_processing;
 pub mod protocol_processing;
 pub mod protocol_config;
@@ -53,10 +53,8 @@ pub use media::{
     get_media_server_ports
 };
 
-pub use mediamtx::{
-    start_mediamtx_stream, stop_mediamtx_stream,
-    get_mediamtx_webrtc_url, is_mediamtx_running, is_ffmpeg_stream_active,
-    check_mediamtx_stream_ready
+pub use mse::{
+    start_mse_stream, stop_mse_stream, is_mse_stream_active
 };
 
 // 导出视频处理命令

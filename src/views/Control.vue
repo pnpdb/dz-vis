@@ -29,9 +29,9 @@
                 </el-select>
             </div>
             <div class="camera-preview" ref="cameraPreviewRef">
-                <!-- 视频播放 -->
+                <!-- 视频播放（始终存在于DOM，通过v-show控制显示） -->
                 <video 
-                    v-if="selectedCamera && isStreaming"
+                    v-show="selectedCamera && isStreaming"
                     ref="videoRef"
                     class="camera-video"
                     autoplay
@@ -47,13 +47,13 @@
                 </video>
                 
                 <!-- 加载状态 -->
-                <div v-else-if="isLoading" class="camera-loading">
+                <div v-if="isLoading && !isStreaming" class="camera-loading">
                     <fa icon="spinner" class="fa-spin" />
                     <span>正在连接摄像头...</span>
                 </div>
                 
                 <!-- 默认状态：显示相机图标和提示 -->
-                <div v-else class="camera-placeholder" :class="{ 'timeout-error': isTimeout }">
+                <div v-if="!isLoading && !isStreaming" class="camera-placeholder" :class="{ 'timeout-error': isTimeout }">
                     <fa icon="camera" class="camera-icon" />
                     <p>{{ cameraPlaceholderText }}</p>
                 </div>
@@ -170,6 +170,7 @@ import { TrafficLightAPI, SandboxAPI } from '@/utils/vehicleAPI.js';
 import { SANDBOX_LIGHTING_PROTOCOL } from '@/constants/messageTypes.js';
 import { invoke } from '@tauri-apps/api/core';
 import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log';
+import { MsePlayer } from '@/utils/msePlayer.js';
 
 // 摄像头相关
 const cameras = ref([]);
@@ -181,7 +182,7 @@ const isConnectingWebRTC = ref(false); // 标记正在建立 WebRTC 连接
 const isTimeout = ref(false); // 标记连接超时
 const videoRef = ref();
 const cameraPreviewRef = ref();
-const tempVideoRef = ref(null); // 临时 video 元素，用于预加载流避免黑屏
+const msePlayer = ref(null); // MSE 播放器实例
 
 // 定时器追踪（防止内存泄漏）
 let hlsRetryTimer = null;
@@ -521,274 +522,102 @@ const waitForHLSReady = async (hlsUrl, maxRetries = 10, delay = 1000) => {
     console.warn('⚠️ HLS流可能还未完全就绪，但将尝试播放');
 };
 
-// RTSP摄像头处理（通过 MediaMTX WebRTC）
+// RTSP摄像头处理（通过 MSE）
 const startRTSPCamera = async (camera) => {
     if (!camera.rtsp_url) {
         throw new Error('RTSP地址不能为空');
     }
 
     try {
-        try { await plInfo(`🎥 启动 MediaMTX WebRTC 流: ${camera.rtsp_url}`); } catch (_) {}
+        try { await plInfo(`🎥 启动 MSE 流: ${camera.rtsp_url}`); } catch (_) {}
         
-        // 标记正在建立 WebRTC 连接，避免 video 元素的初始错误触发 toast
+        // 标记正在建立连接
         isConnectingWebRTC.value = true;
         
-        // 1. 先启动 FFmpeg 推流到 MediaMTX
-        console.log('📡 启动 FFmpeg 推流到 MediaMTX...');
+        // 1. 启动 RTSP → fMP4 流转换
+        console.log('📡 启动 MSE 流转换...');
         console.log('   📹 RTSP URL:', camera.rtsp_url);
         console.log('   🎯 摄像头 ID:', camera.id);
         
-        const whepUrl = await invoke('start_mediamtx_stream', {
+        await invoke('start_mse_stream', {
             cameraId: camera.id,
             rtspUrl: camera.rtsp_url
         });
-        console.log('✅ FFmpeg 推流已启动');
-        console.log('📡 WHEP URL:', whepUrl);
+        console.log('✅ fMP4 流转换已启动');
         
-        // 验证 FFmpeg 进程是否真的在运行
-        const ffmpegActive = await invoke('is_ffmpeg_stream_active', { cameraId: camera.id });
-        console.log('🔍 FFmpeg 进程状态:', ffmpegActive ? '运行中' : '未运行');
-        
-        // 等待 FFmpeg 连接并开始推流到 MediaMTX
-        // 使用 MediaMTX API 真正检查流是否就绪
-        console.log('⏳ 等待 FFmpeg 连接 RTSP 源并建立流...');
-        
-        const streamName = `camera_${camera.id}`;
-        let streamReady = false;
-        const maxRetries = 40; // 最多等待 12 秒
-        const checkInterval = 300; // 每 300ms 检查一次（提高检测频率）
-        
-        for (let i = 0; i < maxRetries; i++) {
-            try {
-                // 🔥 关键改动：使用 Rust 命令通过 MediaMTX API 检查流状态
-                const ready = await invoke('check_mediamtx_stream_ready', { 
-                    streamName 
-                });
-                
-                if (ready) {
-                    streamReady = true;
-                    const elapsedTime = ((i + 1) * checkInterval / 1000).toFixed(1);
-                    console.log(`✅ MediaMTX 流已就绪 (${elapsedTime}秒)`);
-                    break;
-                }
-            } catch (error) {
-                // API 请求失败（可能 MediaMTX 未启动）
-                console.debug(`🔍 检查流状态失败 (${i + 1}/${maxRetries}):`, error);
-            }
-            
-            // 等待后再次检查
-            await new Promise(resolve => setTimeout(resolve, checkInterval));
-            
-            // 每 1.5 秒输出一次进度日志（更频繁的反馈）
-            if ((i + 1) % 5 === 0) {
-                const elapsed = ((i + 1) * checkInterval / 1000).toFixed(1);
-                const total = (maxRetries * checkInterval / 1000).toFixed(1);
-                console.log(`⏳ 仍在等待流准备... (${elapsed}秒/${total}秒)`);
-            }
-        }
-        
-        if (!streamReady) {
-            // 检查 FFmpeg 是否还在运行
-            const ffmpegStillActive = await invoke('is_ffmpeg_stream_active', { cameraId: camera.id });
-            console.error('❌ 流准备超时');
-            console.error('   FFmpeg 状态:', ffmpegStillActive ? '仍在运行' : '已停止');
-            console.error('   RTSP URL:', camera.rtsp_url);
-            console.error('   等待时间: 12 秒');
-            console.error('   可能原因: RTSP 源连接缓慢或无法访问');
-            
-            // 设置超时状态
-            isTimeout.value = true;
-            
-            // 简化的错误消息
-            throw new Error('连接RTSP流超时');
-        }
-        
-        // 2. 准备 video 元素（但先不显示，等真正有数据再显示）
-        // 注意：此时 isStreaming 保持 false，继续显示加载状态
+        // 2. 确保 video 元素已挂载
         await nextTick();
         
-        // 清理旧的临时 video 元素
-        if (tempVideoRef.value) {
-            if (tempVideoRef.value.srcObject) {
-                const tracks = tempVideoRef.value.srcObject.getTracks();
-                tracks.forEach(track => track.stop());
-            }
-            tempVideoRef.value.srcObject = null;
+        if (!videoRef.value) {
+            throw new Error('视频元素未找到：请检查视频组件配置');
         }
         
-        // 创建一个临时 video 元素用于接收流
-        tempVideoRef.value = document.createElement('video');
-        tempVideoRef.value.autoplay = true;
-        tempVideoRef.value.playsInline = true;
-        tempVideoRef.value.muted = true;
-        const tempVideo = tempVideoRef.value;
+        console.log('✅ 视频元素已就绪');
         
-        // 3. 创建 WebRTC PeerConnection (WHEP 协议)
-        console.log('🔄 创建 WebRTC PeerConnection (WHEP)...');
+        // 3. 创建并启动 MSE 播放器
+        const wsUrl = `ws://127.0.0.1:9003`; // MSE WebSocket 端口
+        msePlayer.value = new MsePlayer(videoRef.value, wsUrl, camera.id);
         
-        const configuration = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' }
-            ]
-        };
-        const pc = new RTCPeerConnection(configuration);
+        console.log('🔄 连接 MSE WebSocket...');
+        await msePlayer.value.start();
         
-        // 添加 recvonly transceiver（WHEP 协议只接收）
-        pc.addTransceiver('video', { direction: 'recvonly' });
-        pc.addTransceiver('audio', { direction: 'recvonly' });
+        console.log('✅ MSE 播放器已启动，等待视频数据...');
         
-        // 监听接收到的媒体流
-        // 防抖：避免多次触发导致重复设置和播放
-        let trackReceived = false;
-        pc.ontrack = (event) => {
-            console.log('📹 收到 WebRTC 媒体流', event.track.kind);
-            if (event.streams && event.streams[0]) {
-                // 只在第一次收到流时设置 srcObject
-                if (!trackReceived) {
-                    trackReceived = true;
-                    const stream = event.streams[0];
-                    
-                    // 先设置到临时 video 元素
-                    tempVideo.srcObject = stream;
-                    console.log('✅ srcObject 已设置到临时元素');
-                    
-                    // 监听视频真正可以播放的事件
-                    const onCanPlay = () => {
-                        console.log('🎬 视频数据已就绪，切换到主 video 元素');
-                        
-                        // 清理临时元素的监听器
-                        tempVideo.removeEventListener('canplay', onCanPlay);
-                        tempVideo.removeEventListener('error', onVideoError);
-                        
-                        // 现在才显示主 video 元素并结束 loading 状态
-                        isStreaming.value = true;
-                        isLoading.value = false; // 视频真正可以播放，结束 loading
-                        nextTick(() => {
-                            if (videoRef.value) {
-                                // 将流转移到主 video 元素
-                                videoRef.value.srcObject = stream;
-                                videoRef.value.play().catch(e => {
-                                    if (e.name !== 'AbortError') {
-                                        console.error('❌ 播放失败:', e);
-                                    }
-                                });
-                                // 清理临时元素
-                                tempVideo.srcObject = null;
-                            }
-                        });
-                    };
-                    
-                    const onVideoError = (e) => {
-                        console.error('❌ 临时视频元素错误:', e);
-                        tempVideo.removeEventListener('canplay', onCanPlay);
-                        tempVideo.removeEventListener('error', onVideoError);
-                        // 确保重置状态
-                        isLoading.value = false;
-                    };
-                    
-                    tempVideo.addEventListener('canplay', onCanPlay);
-                    tempVideo.addEventListener('error', onVideoError);
-                    
-                    // 保存监听器引用以便后续清理
-                    tempVideo._onCanPlay = onCanPlay;
-                    tempVideo._onVideoError = onVideoError;
-                    
-                    // 开始播放临时元素以触发解码
-                    tempVideo.play().catch(e => {
-                        if (e.name !== 'AbortError') {
-                            console.error('❌ 临时元素播放失败:', e);
-                        }
-                    });
-                }
-            }
+        // 监听视频真正可以播放的事件
+        const onCanPlay = () => {
+            console.log('🎬 视频数据已就绪');
+            videoRef.value.removeEventListener('canplay', onCanPlay);
+            
+            // 显示视频并结束 loading
+            isStreaming.value = true;
+            isLoading.value = false;
         };
         
-        // 监听连接状态
-        pc.onconnectionstatechange = () => {
-            console.log('🔗 WebRTC 连接状态:', pc.connectionState);
-            if (pc.connectionState === 'failed') {
-                console.error('❌ WebRTC 连接失败');
-                Toast.error('视频流连接失败');
-            }
+        const onError = (e) => {
+            console.error('❌ 视频播放错误:', e);
+            videoRef.value.removeEventListener('error', onError);
         };
         
-        pc.oniceconnectionstatechange = () => {
-            console.log('🧊 ICE 连接状态:', pc.iceConnectionState);
-        };
+        videoRef.value.addEventListener('canplay', onCanPlay);
+        videoRef.value.addEventListener('error', onError);
         
-        // 4. 创建 Offer 并发送到 MediaMTX
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        
-        console.log('📤 发送 WHEP Offer 到 MediaMTX...');
-        const response = await fetch(whepUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/sdp',
-            },
-            body: pc.localDescription.sdp
-        });
-        
-        if (!response.ok) {
-            throw new Error(`WHEP 请求失败: ${response.status} ${response.statusText}`);
-        }
-        
-        // 5. 获取 Answer SDP 并设置
-        const answerSdp = await response.text();
-        console.log('📥 收到 Answer SDP');
-        
-        await pc.setRemoteDescription({
-            type: 'answer',
-            sdp: answerSdp
-        });
-        
-        console.log('✅ MediaMTX WebRTC (WHEP) 连接建立成功');
-        
-        // 连接成功，清除标志，允许后续错误提示
+        // 连接成功，清除标志
         isConnectingWebRTC.value = false;
         
-        // 保存 PeerConnection 以便后续关闭
-        if (!window.activePeerConnections) {
-            window.activePeerConnections = new Map();
-        }
-        window.activePeerConnections.set(camera.id, pc);
+        console.log('✅ MSE 流连接建立成功');
         
     } catch (error) {
-        try { await plError(`❌ WebRTC摄像头连接失败: ${error.message || error}`); } catch (_) {}
+        try { await plError(`❌ MSE流连接失败: ${error.message || error}`); } catch (_) {}
         
-        // 错误时清理已创建的资源（防止泄漏）
+        // 错误时清理已创建的资源
         console.debug('🧹 清理失败连接的资源...');
         
         try {
-            // 如果 PeerConnection 已创建，关闭它
-            if (typeof pc !== 'undefined' && pc) {
-                console.debug('  🔌 关闭失败的 PeerConnection');
-                pc.ontrack = null;
-                pc.onicecandidate = null;
-                pc.oniceconnectionstatechange = null;
-                pc.onconnectionstatechange = null;
-                pc.close();
+            // 停止 MSE 播放器
+            if (msePlayer.value) {
+                console.debug('  🛑 停止 MSE 播放器');
+                msePlayer.value.stop();
+                msePlayer.value = null;
             }
         } catch (cleanupError) {
-            console.warn('⚠️ 清理 PeerConnection 时出错:', cleanupError);
+            console.warn('⚠️ 清理 MSE 播放器时出错:', cleanupError);
         }
         
-        // 停止 FFmpeg 推流
+        // 停止 fMP4 流转换
         try {
-            await invoke('stop_mediamtx_stream', { cameraId: camera.id });
-            console.debug('  🛑 已停止 FFmpeg 推流');
+            await invoke('stop_mse_stream', { cameraId: camera.id });
+            console.debug('  🛑 已停止 fMP4 流转换');
         } catch (e) {
-            console.warn('⚠️ 停止推流失败:', e);
+            console.warn('⚠️ 停止流转换失败:', e);
         }
         
         isStreaming.value = false;
-        isLoading.value = false; // 确保结束 loading 状态
+        isLoading.value = false;
         isConnectingWebRTC.value = false;
-        isTimeout.value = false; // 确保重置超时状态
+        isTimeout.value = false;
         
-        throw new Error(`WebRTC流连接失败: ${error.message || error}`);
+        throw new Error(`MSE流连接失败: ${error.message || error}`);
     } finally {
-        // 确保标志被清除
         isConnectingWebRTC.value = false;
     }
 };
@@ -829,77 +658,28 @@ const stopVideoStream = async () => {
             }
         }
         
-        // 1.5 清理临时 video 元素
-        if (tempVideoRef.value) {
-            // 清理事件监听器（如果存在）
-            if (tempVideoRef.value._onCanPlay) {
-                tempVideoRef.value.removeEventListener('canplay', tempVideoRef.value._onCanPlay);
-                tempVideoRef.value._onCanPlay = null;
+        
+        // 2. 清理 MSE 播放器
+        if (msePlayer.value) {
+            try {
+                console.debug('🛑 停止 MSE 播放器');
+                msePlayer.value.stop();
+                msePlayer.value = null;
+            } catch (error) {
+                console.warn('⚠️ 停止 MSE 播放器失败:', error);
             }
-            if (tempVideoRef.value._onVideoError) {
-                tempVideoRef.value.removeEventListener('error', tempVideoRef.value._onVideoError);
-                tempVideoRef.value._onVideoError = null;
-            }
-            
-            if (tempVideoRef.value.srcObject) {
-                console.debug('🗑️ 停止临时 video 元素的 MediaStream tracks');
-                const stream = tempVideoRef.value.srcObject;
-                const tracks = stream.getTracks();
-                tracks.forEach(track => track.stop());
-                tempVideoRef.value.srcObject = null;
-            }
-            tempVideoRef.value = null;
         }
         
-        // 2. 关闭当前摄像头的 WebRTC PeerConnection
+        // 3. 停止 MSE 流转换（RTSP摄像头）
         if (selectedCamera.value && selectedCamera.value.camera_type === 'RJ45') {
             const cameraId = selectedCamera.value.id;
             
-            // 关闭 PeerConnection
-            if (window.activePeerConnections && window.activePeerConnections.has(cameraId)) {
-                try {
-                    const pc = window.activePeerConnections.get(cameraId);
-                    
-                    // 移除所有事件监听器（防止泄漏）
-                    pc.ontrack = null;
-                    pc.onicecandidate = null;
-                    pc.oniceconnectionstatechange = null;
-                    pc.onconnectionstatechange = null;
-                    
-                    // 关闭连接
-                    pc.close();
-                    window.activePeerConnections.delete(cameraId);
-                    console.debug(`🔌 WebRTC PeerConnection 已关闭 (摄像头 ${cameraId})`);
-                } catch (error) {
-                    console.warn(`⚠️ 关闭 PeerConnection 时出错:`, error);
-                }
-            }
-            
-            // 停止 FFmpeg 推流
             try {
-                await invoke('stop_mediamtx_stream', { cameraId });
-                console.debug(`🛑 MediaMTX 推流已停止 (摄像头 ${cameraId})`);
+                await invoke('stop_mse_stream', { cameraId });
+                console.debug(`🛑 MSE 流转换已停止 (摄像头 ${cameraId})`);
             } catch (error) {
-                console.warn('⚠️ 停止 FFmpeg 推流时出现警告:', error);
+                console.warn(`⚠️ 停止 MSE 流转换失败:`, error);
             }
-        }
-        
-        // 3. 清理可能残留的其他 PeerConnection（防止泄漏）
-        if (window.activePeerConnections && window.activePeerConnections.size > 0) {
-            console.debug(`🧹 发现 ${window.activePeerConnections.size} 个残留的 PeerConnection，正在清理...`);
-            for (const [id, pc] of window.activePeerConnections.entries()) {
-                try {
-                    pc.ontrack = null;
-                    pc.onicecandidate = null;
-                    pc.oniceconnectionstatechange = null;
-                    pc.onconnectionstatechange = null;
-                    pc.close();
-                    console.debug(`  🗑️ 已清理残留的 PeerConnection (ID: ${id})`);
-                } catch (error) {
-                    console.warn(`⚠️ 清理残留 PeerConnection 时出错:`, error);
-                }
-            }
-            window.activePeerConnections.clear();
         }
         
         // 4. 重置所有状态

@@ -49,12 +49,13 @@ const LIGHT_OFF_INTENSITY = 0;     // 熄灯时的发光强度
 const COUNTDOWN_ON_INTENSITY = 5;  // 倒计时数字亮起时的发光强度
 
 // 红绿灯分组配置
-// 根据用户提供的信息：2组有2个红绿灯，1组有6个红绿灯
+// 根据用户提供的信息：现在只有5个红绿灯（Zu1-Zu5），分为2组
+// 注意：GROUP_1 对应协议中的第一组，GROUP_2 对应协议中的第二组
 const TRAFFIC_LIGHT_GROUPS = {
-    // 2组（索引0和2）- Zu1 和 Zu3
-    GROUP_2: [0, 2],  // Zu1(无后缀) 和 Zu3(_(2)后缀)
-    // 1组（索引1,3,4,5,6,7）- Zu2, Zu4-Zu8
-    GROUP_1: [1, 3, 4, 5, 6, 7]  // Zu2(_(1)) 到 Zu8(_(7))
+    // 协议第一组 → 沙盘的 Zu3、Zu1、Zu5（索引2、0、4）
+    GROUP_1: [2, 0, 4],  // Zu3(索引2)、Zu1(索引0)、Zu5(索引4)
+    // 协议第二组 → 沙盘的 Zu4 和 Zu2（索引3和1）
+    GROUP_2: [3, 1]  // Zu4(索引3) 和 Zu2(索引1)
 };
 
 // 红绿灯对象存储
@@ -80,11 +81,11 @@ export function initTrafficLightManager(sandbox) {
     trafficLights = [];
 
     try {
-        // 查找所有8个红绿灯组 (Zu1-Zu8)
+        // 查找所有5个红绿灯组 (Zu1-Zu5)
         const groups = [];
         
-        // 按顺序查找 Zu1 到 Zu8
-        for (let i = 1; i <= 8; i++) {
+        // 按顺序查找 Zu1 到 Zu5
+        for (let i = 1; i <= 5; i++) {
             const groupName = `MD_HongLvDeng_Zu${i}`;
             let group = null;
             
@@ -174,12 +175,12 @@ export function initTrafficLightManager(sandbox) {
 /**
  * 从红绿灯组中提取各个组件
  * @param {THREE.Object3D} group - 红绿灯组对象
- * @param {number} index - 红绿灯索引 (Zu1=0, Zu2=1, ..., Zu8=7)
+ * @param {number} index - 红绿灯索引 (Zu1=0, Zu2=1, Zu3=2, Zu4=3, Zu5=4)
  * @returns {Object|null} 红绿灯组件对象
  */
 function extractTrafficLightComponents(group, index) {
-    // 新模型使用下划线+括号格式：_(1), _(2), ..., _(7)
-    // Zu1 (索引0) 无后缀，Zu2-Zu8 (索引1-7) 使用 _(N) 后缀
+    // 新模型使用下划线+括号格式：_(1), _(2), _(3), _(4)
+    // Zu1 (索引0) 无后缀，Zu2-Zu5 (索引1-4) 使用 _(N) 后缀
     const suffix = index === 0 ? '' : `_(${index})`;
     
     const components = {
@@ -437,7 +438,7 @@ function turnOffAllLights(index) {
 
 /**
  * 设置单个红绿灯的状态
- * @param {number} index - 红绿灯索引 (0-7)
+ * @param {number} index - 红绿灯索引 (0-4: Zu1-Zu5)
  * @param {number} color - 灯光颜色 (1=红, 2=绿, 3=黄)
  * @param {number} countdown - 倒计时秒数
  */
@@ -522,7 +523,7 @@ export function setTrafficLightState(index, color, countdown) {
 
 /**
  * 更新红绿灯组状态
- * @param {number} groupIndex - 组索引 (0=2组, 1=1组)
+ * @param {number} groupIndex - 组索引 (0=协议第一组, 1=协议第二组)
  * @param {number} color - 灯光颜色
  * @param {number} countdown - 倒计时秒数
  */
@@ -536,11 +537,11 @@ export function updateTrafficLightGroup(groupIndex, color, countdown) {
     let targetIndices = [];
     
     if (groupIndex === 0) {
-        // 2组
-        targetIndices = TRAFFIC_LIGHT_GROUPS.GROUP_2;
-    } else if (groupIndex === 1) {
-        // 1组
+        // 协议第一组：Zu3、Zu1、Zu5
         targetIndices = TRAFFIC_LIGHT_GROUPS.GROUP_1;
+    } else if (groupIndex === 1) {
+        // 协议第二组：Zu4 和 Zu2
+        targetIndices = TRAFFIC_LIGHT_GROUPS.GROUP_2;
     } else {
         logger.warn(`无效的组索引: ${groupIndex}`);
         return;
@@ -551,7 +552,7 @@ export function updateTrafficLightGroup(groupIndex, color, countdown) {
         setTrafficLightState(index, color, countdown);
     });
 
-    logger.info(`组 ${groupIndex === 0 ? '2' : '1'} 的 ${targetIndices.length} 个红绿灯已更新为: ${getColorName(color)}, 倒计时: ${countdown}秒`);
+    logger.info(`协议第${groupIndex + 1}组 的 ${targetIndices.length} 个灯已更新为: ${getColorName(color)}, 倒计时: ${countdown}秒`);
 }
 
 /**

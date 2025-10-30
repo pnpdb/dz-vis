@@ -563,10 +563,18 @@ const startRTSPCamera = async (camera) => {
         
         console.log('✅ MSE 播放器已启动，等待视频数据...');
         
+        // 清理事件监听器的辅助函数
+        const cleanupVideoListeners = () => {
+            if (videoRef.value) {
+                videoRef.value.removeEventListener('canplay', onCanPlay);
+                videoRef.value.removeEventListener('error', onError);
+            }
+        };
+        
         // 监听视频真正可以播放的事件
         const onCanPlay = () => {
             console.log('🎬 视频数据已就绪');
-            videoRef.value.removeEventListener('canplay', onCanPlay);
+            cleanupVideoListeners(); // 清理所有监听器
             
             // 显示视频并结束 loading
             isStreaming.value = true;
@@ -575,11 +583,14 @@ const startRTSPCamera = async (camera) => {
         
         const onError = (e) => {
             console.error('❌ 视频播放错误:', e);
-            videoRef.value.removeEventListener('error', onError);
+            cleanupVideoListeners(); // 清理所有监听器
         };
         
         videoRef.value.addEventListener('canplay', onCanPlay);
         videoRef.value.addEventListener('error', onError);
+        
+        // 保存清理函数以便在 catch 块中使用
+        videoRef.value._mseCleanupListeners = cleanupVideoListeners;
         
         // 连接成功，清除标志
         isConnectingWebRTC.value = false;
@@ -591,6 +602,17 @@ const startRTSPCamera = async (camera) => {
         
         // 错误时清理已创建的资源
         console.debug('🧹 清理失败连接的资源...');
+        
+        try {
+            // 清理 video 事件监听器（如果已添加）
+            if (videoRef.value && videoRef.value._mseCleanupListeners) {
+                console.debug('  🧹 清理 video 事件监听器');
+                videoRef.value._mseCleanupListeners();
+                delete videoRef.value._mseCleanupListeners;
+            }
+        } catch (cleanupError) {
+            console.warn('⚠️ 清理 video 监听器时出错:', cleanupError);
+        }
         
         try {
             // 停止 MSE 播放器
@@ -633,7 +655,14 @@ const stopVideoStream = async () => {
     }
     
     try {
-        // 1. 停止 video 元素的媒体流
+        // 1. 清理 video 事件监听器（防止内存泄漏）
+        if (videoRef.value && videoRef.value._mseCleanupListeners) {
+            console.debug('🧹 清理 video 事件监听器');
+            videoRef.value._mseCleanupListeners();
+            delete videoRef.value._mseCleanupListeners;
+        }
+        
+        // 2. 停止 video 元素的媒体流
         if (videoRef.value) {
             // 暂停播放
             videoRef.value.pause();

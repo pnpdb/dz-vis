@@ -286,7 +286,7 @@ pub fn run() {
             config::AppConfig::global().ports.log_config();
 
             // 初始化路径加载器并预加载所有路径文件
-            info!("🚀 初始化路径加载器...");
+            info!("初始化路径加载器...");
             let app_handle = app.handle().clone();
             
             // 在开发模式下，使用项目根目录的 public/routes
@@ -323,7 +323,7 @@ pub fn run() {
             if !routes_dir.exists() {
                 error!("❌ 路径文件目录不存在: {:?}", routes_dir);
             } else {
-                info!("✅ 路径文件目录存在: {:?}", routes_dir);
+                info!("路径文件目录存在: {:?}", routes_dir);
             }
             
             let path_loader = services::path_loader::PathLoader::new(routes_dir);
@@ -331,7 +331,7 @@ pub fn run() {
             // 预加载所有路径文件
             match path_loader.preload_all_paths() {
                 Ok(count) => {
-                    info!("✅ 成功预加载 {} 个路径文件", count);
+                    info!("成功预加载 {} 个路径文件", count);
                 }
                 Err(e) => {
                     error!("❌ 路径文件预加载失败: {}", e);
@@ -358,20 +358,20 @@ pub fn run() {
                     // 启用自动启动
                     match autostart_manager.enable() {
                         Ok(_) => {
-                            info!("✅ 开机启动已启用");
+                            info!("开机启动已启用");
                         }
                         Err(e) => {
-                            warn!("⚠️ 启用开机启动失败: {}", e);
+                            warn!("启用开机启动失败: {}", e);
                         }
                     }
                 } else {
                     // 禁用自动启动
                     match autostart_manager.disable() {
                         Ok(_) => {
-                            info!("🔄 开机启动已禁用");
+                            info!("开机启动已禁用");
                         }
                         Err(e) => {
-                            warn!("⚠️ 禁用开机启动失败: {}", e);
+                            warn!("禁用开机启动失败: {}", e);
                         }
                     }
                 }

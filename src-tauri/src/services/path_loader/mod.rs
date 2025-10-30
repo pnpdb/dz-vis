@@ -38,7 +38,7 @@ impl PathLoader {
 
     /// 预加载所有路径文件到内存
     pub fn preload_all_paths(&self) -> Result<usize, String> {
-        info!("🚀 开始预加载路径文件...");
+        info!("开始预加载路径文件...");
 
         if !self.routes_dir.exists() {
             error!("路径目录不存在: {:?}", self.routes_dir);
@@ -88,7 +88,7 @@ impl PathLoader {
             match self.load_path_file(&path, path_id) {
                 Ok(path_data) => {
                     info!(
-                        "✅ 加载路径文件 {} - {} 个点",
+                        "加载路径文件 {} - {} 个点",
                         path_id,
                         path_data.points.len()
                     );

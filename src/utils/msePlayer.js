@@ -15,6 +15,10 @@ export class MsePlayer {
         this.queue = []; // 数据队列
         this.isAppending = false;
         this.isReady = false;
+        this.objectUrl = null; // 存储 Object URL 以便后续撤销
+        this.wsConnectTimeout = null; // WebSocket 连接超时定时器
+        this.updateEndHandler = null; // SourceBuffer updateend 处理器
+        this.errorHandler = null; // SourceBuffer error 处理器
     }
 
     /**
@@ -30,13 +34,16 @@ export class MsePlayer {
 
         // 创建 MediaSource
         this.mediaSource = new MediaSource();
-        this.video.src = URL.createObjectURL(this.mediaSource);
+        this.objectUrl = URL.createObjectURL(this.mediaSource);
+        this.video.src = this.objectUrl;
 
         // 等待 MediaSource 就绪
         await new Promise((resolve, reject) => {
             this.mediaSource.addEventListener('sourceopen', resolve, { once: true });
             this.mediaSource.addEventListener('error', reject, { once: true });
-            setTimeout(() => reject(new Error('MediaSource 超时')), 5000);
+            const timeout = setTimeout(() => reject(new Error('MediaSource 超时')), 5000);
+            // 成功后清理超时
+            this.mediaSource.addEventListener('sourceopen', () => clearTimeout(timeout), { once: true });
         });
 
         console.log('✅ MediaSource 已就绪');
@@ -45,15 +52,17 @@ export class MsePlayer {
         const mimeType = 'video/mp4; codecs="avc1.64001f,mp4a.40.2"';
         this.sourceBuffer = this.mediaSource.addSourceBuffer(mimeType);
 
-        // SourceBuffer 事件
-        this.sourceBuffer.addEventListener('updateend', () => {
+        // SourceBuffer 事件（保存处理器引用以便后续清理）
+        this.updateEndHandler = () => {
             this.isAppending = false;
             this.processQueue();
-        });
+        };
+        this.sourceBuffer.addEventListener('updateend', this.updateEndHandler);
 
-        this.sourceBuffer.addEventListener('error', (e) => {
+        this.errorHandler = (e) => {
             console.error('❌ SourceBuffer 错误:', e);
-        });
+        };
+        this.sourceBuffer.addEventListener('error', this.errorHandler);
 
         // 连接 WebSocket
         await this.connectWebSocket();
@@ -74,6 +83,11 @@ export class MsePlayer {
 
             this.ws.onopen = () => {
                 console.log('✅ WebSocket 已连接');
+                // 清理超时定时器
+                if (this.wsConnectTimeout) {
+                    clearTimeout(this.wsConnectTimeout);
+                    this.wsConnectTimeout = null;
+                }
                 // 发送订阅消息
                 this.ws.send(JSON.stringify({ camera_id: this.cameraId }));
             };
@@ -102,10 +116,18 @@ export class MsePlayer {
 
             this.ws.onclose = () => {
                 console.warn('🔌 WebSocket 已断开');
+                // 清理超时定时器
+                if (this.wsConnectTimeout) {
+                    clearTimeout(this.wsConnectTimeout);
+                    this.wsConnectTimeout = null;
+                }
             };
 
-            // 超时
-            setTimeout(() => reject(new Error('WebSocket 连接超时')), 10000);
+            // 超时（保存定时器引用）
+            this.wsConnectTimeout = setTimeout(() => {
+                this.wsConnectTimeout = null;
+                reject(new Error('WebSocket 连接超时'));
+            }, 10000);
         });
     }
 
@@ -184,28 +206,45 @@ export class MsePlayer {
     }
 
     /**
-     * 停止播放并清理资源
+     * 停止播放并清理资源（防止内存泄漏）
      */
     stop() {
         console.log('🛑 停止 MSE 播放器');
 
         this.isReady = false;
 
+        // 清理 WebSocket 连接超时定时器
+        if (this.wsConnectTimeout) {
+            clearTimeout(this.wsConnectTimeout);
+            this.wsConnectTimeout = null;
+        }
+
         // 关闭 WebSocket
         if (this.ws) {
+            // 清理事件监听器
+            this.ws.onopen = null;
+            this.ws.onmessage = null;
+            this.ws.onerror = null;
+            this.ws.onclose = null;
+            // 关闭连接
             this.ws.close();
             this.ws = null;
         }
 
+        // 清理 SourceBuffer 事件监听器
+        if (this.sourceBuffer) {
+            if (this.updateEndHandler) {
+                this.sourceBuffer.removeEventListener('updateend', this.updateEndHandler);
+                this.updateEndHandler = null;
+            }
+            if (this.errorHandler) {
+                this.sourceBuffer.removeEventListener('error', this.errorHandler);
+                this.errorHandler = null;
+            }
+        }
+
         // 清空队列
         this.queue = [];
-
-        // 停止视频
-        if (this.video) {
-            this.video.pause();
-            this.video.src = '';
-            this.video.load();
-        }
 
         // 清理 MediaSource
         if (this.mediaSource && this.mediaSource.readyState === 'open') {
@@ -222,7 +261,20 @@ export class MsePlayer {
         this.sourceBuffer = null;
         this.mediaSource = null;
 
-        console.log('✅ MSE 播放器已停止');
+        // 停止视频并清理
+        if (this.video) {
+            this.video.pause();
+            this.video.src = '';
+            this.video.load();
+        }
+
+        // ⚠️ 关键：撤销 Object URL 以释放内存
+        if (this.objectUrl) {
+            URL.revokeObjectURL(this.objectUrl);
+            this.objectUrl = null;
+        }
+
+        console.log('✅ MSE 播放器已停止，所有资源已清理');
     }
 }
 

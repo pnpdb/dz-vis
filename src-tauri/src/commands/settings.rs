@@ -28,13 +28,13 @@ pub async fn update_app_settings(app: tauri::AppHandle, request: UpdateAppSettin
                 
                 if auto_start {
                     match autostart_manager.enable() {
-                        Ok(_) => info!("✅ 开机启动已启用"),
-                        Err(e) => warn!("⚠️ 启用开机启动失败: {}", e),
+                        Ok(_) => info!("开机启动已启用"),
+                        Err(e) => warn!("启用开机启动失败: {}", e),
                     }
                 } else {
                     match autostart_manager.disable() {
-                        Ok(_) => info!("🔄 开机启动已禁用"),
-                        Err(e) => warn!("⚠️ 禁用开机启动失败: {}", e),
+                        Ok(_) => info!("开机启动已禁用"),
+                        Err(e) => warn!("禁用开机启动失败: {}", e),
                     }
                 }
                 

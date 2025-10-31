@@ -180,6 +180,7 @@ const isLoading = ref(false);
 const isStreaming = ref(false);
 const isConnectingWebRTC = ref(false); // 标记正在建立 WebRTC 连接
 const isTimeout = ref(false); // 标记连接超时
+const isCleaningVideo = ref(false); // 标记正在清理视频资源（防止清理时的事件触发误报）
 const videoRef = ref();
 const cameraPreviewRef = ref();
 const msePlayer = ref(null); // MSE 播放器实例
@@ -648,6 +649,9 @@ const startRTSPCamera = async (camera) => {
 const stopVideoStream = async () => {
     console.debug('🛑 开始停止视频流...');
     
+    // 标记正在清理（防止清理过程中的事件触发误报）
+    isCleaningVideo.value = true;
+    
     // 清理 HLS 重试定时器
     if (hlsRetryTimer) {
         clearTimeout(hlsRetryTimer);
@@ -717,9 +721,6 @@ const stopVideoStream = async () => {
         isConnectingWebRTC.value = false;
         isTimeout.value = false; // 重置超时状态
         
-        // 等待一下确保清理完成
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
         console.debug('✅ 视频流已完全停止');
         
     } catch (error) {
@@ -729,11 +730,21 @@ const stopVideoStream = async () => {
         isLoading.value = false;
         isConnectingWebRTC.value = false;
         isTimeout.value = false;
+    } finally {
+        // 延迟重置清理标志，确保所有清理触发的异步事件都被拦截
+        // video.src='' 和 load() 触发的事件是异步的，可能在清理代码执行完后才触发
+        setTimeout(() => {
+            isCleaningVideo.value = false;
+        }, 200);
     }
 };
 
 // 视频事件处理
 const onVideoLoadStart = () => {
+    // 如果正在清理视频，忽略事件（避免误报）
+    if (isCleaningVideo.value) {
+        return;
+    }
     console.debug('📹 视频开始加载...');
     isLoading.value = true;
 };
@@ -756,6 +767,11 @@ const onVideoCanPlay = () => {
 };
 
 const onVideoError = (event) => {
+    // 如果正在清理视频，忽略事件（video.src = '' 会触发错误，这是正常的）
+    if (isCleaningVideo.value) {
+        return;
+    }
+    
     // 如果正在建立 WebRTC 连接，忽略初始错误
     if (isConnectingWebRTC.value) {
         console.debug('⏳ WebRTC 连接建立中，忽略初始视频错误');

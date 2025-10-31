@@ -15,6 +15,7 @@ export class MsePlayer {
         this.queue = []; // 数据队列
         this.isAppending = false;
         this.isReady = false;
+        this.isStopping = false; // 标记正在停止（避免 WebSocket 关闭时的错误输出）
         this.objectUrl = null; // 存储 Object URL 以便后续撤销
         this.wsConnectTimeout = null; // WebSocket 连接超时定时器
         this.updateEndHandler = null; // SourceBuffer updateend 处理器
@@ -110,16 +111,24 @@ export class MsePlayer {
             };
 
             this.ws.onerror = (error) => {
+                // 如果正在停止，静默处理错误（避免控制台误报）
+                if (this.isStopping) {
+                    return;
+                }
                 console.error('❌ WebSocket 错误:', error);
                 reject(error);
             };
 
-            this.ws.onclose = () => {
-                console.warn('🔌 WebSocket 已断开');
+            this.ws.onclose = (event) => {
                 // 清理超时定时器
                 if (this.wsConnectTimeout) {
                     clearTimeout(this.wsConnectTimeout);
                     this.wsConnectTimeout = null;
+                }
+                
+                // 如果不是正在停止，才记录断开日志
+                if (!this.isStopping) {
+                    console.warn('🔌 WebSocket 意外断开, code:', event.code);
                 }
             };
 
@@ -209,8 +218,10 @@ export class MsePlayer {
      * 停止播放并清理资源（防止内存泄漏）
      */
     stop() {
-        console.log('🛑 停止 MSE 播放器');
+        console.debug('🛑 停止 MSE 播放器');
 
+        // 首先标记正在停止（让所有错误处理器静默）
+        this.isStopping = true;
         this.isReady = false;
 
         // 清理 WebSocket 连接超时定时器
@@ -219,16 +230,25 @@ export class MsePlayer {
             this.wsConnectTimeout = null;
         }
 
-        // 关闭 WebSocket
+        // 关闭 WebSocket（静默模式）
         if (this.ws) {
-            // 清理事件监听器
-            this.ws.onopen = null;
-            this.ws.onmessage = null;
-            this.ws.onerror = null;
-            this.ws.onclose = null;
-            // 关闭连接
-            this.ws.close();
-            this.ws = null;
+            try {
+                // 只在连接中或已连接时关闭
+                if (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN) {
+                    this.ws.close(1000, 'Client stopped'); // 正常关闭码
+                }
+            } catch (e) {
+                // 忽略关闭错误
+            } finally {
+                // 最后清理事件监听器和引用
+                if (this.ws) {
+                    this.ws.onopen = null;
+                    this.ws.onmessage = null;
+                    this.ws.onerror = null;
+                    this.ws.onclose = null;
+                    this.ws = null;
+                }
+            }
         }
 
         // 清理 SourceBuffer 事件监听器
@@ -261,11 +281,16 @@ export class MsePlayer {
         this.sourceBuffer = null;
         this.mediaSource = null;
 
-        // 停止视频并清理
+        // 停止视频并清理（静默模式）
         if (this.video) {
-            this.video.pause();
-            this.video.src = '';
-            this.video.load();
+            try {
+                this.video.pause();
+                // 先移除 src 属性，再设为空字符串，减少事件触发
+                this.video.removeAttribute('src');
+                this.video.load(); // 重置 video 元素状态
+            } catch (e) {
+                // 忽略清理错误
+            }
         }
 
         // ⚠️ 关键：撤销 Object URL 以释放内存
@@ -274,7 +299,7 @@ export class MsePlayer {
             this.objectUrl = null;
         }
 
-        console.log('✅ MSE 播放器已停止，所有资源已清理');
+        console.debug('✅ MSE 播放器已停止，所有资源已清理');
     }
 }
 

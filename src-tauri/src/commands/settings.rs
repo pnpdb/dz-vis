@@ -41,7 +41,7 @@ pub async fn update_app_settings(app: tauri::AppHandle, request: UpdateAppSettin
                 // 检查并记录当前状态
                 match autostart_manager.is_enabled() {
                     Ok(enabled) => info!("📋 开机启动状态更新为: {}", if enabled { "已启用" } else { "已禁用" }),
-                    Err(e) => warn!("⚠️ 无法检查开机启动状态: {}", e),
+                    Err(e) => warn!("无法检查开机启动状态: {}", e),
                 }
             }
             

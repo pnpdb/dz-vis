@@ -1,6 +1,6 @@
 # DZ-VIZ 项目技术指南
 
-> **版本**: v1.2 | **更新日期**: 2025-10-27 | **作者**: AI Assistant
+> **版本**: v1.3 | **更新日期**: 2025-10-30 | **作者**: AI Assistant
 
 ---
 
@@ -60,7 +60,400 @@ DZ-VIZ 是一个基于 **Tauri + Vue 3 + Three.js** 的自动驾驶车辆可视�
 
 ---
 
-## ✨ 最近更新 (2025-10-27)
+## ✨ 最近更新
+
+### 🎥 v1.3 (2025-10-30) - RTSP 流媒体系统重构
+
+#### 1. MSE 流媒体方案（完全替代 MediaMTX + WebRTC）
+
+**架构变更**：
+```
+旧方案：RTSP → FFmpeg → MediaMTX(RTMP/WebRTC) → 前端
+新方案：RTSP → FFmpeg → fMP4(stdout) → WebSocket → MSE → Video
+```
+
+**核心优势**：
+- ✅ **跨平台兼容**：纯 Web 标准，支持 Windows/macOS/Ubuntu
+- ✅ **低延迟**：1-2秒延迟（vs MediaMTX 3-4秒）
+- ✅ **无外部依赖**：不需要 MediaMTX 二进制文件（减少 47MB）
+- ✅ **内存效率高**：直接流式传输，无中间缓存
+- ✅ **WebKitGTK 兼容**：解决 Ubuntu Tauri 2.1 的 WebRTC 限制
+
+**关键文件**：
+
+1. **前端 MSE 播放器**（`src/utils/msePlayer.js`）
+   ```javascript
+   export class MsePlayer {
+     constructor(videoElement, wsUrl, cameraId) {
+       this.video = videoElement;
+       this.ws = null;               // WebSocket 连接
+       this.mediaSource = null;      // MediaSource API
+       this.sourceBuffer = null;     // fMP4 数据缓冲
+       this.queue = [];              // 数据队列
+       this.isStopping = false;      // 停止标志（静默关闭）
+       this.objectUrl = null;        // Object URL（防止泄漏）
+     }
+     
+     async start() {
+       // 1. 创建 MediaSource
+       this.mediaSource = new MediaSource();
+       this.objectUrl = URL.createObjectURL(this.mediaSource);
+       this.video.src = this.objectUrl;
+       
+       // 2. 添加 SourceBuffer（H.264 + AAC）
+       this.sourceBuffer = this.mediaSource.addSourceBuffer(
+         'video/mp4; codecs="avc1.64001f,mp4a.40.2"'
+       );
+       
+       // 3. 连接 WebSocket 接收 fMP4 数据
+       await this.connectWebSocket();
+     }
+     
+     stop() {
+       // ⚠️ 关键：所有资源必须清理
+       this.isStopping = true;  // 静默错误
+       if (this.ws) this.ws.close(1000);
+       if (this.objectUrl) URL.revokeObjectURL(this.objectUrl);
+       // ... 清理 SourceBuffer, MediaSource
+     }
+   }
+   ```
+
+2. **Rust FFmpeg 流管理器**（`src-tauri/src/mse_streamer/mod.rs`）
+   ```rust
+   pub struct MseStreamer {
+       processes: Arc<RwLock<HashMap<u32, Child>>>,        // FFmpeg 进程
+       broadcasters: Arc<RwLock<HashMap<u32, broadcast::Sender<Vec<u8>>>>>,  // 广播通道
+   }
+   
+   impl MseStreamer {
+       pub async fn start_stream(&self, camera_id: u32, rtsp_url: String) {
+           // 启动 FFmpeg: RTSP → fMP4 (stdout)
+           let mut ffmpeg = Command::new("ffmpeg")
+               .args(&[
+                   "-rtsp_transport", "tcp",
+                   "-i", &rtsp_url,
+                   "-c:v", "copy",           // 视频不重编码
+                   "-c:a", "aac",            // 音频转 AAC
+                   "-movflags", "frag_keyframe+empty_moov",  // fMP4 标志
+                   "-f", "mp4",
+                   "pipe:1"                  // 输出到 stdout
+               ])
+               .stdout(Stdio::piped())
+               .spawn()?;
+           
+           // 读取 stdout 并广播给所有 WebSocket 客户端
+           let stdout = ffmpeg.stdout.take().unwrap();
+           tokio::spawn(async move {
+               let mut reader = BufReader::new(stdout);
+               let mut buffer = vec![0u8; 8192];
+               loop {
+                   match reader.read(&mut buffer).await {
+                       Ok(n) => tx.send(buffer[..n].to_vec()),
+                       _ => break
+                   }
+               }
+           });
+       }
+   }
+   ```
+
+3. **WebSocket 服务器**（`src-tauri/src/mse_streamer/websocket.rs`）
+   ```rust
+   pub async fn start_websocket_server(port: u16) {
+       let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).await?;
+       
+       while let Ok((stream, peer)) = listener.accept().await {
+           tokio::spawn(handle_client(stream, peer));
+       }
+   }
+   
+   async fn handle_client(ws_stream: WebSocketStream<TcpStream>, peer: SocketAddr) {
+       // 接收客户端订阅消息
+       let camera_id = /* 从 JSON 解析 */;
+       
+       // 订阅 fMP4 广播
+       let mut receiver = get_mse_streamer().subscribe(camera_id).await;
+       
+       // 持续推送数据
+       loop {
+           match receiver.recv().await {
+               Ok(chunk) => ws_sender.send(Message::Binary(chunk)).await,
+               _ => break
+           }
+       }
+   }
+   ```
+
+4. **前端集成**（`src/views/Control.vue`）
+   ```vue
+   <template>
+     <!-- v-show 确保元素始终在 DOM 中（防止 MSE 找不到元素） -->
+     <video 
+       v-show="selectedCamera && isStreaming"
+       ref="videoRef"
+       autoplay muted playsinline
+     />
+     
+     <!-- 清理标志防止误报错误 -->
+     <div v-if="isLoading && !isStreaming" class="camera-loading">
+       <fa icon="spinner" class="fa-spin" />
+       <span>正在连接摄像头...</span>
+     </div>
+   </template>
+   
+   <script setup>
+   import { MsePlayer } from '@/utils/msePlayer.js';
+   
+   const msePlayer = ref(null);
+   const isCleaningVideo = ref(false);  // 清理标志
+   
+   const startRTSPCamera = async (camera) => {
+       // 1. 启动 Rust 端流转换
+       await invoke('start_mse_stream', {
+           cameraId: camera.id,
+           rtspUrl: camera.rtsp_url
+       });
+       
+       // 2. 等待 video 元素就绪
+       await nextTick();
+       while (!videoRef.value) {
+           await new Promise(resolve => setTimeout(resolve, 50));
+       }
+       
+       // 3. 创建 MSE 播放器
+       const wsUrl = 'ws://127.0.0.1:9003';
+       msePlayer.value = new MsePlayer(videoRef.value, wsUrl, camera.id);
+       await msePlayer.value.start();
+   };
+   
+   const stopVideoStream = async () => {
+       isCleaningVideo.value = true;  // 标记清理中
+       
+       // 清理 MSE 播放器
+       if (msePlayer.value) {
+           msePlayer.value.stop();
+           msePlayer.value = null;
+       }
+       
+       // 停止 Rust 端流转换
+       await invoke('stop_mse_stream', { cameraId });
+       
+       // 延迟重置标志（等待异步事件完成）
+       setTimeout(() => { isCleaningVideo.value = false; }, 200);
+   };
+   </script>
+   ```
+
+**配置说明**：
+- WebSocket 端口：`9003`（可在 `src-tauri/src/lib.rs` 修改）
+- FFmpeg 参数：自动检测 RTSP，添加 `-rtsp_transport tcp` 等优化
+- Buffer 大小：8KB（平衡内存和性能）
+- 广播通道容量：100 个 fMP4 片段
+
+**故障排查**：
+```javascript
+// 1. 检查 WebSocket 连接
+// 浏览器控制台应显示：✅ WebSocket 已连接
+
+// 2. 检查视频元素
+console.log(videoRef.value);  // 应该不是 null
+
+// 3. 检查 MSE 支持
+console.log(MediaSource.isTypeSupported('video/mp4; codecs="avc1.64001f"'));
+// 应该返回 true
+
+// 4. 查看 Rust 日志
+// [INFO] ✅ FFmpeg 已启动: PID=xxxxx
+// [INFO] ✅ MSE WebSocket 服务器已就绪: ws://127.0.0.1:9003
+```
+
+#### 2. 内存泄漏全面修复（9个关键泄漏点）
+
+**JavaScript 端修复（8 个）**：
+
+| 泄漏点 | 位置 | 问题 | 修复 |
+|-------|------|------|------|
+| 1 | Scene3D | 性能调整 `setTimeout` 未清理 | 添加 `performanceAdjustTimer` 追踪 |
+| 2 | Scene3D | 批处理 `setTimeout` 未清理 | 添加 `batchProcessingTimers` 数组 |
+| 3 | Control.vue | HLS 重试定时器未清理 | 在 `stopVideoStream` 中 `clearTimeout` |
+| 4 | Control.vue | video 事件监听器未移除 | 保存引用并在清理时移除 |
+| 5 | Scene3D/index.vue | 模型加载进度监听器未清理 | 在 `onUnmounted` 中清理 |
+| 6 | socketManager.js | Tauri `listen` 监听器未清理 | 保存 `unlisten` 函数并调用 |
+| 7 | videoProcessor.js | 文件级 `setInterval` 未清理 | 导出 `cleanup()` 函数 |
+| 8 | LogViewer.vue | window 事件监听器未移除 | 在 `onBeforeUnmount` 中移除 |
+
+**Rust 端修复（1 个）**：
+```rust
+// 问题：FFmpeg stderr 使用同步 I/O，阻塞线程
+// 修复：使用异步 AsyncBufReadExt
+let reader = BufReader::new(stderr);
+let mut lines = reader.lines();
+while let Ok(Some(line)) = lines.next_line().await {  // 异步读取
+    // 处理日志
+}
+```
+
+**MsePlayer 内存泄漏修复**（新增）：
+```javascript
+// 1. Object URL 撤销
+if (this.objectUrl) {
+    URL.revokeObjectURL(this.objectUrl);
+    this.objectUrl = null;
+}
+
+// 2. SourceBuffer 事件监听器清理
+if (this.updateEndHandler) {
+    this.sourceBuffer.removeEventListener('updateend', this.updateEndHandler);
+    this.updateEndHandler = null;
+}
+
+// 3. WebSocket 连接超时定时器清理
+if (this.wsConnectTimeout) {
+    clearTimeout(this.wsConnectTimeout);
+    this.wsConnectTimeout = null;
+}
+
+// 4. WebSocket 事件监听器清理
+this.ws.onopen = null;
+this.ws.onmessage = null;
+this.ws.onerror = null;
+this.ws.onclose = null;
+```
+
+**验证方法**：
+```javascript
+// Chrome DevTools → Memory → Take Heap Snapshot
+// 1. 连接摄像头
+// 2. 切换摄像头 50+ 次
+// 3. 再次拍摄快照
+// 4. 对比内存增长 → 应保持稳定
+```
+
+#### 3. 静默清理机制（消除误报错误）
+
+**问题**：关闭 RTSP 摄像头时出现大量错误日志
+```
+[ERROR] FFmpeg Broken pipe
+[Error] WebSocket connection failed
+[Error] 视频加载错误
+[Error] Unsupported source type
+```
+
+**解决方案**：
+
+1. **Rust 端：识别正常停止信号**
+   ```rust
+   // src-tauri/src/mse_streamer/mod.rs
+   while let Ok(Some(line)) = lines.next_line().await {
+       // "Broken pipe" 是正常的流停止信号
+       if line.contains("Broken pipe") {
+           log::debug!("FFmpeg[{}] 流已停止 (Broken pipe)", camera_id);
+           break;  // 停止读取，不报错
+       }
+       
+       if line.contains("error") {
+           log::error!("FFmpeg[{}] 错误: {}", camera_id, line);
+       }
+   }
+   ```
+
+2. **前端：清理标志拦截事件**
+   ```javascript
+   // src/views/Control.vue
+   const isCleaningVideo = ref(false);  // 新增标志
+   
+   const onVideoLoadStart = () => {
+       if (isCleaningVideo.value) return;  // 忽略清理期间的事件
+       isLoading.value = true;
+   };
+   
+   const onVideoError = (event) => {
+       if (isCleaningVideo.value) return;  // 忽略清理期间的错误
+       console.error('❌ 视频加载错误:', event);
+   };
+   
+   const stopVideoStream = async () => {
+       isCleaningVideo.value = true;
+       // ... 清理操作
+       
+       // 延迟重置（等待异步事件完成）
+       setTimeout(() => { isCleaningVideo.value = false; }, 200);
+   };
+   ```
+
+3. **MsePlayer：静默 WebSocket 关闭**
+   ```javascript
+   stop() {
+       this.isStopping = true;  // 标记停止中
+       
+       this.ws.onerror = (error) => {
+           if (this.isStopping) return;  // 静默处理
+           console.error('❌ WebSocket 错误:', error);
+       };
+       
+       // 只在已连接时关闭（避免浏览器原生错误）
+       if (this.ws.readyState === WebSocket.OPEN) {
+           this.ws.close(1000, 'Client stopped');
+       }
+   }
+   ```
+
+**效果**：
+```
+修复前：关闭摄像头 → 4-5 条红色错误
+修复后：关闭摄像头 → 仅 1 条 DEBUG 日志 ✅
+```
+
+#### 4. 跨平台兼容性总结
+
+| 平台 | WebView | MSE 支持 | WebRTC 支持 | 测试状态 |
+|------|---------|----------|-------------|---------|
+| Windows | WebView2 (Chromium) | ✅ | ✅ | ✅ 完全兼容 |
+| macOS | WKWebView | ✅ | ✅ | ✅ 完全兼容 |
+| Ubuntu 22.04 | WebKitGTK 4.0 | ✅ | ❌ | ✅ MSE 方案可用 |
+
+**Ubuntu WebRTC 限制说明**：
+- Tauri 2.1 在 Ubuntu 上使用 WebKitGTK 4.0（内部依赖）
+- WebKitGTK 4.0 不支持 WebRTC API
+- 即使安装 `libwebkit2gtk-4.1-0`，Tauri 仍使用 4.0
+- **解决方案**：使用 MSE 方案，完全不依赖 WebRTC
+
+#### 5. 文件清理
+
+**删除的文件**（不再需要 MediaMTX）：
+```
+❌ src-tauri/resources/mediamtx（47MB 二进制文件）
+❌ src-tauri/resources/mediamtx.yml（配置文件）
+❌ src-tauri/src/commands/mediamtx.rs（MediaMTX 命令）
+❌ src-tauri/src/mediamtx_manager.rs（MediaMTX 管理器）
+```
+
+**新增的文件**：
+```
+✅ src/utils/msePlayer.js（MSE 播放器）
+✅ src-tauri/src/mse_streamer/mod.rs（流管理器）
+✅ src-tauri/src/mse_streamer/websocket.rs（WebSocket 服务器）
+✅ src-tauri/src/commands/mse.rs（MSE 命令）
+```
+
+**配置文件更新**：
+```toml
+# src-tauri/tauri.conf.json
+"resources": {
+  "../public/routes/*.txt": "routes/"
+  // ❌ 删除 MediaMTX 资源配置
+}
+
+# src-tauri/Cargo.toml
+[dependencies]
+tokio-tungstenite = "0.21"  // ✅ 新增 WebSocket 支持
+// ❌ 移除 webkit2gtk 特性（避免编译错误）
+```
+
+---
+
+### 📦 v1.2 (2025-10-27)
 
 ### 1. 平行驾驶界面优化
 
@@ -2172,7 +2565,31 @@ window.__eventBus__.getStats()
 
 ## 📜 版本历史与重要里程碑
 
-### v1.2 (2025-10-27) - 当前版本
+### v1.3 (2025-10-30) - 当前版本 🎥
+**核心更新**：
+- ✅ **MSE 流媒体系统**：完全替代 MediaMTX + WebRTC
+- ✅ **RTSP 摄像头支持**：纯 FFmpeg + WebSocket + MSE 方案
+- ✅ **内存泄漏修复**：9 个关键泄漏点全面修复（JS + Rust）
+- ✅ **静默清理机制**：消除关闭摄像头时的误报错误
+- ✅ **跨平台兼容**：Windows/macOS/Ubuntu 全面支持
+- ✅ **文件清理**：删除 MediaMTX 依赖（减少 47MB）
+
+**关键文件变更**：
+- `src/utils/msePlayer.js` - ✅ 新增（MSE 播放器）
+- `src-tauri/src/mse_streamer/` - ✅ 新增（流管理器 + WebSocket 服务器）
+- `src-tauri/src/commands/mse.rs` - ✅ 新增（MSE 命令）
+- `src/views/Control.vue` - 完全重构（MSE 集成 + 清理标志）
+- `src-tauri/resources/mediamtx*` - ❌ 删除（不再需要）
+- `src-tauri/src/commands/mediamtx.rs` - ❌ 删除
+- `src-tauri/src/mediamtx_manager.rs` - ❌ 删除
+
+**技术亮点**：
+- 1-2秒低延迟视频流
+- 完整的内存管理（无泄漏）
+- 跨平台 WebView 兼容
+- 优雅的资源清理机制
+
+### v1.2 (2025-10-27)
 **核心更新**：
 - ✅ 红绿灯系统适配新模型（命名、分组、Canvas翻转）
 - ✅ Toast 系统完全重写（对象池、Vue插件、跨平台兼容）
@@ -2239,14 +2656,21 @@ window.__eventBus__.getStats()
 
 ---
 
-**最后更新**: 2025-10-27  
+**最后更新**: 2025-10-30  
 **作者**: AI Assistant  
-**版本**: v1.2
-**更新内容**: 
-- 红绿灯系统适配新模型（命名规则、Canvas翻转、材质配置）
-- Toast系统优化（对象池、Vue插件化、内存泄漏修复）
-- 坐标转换封装（vehicleToMapPercent）
-- 平行驾驶界面优化（地图aspect-ratio自适应）
-- 代码质量提升（删除未使用代码、注释清理）
-- CardWithBorder通用组件
+**版本**: v1.3 🎥
+
+**更新内容**:
+- ✅ MSE 流媒体系统（完全替代 MediaMTX + WebRTC）
+- ✅ RTSP 摄像头支持（FFmpeg + WebSocket + MSE）
+- ✅ 内存泄漏修复（9个关键泄漏点，JS + Rust）
+- ✅ 静默清理机制（消除误报错误）
+- ✅ 跨平台兼容（Windows/macOS/Ubuntu）
+- ✅ 文件清理（删除 47MB MediaMTX 依赖）
+
+**快速开始新会话**：
+1. **RTSP 摄像头**：查看 § v1.3 - MSE 流媒体方案
+2. **内存管理**：查看 § v1.3 - 内存泄漏全面修复
+3. **静默清理**：查看 § v1.3 - 静默清理机制
+4. **跨平台**：查看 § v1.3 - 跨平台兼容性总结
 

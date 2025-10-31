@@ -411,7 +411,7 @@ pub fn run() {
             app.manage(ProtocolProcessorState::new());
             info!("✅ 协议处理器初始化成功");
 
-            // 初始化并启动 MediaMTX
+            // 启动 MSE 流服务（纯 FFmpeg + WebSocket，不依赖 MediaMTX）
             info!("🚀 初始化 MSE 流服务...");
             // 启动 WebSocket 服务器用于推送 fMP4 流
             let mse_ws_port = 9003; // MSE WebSocket 端口

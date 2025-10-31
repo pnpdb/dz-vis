@@ -130,6 +130,12 @@ impl MseStreamer {
             let mut lines = reader.lines();
 
             while let Ok(Some(line)) = lines.next_line().await {
+                // 忽略 "Broken pipe" 错误（这是正常的流停止信号）
+                if line.contains("Broken pipe") {
+                    log::debug!("FFmpeg[{}] 流已停止 (Broken pipe)", camera_id_clone);
+                    break; // 停止读取日志
+                }
+                
                 // 只记录错误和警告
                 if line.contains("error") || line.contains("Error") {
                     log::error!("FFmpeg[{}] 错误: {}", camera_id_clone, line);
@@ -146,13 +152,7 @@ impl MseStreamer {
     pub async fn stop_stream(&self, camera_id: u32) {
         log::info!("🛑 停止 MSE 流: camera_id={}", camera_id);
 
-        // 移除广播器（断开所有订阅者）
-        {
-            let mut broadcasters = self.broadcasters.write().await;
-            broadcasters.remove(&camera_id);
-        }
-
-        // 停止 FFmpeg 进程
+        // 1. 先停止 FFmpeg 进程（避免 Broken pipe 错误）
         {
             let mut processes = self.processes.write().await;
             if let Some(mut child) = processes.remove(&camera_id) {
@@ -160,6 +160,12 @@ impl MseStreamer {
                 let _ = child.wait().await;
                 log::info!("✅ FFmpeg 进程已停止 (camera_id={})", camera_id);
             }
+        }
+
+        // 2. 然后移除广播器（断开所有订阅者）
+        {
+            let mut broadcasters = self.broadcasters.write().await;
+            broadcasters.remove(&camera_id);
         }
     }
 

@@ -52,9 +52,7 @@
     "longDescription": "A comprehensive car management system for autonomous vehicle monitoring and control.",
     "externalBin": [],
     "resources": {
-      "../public/routes/*.txt": "routes/",
-      "resources/mediamtx": "mediamtx",
-      "resources/mediamtx.yml": "mediamtx.yml"
+      "../public/routes/*.txt": "routes/"
     },
     "linux": {
       "deb": {

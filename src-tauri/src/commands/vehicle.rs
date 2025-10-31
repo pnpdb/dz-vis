@@ -39,7 +39,7 @@ pub async fn start_socket_server(app: tauri::AppHandle) -> Result<String, String
     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
 
     let result = format!("Socket服务器启动在端口: {}", port);
-    info!("✅ {}", result);
+    info!("{}", result);
     Ok(result)
 }
 

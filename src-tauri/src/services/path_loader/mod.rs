@@ -107,7 +107,7 @@ impl PathLoader {
             *paths = paths_map;
         }
 
-        info!("✅ 路径文件预加载完成: {} 个文件", loaded_count);
+        info!("路径文件预加载完成: {} 个文件", loaded_count);
         Ok(loaded_count)
     }
 

@@ -5,7 +5,7 @@
 
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
-import { Box3 } from 'three';
+import { Box3, Group } from 'three';
 import { validateVehicleId, validatePosition, validateOrientation } from '@/utils/validation.js';
 import { disposeObject3D } from '@/utils/resourceCleanup.js';
 
@@ -76,9 +76,13 @@ const loadCarModelTemplate = async () => {
             '/models/car.glb',
             (gltf) => {
                 carModelTemplate = gltf.scene;
+                
                 // 由于车辆会添加到沙盘内部（沙盘scale=6），
                 // 车辆会继承沙盘的缩放，所以这里设置为1即可
-                carModelTemplate.scale.set(1, 1, 1);
+                carModelTemplate.scale.set(0.001, 0.001, 0.001);
+                
+                // ⚠️ 注意：模型朝向修正现在在每个车辆实例的容器组内进行
+                // 模板不再预先旋转，保持原始状态
                 
                 // 预计算车辆模板的包围盒（性能优化）
                 cachedCarTemplateBox = new Box3().setFromObject(carModelTemplate);
@@ -140,8 +144,18 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
         // 加载车辆模型模板
         await loadCarModelTemplate();
 
-        // 克隆模型
-        vehicleModel = carModelTemplate.clone();
+        // 创建容器组（用于分离模型修正旋转和运动朝向旋转）
+        vehicleModel = new Group();
+        vehicleModel.name = `Vehicle_${vehicleId}_Container`;
+        
+        // 克隆车辆模型并添加到容器组
+        const carMesh = carModelTemplate.clone();
+        carMesh.name = `Vehicle_${vehicleId}_Mesh`;
+        
+        // 在容器组内修正模型朝向（固定旋转，不会受运动朝向影响）
+        carMesh.rotation.x = -Math.PI / 2;  // 修正模型方向
+        
+        vehicleModel.add(carMesh);
         
         // 获取沙盘模型以计算道路表面高度
         const sandboxModel = models.get('sandbox');

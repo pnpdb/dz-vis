@@ -342,7 +342,7 @@ impl VehicleDatabase {
         // 初始化默认菜单可见性设置
         self.init_default_menu_visibility_settings().await?;
         
-        log::info!("✅ 数据库表结构检查完成");
+        log::info!("数据库表结构检查完成");
         Ok(())
     }
     

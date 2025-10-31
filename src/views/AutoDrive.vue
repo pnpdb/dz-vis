@@ -221,39 +221,47 @@ const pickup = ref({
 
 // 呼叫出租车
 const callTaxi = async () => {
+    // 保存起点终点坐标（用于添加到activeTaxiRides）
+    const startCoords = carStore.taxi.startCoords;
+    const endCoords = carStore.taxi.endCoords;
+    
     try {
         // 1. 检查是否有在线车辆
         const onlineVehicleCount = socketManager.getOnlineVehicleCount();
         if (onlineVehicleCount === 0) {
             Toast.warning('当前没有可用车辆');
+            // 失败：清除UI文本 + 清除沙盘图标
+            clearTaxiSelection();
             return;
         }
 
         // 2. 检查是否已选择起点和终点
-        if (!carStore.taxi.startCoords || !carStore.taxi.endCoords) {
+        if (!startCoords || !endCoords) {
             Toast.warning('请先选择起点和终点位置');
             return;
         }
 
         // 3. 查找离起点最近且导航状态为1或2的车辆
         const assignedVehicleId = carStore.findNearestIdleVehicle(
-            carStore.taxi.startCoords.x,
-            carStore.taxi.startCoords.z
+            startCoords.x,
+            startCoords.z
         );
         
         if (!assignedVehicleId) {
             Toast.warning('当前没有可用车辆');
+            // 失败：清除UI文本 + 清除沙盘图标
+            clearTaxiSelection();
             return;
         }
         
         // 4. 将模型坐标转换为车辆坐标系
         const startVehicleCoords = modelToVehicleCoordinates(
-            carStore.taxi.startCoords.x,
-            carStore.taxi.startCoords.z
+            startCoords.x,
+            startCoords.z
         );
         const endVehicleCoords = modelToVehicleCoordinates(
-            carStore.taxi.endCoords.x,
-            carStore.taxi.endCoords.z
+            endCoords.x,
+            endCoords.z
         );
         
         // 5. 应用偏移量（发送坐标减偏移量）
@@ -273,15 +281,26 @@ const callTaxi = async () => {
             finalEndCoords.y
         );
         
-        // 7. 发送成功，显示成功Toast
+        // 8. 打车成功后只清除UI上的文本坐标，保留沙盘图标
+        // 沙盘图标将在导航状态10时清除
+        carStore.clearTaxiPoints(); // 只清除UI文本
+        
+        // 9. 将车辆添加到打车状态列表（用于后续监听导航状态10）
+        carStore.addActiveTaxiRide(assignedVehicleId, startCoords, endCoords, orderId);
+        
+        // 10. 显示成功Toast
         Toast.success(`出租车订单已发送给${assignedVehicleId}号车，请等待车辆响应`);
         
         console.debug(`🚕 出租车订单发送成功 - 订单: ${orderId}, 车辆: ${assignedVehicleId}`);
         console.debug(`   起点（车辆坐标）: (${startVehicleCoords.x.toFixed(3)}, ${startVehicleCoords.y.toFixed(3)})`);
         console.debug(`   终点（车辆坐标）: (${endVehicleCoords.x.toFixed(3)}, ${endVehicleCoords.y.toFixed(3)})`);
+        console.debug(`   ℹ️ 沙盘图标保留，将在导航状态10时清除`);
         
     } catch (error) {
-        // 8. 发送失败，显示失败Toast
+        // 11. 发送失败：清除UI文本 + 清除沙盘图标
+        clearTaxiSelection();
+        
+        // 12. 显示失败Toast
         Toast.error(`呼叫出租车失败: ${error.message || error}`);
         
         console.error('呼叫出租车失败:', error);

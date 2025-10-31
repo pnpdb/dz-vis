@@ -35,6 +35,10 @@ export const useCarStore = defineStore('car', {
             endCoords: null,   // { x, z }
         },
         
+        // 打车状态管理：存储正在打车的车辆信息
+        // Map<vehicleId, { startCoords: {x, z}, endCoords: {x, z}, orderId: string }>
+        activeTaxiRides: new Map(),
+        
         // 沙盘连接状态
         sandboxConnected: false,
         
@@ -139,6 +143,22 @@ export const useCarStore = defineStore('car', {
                 state.camera.isActive = false;
                 // 清理导航状态
                 state.state.navigation = { code: 0, text: '未知状态' };
+                
+                // 🚕 清理打车状态：如果该车辆正在执行打车任务，清除打车订单
+                if (this.isVehicleInTaxiMode(vehicleId)) {
+                    this.removeActiveTaxiRide(vehicleId);
+                    console.log(`🚗 车辆 ${vehicleId} 断开连接，已清除打车订单`);
+                    
+                    // 清除沙盘上的起点终点图标（如果有）
+                    // 注意：这里使用动态导入避免循环依赖
+                    import('@/components/Scene3D/index.js').then(({ removeStartPointMarker, removeEndPointMarker }) => {
+                        removeStartPointMarker();
+                        removeEndPointMarker();
+                        console.log(`🗺️ 已清除车辆 ${vehicleId} 的沙盘起点终点图标`);
+                    }).catch(err => {
+                        console.warn('清除沙盘图标失败:', err);
+                    });
+                }
             }
             
             // 触发车辆连接状态变化事件（用于3D模型管理）
@@ -634,6 +654,67 @@ export const useCarStore = defineStore('car', {
 
         getTaxiState() {
             return { ...this.taxi };
+        },
+        
+        // ========== 打车状态管理 ==========
+        
+        /**
+         * 添加活跃的打车订单
+         * @param {number} vehicleId - 车辆ID
+         * @param {Object} startCoords - 起点坐标 {x, z}
+         * @param {Object} endCoords - 终点坐标 {x, z}
+         * @param {string} orderId - 订单ID
+         */
+        addActiveTaxiRide(vehicleId, startCoords, endCoords, orderId) {
+            this.activeTaxiRides.set(vehicleId, {
+                startCoords: { ...startCoords },
+                endCoords: { ...endCoords },
+                orderId,
+                timestamp: Date.now()
+            });
+            console.log(`🚕 车辆 ${vehicleId} 开始打车订单: ${orderId}`);
+        },
+        
+        /**
+         * 移除活跃的打车订单
+         * @param {number} vehicleId - 车辆ID
+         * @returns {boolean} 是否成功移除
+         */
+        removeActiveTaxiRide(vehicleId) {
+            const had = this.activeTaxiRides.has(vehicleId);
+            if (had) {
+                const ride = this.activeTaxiRides.get(vehicleId);
+                this.activeTaxiRides.delete(vehicleId);
+                console.log(`🚕 车辆 ${vehicleId} 完成打车订单: ${ride.orderId}`);
+            }
+            return had;
+        },
+        
+        /**
+         * 检查车辆是否在打车状态
+         * @param {number} vehicleId - 车辆ID
+         * @returns {boolean}
+         */
+        isVehicleInTaxiMode(vehicleId) {
+            return this.activeTaxiRides.has(vehicleId);
+        },
+        
+        /**
+         * 获取车辆的打车订单信息
+         * @param {number} vehicleId - 车辆ID
+         * @returns {Object|null}
+         */
+        getActiveTaxiRide(vehicleId) {
+            return this.activeTaxiRides.get(vehicleId) || null;
+        },
+        
+        /**
+         * 清除所有打车订单
+         */
+        clearAllTaxiRides() {
+            const count = this.activeTaxiRides.size;
+            this.activeTaxiRides.clear();
+            console.log(`🚕 已清除 ${count} 个打车订单`);
         },
         
         // ========== 沙盘状态管理 ==========

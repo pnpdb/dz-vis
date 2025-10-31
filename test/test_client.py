@@ -44,6 +44,64 @@ CONTROL_COMMANDS = {
     4: '初始化位姿'
 }
 
+# ========== 打车状态机全局变量 ==========
+# 打车状态机：用于模拟收到0x1003协议后的导航状态变化
+# 状态转换：1（默认）→ 3（去起点，5秒）→ 9（到起点，5秒）→ 4（去终点，5秒）→ 10（到终点，5秒）→ 1
+taxi_state_machine = {
+    'active': False,              # 是否激活打车状态机
+    'current_state': 1,           # 当前导航状态
+    'state_start_time': 0,        # 当前状态开始时间（秒）
+    'state_sequence': [3, 9, 4, 10],  # 打车状态序列
+    'state_index': 0,             # 当前在序列中的索引
+    'state_duration': 5           # 每个状态持续时间（秒）
+}
+
+def start_taxi_state_machine():
+    """启动打车状态机"""
+    global taxi_state_machine
+    taxi_state_machine['active'] = True
+    taxi_state_machine['current_state'] = 3  # 第一个状态：去起点接客
+    taxi_state_machine['state_start_time'] = time.time()
+    taxi_state_machine['state_index'] = 0
+    print(f"\n🚕 [打车状态机] 已启动，导航状态切换为: 3 (接客模式-去起点)")
+
+def update_taxi_state_machine():
+    """更新打车状态机（在每次发送车辆信息时调用）"""
+    global taxi_state_machine
+    
+    if not taxi_state_machine['active']:
+        return 1  # 默认状态
+    
+    current_time = time.time()
+    elapsed = current_time - taxi_state_machine['state_start_time']
+    
+    # 检查是否需要切换到下一个状态
+    if elapsed >= taxi_state_machine['state_duration']:
+        # 切换到下一个状态
+        taxi_state_machine['state_index'] += 1
+        
+        if taxi_state_machine['state_index'] >= len(taxi_state_machine['state_sequence']):
+            # 所有状态完成，回到默认状态1
+            taxi_state_machine['active'] = False
+            taxi_state_machine['current_state'] = 1
+            taxi_state_machine['state_index'] = 0
+            print(f"🚕 [打车状态机] 打车流程完成，回到默认状态: 1 (正常行驶)")
+        else:
+            # 切换到下一个状态
+            next_state = taxi_state_machine['state_sequence'][taxi_state_machine['state_index']]
+            taxi_state_machine['current_state'] = next_state
+            taxi_state_machine['state_start_time'] = current_time
+            
+            state_names = {
+                3: '接客模式-去起点',
+                9: '到达接客起点',
+                4: '接客模式-去终点',
+                10: '到达接客终点'
+            }
+            print(f"🚕 [打车状态机] 导航状态切换为: {next_state} ({state_names.get(next_state, '未知状态')})")
+    
+    return taxi_state_machine['current_state']
+
 def crc16_ccitt_false(data: bytes) -> int:
     """计算 CRC16-CCITT-FALSE 校验码"""
     crc = 0xFFFF
@@ -544,13 +602,16 @@ def create_vehicle_info_data(vehicle_id=1):
         steering_angle = 0.0
     data.extend(struct.pack('<d', steering_angle))
     
-    # 导航状态 (1字节, UINT8) - 新定义 1..15 (注意10为终点)
+    # 导航状态 (1字节, UINT8) - 使用打车状态机
+    # 状态转换：1（默认）→ 收到0x1003后 → 3（5秒）→ 9（5秒）→ 4（5秒）→ 10（5秒）→ 回到1
     now_ms = int(time.time() * 1000)
     if now_ms < force_parallel_until:
+        # 平行驾驶模式优先级最高
         nav_status = 15
     else:
-        nav_status = 5  # 5 = 正常导航中
-    data.extend(struct.pack('<B', 1))
+        # 使用打车状态机的状态
+        nav_status = update_taxi_state_machine()
+    data.extend(struct.pack('<B', nav_status))
     
     # 相机状态 (1字节, UINT8) - 0:异常, 1:正常（模拟正常工作）
     camera_status = 1
@@ -806,13 +867,18 @@ class TestClient:
             # 解析出租车订单指令
             taxi_info = parse_taxi_order_message(data_domain)
             if taxi_info:
-                print(f"出租车订单:")
+                print(f"🚕 出租车订单:")
                 print(f"   目标车辆: {taxi_info['vehicle_id']}")
                 print(f"   起点: ({taxi_info['start_x']:.3f}, {taxi_info['start_y']:.3f})")
                 print(f"   终点: ({taxi_info['end_x']:.3f}, {taxi_info['end_y']:.3f})")
                 
-                # 模拟接单处理
-                print(f" 车辆{self.vehicle_id}收到出租车订单，目标车辆: {taxi_info['vehicle_id']}")
+                # 检查是否是当前车辆的订单
+                if taxi_info['vehicle_id'] == self.vehicle_id:
+                    print(f"✅ 车辆{self.vehicle_id}收到出租车订单，启动打车状态机")
+                    # 启动打车状态机
+                    start_taxi_state_machine()
+                else:
+                    print(f"ℹ️ 订单目标车辆({taxi_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
                 
         elif message_type == SEND_MESSAGE_TYPES['AVP_PARKING']:
             # 解析AVP泊车指令

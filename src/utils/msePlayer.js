@@ -86,6 +86,7 @@ export class MsePlayer {
         this.wsConnectTimeout = null; // WebSocket 连接超时定时器
         this.updateEndHandler = null; // SourceBuffer updateend 处理器
         this.errorHandler = null; // SourceBuffer error 处理器
+        this.hasStartedPlaying = false; // 标记是否已开始播放
     }
 
     /**
@@ -159,6 +160,15 @@ export class MsePlayer {
         this.updateEndHandler = () => {
             this.isAppending = false;
             this.processQueue();
+            
+            // 🎬 第一次接收到数据后，自动播放视频
+            if (!this.hasStartedPlaying && this.video.buffered.length > 0) {
+                this.hasStartedPlaying = true;
+                console.log('🎬 开始播放视频');
+                this.video.play().catch(err => {
+                    console.warn('自动播放失败（可能需要用户交互）:', err);
+                });
+            }
         };
         this.sourceBuffer.addEventListener('updateend', this.updateEndHandler);
 
@@ -283,6 +293,13 @@ export class MsePlayer {
             return;
         }
 
+        // 🔍 队列过长检测（可能数据积压）
+        if (this.queue.length > 100) {
+            console.warn(`⚠️ 数据队列积压: ${this.queue.length} 个片段，清理旧数据`);
+            // 只保留最新的 50 个片段
+            this.queue = this.queue.slice(-50);
+        }
+
         // 从队列取出数据
         const chunk = this.queue.shift();
         
@@ -292,6 +309,12 @@ export class MsePlayer {
         } catch (e) {
             console.error('❌ appendBuffer 失败:', e);
             this.isAppending = false;
+            
+            // 🔧 如果是 QuotaExceededError，尝试清理更多缓冲区
+            if (e.name === 'QuotaExceededError') {
+                console.warn('⚠️ 缓冲区已满，尝试清理更多数据');
+                this.aggressiveCleanupBuffer();
+            }
         }
 
         // 清理旧 buffer（防止内存溢出）
@@ -331,6 +354,37 @@ export class MsePlayer {
     }
 
     /**
+     * 激进的缓冲区清理（用于紧急情况）
+     */
+    aggressiveCleanupBuffer() {
+        if (!this.sourceBuffer || this.sourceBuffer.updating) {
+            return;
+        }
+
+        const currentTime = this.video.currentTime;
+        const buffered = this.sourceBuffer.buffered;
+
+        if (buffered.length > 0) {
+            const bufferStart = buffered.start(0);
+            const bufferEnd = buffered.end(buffered.length - 1);
+
+            try {
+                // 只保留当前播放位置前后 5 秒
+                const keepStart = Math.max(bufferStart, currentTime - 5);
+                const keepEnd = Math.min(bufferEnd, currentTime + 5);
+
+                // 移除前面的数据
+                if (keepStart > bufferStart) {
+                    this.sourceBuffer.remove(bufferStart, keepStart);
+                    console.warn('🧹 激进清理前部:', bufferStart.toFixed(2), '→', keepStart.toFixed(2));
+                }
+            } catch (e) {
+                console.error('激进清理失败:', e);
+            }
+        }
+    }
+
+    /**
      * 停止播放并清理资源（防止内存泄漏）
      */
     stop() {
@@ -338,6 +392,7 @@ export class MsePlayer {
 
         // 首先标记正在停止（让所有错误处理器静默）
         this.isStopping = true;
+        this.hasStartedPlaying = false;
         this.isReady = false;
 
         // 清理 WebSocket 连接超时定时器

@@ -421,6 +421,20 @@ class SocketManager {
                     socketLogger.debug(`路径裁剪失败 - 车辆: ${vehicleId}`, error);
                 }
             }
+            
+            // 🗑️ 清除路径（导航状态10、13时）
+            // 状态10: 到达接客终点
+            // 状态13: 倒车入库中
+            if ([10, 13].includes(navigation.code)) {
+                try {
+                    const { removePath } = await import('@/components/Scene3D/pathRenderer.js');
+                    removePath(vehicleId);
+                    console.log(`🗑️ 车辆 ${vehicleId} 导航状态 ${navigation.code}，已清除所有路径`);
+                } catch (error) {
+                    // 静默失败，不影响主流程
+                    socketLogger.debug(`清除路径失败 - 车辆: ${vehicleId}`, error);
+                }
+            }
         }
 
         logger.outputToPlugin('DEBUG', 'SocketManager.vehicleInfoUpdate', [

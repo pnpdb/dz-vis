@@ -484,12 +484,16 @@ export function trimVehiclePath(vehicleId, vehiclePosition, vehicleOrientation, 
     console.log(`   百分比: ${((remainingPoints.length/fullPathPoints.length)*100).toFixed(1)}% 剩余`);
 }
 
+// 导出 removePath 供外部使用
+export { removePath };
+
 export default {
     initPathRenderer,
     destroyPathRenderer,
     clearAllPaths,
     getPathCount,
     hasPath,
-    trimVehiclePath
+    trimVehiclePath,
+    removePath
 };
 

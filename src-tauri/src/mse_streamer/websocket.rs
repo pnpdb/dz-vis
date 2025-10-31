@@ -10,10 +10,23 @@ use tokio_tungstenite::{accept_async, WebSocketStream};
 
 /// WebSocket 服务器 - 推送 fMP4 流给前端
 pub async fn start_websocket_server(port: u16) -> Result<()> {
-    let addr = format!("127.0.0.1:{}", port);
-    let listener = TcpListener::bind(&addr).await?;
-    
-    log::info!("🚀 MSE WebSocket 服务器启动: {}", addr);
+    // 绑定到所有接口（0.0.0.0），确保打包后也能访问
+    let addr = format!("0.0.0.0:{}", port);
+    let listener = match TcpListener::bind(&addr).await {
+        Ok(listener) => {
+            log::info!("✅ MSE WebSocket 服务器绑定成功: {}", addr);
+            log::info!("   可通过以下地址访问:");
+            log::info!("   - ws://127.0.0.1:{}", port);
+            log::info!("   - ws://localhost:{}", port);
+            listener
+        }
+        Err(e) => {
+            log::error!("❌ 绑定 WebSocket 服务器失败: {}", e);
+            log::error!("   地址: {}", addr);
+            log::error!("   可能原因: 端口 {} 已被占用", port);
+            return Err(e.into());
+        }
+    };
 
     tokio::spawn(async move {
         while let Ok((stream, peer)) = listener.accept().await {

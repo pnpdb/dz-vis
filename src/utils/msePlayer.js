@@ -42,7 +42,8 @@ export class MsePlayer {
         await new Promise((resolve, reject) => {
             this.mediaSource.addEventListener('sourceopen', resolve, { once: true });
             this.mediaSource.addEventListener('error', reject, { once: true });
-            const timeout = setTimeout(() => reject(new Error('MediaSource 超时')), 5000);
+            // 增加超时时间（打包版本中 FFmpeg 查找可能需要更长时间）
+            const timeout = setTimeout(() => reject(new Error('MediaSource 超时（15秒）')), 15000);
             // 成功后清理超时
             this.mediaSource.addEventListener('sourceopen', () => clearTimeout(timeout), { once: true });
         });
@@ -78,19 +79,33 @@ export class MsePlayer {
     async connectWebSocket() {
         return new Promise((resolve, reject) => {
             console.log('🔌 连接 WebSocket:', this.wsUrl);
+            console.log('🔍 环境信息:', {
+                userAgent: navigator.userAgent,
+                location: window.location.href,
+                protocol: window.location.protocol
+            });
 
-            this.ws = new WebSocket(this.wsUrl);
-            this.ws.binaryType = 'arraybuffer';
+            try {
+                this.ws = new WebSocket(this.wsUrl);
+                this.ws.binaryType = 'arraybuffer';
+                console.log('✅ WebSocket 对象已创建, readyState:', this.ws.readyState);
+            } catch (e) {
+                console.error('❌ 创建 WebSocket 失败:', e);
+                reject(e);
+                return;
+            }
 
             this.ws.onopen = () => {
-                console.log('✅ WebSocket 已连接');
+                console.log('✅ WebSocket 已连接, readyState:', this.ws.readyState);
                 // 清理超时定时器
                 if (this.wsConnectTimeout) {
                     clearTimeout(this.wsConnectTimeout);
                     this.wsConnectTimeout = null;
                 }
                 // 发送订阅消息
-                this.ws.send(JSON.stringify({ camera_id: this.cameraId }));
+                const subscribeMsg = { camera_id: this.cameraId };
+                console.log('📤 发送订阅消息:', subscribeMsg);
+                this.ws.send(JSON.stringify(subscribeMsg));
             };
 
             this.ws.onmessage = (event) => {

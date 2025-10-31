@@ -23,6 +23,44 @@ impl MseStreamer {
         }
     }
 
+    /// 查找 FFmpeg 可执行文件
+    /// 尝试多个可能的路径，优先使用系统 PATH
+    fn find_ffmpeg_executable() -> String {
+        // 常见的 FFmpeg 安装路径（按优先级排序）
+        let possible_paths = vec![
+            "ffmpeg",                           // 系统 PATH（优先）
+            "/usr/bin/ffmpeg",                  // Linux 标准路径
+            "/usr/local/bin/ffmpeg",            // Linux 用户安装路径
+            "/opt/homebrew/bin/ffmpeg",         // macOS Homebrew (Apple Silicon)
+            "/usr/local/homebrew/bin/ffmpeg",   // macOS Homebrew (Intel)
+            "/snap/bin/ffmpeg",                 // Ubuntu Snap 安装
+            "C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe",  // Windows
+            "C:\\ffmpeg\\bin\\ffmpeg.exe",      // Windows 备选
+        ];
+
+        // 尝试每个路径
+        for path in possible_paths {
+            if Self::check_ffmpeg_exists(path) {
+                log::info!("✅ 找到 FFmpeg: {}", path);
+                return path.to_string();
+            }
+        }
+
+        // 如果都找不到，返回默认值并记录警告
+        log::warn!("⚠️ 未找到 FFmpeg，使用默认值 'ffmpeg'（可能失败）");
+        log::warn!("💡 请安装 FFmpeg: sudo apt install ffmpeg");
+        "ffmpeg".to_string()
+    }
+
+    /// 检查 FFmpeg 是否存在
+    fn check_ffmpeg_exists(path: &str) -> bool {
+        std::process::Command::new(path)
+            .arg("-version")
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false)
+    }
+
     /// 启动 RTSP → fMP4 流
     pub async fn start_stream(&self, camera_id: u32, rtsp_url: String) -> Result<()> {
         // 停止旧流（如果存在）
@@ -39,8 +77,12 @@ impl MseStreamer {
             broadcasters.insert(camera_id, tx.clone());
         }
 
+        // 查找 FFmpeg 可执行文件（尝试多个可能的路径）
+        let ffmpeg_path = Self::find_ffmpeg_executable();
+        log::info!("🔍 使用 FFmpeg 路径: {}", ffmpeg_path);
+
         // 启动 FFmpeg：RTSP → fMP4 (stdout)
-        let mut ffmpeg_cmd = Command::new("ffmpeg");
+        let mut ffmpeg_cmd = Command::new(&ffmpeg_path);
         
         // 构建 FFmpeg 参数
         let mut args = vec![
@@ -78,12 +120,26 @@ impl MseStreamer {
         ffmpeg_cmd.stdout(std::process::Stdio::piped());
         ffmpeg_cmd.stderr(std::process::Stdio::piped());
 
-        let mut child = ffmpeg_cmd
-            .spawn()
-            .context("启动 FFmpeg 进程失败")?;
+        let mut child = match ffmpeg_cmd.spawn() {
+            Ok(child) => child,
+            Err(e) => {
+                log::error!("❌ 启动 FFmpeg 进程失败: {}", e);
+                log::error!("   FFmpeg 路径: {}", ffmpeg_path);
+                log::error!("   错误类型: {:?}", e.kind());
+                
+                // 尝试给出具体建议
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    log::error!("💡 FFmpeg 未找到，请安装:");
+                    log::error!("   Ubuntu/Debian: sudo apt install ffmpeg");
+                    log::error!("   或添加 FFmpeg 到系统 PATH");
+                }
+                
+                return Err(anyhow::anyhow!("启动 FFmpeg 进程失败: {} (路径: {})", e, ffmpeg_path));
+            }
+        };
 
         let pid = child.id().unwrap_or(0);
-        log::info!("✅ FFmpeg 已启动: PID={}", pid);
+        log::info!("✅ FFmpeg 已启动: PID={} (路径: {})", pid, ffmpeg_path);
 
         // 获取 stdout 和 stderr
         let stdout = child.stdout.take().context("无法获取 FFmpeg stdout")?;

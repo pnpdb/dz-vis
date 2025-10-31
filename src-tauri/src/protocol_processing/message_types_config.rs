@@ -222,8 +222,8 @@ pub fn get_message_types_config() -> MessageTypesConfig {
     send_types.insert("SANDBOX_LIGHTING_CONTROL".to_string(), 0x2003u16);
 
     let mut nav_status_texts = HashMap::new();
-    nav_status_texts.insert("1".to_string(), "正常行驶中（空载模式倒车入库）".to_string());
-    nav_status_texts.insert("2".to_string(), "正常行驶中（空载模式不倒车入库）".to_string());
+    nav_status_texts.insert("1".to_string(), "正常行驶中（空载模式不倒车入库）".to_string());
+    nav_status_texts.insert("2".to_string(), "正常行驶中（空载模式倒车入库）".to_string());
     nav_status_texts.insert("3".to_string(), "接客模式，去起点接客".to_string());
     nav_status_texts.insert("4".to_string(), "接客模式，去终点送客".to_string());
     nav_status_texts.insert("5".to_string(), "去往充电车位".to_string());

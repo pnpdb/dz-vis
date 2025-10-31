@@ -169,7 +169,8 @@
         0 0 20px rgba(0, 240, 255, 0.15),
         inset 0 1px 0 rgba(255, 255, 255, 0.1);
     position: relative;
-    overflow: hidden;
+    overflow: hidden; /* 裁剪边框圆角 */
+    max-height: calc(100vh - 200px); /* 限制最大高度，留出顶部和底部空间 */
 }
 
 /* HUD状态指示器 */

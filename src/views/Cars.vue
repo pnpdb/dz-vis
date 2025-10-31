@@ -1,28 +1,30 @@
 <template>
-    <div class="floating-vehicle-panel">
-        <div class="panel-header">
-            <div class="panel-icon">
-                <fa icon="car-side" />
+    <div class="floating-vehicle-panel-wrapper">
+        <div class="floating-vehicle-panel">
+            <div class="panel-header">
+                <div class="panel-icon">
+                    <fa icon="car-side" />
+                </div>
+                <h2 class="panel-title">车辆信息</h2>
+                <div class="panel-status">
+                    <StatusIndicator 
+                        :status="vehicleStatus" 
+                        :show-label="false" 
+                        size="medium"
+                        title="车辆状态"
+                    />
+                </div>
             </div>
-            <h2 class="panel-title">车辆信息</h2>
-            <div class="panel-status">
-                <StatusIndicator 
-                    :status="vehicleStatus" 
-                    :show-label="false" 
-                    size="medium"
-                    title="车辆状态"
-                />
-            </div>
+
+            <!-- 车载摄像头 -->
+            <CarCamera />
+
+            <!-- 车辆信息 -->
+            <CarInfo :carInfo="selectedCar" :online="vehicleStatus === 'online'" />
+
+            <!-- 传感器 -->
+            <Sensor :carInfo="selectedCar" :online="vehicleStatus === 'online'" />
         </div>
-
-        <!-- 车载摄像头 -->
-        <CarCamera />
-
-        <!-- 车辆信息 -->
-        <CarInfo :carInfo="selectedCar" :online="vehicleStatus === 'online'" />
-
-        <!-- 传感器 -->
-        <Sensor :carInfo="selectedCar" :online="vehicleStatus === 'online'" />
     </div>
 </template>
 
@@ -103,11 +105,26 @@ onBeforeUnmount(() => {
 </script>
 
 <style lang="scss" scoped>
+.floating-vehicle-panel-wrapper {
+    height: 100%;
+    width: 100%;
+    position: relative;
+}
+
 .floating-vehicle-panel {
     padding: 25px;
     height: 100%;
     overflow-y: auto;
-    position: relative;
+    overflow-x: hidden;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    /* 🔧 关键修复：确保触屏滚动工作 */
+    touch-action: pan-y; /* 允许垂直滚动 */
+    -webkit-overflow-scrolling: touch; /* 平滑滚动 */
+    overscroll-behavior-y: contain; /* 防止滚动传播到父元素 */
 }
 
 .panel-header {

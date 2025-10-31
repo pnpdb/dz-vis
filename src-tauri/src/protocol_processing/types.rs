@@ -318,8 +318,8 @@ pub struct BatchProcessingResult {
 
 pub fn nav_status_text(status: u8) -> &'static str {
     match status {
-        1 => "正常行驶中（空载模式倒车入库）",
-        2 => "正常行驶中（空载模式不倒车入库）",
+        1 => "正常行驶中（空载模式不倒车入库）",
+        2 => "正常行驶中（空载模式倒车入库）",
         3 => "接客模式，去起点接客",
         4 => "接客模式，去终点送客",
         5 => "去往充电车位",

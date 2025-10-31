@@ -408,12 +408,16 @@ class SocketManager {
             // 🛣️ 实时裁剪路径（导航状态3、4、7时）
             if ([3, 4, 7].includes(navigation.code)) {
                 try {
+                    console.log(`🚗 车辆 ${vehicleId} 导航状态 ${navigation.code}，准备裁剪路径`);
+                    console.log(`   车辆坐标(原始): (${position.x.toFixed(3)}, ${position.y.toFixed(3)})`);
                     const { trimVehiclePath } = await import('@/components/Scene3D/pathRenderer.js');
                     // 将车辆坐标转换为模型坐标（用于路径比较）
                     const modelPos = vehicleToModelCoordinates(position.x, position.y);
+                    console.log(`   车辆坐标(模型): (${modelPos.x.toFixed(3)}, ${modelPos.z.toFixed(3)})`);
                     trimVehiclePath(vehicleId, modelPos, orientation, navigation.code);
                 } catch (error) {
                     // 静默失败，不影响主流程
+                    console.error(`❌ 路径裁剪失败 - 车辆: ${vehicleId}`, error);
                     socketLogger.debug(`路径裁剪失败 - 车辆: ${vehicleId}`, error);
                 }
             }

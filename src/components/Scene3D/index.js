@@ -234,7 +234,9 @@ const initSceneCore = async () => {
         renderer.domElement.style.zIndex = '0';
         
         // 🔧 关键修复：触屏设备支持 + 防止事件穿透
-        renderer.domElement.style.touchAction = 'none'; // 禁用浏览器默认触摸手势（双指缩放由 OrbitControls 处理）
+        // touchAction: 'none' 让 OrbitControls 完全控制触屏手势
+        // 由于触屏事件只监听在 canvas 上，不会影响 UI 滚动
+        renderer.domElement.style.touchAction = 'none'; 
         renderer.domElement.setAttribute('data-scene3d-canvas', 'true'); // 标记用于事件检查
         
         container.appendChild(renderer.domElement);
@@ -1970,6 +1972,7 @@ const isEventFromCanvas = (event) => {
 const setupMouseEventListeners = () => {
     if (!container) return;
     
+    // 鼠标事件监听在 container 上（兼容性好）
     container.addEventListener('mousedown', onMouseDown);
     container.addEventListener('mousemove', onMouseMove);
     container.addEventListener('mouseup', onMouseUp);
@@ -1980,10 +1983,13 @@ const setupMouseEventListeners = () => {
         }
     });
     
-    // 🔧 添加触屏事件支持（Ubuntu 触屏设备）
-    container.addEventListener('touchstart', onMouseDown, { passive: false });
-    container.addEventListener('touchmove', onMouseMove, { passive: false });
-    container.addEventListener('touchend', onMouseUp, { passive: false });
+    // 🔧 触屏事件监听在 renderer.domElement (canvas) 上
+    // 避免影响 UI 元素的触屏滚动
+    if (renderer && renderer.domElement) {
+        renderer.domElement.addEventListener('touchstart', onMouseDown, { passive: false });
+        renderer.domElement.addEventListener('touchmove', onMouseMove, { passive: false });
+        renderer.domElement.addEventListener('touchend', onMouseUp, { passive: false });
+    }
 };
 
 // 鼠标按下事件
@@ -1998,11 +2004,12 @@ const onMouseDown = (event) => {
     }
     
     // 处理触屏事件（转换为鼠标事件格式）
-    const clientX = event.touches ? event.touches[0].clientX : event.clientX;
-    const clientY = event.touches ? event.touches[0].clientY : event.clientY;
-    const button = event.touches ? 0 : event.button;
+    const isTouchEvent = event.type.startsWith('touch');
+    const clientX = isTouchEvent ? event.touches[0].clientX : event.clientX;
+    const clientY = isTouchEvent ? event.touches[0].clientY : event.clientY;
     
-    if (button === 0) { // 左键或单指触摸
+    // 触屏事件或鼠标左键
+    if (isTouchEvent || event.button === 0) {
         event.preventDefault();
         event.stopPropagation();  // 阻止事件冒泡到父元素
         isMouseDown = true;
@@ -2033,8 +2040,7 @@ const onMouseDown = (event) => {
                 createPositionMarker(startPosition);
             }
             
-            // 禁用相机控制
-            if (controls) controls.enabled = false;
+            // 注意：OrbitControls 已在选择模式启动时禁用，无需重复
         }
     }
 };
@@ -2055,8 +2061,9 @@ const onMouseMove = (event) => {
     event.stopPropagation();
     
     // 处理触屏事件（转换为鼠标事件格式）
-    const clientX = event.touches ? event.touches[0].clientX : event.clientX;
-    const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+    const isTouchEvent = event.type.startsWith('touch');
+    const clientX = isTouchEvent ? event.touches[0].clientX : event.clientX;
+    const clientY = isTouchEvent ? event.touches[0].clientY : event.clientY;
     
     // 获取鼠标/触屏在屏幕上的位置 - 更精确的计算
     const rect = container.getBoundingClientRect();
@@ -2081,7 +2088,9 @@ const onMouseMove = (event) => {
 const onMouseUp = (event) => {
     if ((!isPoseSelectionMode && !isPointSelectionMode && !isParkingSlotSelectionMode) || !isMouseDown) return;
     
-    if (event.button === 0) { // 左键
+    // 处理触屏事件或鼠标左键
+    const isTouchEvent = event.type.startsWith('touch');
+    if (isTouchEvent || event.button === 0) {
         event.preventDefault();
         isMouseDown = false;
         
@@ -2410,6 +2419,12 @@ export const startPoseSelectionMode = (callback) => {
     // 创建地面检测平面
     createGroundPlane();
     
+    // 🔧 禁用 OrbitControls，避免与选择模式冲突
+    if (controls) {
+        controls.enabled = false;
+        console.log('🔒 OrbitControls 已禁用（位姿选择模式）');
+    }
+    
     // 修改鼠标样式
     if (container) {
         container.style.cursor = 'crosshair';
@@ -2438,6 +2453,12 @@ export const startPointSelectionMode = (callback) => {
     
     // 创建地面检测平面
     createGroundPlane();
+    
+    // 🔧 禁用 OrbitControls，避免与选择模式冲突
+    if (controls) {
+        controls.enabled = false;
+        console.log('🔒 OrbitControls 已禁用（点选择模式）');
+    }
     
     // 修改鼠标样式
     if (container) {
@@ -2480,6 +2501,12 @@ export const startParkingSlotSelectionMode = (callback) => {
     
     // 创建地面检测平面
     createGroundPlane();
+    
+    // 🔧 禁用 OrbitControls，避免与选择模式冲突
+    if (controls) {
+        controls.enabled = false;
+        console.log('🔒 OrbitControls 已禁用（车位选择模式）');
+    }
     
     // 修改鼠标样式为pointer（表示可点击）
     if (container) {
@@ -2620,12 +2647,19 @@ export const destroyScene = () => {
             container.removeEventListener('mousedown', onMouseDown);
             container.removeEventListener('mousemove', onMouseMove);
             container.removeEventListener('mouseup', onMouseUp);
-            // 清理触屏事件
-            container.removeEventListener('touchstart', onMouseDown);
-            container.removeEventListener('touchmove', onMouseMove);
-            container.removeEventListener('touchend', onMouseUp);
         } catch (error) {
-            console.warn('清理鼠标/触屏事件失败:', error);
+            console.warn('清理鼠标事件失败:', error);
+        }
+    }
+    
+    // 清理 canvas 触屏事件
+    if (renderer && renderer.domElement) {
+        try {
+            renderer.domElement.removeEventListener('touchstart', onMouseDown);
+            renderer.domElement.removeEventListener('touchmove', onMouseMove);
+            renderer.domElement.removeEventListener('touchend', onMouseUp);
+        } catch (error) {
+            console.warn('清理触屏事件失败:', error);
         }
     }
     

@@ -493,12 +493,12 @@ class VehiclePath:
         self.MARGIN_Y = 0.23  # Y轴边距
         
         # 定义矩形路径的四个角点（顺时针绕行）
-        # 左下 -> 右下 -> 右上 -> 左上 -> 左下
+        # 左下 -> 左上 -> 右上 -> 右下 -> 左下
         self.path_points = [
             (self.MARGIN_X, self.MARGIN_Y),                                      # 左下角
-            (self.SANDBOX_WIDTH - self.MARGIN_X, self.MARGIN_Y),                # 右下角
-            (self.SANDBOX_WIDTH - self.MARGIN_X, self.SANDBOX_DEPTH - self.MARGIN_Y),  # 右上角
             (self.MARGIN_X, self.SANDBOX_DEPTH - self.MARGIN_Y),                # 左上角
+            (self.SANDBOX_WIDTH - self.MARGIN_X, self.SANDBOX_DEPTH - self.MARGIN_Y),  # 右上角
+            (self.SANDBOX_WIDTH - self.MARGIN_X, self.MARGIN_Y),                # 右下角
         ]
         
         # 车辆状态
@@ -664,7 +664,7 @@ def create_vehicle_info_data(vehicle_id=1):
     return bytes(data)
 
 class TestClient:
-    def __init__(self, server_host='192.168.1.69', server_port=8888, vehicle_id=1):
+    def __init__(self, server_host='127.0.0.1', server_port=8888, vehicle_id=1):
         self.server_host = server_host
         self.server_port = server_port
         self.vehicle_id = vehicle_id
@@ -947,7 +947,7 @@ class TestClient:
                     if path_info['display_path'] == 1:
                         print(f" 车辆{self.vehicle_id}开始发送路径数据到服务端")
                         # 收到开启路径显示指令后，主动发送路径文件选择（0x0003）
-                        self.send_path_file_selection([1, 2, 3, 4, 5, 6, 7, 8, 9])
+                        self.send_path_file_selection([1, 2, 3, 4, 5, 6, 7, 8])
                     else:
                         print(f" 车辆{self.vehicle_id}停止发送路径数据到服务端")
                 else:

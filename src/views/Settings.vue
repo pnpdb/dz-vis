@@ -258,7 +258,12 @@ onBeforeUnmount(() => {
     padding: 25px;
     height: 100%;
     overflow-y: auto;
+    overflow-x: hidden;
     position: relative;
+    /* 🔧 触屏滚动支持 */
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
 }
 
 .panel-header {

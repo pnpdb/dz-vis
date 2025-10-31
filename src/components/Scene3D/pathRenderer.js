@@ -189,7 +189,9 @@ function createPath(vehicleId, pathPoints, color = null) {
     // 保存完整路径数据（用于实时裁剪）
     vehiclePathData.set(vehicleId, {
         fullPathPoints: [...pathPoints], // 深拷贝
-        startIndex: 0 // 当前显示的起始索引
+        startIndex: 0, // 当前显示的起始索引
+        debugLogged: false, // 调试日志标志
+        closestPointLogged: false // 最近点调试标志
     });
     
     logger.info(`✅ 车辆 ${vehicleId} 路径已绘制 - ${pathPoints.length} 个点, 颜色: #${colorObj.getHexString()}`);
@@ -294,9 +296,15 @@ export function hasPath(vehicleId) {
 
 /**
  * 实时裁剪车辆路径（清除已走过的路径点）
+ * 
+ * 算法说明：
+ * 1. 在路径上查找距离车辆最近的点（最近点）
+ * 2. 从最近点开始，沿着路径方向保留后续所有点
+ * 3. 这样可以正确处理急转弯、U型弯等复杂路径
+ * 
  * @param {number} vehicleId - 车辆ID
  * @param {Object} vehiclePosition - 车辆当前位置 {x, z}
- * @param {number} vehicleOrientation - 车辆朝向（弧度）
+ * @param {number} vehicleOrientation - 车辆朝向（弧度，用于辅助判断）
  * @param {number} navStatus - 导航状态
  */
 export function trimVehiclePath(vehicleId, vehiclePosition, vehicleOrientation, navStatus) {
@@ -311,84 +319,138 @@ export function trimVehiclePath(vehicleId, vehiclePosition, vehicleOrientation, 
     
     if (!pathData || !line) {
         if (!pathData) {
-            logger.debug(`车辆 ${vehicleId} 没有路径数据，跳过裁剪`);
+            console.log(`⚠️ 车辆 ${vehicleId} 没有路径数据，跳过裁剪`);
         }
         return;
     }
     
-    // 首次调用时输出调试信息（仅开发环境）
+    // ✅ 先解构数据，再使用
+    const { fullPathPoints, startIndex } = pathData;
+    
+    // 首次调用时输出调试信息
     if (!pathData.debugLogged) {
-        logger.debug(`🛣️ 开始裁剪车辆 ${vehicleId} 的路径 - 总点数: ${pathData.fullPathPoints.length}`);
-        logger.debug(`   车辆位置: (${vehiclePosition.x.toFixed(3)}, ${vehiclePosition.z.toFixed(3)})`);
-        logger.debug(`   车辆朝向: ${(vehicleOrientation * 180 / Math.PI).toFixed(1)}°`);
+        console.log(`🛣️ 开始裁剪车辆 ${vehicleId} 的路径`);
+        console.log(`   总路径点数: ${fullPathPoints.length}`);
+        console.log(`   车辆位置: (${vehiclePosition.x.toFixed(3)}, ${vehiclePosition.z.toFixed(3)})`);
+        console.log(`   车辆朝向: ${(vehicleOrientation * 180 / Math.PI).toFixed(1)}°`);
+        console.log(`   导航状态: ${navStatus}`);
+        
+        // 🔍 输出前10个路径点和后10个路径点，查看分布
+        console.log(`📍 前10个路径点:`);
+        for (let i = 0; i < Math.min(10, fullPathPoints.length); i++) {
+            const p = fullPathPoints[i];
+            console.log(`   [${i}]: (${p.x.toFixed(3)}, ${p.z.toFixed(3)})`);
+        }
+        if (fullPathPoints.length > 20) {
+            console.log(`📍 后10个路径点:`);
+            for (let i = fullPathPoints.length - 10; i < fullPathPoints.length; i++) {
+                const p = fullPathPoints[i];
+                console.log(`   [${i}]: (${p.x.toFixed(3)}, ${p.z.toFixed(3)})`);
+            }
+        }
+        
         pathData.debugLogged = true;
     }
     
-    // 节流：200ms 更新一次
+    // 节流：降低到 100ms 更新一次，提高实时性
     const now = Date.now();
     const lastTrim = pathTrimThrottle.get(vehicleId) || 0;
-    if (now - lastTrim < 200) {
+    if (now - lastTrim < 100) {
         return;
     }
     pathTrimThrottle.set(vehicleId, now);
-    
-    const { fullPathPoints, startIndex } = pathData;
     
     // 如果所有点都已经走过，不再处理
     if (startIndex >= fullPathPoints.length - 1) {
         return;
     }
     
-    // 计算车辆前进方向向量
-    const forwardX = Math.cos(vehicleOrientation);
-    const forwardZ = Math.sin(vehicleOrientation);
+    // ========== 基于距离的路径裁剪算法（适用于急转弯） ==========
     
-    // 找到新的起始索引（第一个在车辆前方的路径点）
-    let newStartIndex = startIndex;
-    const lookAheadDistance = 0.5; // 向前看0.5单位，避免过度裁剪
+    // 🔍 搜索策略：
+    // 1. 如果是第一次裁剪（startIndex = 0），搜索全部路径点，找到车辆真正的起始位置
+    // 2. 之后只搜索小范围（200个点），提高性能
+    const isFirstTrim = (startIndex === 0);
+    const searchRange = isFirstTrim 
+        ? fullPathPoints.length  // 第一次：搜索全部点
+        : Math.min(200, fullPathPoints.length - startIndex); // 之后：搜索200个点
+    const searchEndIndex = startIndex + searchRange;
     
-    // 向量点积调试（仅开发环境）
-    const debugSampleSize = Math.min(3, fullPathPoints.length - startIndex);
-    if (debugSampleSize > 0 && !pathData.dotProductLogged) {
-        logger.debug(`🔍 向量点积调试 (车辆 ${vehicleId}):`);
-        logger.debug(`   前进向量: (${forwardX.toFixed(3)}, ${forwardZ.toFixed(3)})`);
-        for (let i = 0; i < debugSampleSize; i++) {
-            const idx = startIndex + i;
-            const pt = fullPathPoints[idx];
-            const tpX = pt.x - vehiclePosition.x;
-            const tpZ = pt.z - vehiclePosition.z;
-            const dp = forwardX * tpX + forwardZ * tpZ;
-            const dist = Math.sqrt(tpX * tpX + tpZ * tpZ);
-            logger.debug(`   点[${idx}]: (${pt.x.toFixed(3)}, ${pt.z.toFixed(3)}) → 向量:(${tpX.toFixed(3)}, ${tpZ.toFixed(3)}) 点积:${dp.toFixed(3)} 距离:${dist.toFixed(3)}`);
-        }
-        pathData.dotProductLogged = true;
+    if (isFirstTrim) {
+        console.log(`🔍 第一次裁剪，搜索全部 ${fullPathPoints.length} 个路径点`);
     }
     
-    for (let i = startIndex; i < fullPathPoints.length; i++) {
+    // 查找距离车辆最近的路径点
+    let closestIndex = startIndex;
+    let minDistance = Infinity;
+    let debugSamples = []; // 记录采样点用于调试
+    
+    for (let i = startIndex; i < searchEndIndex; i++) {
         const point = fullPathPoints[i];
         
-        // 计算车辆到路径点的向量
-        const toPointX = point.x - vehiclePosition.x;
-        const toPointZ = point.z - vehiclePosition.z;
+        // 计算欧氏距离
+        const dx = point.x - vehiclePosition.x;
+        const dz = point.z - vehiclePosition.z;
+        const distance = Math.sqrt(dx * dx + dz * dz);
         
-        // 使用点积判断点是在车辆前方还是后方
-        // 点积 > 0: 前方, < 0: 后方
-        const dotProduct = forwardX * toPointX + forwardZ * toPointZ;
-        
-        // 如果点在前方，这是新的起始点
-        if (dotProduct > lookAheadDistance) {
-            newStartIndex = i;
-            break;
+        // 采样记录（每100个点记录一次，用于调试）
+        if (isFirstTrim && i % 100 === 0) {
+            debugSamples.push({ index: i, distance: distance.toFixed(3), point: `(${point.x.toFixed(3)}, ${point.z.toFixed(3)})` });
         }
         
-        // 继续检查下一个点
-        newStartIndex = i + 1;
+        if (distance < minDistance) {
+            minDistance = distance;
+            closestIndex = i;
+        }
     }
     
-    // 如果起始索引没有变化，不需要更新
-    if (newStartIndex === startIndex) {
+    // 如果是第一次裁剪，输出采样信息
+    if (isFirstTrim && debugSamples.length > 0) {
+        console.log(`📊 距离采样（每100个点）:`);
+        debugSamples.forEach(s => {
+            console.log(`   [${s.index}]: ${s.point} → 距离 ${s.distance}`);
+        });
+    }
+    
+    // 每次都输出最近点信息（用于调试）
+    const closestPoint = fullPathPoints[closestIndex];
+    console.log(`🎯 车辆 ${vehicleId} 最近点查找:`);
+    console.log(`   车辆坐标: (${vehiclePosition.x.toFixed(3)}, ${vehiclePosition.z.toFixed(3)})`);
+    console.log(`   搜索范围: ${startIndex} - ${searchEndIndex} (共 ${searchRange} 个点)`);
+    console.log(`   最近点索引: ${closestIndex}/${fullPathPoints.length}`);
+    console.log(`   最近点坐标: (${closestPoint.x.toFixed(3)}, ${closestPoint.z.toFixed(3)})`);
+    console.log(`   最近距离: ${minDistance.toFixed(3)} 单位`);
+    
+    // 额外的安全检查：如果最近距离太大，说明车辆可能偏离路径
+    const maxDeviationDistance = 10.0; // 增大最大偏离距离（单位），更宽容
+    if (minDistance > maxDeviationDistance) {
+        console.warn(`⚠️ 车辆 ${vehicleId} 偏离路径过远 (${minDistance.toFixed(2)}m > ${maxDeviationDistance}m)，跳过裁剪`);
         return;
     }
+    
+    // 计算新的起始索引
+    // 策略：找到最近点，删除最近点之前的所有路径点
+    // 
+    // 🎯 核心逻辑：
+    // 1. 路径文件本身就是有序的（从起点到终点）
+    // 2. 车辆肯定是沿着这个顺序行驶
+    // 3. 找到离车辆最近的点，直接删除这个点之前的所有点
+    // 4. 只绘制从最近点到末尾的路径（还没走的路）
+    
+    // ✅ 如果最近点没有前进，说明车辆还在原来的路径段上，不需要更新
+    if (closestIndex <= startIndex) {
+        console.log(`⏸️  车辆 ${vehicleId} 路径未前进: startIndex=${startIndex}, closestIndex=${closestIndex}`);
+        return;
+    }
+    
+    // ✅ 直接使用最近点作为新的起始索引（删除最近点之前的所有点）
+    const newStartIndex = closestIndex;
+    
+    // 输出裁剪信息（便于调试）
+    console.log(`✂️  车辆 ${vehicleId} 准备裁剪路径:`);
+    console.log(`   当前索引: ${startIndex} -> 新索引: ${newStartIndex} (前进 ${newStartIndex - startIndex} 个点)`);
+    console.log(`   删除点数: ${newStartIndex} 个`);
+    console.log(`   保留点数: ${fullPathPoints.length - newStartIndex} 个`);
     
     // 更新起始索引
     pathData.startIndex = newStartIndex;
@@ -396,7 +458,7 @@ export function trimVehiclePath(vehicleId, vehiclePosition, vehicleOrientation, 
     // 如果所有点都已走过，隐藏路径但不删除
     if (newStartIndex >= fullPathPoints.length - 1) {
         line.visible = false;
-        logger.debug(`车辆 ${vehicleId} 已走完所有路径点，路径已隐藏`);
+        console.log(`🏁 车辆 ${vehicleId} 已走完所有路径点，路径已隐藏`);
         return;
     }
     
@@ -409,24 +471,17 @@ export function trimVehiclePath(vehicleId, vehiclePosition, vehicleOrientation, 
         positions.push(p.x, p.y, p.z);
     });
     
-    // 🔧 清理旧的几何体属性，避免 WebGL 资源泄漏（特别是在 VMware SVGA 驱动下）
-    const geometry = line.geometry;
-    if (geometry.attributes && geometry.attributes.position) {
-        geometry.attributes.position.array = null;
-    }
-    if (geometry.attributes && geometry.attributes.instanceStart) {
-        geometry.attributes.instanceStart.array = null;
-    }
-    if (geometry.attributes && geometry.attributes.instanceEnd) {
-        geometry.attributes.instanceEnd.array = null;
-    }
-    
     // 更新几何体位置
+    // setPositions() 会自动处理内部属性的更新，无需手动清理
+    const geometry = line.geometry;
     geometry.setPositions(positions);
-    line.computeLineDistances(); // 必须重新计算
+    line.computeLineDistances(); // 必须重新计算线段距离（用于虚线等效果）
     line.visible = true;
     
-    logger.info(`✂️ 车辆 ${vehicleId} 路径已裁剪: ${startIndex} -> ${newStartIndex}, 剩余 ${remainingPoints.length}/${fullPathPoints.length} 个点 (${((remainingPoints.length/fullPathPoints.length)*100).toFixed(1)}%)`);
+    console.log(`✅ 车辆 ${vehicleId} 路径已裁剪完成:`);
+    console.log(`   删除: ${newStartIndex} 个点 (已走过)`);
+    console.log(`   保留: ${remainingPoints.length} 个点 (还未走)`);
+    console.log(`   百分比: ${((remainingPoints.length/fullPathPoints.length)*100).toFixed(1)}% 剩余`);
 }
 
 export default {

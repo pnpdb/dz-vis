@@ -149,14 +149,13 @@ export const useCarStore = defineStore('car', {
                     this.removeActiveTaxiRide(vehicleId);
                     console.log(`🚗 车辆 ${vehicleId} 断开连接，已清除打车订单`);
                     
-                    // 清除沙盘上的起点终点图标（如果有）
+                    // 清除该车辆的专属打车图标
                     // 注意：这里使用动态导入避免循环依赖
-                    import('@/components/Scene3D/index.js').then(({ removeStartPointMarker, removeEndPointMarker }) => {
-                        removeStartPointMarker();
-                        removeEndPointMarker();
-                        console.log(`🗺️ 已清除车辆 ${vehicleId} 的沙盘起点终点图标`);
+                    import('@/components/Scene3D/index.js').then(({ removeTaxiMarkersForVehicle }) => {
+                        removeTaxiMarkersForVehicle(vehicleId);
+                        console.log(`🗺️ 已清除车辆 ${vehicleId} 的打车图标`);
                     }).catch(err => {
-                        console.warn('清除沙盘图标失败:', err);
+                        console.warn('清除车辆打车图标失败:', err);
                     });
                 }
             }

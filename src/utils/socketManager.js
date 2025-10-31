@@ -380,14 +380,13 @@ class SocketManager {
                 // 车辆到达接客终点，清理打车订单
                 store.removeActiveTaxiRide(vehicleId);
                 
-                // 清除沙盘上的起点终点图标
+                // 清除该车辆的专属起点终点图标
                 try {
-                    const { removeStartPointMarker, removeEndPointMarker } = await import('@/components/Scene3D/index.js');
-                    removeStartPointMarker();
-                    removeEndPointMarker();
-                    console.log(`🎉 车辆 ${vehicleId} 已到达接客终点，打车任务完成，已清除沙盘图标`);
+                    const { removeTaxiMarkersForVehicle } = await import('@/components/Scene3D/index.js');
+                    removeTaxiMarkersForVehicle(vehicleId);
+                    console.log(`🎉 车辆 ${vehicleId} 已到达接客终点，打车任务完成，已清除该车辆的打车图标`);
                 } catch (error) {
-                    console.warn('清除沙盘图标失败:', error);
+                    console.warn('清除车辆打车图标失败:', error);
                     console.log(`🎉 车辆 ${vehicleId} 已到达接客终点，打车任务完成`);
                 }
             }

@@ -1703,8 +1703,15 @@ let constructionTextureAspect = 1.0; // 默认宽高比，纹理加载后更新�
 let constructionMarkerScale = 0.3; // 全局尺寸缩放（1为基准，0.5为缩小一半）
 
 // 起点和终点标记管理
-let startPointMarker = null;
-let endPointMarker = null;
+// 🚕 支持多车辆打车：每个车辆有独立的起点终点图标
+// vehicleTaxiMarkers: Map<vehicleId, { startMarker, endMarker }>
+let vehicleTaxiMarkers = new Map();
+
+// 临时选择中的起点终点（未打车前的选择）
+let tempStartPointMarker = null;
+let tempEndPointMarker = null;
+
+// 纹理缓存（全局共享）
 let startTexture = null;
 let endTexture = null;
 let startTextureAspect = 1.0;
@@ -2769,7 +2776,7 @@ const animateCameraTo = ({ position, target }, duration = 600) => {
 // ============ 起点和终点标记管理 ============
 
 /**
- * 创建起点标记
+ * 创建临时起点标记（选择中，未打车）
  */
 export const createStartPointMarker = (x, z) => {
     if (!scene) {
@@ -2784,7 +2791,7 @@ export const createStartPointMarker = (x, z) => {
         return null;
     }
 
-    // 移除现有的起点标记
+    // 移除现有的临时起点标记
     removeStartPointMarker();
 
     const tex = ensureStartTexture();
@@ -2796,7 +2803,7 @@ export const createStartPointMarker = (x, z) => {
     sprite.center.set(0.5, 0.0);
     
     // 计算标记尺寸 - 保持原始宽高比  
-    let baseWidth = 1.0; // 起点标记基础大小 - 缩小到原来的一半
+    let baseWidth = 1.0; // 起点标记基础大小
     let widthScale = 1.0;
     try {
         const dims = getSandboxDimensionsInfo();
@@ -2816,19 +2823,95 @@ export const createStartPointMarker = (x, z) => {
     // Y坐标使用道路表面高度，稍微抬高一点避免Z-fighting
     const roadY = getRoadSurfaceY();
     sprite.position.set(x, roadY + 0.01, z);
-    sprite.name = 'StartPointMarker';
+    sprite.name = 'TempStartPointMarker';
 
-    // 将标记添加到沙盘模型内部，而不是modelsGroup
+    // 将标记添加到沙盘模型内部
     sandboxModel.add(sprite);
-    startPointMarker = sprite;
+    tempStartPointMarker = sprite;
     
-    console.log(`🚀 起点标记已创建在沙盘局部坐标: (${x.toFixed(3)}, ${roadY.toFixed(3)}, ${z.toFixed(3)})`);
+    console.debug(`🚀 临时起点标记已创建: (${x.toFixed(3)}, ${roadY.toFixed(3)}, ${z.toFixed(3)})`);
     
     return { x, z };
 };
 
 /**
- * 创建终点标记
+ * 为指定车辆创建起点终点标记（打车成功后）
+ * @param {number} vehicleId - 车辆ID
+ * @param {Object} startCoords - 起点坐标 {x, z}
+ * @param {Object} endCoords - 终点坐标 {x, z}
+ */
+export const createTaxiMarkersForVehicle = (vehicleId, startCoords, endCoords) => {
+    if (!scene) {
+        console.warn('场景未初始化，无法创建打车标记');
+        return false;
+    }
+
+    const sandboxModel = models.get('sandbox');
+    if (!sandboxModel) {
+        console.warn('沙盘模型未找到，无法创建打车标记');
+        return false;
+    }
+
+    // 如果该车辆已有标记，先移除
+    removeTaxiMarkersForVehicle(vehicleId);
+
+    const roadY = getRoadSurfaceY();
+    
+    // 创建起点标记
+    const startTex = ensureStartTexture();
+    if (startTex) {
+        const startMaterial = new SpriteMaterial({ map: startTex, transparent: true });
+        const startSprite = new Sprite(startMaterial);
+        startSprite.center.set(0.5, 0.0);
+        
+        let baseWidth = 1.0;
+        let widthScale = 1.0;
+        try {
+            const dims = getSandboxDimensionsInfo();
+            if (dims) {
+                const base = Math.max(dims.scaled.width, dims.scaled.depth);
+                widthScale = Math.max(0.6, Math.min(2.0, base / 120));
+            }
+        } catch (_) {}
+        
+        const width = baseWidth * widthScale * constructionMarkerScale;
+        const aspectRatio = startTextureAspect > 0 ? startTextureAspect : 1.0;
+        const height = width / aspectRatio;
+        startSprite.scale.set(width, height, 1);
+        startSprite.position.set(startCoords.x, roadY + 0.01, startCoords.z);
+        startSprite.name = `VehicleTaxiStartMarker_${vehicleId}`;
+        sandboxModel.add(startSprite);
+        
+        // 创建终点标记
+        const endTex = ensureEndTexture();
+        if (endTex) {
+            const endMaterial = new SpriteMaterial({ map: endTex, transparent: true });
+            const endSprite = new Sprite(endMaterial);
+            endSprite.center.set(0.5, 0.0);
+            
+            const endAspectRatio = endTextureAspect > 0 ? endTextureAspect : 1.0;
+            const endHeight = width / endAspectRatio;
+            endSprite.scale.set(width, endHeight, 1);
+            endSprite.position.set(endCoords.x, roadY + 0.01, endCoords.z);
+            endSprite.name = `VehicleTaxiEndMarker_${vehicleId}`;
+            sandboxModel.add(endSprite);
+            
+            // 保存到 Map
+            vehicleTaxiMarkers.set(vehicleId, {
+                startMarker: startSprite,
+                endMarker: endSprite
+            });
+            
+            console.log(`🚕 车辆 ${vehicleId} 打车标记已创建: 起点(${startCoords.x.toFixed(3)}, ${startCoords.z.toFixed(3)}), 终点(${endCoords.x.toFixed(3)}, ${endCoords.z.toFixed(3)})`);
+            return true;
+        }
+    }
+    
+    return false;
+};
+
+/**
+ * 创建临时终点标记（选择中，未打车）
  */
 export const createEndPointMarker = (x, z) => {
     if (!scene) {
@@ -2843,7 +2926,7 @@ export const createEndPointMarker = (x, z) => {
         return null;
     }
 
-    // 移除现有的终点标记
+    // 移除现有的临时终点标记
     removeEndPointMarker();
 
     const tex = ensureEndTexture();
@@ -2855,7 +2938,7 @@ export const createEndPointMarker = (x, z) => {
     sprite.center.set(0.5, 0.0);
     
     // 计算标记尺寸 - 保持原始宽高比
-    let baseWidth = 1.0; // 终点标记基础大小 - 缩小到原来的一半
+    let baseWidth = 1.0; // 终点标记基础大小
     let widthScale = 1.0;
     try {
         const dims = getSandboxDimensionsInfo();
@@ -2875,67 +2958,118 @@ export const createEndPointMarker = (x, z) => {
     // Y坐标使用道路表面高度，稍微抬高一点避免Z-fighting
     const roadY = getRoadSurfaceY();
     sprite.position.set(x, roadY + 0.01, z);
-    sprite.name = 'EndPointMarker';
+    sprite.name = 'TempEndPointMarker';
 
-    // 将标记添加到沙盘模型内部，而不是modelsGroup
+    // 将标记添加到沙盘模型内部
     sandboxModel.add(sprite);
-    endPointMarker = sprite;
+    tempEndPointMarker = sprite;
     
-    console.log(`🏁 终点标记已创建在沙盘局部坐标: (${x.toFixed(3)}, ${roadY.toFixed(3)}, ${z.toFixed(3)})`);
+    console.debug(`🏁 临时终点标记已创建: (${x.toFixed(3)}, ${roadY.toFixed(3)}, ${z.toFixed(3)})`);
     
     return { x, z };
 };
 
 /**
- * 移除起点标记
+ * 移除临时起点标记（选择中的）
  */
 export const removeStartPointMarker = () => {
-    if (!startPointMarker) return false;
+    if (!tempStartPointMarker) return false;
     
-    // 标记现在是沙盘模型的子对象
+    // 标记是沙盘模型的子对象
     const sandboxModel = models.get('sandbox');
-    if (sandboxModel && startPointMarker.parent === sandboxModel) {
-        sandboxModel.remove(startPointMarker);
-    } else if (modelsGroup && startPointMarker.parent === modelsGroup) {
-        modelsGroup.remove(startPointMarker);
-    } else if (scene && startPointMarker.parent === scene) {
-        scene.remove(startPointMarker);
+    if (sandboxModel && tempStartPointMarker.parent === sandboxModel) {
+        sandboxModel.remove(tempStartPointMarker);
+    } else if (modelsGroup && tempStartPointMarker.parent === modelsGroup) {
+        modelsGroup.remove(tempStartPointMarker);
+    } else if (scene && tempStartPointMarker.parent === scene) {
+        scene.remove(tempStartPointMarker);
     }
     
-    if (startPointMarker.material && startPointMarker.material.map) {
-        startPointMarker.material.map.dispose();
+    if (tempStartPointMarker.material && tempStartPointMarker.material.map) {
+        tempStartPointMarker.material.map.dispose();
     }
-    if (startPointMarker.material) startPointMarker.material.dispose();
+    if (tempStartPointMarker.material) tempStartPointMarker.material.dispose();
     
-    startPointMarker = null;
-    console.log('🚀 起点标记已移除');
+    tempStartPointMarker = null;
+    console.debug('🚀 临时起点标记已移除');
     return true;
 };
 
 /**
- * 移除终点标记
+ * 移除临时终点标记（选择中的）
  */
 export const removeEndPointMarker = () => {
-    if (!endPointMarker) return false;
+    if (!tempEndPointMarker) return false;
     
-    // 标记现在是沙盘模型的子对象
+    // 标记是沙盘模型的子对象
     const sandboxModel = models.get('sandbox');
-    if (sandboxModel && endPointMarker.parent === sandboxModel) {
-        sandboxModel.remove(endPointMarker);
-    } else if (modelsGroup && endPointMarker.parent === modelsGroup) {
-        modelsGroup.remove(endPointMarker);
-    } else if (scene && endPointMarker.parent === scene) {
-        scene.remove(endPointMarker);
+    if (sandboxModel && tempEndPointMarker.parent === sandboxModel) {
+        sandboxModel.remove(tempEndPointMarker);
+    } else if (modelsGroup && tempEndPointMarker.parent === modelsGroup) {
+        modelsGroup.remove(tempEndPointMarker);
+    } else if (scene && tempEndPointMarker.parent === scene) {
+        scene.remove(tempEndPointMarker);
     }
     
-    if (endPointMarker.material && endPointMarker.material.map) {
-        endPointMarker.material.map.dispose();
+    if (tempEndPointMarker.material && tempEndPointMarker.material.map) {
+        tempEndPointMarker.material.map.dispose();
     }
-    if (endPointMarker.material) endPointMarker.material.dispose();
+    if (tempEndPointMarker.material) tempEndPointMarker.material.dispose();
     
-    endPointMarker = null;
-    console.log('🏁 终点标记已移除');
+    tempEndPointMarker = null;
+    console.debug('🏁 临时终点标记已移除');
     return true;
+};
+
+/**
+ * 移除指定车辆的打车标记
+ * @param {number} vehicleId - 车辆ID
+ */
+export const removeTaxiMarkersForVehicle = (vehicleId) => {
+    if (!vehicleTaxiMarkers.has(vehicleId)) {
+        return false;
+    }
+    
+    const markers = vehicleTaxiMarkers.get(vehicleId);
+    const sandboxModel = models.get('sandbox');
+    
+    // 移除起点标记
+    if (markers.startMarker) {
+        if (sandboxModel && markers.startMarker.parent === sandboxModel) {
+            sandboxModel.remove(markers.startMarker);
+        }
+        if (markers.startMarker.material && markers.startMarker.material.map) {
+            markers.startMarker.material.map.dispose();
+        }
+        if (markers.startMarker.material) markers.startMarker.material.dispose();
+    }
+    
+    // 移除终点标记
+    if (markers.endMarker) {
+        if (sandboxModel && markers.endMarker.parent === sandboxModel) {
+            sandboxModel.remove(markers.endMarker);
+        }
+        if (markers.endMarker.material && markers.endMarker.material.map) {
+            markers.endMarker.material.map.dispose();
+        }
+        if (markers.endMarker.material) markers.endMarker.material.dispose();
+    }
+    
+    // 从 Map 中删除
+    vehicleTaxiMarkers.delete(vehicleId);
+    console.log(`🚕 车辆 ${vehicleId} 的打车标记已移除`);
+    return true;
+};
+
+/**
+ * 移除所有车辆的打车标记（清理用）
+ */
+export const removeAllTaxiMarkers = () => {
+    const count = vehicleTaxiMarkers.size;
+    vehicleTaxiMarkers.forEach((markers, vehicleId) => {
+        removeTaxiMarkersForVehicle(vehicleId);
+    });
+    console.log(`🚕 已移除所有 ${count} 个车辆的打车标记`);
 };
 
 /**

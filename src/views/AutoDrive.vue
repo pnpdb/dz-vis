@@ -281,9 +281,16 @@ const callTaxi = async () => {
             finalEndCoords.y
         );
         
-        // 8. 打车成功后只清除UI上的文本坐标，保留沙盘图标
-        // 沙盘图标将在导航状态10时清除
-        carStore.clearTaxiPoints(); // 只清除UI文本
+        // 8. 打车成功后：清除UI文本 + 清除临时图标 + 创建车辆专属图标
+        carStore.clearTaxiPoints(); // 清除UI文本
+        
+        // 清除临时图标
+        removeStartPointMarker();
+        removeEndPointMarker();
+        
+        // 为车辆创建专属的起点终点图标
+        const { createTaxiMarkersForVehicle } = await import('@/components/Scene3D/index.js');
+        createTaxiMarkersForVehicle(assignedVehicleId, startCoords, endCoords);
         
         // 9. 将车辆添加到打车状态列表（用于后续监听导航状态10）
         carStore.addActiveTaxiRide(assignedVehicleId, startCoords, endCoords, orderId);
@@ -294,7 +301,7 @@ const callTaxi = async () => {
         console.debug(`🚕 出租车订单发送成功 - 订单: ${orderId}, 车辆: ${assignedVehicleId}`);
         console.debug(`   起点（车辆坐标）: (${startVehicleCoords.x.toFixed(3)}, ${startVehicleCoords.y.toFixed(3)})`);
         console.debug(`   终点（车辆坐标）: (${endVehicleCoords.x.toFixed(3)}, ${endVehicleCoords.y.toFixed(3)})`);
-        console.debug(`   ℹ️ 沙盘图标保留，将在导航状态10时清除`);
+        console.debug(`   ℹ️ 已为车辆 ${assignedVehicleId} 创建专属打车图标`);
         
     } catch (error) {
         // 11. 发送失败：清除UI文本 + 清除沙盘图标

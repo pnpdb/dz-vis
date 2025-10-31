@@ -81,12 +81,10 @@ const loadCarModelTemplate = async () => {
                 // 车辆会继承沙盘的缩放，所以这里设置为1即可
                 carModelTemplate.scale.set(0.001, 0.001, 0.001);
                 
-                // ⚠️ 注意：模型朝向修正现在在每个车辆实例的容器组内进行
-                // 模板不再预先旋转，保持原始状态
-                
                 // 🔧 关键修复：应用旋转后再计算包围盒
                 // 因为实际使用时车辆会被旋转 -90°（carMesh.rotation.x = -Math.PI / 2）
                 // 所以需要在相同旋转状态下计算包围盒，确保底部对齐准确
+                // 注意：carModelTemplate 在第82行已应用了缩放，clone() 会继承
                 const tempContainer = new Group();
                 const tempMesh = carModelTemplate.clone();
                 tempMesh.rotation.x = -Math.PI / 2;  // 应用相同的旋转

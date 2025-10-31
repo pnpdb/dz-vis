@@ -15,6 +15,7 @@ import logHelper from '@/utils/logHelper.js'
 import { normalizeVehicleList, parseVehicleId } from '@/utils/vehicleTypes.js'
 import { useCarStore } from '@/stores/car.js'
 import { throttle, createThrottledEmitter } from '@/utils/eventThrottle.js';
+import { vehicleToModelCoordinates } from '@/utils/coordinateTransform.js';
 
 const socketLogger = createLogger('SocketManager');
 const bytesToHex = (bytes) => Array.from(bytes || [], (b) => b.toString(16).padStart(2, '0')).join(' ');
@@ -174,6 +175,16 @@ class SocketManager {
             }
         });
         this.unlisteners = [];
+        
+        // 清理 eventBus 监听器
+        if (this.statusRequestHandler) {
+            try {
+                eventBus.off(EVENTS.REQUEST_VEHICLE_STATUS, this.statusRequestHandler);
+                this.statusRequestHandler = null;
+            } catch (error) {
+                console.warn('清理 eventBus 监听器失败:', error);
+            }
+        }
         
         // 清理节流器
         Object.values(this.throttledEmitters).forEach(emitter => {
@@ -393,6 +404,19 @@ class SocketManager {
 
             // 更新状态到store
             store.updateVehicleState(vehicleId, vehicleInfo);
+            
+            // 🛣️ 实时裁剪路径（导航状态3、4、7时）
+            if ([3, 4, 7].includes(navigation.code)) {
+                try {
+                    const { trimVehiclePath } = await import('@/components/Scene3D/pathRenderer.js');
+                    // 将车辆坐标转换为模型坐标（用于路径比较）
+                    const modelPos = vehicleToModelCoordinates(position.x, position.y);
+                    trimVehiclePath(vehicleId, modelPos, orientation, navigation.code);
+                } catch (error) {
+                    // 静默失败，不影响主流程
+                    socketLogger.debug(`路径裁剪失败 - 车辆: ${vehicleId}`, error);
+                }
+            }
         }
 
         logger.outputToPlugin('DEBUG', 'SocketManager.vehicleInfoUpdate', [
@@ -601,7 +625,9 @@ class SocketManager {
      */
     setupStatusRequestHandler() {
         socketLogger.debug('SocketManager.setupStatusRequestHandler 已设置');
-        eventBus.on(EVENTS.REQUEST_VEHICLE_STATUS, ({ vehicleId }) => {
+        
+        // 保存处理函数的引用以便清理
+        this.statusRequestHandler = ({ vehicleId }) => {
             const isConnected = this.isVehicleConnected(vehicleId);
             
             socketLogger.debug(`SocketManager收到状态请求 - 车辆: ${vehicleId}, 连接状态: ${isConnected}`);
@@ -613,7 +639,9 @@ class SocketManager {
             });
             
             socketLogger.debug(`SocketManager发送状态响应 - 车辆: ${vehicleId}, 连接: ${isConnected}`);
-        });
+        };
+        
+        eventBus.on(EVENTS.REQUEST_VEHICLE_STATUS, this.statusRequestHandler);
     }
     
     // ============ 数据域解析方法 ============

@@ -2614,14 +2614,18 @@ export const destroyScene = () => {
         console.warn('清理自定义事件失败:', error);
     }
     
-    // 4. 清理容器鼠标事件
+    // 4. 清理容器鼠标和触屏事件
     if (container) {
         try {
             container.removeEventListener('mousedown', onMouseDown);
             container.removeEventListener('mousemove', onMouseMove);
             container.removeEventListener('mouseup', onMouseUp);
+            // 清理触屏事件
+            container.removeEventListener('touchstart', onMouseDown);
+            container.removeEventListener('touchmove', onMouseMove);
+            container.removeEventListener('touchend', onMouseUp);
         } catch (error) {
-            console.warn('清理鼠标事件失败:', error);
+            console.warn('清理鼠标/触屏事件失败:', error);
         }
     }
     

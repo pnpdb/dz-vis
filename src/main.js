@@ -184,6 +184,20 @@ window.addEventListener('beforeunload', () => {
     // 清理启动定时器
     window.__cleanupStartupTimers();
     
+    // 清理 Scene3D
+    try {
+        import('@/components/Scene3D/index.js').then(({ destroyScene }) => {
+            if (destroyScene) destroyScene();
+        }).catch(() => {});
+    } catch (e) {}
+    
+    // 清理路径渲染器
+    try {
+        import('@/components/Scene3D/pathRenderer.js').then(({ destroyPathRenderer }) => {
+            if (destroyPathRenderer) destroyPathRenderer();
+        }).catch(() => {});
+    } catch (e) {}
+    
     // 清理 SocketManager
     if (socketManager && socketManager.cleanup) {
         socketManager.cleanup();

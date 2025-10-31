@@ -63,7 +63,10 @@ def start_taxi_state_machine():
     taxi_state_machine['current_state'] = 3  # 第一个状态：去起点接客
     taxi_state_machine['state_start_time'] = time.time()
     taxi_state_machine['state_index'] = 0
+    taxi_state_machine['last_debug_time'] = 0  # 重置调试时间
     print(f"\n🚕 [打车状态机] 已启动，导航状态切换为: 3 (接客模式-去起点)")
+    print(f"   状态序列: {taxi_state_machine['state_sequence']}")
+    print(f"   每个状态持续: {taxi_state_machine['state_duration']}秒")
 
 def update_taxi_state_machine():
     """更新打车状态机（在每次发送车辆信息时调用）"""
@@ -74,6 +77,15 @@ def update_taxi_state_machine():
     
     current_time = time.time()
     elapsed = current_time - taxi_state_machine['state_start_time']
+    
+    # 🐛 调试：每秒输出一次状态
+    if 'last_debug_time' not in taxi_state_machine:
+        taxi_state_machine['last_debug_time'] = 0
+    
+    if current_time - taxi_state_machine['last_debug_time'] >= 1.0:
+        remaining = taxi_state_machine['state_duration'] - elapsed
+        print(f"🚕 [状态机] 当前状态: {taxi_state_machine['current_state']}, 已持续: {elapsed:.1f}s, 剩余: {remaining:.1f}s")
+        taxi_state_machine['last_debug_time'] = current_time
     
     # 检查是否需要切换到下一个状态
     if elapsed >= taxi_state_machine['state_duration']:
@@ -652,7 +664,7 @@ def create_vehicle_info_data(vehicle_id=1):
     return bytes(data)
 
 class TestClient:
-    def __init__(self, server_host='127.0.0.1', server_port=8888, vehicle_id=1):
+    def __init__(self, server_host='192.168.1.69', server_port=8888, vehicle_id=1):
         self.server_host = server_host
         self.server_port = server_port
         self.vehicle_id = vehicle_id
@@ -935,7 +947,7 @@ class TestClient:
                     if path_info['display_path'] == 1:
                         print(f" 车辆{self.vehicle_id}开始发送路径数据到服务端")
                         # 收到开启路径显示指令后，主动发送路径文件选择（0x0003）
-                        self.send_path_file_selection([1, 2, 3, 4, 5, 6, 7, 8])
+                        self.send_path_file_selection([1, 2, 3, 4, 5, 6, 7, 8, 9])
                     else:
                         print(f" 车辆{self.vehicle_id}停止发送路径数据到服务端")
                 else:

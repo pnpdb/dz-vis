@@ -4,6 +4,72 @@
  * 延迟：1-2秒
  */
 
+/**
+ * 检测浏览器支持的视频编解码器（调试工具）
+ * 用法：在浏览器控制台运行 window.detectVideoCodecs()
+ */
+export function detectVideoCodecSupport() {
+    if (!window.MediaSource) {
+        return {
+            mseSupported: false,
+            supportedCodecs: [],
+            message: '❌ 浏览器不支持 MSE (Media Source Extensions)'
+        };
+    }
+
+    const codecsToTest = [
+        { name: 'H.264 High Profile + AAC', codec: 'video/mp4; codecs="avc1.64001f,mp4a.40.2"' },
+        { name: 'H.264 High Profile', codec: 'video/mp4; codecs="avc1.64001f"' },
+        { name: 'H.264 Main Profile + AAC', codec: 'video/mp4; codecs="avc1.4d001f,mp4a.40.2"' },
+        { name: 'H.264 Main Profile', codec: 'video/mp4; codecs="avc1.4d001f"' },
+        { name: 'H.264 Baseline + AAC', codec: 'video/mp4; codecs="avc1.42E01E,mp4a.40.2"' },
+        { name: 'H.264 Baseline', codec: 'video/mp4; codecs="avc1.42E01E"' },
+        { name: 'MP4 (基础)', codec: 'video/mp4' },
+        { name: 'WebM VP8', codec: 'video/webm; codecs="vp8"' },
+        { name: 'WebM VP9', codec: 'video/webm; codecs="vp9"' }
+    ];
+
+    const allCodecs = codecsToTest.map(item => ({
+        name: item.name,
+        codec: item.codec,
+        supported: MediaSource.isTypeSupported(item.codec)
+    }));
+
+    const supportedCodecs = allCodecs.filter(item => item.supported);
+
+    console.log('🎥 ========== 视频编解码器检测 ==========');
+    console.log('MSE 支持:', window.MediaSource ? '✅ 是' : '❌ 否');
+    console.log('\n支持的编解码器:');
+    supportedCodecs.forEach(item => {
+        console.log(`  ✅ ${item.name}`);
+        console.log(`     ${item.codec}`);
+    });
+    
+    const unsupportedCodecs = allCodecs.filter(item => !item.supported);
+    if (unsupportedCodecs.length > 0) {
+        console.log('\n不支持的编解码器:');
+        unsupportedCodecs.forEach(item => {
+            console.log(`  ❌ ${item.name}`);
+            console.log(`     ${item.codec}`);
+        });
+    }
+    console.log('=========================================\n');
+
+    return {
+        mseSupported: true,
+        supportedCodecs,
+        allCodecs,
+        message: supportedCodecs.length > 0 
+            ? `✅ 支持 ${supportedCodecs.length}/${codecsToTest.length} 个编解码器` 
+            : '❌ 不支持任何测试的编解码器'
+    };
+}
+
+// 暴露到全局供调试使用
+if (typeof window !== 'undefined') {
+    window.detectVideoCodecs = detectVideoCodecSupport;
+}
+
 export class MsePlayer {
     constructor(videoElement, wsUrl, cameraId) {
         this.video = videoElement;
@@ -28,9 +94,45 @@ export class MsePlayer {
     async start() {
         console.log('🎬 启动 MSE 播放器:', { cameraId: this.cameraId, wsUrl: this.wsUrl });
 
-        // 检查 MSE 支持
-        if (!window.MediaSource || !MediaSource.isTypeSupported('video/mp4; codecs="avc1.64001f"')) {
-            throw new Error('浏览器不支持 MSE 或所需的编解码器');
+        // 检查 MSE 基础支持
+        if (!window.MediaSource) {
+            throw new Error('浏览器不支持 MSE (Media Source Extensions)');
+        }
+
+        // 尝试多个 H.264 编解码器配置（从高到低）
+        const codecConfigs = [
+            'video/mp4; codecs="avc1.64001f,mp4a.40.2"', // H.264 High Profile + AAC
+            'video/mp4; codecs="avc1.64001f"',           // H.264 High Profile (仅视频)
+            'video/mp4; codecs="avc1.4d001f,mp4a.40.2"', // H.264 Main Profile + AAC
+            'video/mp4; codecs="avc1.4d001f"',           // H.264 Main Profile (仅视频)
+            'video/mp4; codecs="avc1.42E01E,mp4a.40.2"', // H.264 Baseline + AAC
+            'video/mp4; codecs="avc1.42E01E"',           // H.264 Baseline (仅视频)
+            'video/mp4'                                   // 最基础的 MP4（无编解码器指定）
+        ];
+
+        let supportedCodec = null;
+        const supportedCodecs = [];
+        
+        for (const codec of codecConfigs) {
+            const isSupported = MediaSource.isTypeSupported(codec);
+            if (isSupported) {
+                supportedCodecs.push(codec);
+                if (!supportedCodec) {
+                    supportedCodec = codec;
+                }
+            }
+        }
+        
+        if (supportedCodec) {
+            console.log('✅ 使用编解码器:', supportedCodec);
+            console.log('📋 浏览器支持的所有编解码器:', supportedCodecs);
+        } else {
+            const errorMsg = '浏览器不支持任何 H.264 编解码器配置';
+            console.error('❌', errorMsg);
+            console.error('已尝试的编解码器:', codecConfigs);
+            console.error('💡 请确保系统已安装 H.264 解码器：');
+            console.error('   Ubuntu: sudo apt install gstreamer1.0-plugins-bad gstreamer1.0-libav');
+            throw new Error(errorMsg);
         }
 
         // 创建 MediaSource
@@ -50,9 +152,8 @@ export class MsePlayer {
 
         console.log('✅ MediaSource 已就绪');
 
-        // 创建 SourceBuffer (H.264 + AAC)
-        const mimeType = 'video/mp4; codecs="avc1.64001f,mp4a.40.2"';
-        this.sourceBuffer = this.mediaSource.addSourceBuffer(mimeType);
+        // 创建 SourceBuffer（使用检测到的编解码器）
+        this.sourceBuffer = this.mediaSource.addSourceBuffer(supportedCodec);
 
         // SourceBuffer 事件（保存处理器引用以便后续清理）
         this.updateEndHandler = () => {

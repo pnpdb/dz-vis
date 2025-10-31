@@ -545,7 +545,7 @@ const startRTSPCamera = async (camera) => {
             rtspUrl: camera.rtsp_url
         });
         console.log('✅ fMP4 流转换已启动');
-        
+                    
         // 2. 确保 video 元素已挂载
         await nextTick();
         
@@ -676,19 +676,19 @@ const stopVideoStream = async () => {
                 console.debug('📹 停止 MediaStream tracks');
                 const stream = videoRef.value.srcObject;
                 const tracks = stream.getTracks();
-                tracks.forEach(track => {
-                    track.stop();
+            tracks.forEach(track => {
+                track.stop();
                     console.debug(`  🔌 已停止 ${track.kind} 轨道`);
-                });
-                videoRef.value.srcObject = null;
-            }
-            
+            });
+            videoRef.value.srcObject = null;
+        }
+        
             // 清除 src 属性（RTSP/HLS流）
             if (videoRef.value.src) {
                 console.debug('📺 清除 video src');
                 videoRef.value.removeAttribute('src');
-                videoRef.value.load(); // 清除缓冲
-            }
+            videoRef.value.load(); // 清除缓冲
+        }
         }
         
         

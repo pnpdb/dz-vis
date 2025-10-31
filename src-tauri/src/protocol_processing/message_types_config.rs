@@ -228,7 +228,7 @@ pub fn get_message_types_config() -> MessageTypesConfig {
     nav_status_texts.insert("4".to_string(), "接客模式，去终点送客".to_string());
     nav_status_texts.insert("5".to_string(), "去往充电车位".to_string());
     nav_status_texts.insert("6".to_string(), "充电中".to_string());
-    nav_status_texts.insert("7".to_string(), "去往定车位路上".to_string());
+    nav_status_texts.insert("7".to_string(), "去往停车位路上".to_string());
     nav_status_texts.insert("8".to_string(), "车位停车中".to_string());
     nav_status_texts.insert("9".to_string(), "到达接客起点".to_string());
     nav_status_texts.insert("10".to_string(), "到达接客终点".to_string());

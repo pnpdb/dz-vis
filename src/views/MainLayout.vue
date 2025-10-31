@@ -104,8 +104,11 @@ import { useSystemTime } from '@/composables/useSystemTime.js';
 import { useFPS } from '@/composables/useFPS.js';
 import { useNetworkStatus } from '@/composables/useNetworkStatus.js';
 
-// 懒加载组件 - 提升初始加载性能
-const Cars = defineAsyncComponent(() => import('@/views/Cars.vue'));
+// 🔧 优化：Cars 组件改为直接导入（避免切换延迟）
+// 客户反馈：切换到车辆信息菜单后，数据显示需要等待2秒
+// 原因：懒加载导致组件加载 + 事件监听注册延迟
+// 解决：预加载 Cars 组件，其他非关键组件继续懒加载
+import Cars from '@/views/Cars.vue';
 const AutoDrive = defineAsyncComponent(() => import('@/views/AutoDrive.vue'));
 const Control = defineAsyncComponent(() => import('@/views/Control.vue'));
 const Settings = defineAsyncComponent(() => import('@/views/Settings.vue'));

@@ -84,11 +84,23 @@ const loadCarModelTemplate = async () => {
                 // ⚠️ 注意：模型朝向修正现在在每个车辆实例的容器组内进行
                 // 模板不再预先旋转，保持原始状态
                 
+                // 🔧 关键修复：应用旋转后再计算包围盒
+                // 因为实际使用时车辆会被旋转 -90°（carMesh.rotation.x = -Math.PI / 2）
+                // 所以需要在相同旋转状态下计算包围盒，确保底部对齐准确
+                const tempContainer = new Group();
+                const tempMesh = carModelTemplate.clone();
+                tempMesh.rotation.x = -Math.PI / 2;  // 应用相同的旋转
+                tempContainer.add(tempMesh);
+                
                 // 预计算车辆模板的包围盒（性能优化）
-                cachedCarTemplateBox = new Box3().setFromObject(carModelTemplate);
+                cachedCarTemplateBox = new Box3().setFromObject(tempContainer);
+                
+                console.info('✅ 车辆模型模板加载成功');
+                console.info(`   包围盒底部 Y: ${cachedCarTemplateBox.min.y.toFixed(4)}`);
+                console.info(`   包围盒顶部 Y: ${cachedCarTemplateBox.max.y.toFixed(4)}`);
+                console.info(`   模型高度: ${(cachedCarTemplateBox.max.y - cachedCarTemplateBox.min.y).toFixed(4)}`);
                 
                 loadingPromise = null; // 加载完成后清除缓存的 Promise
-                console.info('✅ 车辆模型模板加载成功');
                 resolve(carModelTemplate);
             },
             undefined,

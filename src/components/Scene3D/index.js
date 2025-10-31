@@ -176,6 +176,16 @@ const initSceneCore = async () => {
         controls.maxPolarAngle = Math.PI / 2;
         controls.minDistance = 20;
         controls.maxDistance = 200;
+        
+        // 🔧 增强触屏支持（Ubuntu 触屏设备）
+        // TOUCH.ROTATE=0, TOUCH.DOLLY_PAN=1, TOUCH.DOLLY_ROTATE=2
+        controls.touches = {
+            ONE: 0,   // 单指旋转 (TOUCH.ROTATE)
+            TWO: 1    // 双指缩放+平移 (TOUCH.DOLLY_PAN)
+        };
+        controls.enableZoom = true;           // 确保缩放功能启用
+        controls.zoomSpeed = 1.0;             // 缩放速度
+        controls.rotateSpeed = 0.5;           // 旋转速度
 
         // 步骤4：创建渲染器 (50%)
         eventBus.emit(EVENTS.SCENE3D_PROGRESS, 50);
@@ -222,6 +232,10 @@ const initSceneCore = async () => {
         renderer.domElement.style.top = '0';
         renderer.domElement.style.left = '0';
         renderer.domElement.style.zIndex = '0';
+        
+        // 🔧 关键修复：触屏设备支持 + 防止事件穿透
+        renderer.domElement.style.touchAction = 'none'; // 禁用浏览器默认触摸手势（双指缩放由 OrbitControls 处理）
+        renderer.domElement.setAttribute('data-scene3d-canvas', 'true'); // 标记用于事件检查
         
         container.appendChild(renderer.domElement);
 
@@ -1922,27 +1936,74 @@ export const getConstructionMarkerScale = () => constructionMarkerScale;
 
 
 // 鼠标事件监听设置
+/**
+ * 辅助函数：判断事件是否来自 3D 场景的 canvas
+ * 防止 UI 元素点击穿透到 3D 场景（开机启动后的触屏设备问题）
+ */
+const isEventFromCanvas = (event) => {
+    // 检查1：event.target 是否是 canvas 或 container
+    if (event.target === renderer?.domElement || event.target === container) {
+        return true;
+    }
+    
+    // 检查2：检查 event.target 是否有 data-scene3d-canvas 属性
+    if (event.target && event.target.getAttribute && event.target.getAttribute('data-scene3d-canvas') === 'true') {
+        return true;
+    }
+    
+    // 检查3：检查 event.target 是否是 canvas 元素
+    if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'canvas') {
+        return true;
+    }
+    
+    // 其他情况（UI 元素），返回 false
+    return false;
+};
+
 const setupMouseEventListeners = () => {
     if (!container) return;
     
     container.addEventListener('mousedown', onMouseDown);
     container.addEventListener('mousemove', onMouseMove);
     container.addEventListener('mouseup', onMouseUp);
-    container.addEventListener('contextmenu', (e) => e.preventDefault());
+    container.addEventListener('contextmenu', (e) => {
+        // 只在 canvas 上禁用右键菜单
+        if (isEventFromCanvas(e)) {
+            e.preventDefault();
+        }
+    });
+    
+    // 🔧 添加触屏事件支持（Ubuntu 触屏设备）
+    container.addEventListener('touchstart', onMouseDown, { passive: false });
+    container.addEventListener('touchmove', onMouseMove, { passive: false });
+    container.addEventListener('touchend', onMouseUp, { passive: false });
 };
 
 // 鼠标按下事件
 const onMouseDown = (event) => {
     if (!isPoseSelectionMode && !isPointSelectionMode && !isParkingSlotSelectionMode) return;
     
-    if (event.button === 0) { // 左键
+    // ⚠️ 关键修复：只处理 canvas 的点击，忽略 UI 元素
+    // 防止点击按钮时触发 3D 场景交互（开机启动后的事件穿透问题）
+    if (!isEventFromCanvas(event)) {
+        console.debug('🚫 忽略非 canvas 元素的交互:', event.target?.tagName, event.target?.className);
+        return;
+    }
+    
+    // 处理触屏事件（转换为鼠标事件格式）
+    const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+    const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+    const button = event.touches ? 0 : event.button;
+    
+    if (button === 0) { // 左键或单指触摸
         event.preventDefault();
+        event.stopPropagation();  // 阻止事件冒泡到父元素
         isMouseDown = true;
         
-        // 获取鼠标在屏幕上的位置 - 更精确的计算
+        // 获取鼠标/触屏在屏幕上的位置 - 更精确的计算
         const rect = container.getBoundingClientRect();
-        const mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        const mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        const mouseX = ((clientX - rect.left) / rect.width) * 2 - 1;
+        const mouseY = -((clientY - rect.top) / rect.height) * 2 + 1;
         
         // 设置鼠标坐标
         mouse.x = mouseX;
@@ -1978,12 +2039,22 @@ const onMouseMove = (event) => {
     
     if (!isPoseSelectionMode || !isMouseDown || !startPosition) return;
     
-    event.preventDefault();
+    // ⚠️ 只处理 canvas 的移动事件
+    if (!isEventFromCanvas(event)) {
+        return;
+    }
     
-    // 获取鼠标在屏幕上的位置 - 更精确的计算
+    event.preventDefault();
+    event.stopPropagation();
+    
+    // 处理触屏事件（转换为鼠标事件格式）
+    const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+    const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+    
+    // 获取鼠标/触屏在屏幕上的位置 - 更精确的计算
     const rect = container.getBoundingClientRect();
-    const mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    const mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const mouseX = ((clientX - rect.left) / rect.width) * 2 - 1;
+    const mouseY = -((clientY - rect.top) / rect.height) * 2 + 1;
     
     // 射线检测
     raycaster.setFromCamera({ x: mouseX, y: mouseY }, camera);

@@ -15,6 +15,7 @@ mod socket;
 mod udp_video;
 mod video_processing;
 mod mse_streamer;
+mod gstreamer_streamer;
 mod utils;
 
 use commands::protocol_processing::ProtocolProcessorState;
@@ -243,6 +244,12 @@ pub fn run() {
             start_mse_stream,
             stop_mse_stream,
             is_mse_stream_active,
+            // GStreamer MJPEG 流命令
+            start_gstreamer_stream,
+            stop_gstreamer_stream,
+            is_gstreamer_stream_active,
+            get_mjpeg_websocket_url,
+            get_active_gstreamer_streams,
             // 视频处理命令
             process_video_frame,
             quick_validate_jpeg_base64,
@@ -411,18 +418,31 @@ pub fn run() {
             app.manage(ProtocolProcessorState::new());
             info!("协议处理器初始化成功");
 
-            // 启动 MSE 流服务（纯 FFmpeg + WebSocket，不依赖 MediaMTX）
-            info!("初始化 MSE 流服务...");
-            // 启动 WebSocket 服务器用于推送 fMP4 流
-            let mse_ws_port = 9003; // MSE WebSocket 端口
-            tauri::async_runtime::spawn(async move {
-                if let Err(e) = mse_streamer::websocket::start_websocket_server(mse_ws_port).await {
-                    error!("❌ MSE WebSocket 服务器启动失败: {}", e);
+            // 启动 GStreamer MJPEG 流服务
+            info!("初始化 GStreamer MJPEG 流服务...");
+            
+            // 初始化全局 GStreamer 流管理器（在异步任务中）
+            tauri::async_runtime::spawn(async {
+                if let Err(e) = gstreamer_streamer::init_global_streamer().await {
+                    log::error!("❌ GStreamer 初始化失败: {}", e);
+                    log::error!("   请确保已安装 GStreamer:");
+                    log::error!("   Ubuntu: sudo apt-get install gstreamer1.0-*");
+                    log::error!("   macOS: brew install gstreamer gst-plugins-*");
                 } else {
-                    info!("MSE WebSocket 服务器已就绪: ws://127.0.0.1:{}", mse_ws_port);
+                    log::info!("GStreamer 初始化成功");
                 }
             });
-            info!("MSE 流服务已就绪");
+            
+            // 启动 MJPEG WebSocket 服务器
+            let mjpeg_ws_port = 9004; // MJPEG WebSocket 端口
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = gstreamer_streamer::websocket::start_websocket_server(mjpeg_ws_port).await {
+                    log::error!("❌ MJPEG WebSocket 服务器启动失败: {}", e);
+                } else {
+                    log::info!("✅ MJPEG WebSocket 服务器已就绪: ws://127.0.0.1:{}", mjpeg_ws_port);
+                }
+            });
+            info!("GStreamer MJPEG 流服务初始化任务已启动");
 
             // UDP视频服务器自动启动已移至媒体命令模块，可通过API手动启动
 
@@ -430,8 +450,6 @@ pub fn run() {
             #[cfg(target_os = "linux")]
             {
                 if let Some(window) = app.get_webview_window("main") {
-                    use tauri::Manager;
-                    
                     // 从嵌入的资源中加载图标
                     if let Some(icon_rgba) = app.default_window_icon() {
                         if let Err(e) = window.set_icon(icon_rgba.clone()) {

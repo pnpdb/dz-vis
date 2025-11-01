@@ -7,6 +7,7 @@ pub mod vehicle;
 pub mod sandbox;
 pub mod media;
 pub mod mse;
+pub mod gstreamer;
 pub mod video_processing;
 pub mod protocol_processing;
 pub mod protocol_config;
@@ -57,6 +58,11 @@ pub use mse::{
     start_mse_stream, stop_mse_stream, is_mse_stream_active
 };
 
+pub use gstreamer::{
+    start_gstreamer_stream, stop_gstreamer_stream, is_gstreamer_stream_active,
+    get_mjpeg_websocket_url, get_active_gstreamer_streams
+};
+
 // 导出视频处理命令
 pub use video_processing::{
     process_video_frame, quick_validate_jpeg_base64, get_vehicle_video_stats, 
@@ -73,8 +79,10 @@ pub use protocol_processing::{
 
 // 协议配置命令
 pub use protocol_config::{
-    get_message_types_config_command, get_protocol_constants,
-    get_receive_message_types, get_send_message_types,
+    get_message_types_config_command,
+    get_protocol_constants,
+    get_receive_message_types,
+    get_send_message_types,
 };
 
 // 车辆状态管理命令

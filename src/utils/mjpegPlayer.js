@@ -1,0 +1,277 @@
+/**
+ * MJPEG Player - 基于 WebSocket 的 MJPEG 流播放器
+ * 用于播放 GStreamer 推送的 JPEG 帧
+ */
+
+import { logger } from './logger.js';
+
+export class MjpegPlayer {
+    constructor(videoElement) {
+        this.videoElement = videoElement;
+        this.ws = null;
+        this.cameraId = null;
+        this.wsUrl = null;
+        this.reconnectTimer = null;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 5;
+        this.reconnectDelay = 2000;
+        this.isDestroyed = false;
+        
+        // 性能监控
+        this.frameCount = 0;
+        this.lastFrameTime = Date.now();
+        this.fps = 0;
+        this.fpsUpdateInterval = null;
+        
+        // 回调函数
+        this.onReady = null;
+        this.onError = null;
+        this.onFpsUpdate = null;
+        
+        logger.info('MjpegPlayer', '播放器已创建');
+    }
+    
+    /**
+     * 启动播放
+     * @param {string} wsUrl - WebSocket URL
+     * @param {Object} callbacks - 回调函数 {onReady, onError, onFpsUpdate}
+     */
+    async start(wsUrl, callbacks = {}) {
+        if (this.isDestroyed) {
+            throw new Error('播放器已销毁');
+        }
+        
+        this.wsUrl = wsUrl;
+        this.onReady = callbacks.onReady;
+        this.onError = callbacks.onError;
+        this.onFpsUpdate = callbacks.onFpsUpdate;
+        
+        // 从 URL 提取 camera_id
+        const match = wsUrl.match(/\/mjpeg\/(\d+)/);
+        if (match) {
+            this.cameraId = parseInt(match[1]);
+        }
+        
+        logger.info('MjpegPlayer', `启动播放: ${wsUrl}`);
+        
+        this.connect();
+        this.startFpsMonitoring();
+    }
+    
+    /**
+     * 建立 WebSocket 连接
+     */
+    connect() {
+        if (this.isDestroyed) return;
+        
+        try {
+            this.ws = new WebSocket(this.wsUrl);
+            this.ws.binaryType = 'arraybuffer';
+            
+            this.ws.onopen = () => {
+                logger.info('MjpegPlayer', `WebSocket 已连接: camera_id=${this.cameraId}`);
+                this.reconnectAttempts = 0;
+            };
+            
+            this.ws.onmessage = (event) => {
+                if (event.data instanceof ArrayBuffer) {
+                    // 收到 JPEG 二进制数据
+                    this.handleJpegFrame(event.data);
+                } else if (typeof event.data === 'string') {
+                    // 收到文本消息（通常是就绪或错误消息）
+                    try {
+                        const msg = JSON.parse(event.data);
+                        if (msg.ready) {
+                            logger.info('MjpegPlayer', `流已就绪: camera_id=${msg.camera_id}`);
+                            if (this.onReady) {
+                                this.onReady();
+                            }
+                        } else if (msg.error) {
+                            logger.error('MjpegPlayer', `服务器错误: ${msg.error}`);
+                            if (this.onError) {
+                                this.onError(new Error(msg.error));
+                            }
+                        }
+                    } catch (e) {
+                        logger.warn('MjpegPlayer', `无法解析消息: ${event.data}`);
+                    }
+                }
+            };
+            
+            this.ws.onerror = (error) => {
+                logger.error('MjpegPlayer', `WebSocket 错误:`, error);
+                if (this.onError) {
+                    this.onError(error);
+                }
+            };
+            
+            this.ws.onclose = () => {
+                logger.warn('MjpegPlayer', 'WebSocket 已断开');
+                this.ws = null;
+                
+                // 尝试重连
+                if (!this.isDestroyed && this.reconnectAttempts < this.maxReconnectAttempts) {
+                    this.reconnectAttempts++;
+                    logger.info('MjpegPlayer', `${this.reconnectDelay}ms 后尝试重连 (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+                    
+                    this.reconnectTimer = setTimeout(() => {
+                        this.connect();
+                    }, this.reconnectDelay);
+                } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+                    logger.error('MjpegPlayer', '达到最大重连次数，停止重连');
+                    if (this.onError) {
+                        this.onError(new Error('连接失败，已达到最大重连次数'));
+                    }
+                }
+            };
+            
+        } catch (error) {
+            logger.error('MjpegPlayer', '创建 WebSocket 失败:', error);
+            if (this.onError) {
+                this.onError(error);
+            }
+        }
+    }
+    
+    /**
+     * 处理 JPEG 帧
+     * @param {ArrayBuffer} arrayBuffer - JPEG 二进制数据
+     */
+    handleJpegFrame(arrayBuffer) {
+        try {
+            // 将 ArrayBuffer 转换为 Blob
+            const blob = new Blob([arrayBuffer], { type: 'image/jpeg' });
+            
+            // 创建 Object URL
+            const url = URL.createObjectURL(blob);
+            
+            // 释放旧的 Object URL（防止内存泄漏）
+            if (this.videoElement._currentObjectUrl) {
+                URL.revokeObjectURL(this.videoElement._currentObjectUrl);
+            }
+            
+            // 设置新的图像
+            if (this.videoElement.tagName === 'IMG') {
+                this.videoElement.src = url;
+            } else if (this.videoElement.tagName === 'CANVAS') {
+                // 如果是 canvas，需要先创建 Image 对象
+                const img = new Image();
+                img.onload = () => {
+                    const ctx = this.videoElement.getContext('2d');
+                    this.videoElement.width = img.width;
+                    this.videoElement.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    URL.revokeObjectURL(url);
+                };
+                img.src = url;
+            }
+            
+            // 保存当前 URL 用于后续清理
+            this.videoElement._currentObjectUrl = url;
+            
+            // 更新帧计数
+            this.frameCount++;
+            
+        } catch (error) {
+            logger.error('MjpegPlayer', '处理 JPEG 帧失败:', error);
+        }
+    }
+    
+    /**
+     * 启动 FPS 监控
+     */
+    startFpsMonitoring() {
+        if (this.fpsUpdateInterval) {
+            clearInterval(this.fpsUpdateInterval);
+        }
+        
+        this.fpsUpdateInterval = setInterval(() => {
+            const now = Date.now();
+            const elapsed = (now - this.lastFrameTime) / 1000;
+            
+            if (elapsed > 0) {
+                this.fps = Math.round(this.frameCount / elapsed);
+                
+                if (this.onFpsUpdate) {
+                    this.onFpsUpdate(this.fps);
+                }
+                
+                // 重置计数器
+                this.frameCount = 0;
+                this.lastFrameTime = now;
+            }
+        }, 1000);
+    }
+    
+    /**
+     * 停止播放
+     */
+    stop() {
+        logger.info('MjpegPlayer', '停止播放');
+        
+        // 关闭 WebSocket
+        if (this.ws) {
+            this.ws.close();
+            this.ws = null;
+        }
+        
+        // 清理重连定时器
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
+        
+        // 清理 FPS 监控
+        if (this.fpsUpdateInterval) {
+            clearInterval(this.fpsUpdateInterval);
+            this.fpsUpdateInterval = null;
+        }
+        
+        // 释放 Object URL
+        if (this.videoElement && this.videoElement._currentObjectUrl) {
+            URL.revokeObjectURL(this.videoElement._currentObjectUrl);
+            delete this.videoElement._currentObjectUrl;
+        }
+        
+        // 清空图像
+        if (this.videoElement) {
+            if (this.videoElement.tagName === 'IMG') {
+                this.videoElement.src = '';
+            } else if (this.videoElement.tagName === 'CANVAS') {
+                const ctx = this.videoElement.getContext('2d');
+                ctx.clearRect(0, 0, this.videoElement.width, this.videoElement.height);
+            }
+        }
+    }
+    
+    /**
+     * 销毁播放器
+     */
+    destroy() {
+        logger.info('MjpegPlayer', '销毁播放器');
+        
+        this.isDestroyed = true;
+        this.stop();
+        
+        // 清理引用
+        this.videoElement = null;
+        this.onReady = null;
+        this.onError = null;
+        this.onFpsUpdate = null;
+    }
+    
+    /**
+     * 获取当前状态
+     */
+    getStatus() {
+        return {
+            isConnected: this.ws && this.ws.readyState === WebSocket.OPEN,
+            fps: this.fps,
+            cameraId: this.cameraId,
+            reconnectAttempts: this.reconnectAttempts
+        };
+    }
+}
+
+export default MjpegPlayer;
+

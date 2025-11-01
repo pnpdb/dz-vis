@@ -381,7 +381,7 @@ class ProtocolProcessor {
                 callback(summary)
             }
         }, intervalMs)
-        
+
         // 追踪活跃的监控定时器（防止内存泄漏）
         if (!this.activeMonitoringTimers) {
             this.activeMonitoringTimers = new Set();

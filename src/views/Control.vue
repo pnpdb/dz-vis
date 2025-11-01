@@ -29,22 +29,30 @@
                 </el-select>
             </div>
             <div class="camera-preview" ref="cameraPreviewRef">
-                <!-- 视频播放（始终存在于DOM，通过v-show控制显示） -->
+                <!-- USB 摄像头：使用 video 元素 -->
                 <video 
-                    v-show="selectedCamera && isStreaming"
+                    v-if="selectedCamera && selectedCamera.camera_type === 'USB'"
+                    v-show="isStreaming"
                     ref="videoRef"
                     class="camera-video"
                     autoplay
                     muted
                     playsinline
-                    @loadstart="onVideoLoadStart"
-                    @loadeddata="onVideoLoaded"
                     @error="onVideoError"
-                    @canplay="onVideoCanPlay"
                     @contextmenu.prevent
                 >
                     您的浏览器不支持视频播放
                 </video>
+                
+                <!-- RTSP 摄像头：使用 img 元素（MJPEG） -->
+                <img 
+                    v-else-if="selectedCamera && selectedCamera.camera_type === 'RJ45'"
+                    v-show="isStreaming"
+                    ref="videoRef"
+                    class="camera-video"
+                    @error="onVideoError"
+                    @contextmenu.prevent
+                />
                 
                 <!-- 加载状态 -->
                 <div v-if="isLoading && !isStreaming" class="camera-loading">
@@ -170,7 +178,7 @@ import { TrafficLightAPI, SandboxAPI } from '@/utils/vehicleAPI.js';
 import { SANDBOX_LIGHTING_PROTOCOL } from '@/constants/messageTypes.js';
 import { invoke } from '@tauri-apps/api/core';
 import { debug as plDebug, info as plInfo, warn as plWarn, error as plError } from '@tauri-apps/plugin-log';
-import { MsePlayer } from '@/utils/msePlayer.js';
+import { MjpegPlayer } from '@/utils/mjpegPlayer.js';
 
 // 摄像头相关
 const cameras = ref([]);
@@ -183,7 +191,8 @@ const isTimeout = ref(false); // 标记连接超时
 const isCleaningVideo = ref(false); // 标记正在清理视频资源（防止清理时的事件触发误报）
 const videoRef = ref();
 const cameraPreviewRef = ref();
-const msePlayer = ref(null); // MSE 播放器实例
+const mjpegPlayer = ref(null); // MJPEG 播放器实例
+const currentFps = ref(0); // 当前帧率
 
 // 定时器追踪（防止内存泄漏）
 let hlsRetryTimer = null;
@@ -396,11 +405,20 @@ const startVideoStream = async (camera) => {
     isStreaming.value = false;
     isTimeout.value = false; // 重置超时状态
     
-    // 确保video元素已清理
+    // 确保视频/图像元素已清理
     if (videoRef.value) {
-        videoRef.value.removeAttribute('src');
-        videoRef.value.srcObject = null;
-        videoRef.value.load();
+        // 清理 src 属性
+        if (videoRef.value.src) {
+            videoRef.value.removeAttribute('src');
+        }
+        // 清理 srcObject（video 元素）
+        if (videoRef.value.srcObject) {
+            videoRef.value.srcObject = null;
+        }
+        // 如果是 video 元素，调用 load() 清除缓冲
+        if (videoRef.value.tagName === 'VIDEO' && typeof videoRef.value.load === 'function') {
+            videoRef.value.load();
+        }
     }
 
     try {
@@ -523,132 +541,115 @@ const waitForHLSReady = async (hlsUrl, maxRetries = 10, delay = 1000) => {
     console.warn('⚠️ HLS流可能还未完全就绪，但将尝试播放');
 };
 
-// RTSP摄像头处理（通过 MSE）
+// RTSP摄像头处理（通过 GStreamer MJPEG）
 const startRTSPCamera = async (camera) => {
     if (!camera.rtsp_url) {
         throw new Error('RTSP地址不能为空');
     }
 
-    // 问题3修复：在外部作用域保存监听器引用，确保异常情况下也能清理
-    let canPlayHandler = null;
-    let errorHandler = null;
-
     try {
-        try { await plInfo(`启动 MSE 流: ${camera.rtsp_url}`); } catch (_) {}
+        try { await plInfo(`启动 GStreamer MJPEG 流: ${camera.rtsp_url}`); } catch (_) {}
         
         // 标记正在建立连接
         isConnectingWebRTC.value = true;
         
-        // 1. 启动 RTSP → fMP4 流转换
-        console.log('📡 启动 MSE 流转换...');
+        // 1. 启动 GStreamer RTSP → MJPEG 转换
+        console.log('📡 启动 GStreamer 流转换...');
         console.log('   📹 RTSP URL:', camera.rtsp_url);
         console.log('   🎯 摄像头 ID:', camera.id);
         
-        await invoke('start_mse_stream', {
+        await invoke('start_gstreamer_stream', {
             cameraId: camera.id,
             rtspUrl: camera.rtsp_url
         });
-        console.log('✅ fMP4 流转换已启动');
+        console.log('✅ GStreamer 流转换已启动');
                     
-        // 2. 确保 video 元素已挂载
+        // 2. 确保图像元素已挂载
         await nextTick();
         
         if (!videoRef.value) {
-            throw new Error('视频元素未找到：请检查视频组件配置');
+            throw new Error('图像元素未找到：请检查组件配置');
         }
         
-        console.log('✅ 视频元素已就绪');
+        console.log('✅ 图像元素已就绪');
         
-        // 3. 创建并启动 MSE 播放器
-        const wsUrl = `ws://127.0.0.1:9003`; // MSE WebSocket 端口
-        msePlayer.value = new MsePlayer(videoRef.value, wsUrl, camera.id);
+        // 3. 获取 MJPEG WebSocket URL 并创建播放器
+        const wsUrl = await invoke('get_mjpeg_websocket_url', { cameraId: camera.id });
+        console.log(`🔄 连接 MJPEG WebSocket: ${wsUrl}`);
         
-        console.log('🔄 连接 MSE WebSocket...');
-        await msePlayer.value.start();
+        mjpegPlayer.value = new MjpegPlayer(videoRef.value);
         
-        console.log('✅ MSE 播放器已启动，等待视频数据...');
-        
-        // 清理事件监听器的辅助函数（确保清理外部作用域的引用）
-        const cleanupVideoListeners = () => {
-            if (videoRef.value && canPlayHandler) {
-                videoRef.value.removeEventListener('canplay', canPlayHandler);
-                canPlayHandler = null;
+        // 4. 监听图像加载事件（等待第一帧）
+        let firstFrameLoaded = false;
+        const handleImageLoad = () => {
+            if (!firstFrameLoaded) {
+                firstFrameLoaded = true;
+                console.log('🎬 第一帧图像已加载');
+                isStreaming.value = true;
+                isLoading.value = false;
+                isConnectingWebRTC.value = false;
+                Toast.success('摄像头连接成功');
+                // 移除事件监听器
+                if (videoRef.value) {
+                    videoRef.value.removeEventListener('load', handleImageLoad);
+                    delete videoRef.value._mjpegLoadHandler;
+                }
             }
-            if (videoRef.value && errorHandler) {
-                videoRef.value.removeEventListener('error', errorHandler);
-                errorHandler = null;
+        };
+        
+        if (videoRef.value) {
+            // 保存引用用于清理
+            videoRef.value._mjpegLoadHandler = handleImageLoad;
+            videoRef.value.addEventListener('load', handleImageLoad);
+        }
+        
+        // 5. 启动播放器并设置回调
+        await mjpegPlayer.value.start(wsUrl, {
+            onReady: () => {
+                console.log('🔗 MJPEG WebSocket 已连接，等待第一帧...');
+                // 不在这里设置 isStreaming，等待图像真正加载
+            },
+            onError: (error) => {
+                console.error('❌ MJPEG 播放错误:', error);
+                Toast.warning(`播放失败: ${error.message}`);
+                isLoading.value = false;
+                isConnectingWebRTC.value = false;
+                // 清理事件监听器
+                if (videoRef.value && videoRef.value._mjpegLoadHandler) {
+                    videoRef.value.removeEventListener('load', videoRef.value._mjpegLoadHandler);
+                    delete videoRef.value._mjpegLoadHandler;
+                }
+            },
+            onFpsUpdate: (fps) => {
+                currentFps.value = fps;
+                console.debug(`📊 当前帧率: ${fps} FPS`);
             }
-        };
+        });
         
-        // 定义监听器函数
-        canPlayHandler = () => {
-            console.log('🎬 视频数据已就绪');
-            cleanupVideoListeners(); // 清理所有监听器
-            
-            // 显示视频并结束 loading
-            isStreaming.value = true;
-            isLoading.value = false;
-        };
-        
-        errorHandler = (e) => {
-            console.error('❌ 视频播放错误:', e);
-            cleanupVideoListeners(); // 清理所有监听器
-        };
-        
-        // 添加监听器
-        videoRef.value.addEventListener('canplay', canPlayHandler);
-        videoRef.value.addEventListener('error', errorHandler);
-        
-        // 保存清理函数以便在 catch 块和 stopVideoStream 中使用
-        videoRef.value._mseCleanupListeners = cleanupVideoListeners;
-        
-        // 连接成功，清除标志
-        isConnectingWebRTC.value = false;
-        
-        console.log('✅ MSE 流连接建立成功');
+        console.log('✅ MJPEG 播放器已启动');
+        console.log('✅ GStreamer MJPEG 流连接建立成功');
         
     } catch (error) {
-        try { await plError(`❌ MSE流连接失败: ${error.message || error}`); } catch (_) {}
+        try { await plError(`❌ GStreamer流连接失败: ${error.message || error}`); } catch (_) {}
         
         // 错误时清理已创建的资源
         console.debug('🧹 清理失败连接的资源...');
         
         try {
-            // 问题3修复：确保在异常时也清理监听器（使用外部作用域的引用）
-            if (canPlayHandler && videoRef.value) {
-                videoRef.value.removeEventListener('canplay', canPlayHandler);
-                canPlayHandler = null;
-                console.debug('  🧹 清理 canplay 监听器');
-            }
-            if (errorHandler && videoRef.value) {
-                videoRef.value.removeEventListener('error', errorHandler);
-                errorHandler = null;
-                console.debug('  🧹 清理 error 监听器');
-            }
-            // 同时尝试通过 _mseCleanupListeners 清理（双重保护）
-            if (videoRef.value && videoRef.value._mseCleanupListeners) {
-                videoRef.value._mseCleanupListeners();
-                delete videoRef.value._mseCleanupListeners;
+            // 停止 MJPEG 播放器
+            if (mjpegPlayer.value) {
+                console.debug('  🛑 停止 MJPEG 播放器');
+                mjpegPlayer.value.stop();
+                mjpegPlayer.value = null;
             }
         } catch (cleanupError) {
-            console.warn('⚠️ 清理 video 监听器时出错:', cleanupError);
+            console.warn('⚠️ 清理 MJPEG 播放器时出错:', cleanupError);
         }
         
+        // 停止 GStreamer 流转换
         try {
-            // 停止 MSE 播放器
-            if (msePlayer.value) {
-                console.debug('  🛑 停止 MSE 播放器');
-                msePlayer.value.stop();
-                msePlayer.value = null;
-            }
-        } catch (cleanupError) {
-            console.warn('⚠️ 清理 MSE 播放器时出错:', cleanupError);
-        }
-        
-        // 停止 fMP4 流转换
-        try {
-            await invoke('stop_mse_stream', { cameraId: camera.id });
-            console.debug('  🛑 已停止 fMP4 流转换');
+            await invoke('stop_gstreamer_stream', { cameraId: camera.id });
+            console.debug('  🛑 已停止 GStreamer 流转换');
         } catch (e) {
             console.warn('⚠️ 停止流转换失败:', e);
         }
@@ -658,7 +659,7 @@ const startRTSPCamera = async (camera) => {
         isConnectingWebRTC.value = false;
         isTimeout.value = false;
         
-        throw new Error(`MSE流连接失败: ${error.message || error}`);
+        throw new Error(`GStreamer流连接失败: ${error.message || error}`);
     } finally {
         isConnectingWebRTC.value = false;
     }
@@ -678,59 +679,53 @@ const stopVideoStream = async () => {
     }
     
     try {
-        // 1. 清理 video 事件监听器（防止内存泄漏）
-        if (videoRef.value && videoRef.value._mseCleanupListeners) {
-            console.debug('🧹 清理 video 事件监听器');
-            videoRef.value._mseCleanupListeners();
-            delete videoRef.value._mseCleanupListeners;
+        // 1. 清理 MJPEG 播放器
+        if (mjpegPlayer.value) {
+            console.debug('🧹 清理 MJPEG 播放器');
+            mjpegPlayer.value.stop();
+            mjpegPlayer.value = null;
         }
         
-        // 2. 停止 video 元素的媒体流
+        // 2. 清理视频/图像元素
         if (videoRef.value) {
-            // 暂停播放
-            videoRef.value.pause();
-            
-            // 停止所有 MediaStream tracks（USB摄像头或WebRTC流）
+            // USB 摄像头：清理 MediaStream
             if (videoRef.value.srcObject) {
                 console.debug('📹 停止 MediaStream tracks');
                 const stream = videoRef.value.srcObject;
                 const tracks = stream.getTracks();
-            tracks.forEach(track => {
-                track.stop();
+                tracks.forEach(track => {
+                    track.stop();
                     console.debug(`  🔌 已停止 ${track.kind} 轨道`);
-            });
-            videoRef.value.srcObject = null;
-        }
-        
-            // 清除 src 属性（RTSP/HLS流）
-            if (videoRef.value.src) {
-                console.debug('📺 清除 video src');
-                videoRef.value.removeAttribute('src');
-            videoRef.value.load(); // 清除缓冲
-        }
-        }
-        
-        
-        // 2. 清理 MSE 播放器
-        if (msePlayer.value) {
-            try {
-                console.debug('🛑 停止 MSE 播放器');
-                msePlayer.value.stop();
-                msePlayer.value = null;
-            } catch (error) {
-                console.warn('⚠️ 停止 MSE 播放器失败:', error);
+                });
+                videoRef.value.srcObject = null;
+            }
+            
+            // RTSP 摄像头：清空 img src 和事件监听器
+            if (videoRef.value.tagName === 'IMG') {
+                console.debug('🖼️ 清空图像 src 和事件监听器');
+                // 移除 load 事件监听器
+                if (videoRef.value._mjpegLoadHandler) {
+                    videoRef.value.removeEventListener('load', videoRef.value._mjpegLoadHandler);
+                    delete videoRef.value._mjpegLoadHandler;
+                }
+                videoRef.value.src = '';
+            }
+            
+            // 如果是 video 元素，暂停播放
+            if (videoRef.value.tagName === 'VIDEO' && typeof videoRef.value.pause === 'function') {
+                videoRef.value.pause();
             }
         }
         
-        // 3. 停止 MSE 流转换（RTSP摄像头）
+        // 3. 停止 GStreamer 流转换（RTSP摄像头）
         if (selectedCamera.value && selectedCamera.value.camera_type === 'RJ45') {
             const cameraId = selectedCamera.value.id;
             
             try {
-                await invoke('stop_mse_stream', { cameraId });
-                console.debug(`🛑 MSE 流转换已停止 (摄像头 ${cameraId})`);
+                await invoke('stop_gstreamer_stream', { cameraId });
+                console.debug(`🛑 GStreamer 流转换已停止 (摄像头 ${cameraId})`);
             } catch (error) {
-                console.warn(`⚠️ 停止 MSE 流转换失败:`, error);
+                console.warn(`⚠️ 停止 GStreamer 流转换失败:`, error);
             }
         }
         
@@ -841,8 +836,13 @@ const onVideoError = (event) => {
                             hlsPort: 9002
                         });
                     console.debug('🔄 重新尝试播放HLS流:', hlsUrl);
-                        videoRef.value.src = hlsUrl;
-                        videoRef.value.load();
+                        if (videoRef.value) {
+                            videoRef.value.src = hlsUrl;
+                            // 只对 video 元素调用 load()
+                            if (videoRef.value.tagName === 'VIDEO' && typeof videoRef.value.load === 'function') {
+                                videoRef.value.load();
+                            }
+                        }
                     } catch (retryError) {
                         console.error('❌ 重试失败:', retryError);
                         // WebRTC 不需要 HLS 重试提示
@@ -1231,11 +1231,21 @@ i.el-input__clear:hover,
     height: 100%;
     object-fit: cover;
     border-radius: 6px;
-    background: #000;
     position: absolute;
     top: 0;
     left: 0;
     z-index: 1;
+    
+    /* video 元素背景 */
+    &[data-type="video"] {
+        background: #000;
+    }
+    
+    /* img 元素：没有 src 时不显示 */
+    &:not([src]) {
+        opacity: 0;
+        pointer-events: none;
+    }
     
     /* 完全隐藏视频控制条 */
     &::-webkit-media-controls {

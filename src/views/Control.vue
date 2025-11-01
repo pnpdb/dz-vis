@@ -409,15 +409,15 @@ const startVideoStream = async (camera) => {
     if (videoRef.value) {
         // 清理 src 属性
         if (videoRef.value.src) {
-            videoRef.value.removeAttribute('src');
+        videoRef.value.removeAttribute('src');
         }
         // 清理 srcObject（video 元素）
         if (videoRef.value.srcObject) {
-            videoRef.value.srcObject = null;
+        videoRef.value.srcObject = null;
         }
         // 如果是 video 元素，调用 load() 清除缓冲
         if (videoRef.value.tagName === 'VIDEO' && typeof videoRef.value.load === 'function') {
-            videoRef.value.load();
+        videoRef.value.load();
         }
     }
 
@@ -590,7 +590,7 @@ const startRTSPCamera = async (camera) => {
                 isConnectingWebRTC.value = false;
                 Toast.success('摄像头连接成功');
                 // 移除事件监听器
-                if (videoRef.value) {
+            if (videoRef.value) {
                     videoRef.value.removeEventListener('load', handleImageLoad);
                     delete videoRef.value._mjpegLoadHandler;
                 }
@@ -601,7 +601,7 @@ const startRTSPCamera = async (camera) => {
             // 保存引用用于清理
             videoRef.value._mjpegLoadHandler = handleImageLoad;
             videoRef.value.addEventListener('load', handleImageLoad);
-        }
+            }
         
         // 5. 启动播放器并设置回调
         await mjpegPlayer.value.start(wsUrl, {
@@ -612,8 +612,8 @@ const startRTSPCamera = async (camera) => {
             onError: (error) => {
                 console.error('❌ MJPEG 播放错误:', error);
                 Toast.warning(`播放失败: ${error.message}`);
-                isLoading.value = false;
-                isConnectingWebRTC.value = false;
+            isLoading.value = false;
+        isConnectingWebRTC.value = false;
                 // 清理事件监听器
                 if (videoRef.value && videoRef.value._mjpegLoadHandler) {
                     videoRef.value.removeEventListener('load', videoRef.value._mjpegLoadHandler);
@@ -693,13 +693,13 @@ const stopVideoStream = async () => {
                 console.debug('📹 停止 MediaStream tracks');
                 const stream = videoRef.value.srcObject;
                 const tracks = stream.getTracks();
-                tracks.forEach(track => {
-                    track.stop();
+            tracks.forEach(track => {
+                track.stop();
                     console.debug(`  🔌 已停止 ${track.kind} 轨道`);
-                });
-                videoRef.value.srcObject = null;
-            }
-            
+            });
+            videoRef.value.srcObject = null;
+        }
+        
             // RTSP 摄像头：清空 img src 和事件监听器
             if (videoRef.value.tagName === 'IMG') {
                 console.debug('🖼️ 清空图像 src 和事件监听器');
@@ -837,10 +837,10 @@ const onVideoError = (event) => {
                         });
                     console.debug('🔄 重新尝试播放HLS流:', hlsUrl);
                         if (videoRef.value) {
-                            videoRef.value.src = hlsUrl;
+                        videoRef.value.src = hlsUrl;
                             // 只对 video 元素调用 load()
                             if (videoRef.value.tagName === 'VIDEO' && typeof videoRef.value.load === 'function') {
-                                videoRef.value.load();
+                        videoRef.value.load();
                             }
                         }
                     } catch (retryError) {

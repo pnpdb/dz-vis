@@ -37,8 +37,9 @@ impl GStreamerStreamer {
 
         log::info!("启动 GStreamer MJPEG 流: camera_id={}, rtsp_url={}", camera_id, rtsp_url);
 
-        // 创建广播通道（容量 100 个 JPEG 帧）
-        let (tx, _rx) = broadcast::channel::<Vec<u8>>(100);
+        // 创建广播通道（容量 10 个 JPEG 帧，降低延迟）
+        // 较小的缓冲区可以减少端到端延迟
+        let (tx, _rx) = broadcast::channel::<Vec<u8>>(10);
         
         // 存储广播器
         {
@@ -46,16 +47,17 @@ impl GStreamerStreamer {
             broadcasters.insert(camera_id, tx.clone());
         }
 
-        // 构建 GStreamer pipeline
+        // 构建 GStreamer pipeline（优化性能和延迟）
         // rtspsrc → rtph264depay → avdec_h264 → videoscale → videoconvert → jpegenc → appsink
+        // 只使用通用兼容的参数
         let pipeline_str = format!(
             "rtspsrc location={} protocols=tcp latency=0 buffer-mode=0 ! \
              rtph264depay ! \
              avdec_h264 max-threads=2 ! \
              videoscale ! video/x-raw,width=640,height=480 ! \
              videoconvert ! \
-             jpegenc quality=75 ! \
-             appsink name=sink emit-signals=true max-buffers=1 drop=true",
+             jpegenc quality=80 ! \
+             appsink name=sink emit-signals=true max-buffers=1 drop=true sync=false",
             rtsp_url
         );
 
@@ -97,56 +99,80 @@ impl GStreamerStreamer {
                 .build(),
         );
 
-        // 设置 bus 消息处理
+        // 设置 bus 消息处理（带超时和取消机制）
         let bus = pipeline.bus().context("无法获取 bus")?;
         let camera_id_for_bus = camera_id;
         let pipeline_weak = pipeline.downgrade();
         
+        // 创建一个可取消的任务（传递 pipelines 引用以检测停止）
+        let pipelines_arc = Arc::clone(&self.pipelines);
         tokio::spawn(async move {
             let bus_stream = bus.stream();
             tokio::pin!(bus_stream);
             
-            while let Some(msg) = bus_stream.next().await {
-                match msg.view() {
-                    gst::MessageView::Error(err) => {
-                        log::error!(
-                            "GStreamer 错误 (camera_id={}): {:?}",
-                            camera_id_for_bus,
-                            err.error()
-                        );
-                        
-                        // 停止 pipeline
-                        if let Some(pipeline) = pipeline_weak.upgrade() {
-                            let _ = pipeline.set_state(gst::State::Null);
-                        }
-                        break;
-                    }
-                    gst::MessageView::Eos(_) => {
-                        log::info!("GStreamer EOS (camera_id={})", camera_id_for_bus);
-                        break;
-                    }
-                    gst::MessageView::Warning(warn) => {
-                        log::warn!(
-                            "GStreamer 警告 (camera_id={}): {:?}",
-                            camera_id_for_bus,
-                            warn.error()
-                        );
-                    }
-                    gst::MessageView::StateChanged(state) => {
-                        if let Some(src) = msg.src() {
-                            if src.name().starts_with("pipeline") {
-                                log::debug!(
-                                    "GStreamer 状态变化 (camera_id={}): {:?} -> {:?}",
+            loop {
+                // 使用超时防止僵尸任务
+                let timeout = tokio::time::Duration::from_secs(30);
+                match tokio::time::timeout(timeout, bus_stream.next()).await {
+                    Ok(Some(msg)) => {
+                        match msg.view() {
+                            gst::MessageView::Error(err) => {
+                                log::error!(
+                                    "GStreamer 错误 (camera_id={}): {:?}",
                                     camera_id_for_bus,
-                                    state.old(),
-                                    state.current()
+                                    err.error()
+                                );
+                                
+                                // 停止 pipeline
+                                if let Some(pipeline) = pipeline_weak.upgrade() {
+                                    let _ = pipeline.set_state(gst::State::Null);
+                                }
+                                break;
+                            }
+                            gst::MessageView::Eos(_) => {
+                                log::info!("GStreamer EOS (camera_id={})", camera_id_for_bus);
+                                break;
+                            }
+                            gst::MessageView::Warning(warn) => {
+                                log::warn!(
+                                    "GStreamer 警告 (camera_id={}): {:?}",
+                                    camera_id_for_bus,
+                                    warn.error()
                                 );
                             }
+                            gst::MessageView::StateChanged(state) => {
+                                if let Some(src) = msg.src() {
+                                    if src.name().starts_with("pipeline") {
+                                        log::debug!(
+                                            "GStreamer 状态变化 (camera_id={}): {:?} -> {:?}",
+                                            camera_id_for_bus,
+                                            state.old(),
+                                            state.current()
+                                        );
+                                    }
+                                }
+                            }
+                            _ => {}
                         }
                     }
-                    _ => {}
+                    Ok(None) => {
+                        // Stream 结束
+                        log::info!("GStreamer bus stream 已结束 (camera_id={})", camera_id_for_bus);
+                        break;
+                    }
+                    Err(_) => {
+                        // 超时：检查 pipeline 是否还存在
+                        let pipelines = pipelines_arc.read().await;
+                        if !pipelines.contains_key(&camera_id_for_bus) {
+                            log::info!("Pipeline 已被移除，结束 bus 监听 (camera_id={})", camera_id_for_bus);
+                            break;
+                        }
+                        // 否则继续监听
+                    }
                 }
             }
+            
+            log::debug!("GStreamer bus 监听任务结束 (camera_id={})", camera_id_for_bus);
         });
 
         // 启动 pipeline
@@ -169,24 +195,32 @@ impl GStreamerStreamer {
     pub async fn stop_stream(&self, camera_id: u32) {
         log::info!("停止 GStreamer 流: camera_id={}", camera_id);
 
-        // 停止 pipeline
+        // 移除 pipeline（这会触发 bus 监听任务退出）
         let pipeline = {
             let mut pipelines = self.pipelines.write().await;
             pipelines.remove(&camera_id)
         };
 
-        if let Some(pipeline) = pipeline {
-            // 停止播放
-            if let Err(e) = pipeline.set_state(gst::State::Null) {
-                log::warn!("停止 pipeline 失败: {:?}", e);
-            }
-            log::info!("Pipeline 已停止 (camera_id={})", camera_id);
-        }
-
-        // 移除广播器
+        // 先移除广播器（断开所有订阅者）
         {
             let mut broadcasters = self.broadcasters.write().await;
             broadcasters.remove(&camera_id);
+        }
+
+        if let Some(pipeline) = pipeline {
+            // 先暂停，再停止（优雅关闭）
+            let _ = pipeline.set_state(gst::State::Paused);
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            
+            // 停止播放
+            if let Err(e) = pipeline.set_state(gst::State::Null) {
+                log::warn!("停止 pipeline 失败: {:?}", e);
+            } else {
+                log::info!("Pipeline 已停止 (camera_id={})", camera_id);
+            }
+            
+            // 等待 pipeline 完全清理
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         }
 
         log::info!("流已完全停止 (camera_id={})", camera_id);

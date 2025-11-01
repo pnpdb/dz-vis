@@ -23,6 +23,11 @@ export class MjpegPlayer {
         this.fps = 0;
         this.fpsUpdateInterval = null;
         
+        // 帧跳过控制（提高性能）
+        this.isProcessingFrame = false;
+        this.droppedFrames = 0;
+        this.pendingFrame = null;
+        
         // 回调函数
         this.onReady = null;
         this.onError = null;
@@ -64,6 +69,12 @@ export class MjpegPlayer {
     connect() {
         if (this.isDestroyed) return;
         
+        // 防止重复连接
+        if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) {
+            logger.warn('MjpegPlayer', 'WebSocket 已在连接中，跳过重复连接');
+            return;
+        }
+        
         try {
             this.ws = new WebSocket(this.wsUrl);
             this.ws.binaryType = 'arraybuffer';
@@ -76,7 +87,13 @@ export class MjpegPlayer {
             this.ws.onmessage = (event) => {
                 if (event.data instanceof ArrayBuffer) {
                     // 收到 JPEG 二进制数据
-                    this.handleJpegFrame(event.data);
+                    // 智能帧跳过：如果正在处理，保存为待处理帧
+                    if (this.isProcessingFrame) {
+                        this.pendingFrame = event.data;
+                        this.droppedFrames++;
+                    } else {
+                        this.handleJpegFrame(event.data);
+                    }
                 } else if (typeof event.data === 'string') {
                     // 收到文本消息（通常是就绪或错误消息）
                     try {
@@ -134,40 +151,87 @@ export class MjpegPlayer {
     }
     
     /**
-     * 处理 JPEG 帧
+     * 处理 JPEG 帧（优化版本：使用 createImageBitmap）
      * @param {ArrayBuffer} arrayBuffer - JPEG 二进制数据
      */
     handleJpegFrame(arrayBuffer) {
+        // 标记正在处理
+        this.isProcessingFrame = true;
+        
         try {
             // 将 ArrayBuffer 转换为 Blob
             const blob = new Blob([arrayBuffer], { type: 'image/jpeg' });
             
-            // 创建 Object URL
-            const url = URL.createObjectURL(blob);
-            
-            // 释放旧的 Object URL（防止内存泄漏）
-            if (this.videoElement._currentObjectUrl) {
-                URL.revokeObjectURL(this.videoElement._currentObjectUrl);
-            }
-            
             // 设置新的图像
             if (this.videoElement.tagName === 'IMG') {
-                this.videoElement.src = url;
-            } else if (this.videoElement.tagName === 'CANVAS') {
-                // 如果是 canvas，需要先创建 Image 对象
-                const img = new Image();
-                img.onload = () => {
-                    const ctx = this.videoElement.getContext('2d');
-                    this.videoElement.width = img.width;
-                    this.videoElement.height = img.height;
-                    ctx.drawImage(img, 0, 0);
-                    URL.revokeObjectURL(url);
+                // IMG 模式：使用 Object URL（简单快速）
+                const url = URL.createObjectURL(blob);
+                
+                // 在图像加载后释放 URL
+                this.videoElement.onload = () => {
+                    // 释放旧的 URL
+                    if (this.videoElement._currentObjectUrl && this.videoElement._currentObjectUrl !== url) {
+                        URL.revokeObjectURL(this.videoElement._currentObjectUrl);
+                    }
+                    this.videoElement._currentObjectUrl = url;
+                    
+                    // 处理完成，检查是否有待处理帧
+                    this.isProcessingFrame = false;
+                    if (this.pendingFrame) {
+                        const nextFrame = this.pendingFrame;
+                        this.pendingFrame = null;
+                        this.handleJpegFrame(nextFrame);
+                    }
                 };
-                img.src = url;
+                
+                this.videoElement.onerror = () => {
+                    URL.revokeObjectURL(url);
+                    this.isProcessingFrame = false;
+                };
+                
+                // 设置新图像
+                this.videoElement.src = url;
+                
+            } else if (this.videoElement.tagName === 'CANVAS') {
+                // Canvas 模式：使用 createImageBitmap（更快的解码）
+                createImageBitmap(blob)
+                    .then(imageBitmap => {
+                        try {
+                            const ctx = this.videoElement.getContext('2d');
+                            
+                            // 只在尺寸变化时调整 canvas
+                            if (this.videoElement.width !== imageBitmap.width || 
+                                this.videoElement.height !== imageBitmap.height) {
+                                this.videoElement.width = imageBitmap.width;
+                                this.videoElement.height = imageBitmap.height;
+                            }
+                            
+                            // 使用 imageBitmap 渲染（比 Image 对象快）
+                            ctx.drawImage(imageBitmap, 0, 0);
+                            
+                            // 释放 ImageBitmap
+                            imageBitmap.close();
+                            
+                            // 处理完成
+                            this.isProcessingFrame = false;
+                            
+                            // 检查是否有待处理帧
+                            if (this.pendingFrame) {
+                                const nextFrame = this.pendingFrame;
+                                this.pendingFrame = null;
+                                this.handleJpegFrame(nextFrame);
+                            }
+                        } catch (err) {
+                            logger.error('MjpegPlayer', 'Canvas 渲染失败:', err);
+                            imageBitmap.close();
+                            this.isProcessingFrame = false;
+                        }
+                    })
+                    .catch(err => {
+                        logger.error('MjpegPlayer', 'createImageBitmap 失败:', err);
+                        this.isProcessingFrame = false;
+                    });
             }
-            
-            // 保存当前 URL 用于后续清理
-            this.videoElement._currentObjectUrl = url;
             
             // 更新帧计数
             this.frameCount++;
@@ -196,8 +260,14 @@ export class MjpegPlayer {
                     this.onFpsUpdate(this.fps);
                 }
                 
+                // 输出丢帧统计（仅在有丢帧时）
+                if (this.droppedFrames > 0) {
+                    logger.debug('MjpegPlayer', `丢帧: ${this.droppedFrames}, FPS: ${this.fps}`);
+                }
+                
                 // 重置计数器
                 this.frameCount = 0;
+                this.droppedFrames = 0;
                 this.lastFrameTime = now;
             }
         }, 1000);
@@ -211,7 +281,15 @@ export class MjpegPlayer {
         
         // 关闭 WebSocket
         if (this.ws) {
-            this.ws.close();
+            // 移除事件监听器防止触发重连
+            this.ws.onopen = null;
+            this.ws.onmessage = null;
+            this.ws.onerror = null;
+            this.ws.onclose = null;
+            
+            if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
+                this.ws.close();
+            }
             this.ws = null;
         }
         
@@ -233,15 +311,34 @@ export class MjpegPlayer {
             delete this.videoElement._currentObjectUrl;
         }
         
-        // 清空图像
+        // 清空图像和相关引用
         if (this.videoElement) {
             if (this.videoElement.tagName === 'IMG') {
+                this.videoElement.onload = null;
+                this.videoElement.onerror = null;
                 this.videoElement.src = '';
             } else if (this.videoElement.tagName === 'CANVAS') {
                 const ctx = this.videoElement.getContext('2d');
                 ctx.clearRect(0, 0, this.videoElement.width, this.videoElement.height);
             }
         }
+        
+        // 清理 Canvas 模式的 Image 对象
+        if (this._canvasImage) {
+            this._canvasImage.onload = null;
+            this._canvasImage.onerror = null;
+            this._canvasImage.src = '';
+            this._canvasImage = null;
+        }
+        
+        // 清理待处理帧
+        this.pendingFrame = null;
+        this.isProcessingFrame = false;
+        
+        // 重置计数器
+        this.frameCount = 0;
+        this.droppedFrames = 0;
+        this.reconnectAttempts = 0;
     }
     
     /**

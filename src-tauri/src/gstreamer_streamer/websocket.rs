@@ -102,7 +102,7 @@ async fn handle_mjpeg_stream(socket: WebSocket, camera_id: u32) {
 
     log::info!("开始推送 MJPEG 流: camera_id={}", camera_id);
 
-    // 持续推送 JPEG 数据
+    // 持续推送 JPEG 数据（优化版本：减少锁竞争）
     loop {
         tokio::select! {
             // 接收 JPEG 数据并推送
@@ -110,7 +110,13 @@ async fn handle_mjpeg_stream(socket: WebSocket, camera_id: u32) {
                 match jpeg_result {
                     Ok(jpeg_data) => {
                         // 发送二进制数据（JPEG 帧）
-                        if let Err(e) = ws_sender.lock().await.send(Message::Binary(jpeg_data)).await {
+                        // 减少 Mutex 锁持有时间
+                        let send_result = {
+                            let mut sender = ws_sender.lock().await;
+                            sender.send(Message::Binary(jpeg_data)).await
+                        };
+                        
+                        if let Err(e) = send_result {
                             log::debug!("发送失败，客户端可能已断开: {}", e);
                             break;
                         }

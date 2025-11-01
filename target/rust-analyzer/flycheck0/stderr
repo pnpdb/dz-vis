@@ -1,5 +1,8 @@
-   2.104174201s  INFO prepare_target{force=false package_id=dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri) target="dz_viz_lib"}: cargo::core::compiler::fingerprint: fingerprint error for dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri)/Check { test: false }/TargetInner { ..: lib_target("dz_viz_lib", ["staticlib", "cdylib", "rlib"], "/Users/plum/Workspace/rust/dz-viz/src-tauri/src/lib.rs", Edition2021) }
-   2.104219207s  INFO prepare_target{force=false package_id=dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri) target="dz_viz_lib"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/plum/Workspace/rust/dz-viz/src-tauri/target/debug/.fingerprint/dz-viz-3f10b3fc612bd33d/lib-dz_viz_lib`
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   2.059387468s  INFO prepare_target{force=false package_id=dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri) target="dz_viz_lib"}: cargo::core::compiler::fingerprint: fingerprint error for dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri)/Check { test: false }/TargetInner { ..: lib_target("dz_viz_lib", ["staticlib", "cdylib", "rlib"], "/Users/plum/Workspace/rust/dz-viz/src-tauri/src/lib.rs", Edition2021) }
+   2.059435079s  INFO prepare_target{force=false package_id=dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri) target="dz_viz_lib"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/plum/Workspace/rust/dz-viz/src-tauri/target/debug/.fingerprint/dz-viz-3f10b3fc612bd33d/lib-dz_viz_lib`
 
 Caused by:
     No such file or directory (os error 2)
@@ -23,8 +26,8 @@ Stack backtrace:
   15: std::rt::lang_start::<()>::{closure#0}
   16: std::rt::lang_start_internal
   17: _main
-   2.332188587s  INFO prepare_target{force=false package_id=gstreamer-app v0.22.6 target="gstreamer_app"}: cargo::core::compiler::fingerprint: fingerprint error for gstreamer-app v0.22.6/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("gstreamer_app", ["lib"], "/Users/plum/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gstreamer-app-0.22.6/src/lib.rs", Edition2021) }
-   2.332204576s  INFO prepare_target{force=false package_id=gstreamer-app v0.22.6 target="gstreamer_app"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/plum/Workspace/rust/dz-viz/src-tauri/target/debug/.fingerprint/gstreamer-app-ec08b85f532f850c/lib-gstreamer_app`
+   2.241777484s  INFO prepare_target{force=false package_id=gstreamer-app v0.22.6 target="gstreamer_app"}: cargo::core::compiler::fingerprint: fingerprint error for gstreamer-app v0.22.6/Check { test: false }/TargetInner { name_inferred: true, ..: lib_target("gstreamer_app", ["lib"], "/Users/plum/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gstreamer-app-0.22.6/src/lib.rs", Edition2021) }
+   2.241793846s  INFO prepare_target{force=false package_id=gstreamer-app v0.22.6 target="gstreamer_app"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/plum/Workspace/rust/dz-viz/src-tauri/target/debug/.fingerprint/gstreamer-app-ec08b85f532f850c/lib-gstreamer_app`
 
 Caused by:
     No such file or directory (os error 2)
@@ -49,8 +52,8 @@ Stack backtrace:
   16: std::rt::lang_start::<()>::{closure#0}
   17: std::rt::lang_start_internal
   18: _main
-   2.332666043s  INFO prepare_target{force=false package_id=gstreamer-app-sys v0.22.6 target="gstreamer_app_sys"}: cargo::core::compiler::fingerprint: fingerprint error for gstreamer-app-sys v0.22.6/Check { test: false }/TargetInner { ..: lib_target("gstreamer_app_sys", ["lib"], "/Users/plum/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gstreamer-app-sys-0.22.6/src/lib.rs", Edition2021) }
-   2.332676120s  INFO prepare_target{force=false package_id=gstreamer-app-sys v0.22.6 target="gstreamer_app_sys"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/plum/Workspace/rust/dz-viz/src-tauri/target/debug/.fingerprint/gstreamer-app-sys-e6613b4bbb5cc085/lib-gstreamer_app_sys`
+   2.242352893s  INFO prepare_target{force=false package_id=gstreamer-app-sys v0.22.6 target="gstreamer_app_sys"}: cargo::core::compiler::fingerprint: fingerprint error for gstreamer-app-sys v0.22.6/Check { test: false }/TargetInner { ..: lib_target("gstreamer_app_sys", ["lib"], "/Users/plum/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gstreamer-app-sys-0.22.6/src/lib.rs", Edition2021) }
+   2.242362621s  INFO prepare_target{force=false package_id=gstreamer-app-sys v0.22.6 target="gstreamer_app_sys"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/plum/Workspace/rust/dz-viz/src-tauri/target/debug/.fingerprint/gstreamer-app-sys-e6613b4bbb5cc085/lib-gstreamer_app_sys`
 
 Caused by:
     No such file or directory (os error 2)
@@ -76,8 +79,8 @@ Stack backtrace:
   17: std::rt::lang_start::<()>::{closure#0}
   18: std::rt::lang_start_internal
   19: _main
-   2.333047924s  INFO prepare_target{force=false package_id=gstreamer-app-sys v0.22.6 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for gstreamer-app-sys v0.22.6/RunCustomBuild/TargetInner { ..: custom_build_target("build-script-build", "/Users/plum/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gstreamer-app-sys-0.22.6/build.rs", Edition2021) }
-   2.333059130s  INFO prepare_target{force=false package_id=gstreamer-app-sys v0.22.6 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/plum/Workspace/rust/dz-viz/src-tauri/target/debug/.fingerprint/gstreamer-app-sys-6c52fa15795cb8c4/run-build-script-build-script-build`
+   2.242911606s  INFO prepare_target{force=false package_id=gstreamer-app-sys v0.22.6 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for gstreamer-app-sys v0.22.6/RunCustomBuild/TargetInner { ..: custom_build_target("build-script-build", "/Users/plum/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gstreamer-app-sys-0.22.6/build.rs", Edition2021) }
+   2.242921687s  INFO prepare_target{force=false package_id=gstreamer-app-sys v0.22.6 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/plum/Workspace/rust/dz-viz/src-tauri/target/debug/.fingerprint/gstreamer-app-sys-6c52fa15795cb8c4/run-build-script-build-script-build`
 
 Caused by:
     No such file or directory (os error 2)
@@ -105,8 +108,8 @@ Stack backtrace:
   19: std::rt::lang_start::<()>::{closure#0}
   20: std::rt::lang_start_internal
   21: _main
-   2.336473899s  INFO prepare_target{force=false package_id=gstreamer-video v0.22.8 target="gstreamer_video"}: cargo::core::compiler::fingerprint: fingerprint error for gstreamer-video v0.22.8/Check { test: false }/TargetInner { ..: lib_target("gstreamer_video", ["lib"], "/Users/plum/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gstreamer-video-0.22.8/src/lib.rs", Edition2021) }
-   2.336487038s  INFO prepare_target{force=false package_id=gstreamer-video v0.22.8 target="gstreamer_video"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/plum/Workspace/rust/dz-viz/src-tauri/target/debug/.fingerprint/gstreamer-video-7b0a8ead4c8160df/lib-gstreamer_video`
+   2.245361729s  INFO prepare_target{force=false package_id=gstreamer-video v0.22.8 target="gstreamer_video"}: cargo::core::compiler::fingerprint: fingerprint error for gstreamer-video v0.22.8/Check { test: false }/TargetInner { ..: lib_target("gstreamer_video", ["lib"], "/Users/plum/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gstreamer-video-0.22.8/src/lib.rs", Edition2021) }
+   2.245374374s  INFO prepare_target{force=false package_id=gstreamer-video v0.22.8 target="gstreamer_video"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/plum/Workspace/rust/dz-viz/src-tauri/target/debug/.fingerprint/gstreamer-video-7b0a8ead4c8160df/lib-gstreamer_video`
 
 Caused by:
     No such file or directory (os error 2)
@@ -131,8 +134,8 @@ Stack backtrace:
   16: std::rt::lang_start::<()>::{closure#0}
   17: std::rt::lang_start_internal
   18: _main
-   2.337063267s  INFO prepare_target{force=false package_id=gstreamer-video-sys v0.22.6 target="gstreamer_video_sys"}: cargo::core::compiler::fingerprint: fingerprint error for gstreamer-video-sys v0.22.6/Check { test: false }/TargetInner { ..: lib_target("gstreamer_video_sys", ["lib"], "/Users/plum/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gstreamer-video-sys-0.22.6/src/lib.rs", Edition2021) }
-   2.337072758s  INFO prepare_target{force=false package_id=gstreamer-video-sys v0.22.6 target="gstreamer_video_sys"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/plum/Workspace/rust/dz-viz/src-tauri/target/debug/.fingerprint/gstreamer-video-sys-86a1f9579e2f7caf/lib-gstreamer_video_sys`
+   2.246045744s  INFO prepare_target{force=false package_id=gstreamer-video-sys v0.22.6 target="gstreamer_video_sys"}: cargo::core::compiler::fingerprint: fingerprint error for gstreamer-video-sys v0.22.6/Check { test: false }/TargetInner { ..: lib_target("gstreamer_video_sys", ["lib"], "/Users/plum/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gstreamer-video-sys-0.22.6/src/lib.rs", Edition2021) }
+   2.246054489s  INFO prepare_target{force=false package_id=gstreamer-video-sys v0.22.6 target="gstreamer_video_sys"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/plum/Workspace/rust/dz-viz/src-tauri/target/debug/.fingerprint/gstreamer-video-sys-86a1f9579e2f7caf/lib-gstreamer_video_sys`
 
 Caused by:
     No such file or directory (os error 2)
@@ -158,8 +161,8 @@ Stack backtrace:
   17: std::rt::lang_start::<()>::{closure#0}
   18: std::rt::lang_start_internal
   19: _main
-   2.337467534s  INFO prepare_target{force=false package_id=gstreamer-video-sys v0.22.6 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for gstreamer-video-sys v0.22.6/RunCustomBuild/TargetInner { ..: custom_build_target("build-script-build", "/Users/plum/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gstreamer-video-sys-0.22.6/build.rs", Edition2021) }
-   2.337475724s  INFO prepare_target{force=false package_id=gstreamer-video-sys v0.22.6 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/plum/Workspace/rust/dz-viz/src-tauri/target/debug/.fingerprint/gstreamer-video-sys-ab96c1b48aea3e3f/run-build-script-build-script-build`
+   2.246447609s  INFO prepare_target{force=false package_id=gstreamer-video-sys v0.22.6 target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint error for gstreamer-video-sys v0.22.6/RunCustomBuild/TargetInner { ..: custom_build_target("build-script-build", "/Users/plum/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gstreamer-video-sys-0.22.6/build.rs", Edition2021) }
+   2.246454756s  INFO prepare_target{force=false package_id=gstreamer-video-sys v0.22.6 target="build-script-build"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/plum/Workspace/rust/dz-viz/src-tauri/target/debug/.fingerprint/gstreamer-video-sys-ab96c1b48aea3e3f/run-build-script-build-script-build`
 
 Caused by:
     No such file or directory (os error 2)
@@ -187,8 +190,8 @@ Stack backtrace:
   19: std::rt::lang_start::<()>::{closure#0}
   20: std::rt::lang_start_internal
   21: _main
-   2.508436663s  INFO prepare_target{force=false package_id=dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri) target="dz_viz_lib"}: cargo::core::compiler::fingerprint: fingerprint error for dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri)/Check { test: true }/TargetInner { ..: lib_target("dz_viz_lib", ["staticlib", "cdylib", "rlib"], "/Users/plum/Workspace/rust/dz-viz/src-tauri/src/lib.rs", Edition2021) }
-   2.508455518s  INFO prepare_target{force=false package_id=dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri) target="dz_viz_lib"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/plum/Workspace/rust/dz-viz/src-tauri/target/debug/.fingerprint/dz-viz-d508f30c224135cc/test-lib-dz_viz_lib`
+   2.390374727s  INFO prepare_target{force=false package_id=dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri) target="dz_viz_lib"}: cargo::core::compiler::fingerprint: fingerprint error for dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri)/Check { test: true }/TargetInner { ..: lib_target("dz_viz_lib", ["staticlib", "cdylib", "rlib"], "/Users/plum/Workspace/rust/dz-viz/src-tauri/src/lib.rs", Edition2021) }
+   2.390409849s  INFO prepare_target{force=false package_id=dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri) target="dz_viz_lib"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/plum/Workspace/rust/dz-viz/src-tauri/target/debug/.fingerprint/dz-viz-d508f30c224135cc/test-lib-dz_viz_lib`
 
 Caused by:
     No such file or directory (os error 2)
@@ -212,8 +215,8 @@ Stack backtrace:
   15: std::rt::lang_start::<()>::{closure#0}
   16: std::rt::lang_start_internal
   17: _main
-   2.511515741s  INFO prepare_target{force=false package_id=dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri) target="dz-viz"}: cargo::core::compiler::fingerprint: fingerprint error for dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri)/Check { test: false }/TargetInner { name: "dz-viz", doc: true, ..: with_path("/Users/plum/Workspace/rust/dz-viz/src-tauri/src/main.rs", Edition2021) }
-   2.511529067s  INFO prepare_target{force=false package_id=dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri) target="dz-viz"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/plum/Workspace/rust/dz-viz/src-tauri/target/debug/.fingerprint/dz-viz-deceec82c75697d2/bin-dz-viz`
+   2.395442951s  INFO prepare_target{force=false package_id=dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri) target="dz-viz"}: cargo::core::compiler::fingerprint: fingerprint error for dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri)/Check { test: false }/TargetInner { name: "dz-viz", doc: true, ..: with_path("/Users/plum/Workspace/rust/dz-viz/src-tauri/src/main.rs", Edition2021) }
+   2.395459092s  INFO prepare_target{force=false package_id=dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri) target="dz-viz"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/plum/Workspace/rust/dz-viz/src-tauri/target/debug/.fingerprint/dz-viz-deceec82c75697d2/bin-dz-viz`
 
 Caused by:
     No such file or directory (os error 2)
@@ -237,8 +240,8 @@ Stack backtrace:
   15: std::rt::lang_start::<()>::{closure#0}
   16: std::rt::lang_start_internal
   17: _main
-   2.514313487s  INFO prepare_target{force=false package_id=dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri) target="dz-viz"}: cargo::core::compiler::fingerprint: fingerprint error for dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri)/Check { test: true }/TargetInner { name: "dz-viz", doc: true, ..: with_path("/Users/plum/Workspace/rust/dz-viz/src-tauri/src/main.rs", Edition2021) }
-   2.514325047s  INFO prepare_target{force=false package_id=dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri) target="dz-viz"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/plum/Workspace/rust/dz-viz/src-tauri/target/debug/.fingerprint/dz-viz-ab24558f4a4a03ff/test-bin-dz-viz`
+   2.399041968s  INFO prepare_target{force=false package_id=dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri) target="dz-viz"}: cargo::core::compiler::fingerprint: fingerprint error for dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri)/Check { test: true }/TargetInner { name: "dz-viz", doc: true, ..: with_path("/Users/plum/Workspace/rust/dz-viz/src-tauri/src/main.rs", Edition2021) }
+   2.399076200s  INFO prepare_target{force=false package_id=dz-viz v0.1.0 (/Users/plum/Workspace/rust/dz-viz/src-tauri) target="dz-viz"}: cargo::core::compiler::fingerprint:     err: failed to read `/Users/plum/Workspace/rust/dz-viz/src-tauri/target/debug/.fingerprint/dz-viz-ab24558f4a4a03ff/test-bin-dz-viz`
 
 Caused by:
     No such file or directory (os error 2)
@@ -262,8 +265,8 @@ Stack backtrace:
   15: std::rt::lang_start::<()>::{closure#0}
   16: std::rt::lang_start_internal
   17: _main
-   Compiling gstreamer-app-sys v0.22.6
    Compiling gstreamer-video-sys v0.22.6
+   Compiling gstreamer-app-sys v0.22.6
 warning: gstreamer-video-sys@0.22.6: 
 error: failed to run custom build command for `gstreamer-video-sys v0.22.6`
 note: To improve backtraces for build dependencies, set the CARGO_PROFILE_DEV_BUILD_OVERRIDE_DEBUG=true environment variable to enable debug information generation.

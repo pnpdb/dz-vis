@@ -505,9 +505,10 @@ const startUSBCamera = async (camera) => {
         if (error.name === 'NotFoundError') {
             errorMessage = '未找到摄像头设备';
         } else if (error.name === 'NotAllowedError') {
-            errorMessage = '摄像头权限被拒绝，请在浏览器设置中允许摄像头访问';
+            // Linux 系统权限问题的特殊提示
+            errorMessage = '摄像头权限被拒绝。Linux系统请确保已将用户添加到video组';
         } else if (error.name === 'NotReadableError') {
-            errorMessage = '摄像头被其他应用占用';
+            errorMessage = '摄像头被其他应用占用或系统权限不足';
         } else if (error.name === 'OverconstrainedError') {
             errorMessage = '摄像头不支持指定的分辨率';
         }

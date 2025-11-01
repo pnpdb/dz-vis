@@ -454,10 +454,16 @@ if (typeof window !== 'undefined') {
         window.__videoProcessorCleanup();
     }
     window.__videoProcessorCleanup = () => {
+        // 清理全局定时器
         if (statsCleanupTimer) {
             clearInterval(statsCleanupTimer);
             statsCleanupTimer = null;
             console.log('✅ VideoProcessor 清理定时器已清理');
+        }
+        
+        // 清理实例内部的定时器和资源
+        if (videoProcessor && typeof videoProcessor.destroy === 'function') {
+            videoProcessor.destroy();
         }
     };
 }

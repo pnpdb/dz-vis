@@ -138,7 +138,7 @@ pub fn run() {
             }
         }
         debug!(
-            "🔄 初始化日志级别: {:?}, 初始化缓存大小(bytes): {:?}, 开机启动: {:?}",
+            "初始化日志级别: {:?}, 初始化缓存大小(bytes): {:?}, 开机启动: {:?}",
             level, max_bytes, auto_start
         );
         (level, max_bytes, auto_start)
@@ -147,7 +147,7 @@ pub fn run() {
     #[cfg(target_os = "linux")]
     {
         std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "0");
-        info!("🌐 Linux: 设置 WEBKIT_DISABLE_COMPOSITING_MODE=0");
+        info!("Linux: 设置 WEBKIT_DISABLE_COMPOSITING_MODE=0");
     }
 
     tauri::Builder::default()
@@ -315,7 +315,7 @@ pub fn run() {
                     .resource_dir()
                     .expect("无法获取资源目录")
                     .join("routes");
-                info!("📦 生产模式 - 路径文件目录: {:?}", prod_routes);
+                info!("生产模式 - 路径文件目录: {:?}", prod_routes);
                 prod_routes
             };
             
@@ -380,12 +380,12 @@ pub fn run() {
                 match autostart_manager.is_enabled() {
                     Ok(enabled) => {
                         info!(
-                            "📋 开机启动状态: {}",
+                            "开机启动状态: {}",
                             if enabled { "已启用" } else { "已禁用" }
                         );
                     }
                     Err(e) => {
-                        warn!("⚠️ 无法检查开机启动状态: {}", e);
+                        warn!("无法检查开机启动状态: {}", e);
                     }
                 }
             }
@@ -399,7 +399,7 @@ pub fn run() {
                 match VehicleDatabase::new().await {
                     Ok(db) => {
                         app_handle_db.manage(db);
-                        info!("✅ 数据库初始化成功");
+                        info!("数据库初始化成功");
                     }
                     Err(e) => {
                         error!("❌ 数据库初始化失败: {}", e);
@@ -409,20 +409,20 @@ pub fn run() {
 
             // 初始化协议处理器状态
             app.manage(ProtocolProcessorState::new());
-            info!("✅ 协议处理器初始化成功");
+            info!("协议处理器初始化成功");
 
             // 启动 MSE 流服务（纯 FFmpeg + WebSocket，不依赖 MediaMTX）
-            info!("🚀 初始化 MSE 流服务...");
+            info!("初始化 MSE 流服务...");
             // 启动 WebSocket 服务器用于推送 fMP4 流
             let mse_ws_port = 9003; // MSE WebSocket 端口
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = mse_streamer::websocket::start_websocket_server(mse_ws_port).await {
                     error!("❌ MSE WebSocket 服务器启动失败: {}", e);
                 } else {
-                    info!("✅ MSE WebSocket 服务器已就绪: ws://127.0.0.1:{}", mse_ws_port);
+                    info!("MSE WebSocket 服务器已就绪: ws://127.0.0.1:{}", mse_ws_port);
                 }
             });
-            info!("✅ MSE 流服务已就绪");
+            info!("MSE 流服务已就绪");
 
             // UDP视频服务器自动启动已移至媒体命令模块，可通过API手动启动
 
@@ -437,7 +437,7 @@ pub fn run() {
                         if let Err(e) = window.set_icon(icon_rgba.clone()) {
                             warn!("⚠️ 设置窗口图标失败: {}", e);
                         } else {
-                            info!("✅ Linux: 窗口图标已设置");
+                            info!("Linux: 窗口图标已设置");
                         }
                     } else {
                         warn!("⚠️ 未找到默认窗口图标");

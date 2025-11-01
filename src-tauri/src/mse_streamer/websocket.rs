@@ -14,7 +14,7 @@ pub async fn start_websocket_server(port: u16) -> Result<()> {
     let addr = format!("0.0.0.0:{}", port);
     let listener = match TcpListener::bind(&addr).await {
         Ok(listener) => {
-            log::info!("✅ MSE WebSocket 服务器绑定成功: {}", addr);
+            log::info!("MSE WebSocket 服务器绑定成功: {}", addr);
             log::info!("   可通过以下地址访问:");
             log::info!("   - ws://127.0.0.1:{}", port);
             log::info!("   - ws://localhost:{}", port);
@@ -53,7 +53,7 @@ async fn handle_websocket_connection(stream: TcpStream, peer: SocketAddr) {
         log::error!("WebSocket 客户端处理错误 ({}): {}", peer, e);
     }
 
-    log::info!("🔌 WebSocket 连接已断开: {}", peer);
+    log::info!("WebSocket 连接已断开: {}", peer);
 }
 
 /// 处理客户端请求

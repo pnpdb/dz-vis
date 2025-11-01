@@ -4,6 +4,8 @@
  * 延迟：1-2秒
  */
 
+import { info, warn, error, debug } from '@tauri-apps/plugin-log';
+
 /**
  * 检测浏览器支持的视频编解码器（调试工具）
  * 用法：在浏览器控制台运行 window.detectVideoCodecs()
@@ -13,7 +15,7 @@ export function detectVideoCodecSupport() {
         return {
             mseSupported: false,
             supportedCodecs: [],
-            message: '❌ 浏览器不支持 MSE (Media Source Extensions)'
+            message: '浏览器不支持 MSE (Media Source Extensions)'
         };
     }
 
@@ -37,31 +39,37 @@ export function detectVideoCodecSupport() {
 
     const supportedCodecs = allCodecs.filter(item => item.supported);
 
-    console.log('🎥 ========== 视频编解码器检测 ==========');
-    console.log('MSE 支持:', window.MediaSource ? '✅ 是' : '❌ 否');
-    console.log('\n支持的编解码器:');
+    // 同时输出到控制台和日志文件（诊断工具需要控制台可见）
+    const logBoth = (msg) => {
+        console.log(msg);
+        info(msg);
+    };
+
+    logBoth('========== 视频编解码器检测 ==========');
+    logBoth(`MSE 支持: ${window.MediaSource ? '是' : '否'}`);
+    logBoth('支持的编解码器:');
     supportedCodecs.forEach(item => {
-        console.log(`  ✅ ${item.name}`);
-        console.log(`     ${item.codec}`);
+        logBoth(`  ${item.name}`);
+        logBoth(`   ${item.codec}`);
     });
     
     const unsupportedCodecs = allCodecs.filter(item => !item.supported);
     if (unsupportedCodecs.length > 0) {
-        console.log('\n不支持的编解码器:');
+        logBoth('不支持的编解码器:');
         unsupportedCodecs.forEach(item => {
-            console.log(`  ❌ ${item.name}`);
-            console.log(`     ${item.codec}`);
+            logBoth(`  ${item.name}`);
+            logBoth(`  ${item.codec}`);
         });
     }
-    console.log('=========================================\n');
+    logBoth('=========================================');
 
     return {
         mseSupported: true,
         supportedCodecs,
         allCodecs,
         message: supportedCodecs.length > 0 
-            ? `✅ 支持 ${supportedCodecs.length}/${codecsToTest.length} 个编解码器` 
-            : '❌ 不支持任何测试的编解码器'
+            ? `支持 ${supportedCodecs.length}/${codecsToTest.length} 个编解码器` 
+            : '不支持任何测试的编解码器'
     };
 }
 
@@ -87,16 +95,18 @@ export class MsePlayer {
         this.updateEndHandler = null; // SourceBuffer updateend 处理器
         this.errorHandler = null; // SourceBuffer error 处理器
         this.hasStartedPlaying = false; // 标记是否已开始播放
+        this.liveStreamMonitor = null; // 实时流监控定时器
     }
 
     /**
      * 启动播放
      */
     async start() {
-        console.log('🎬 启动 MSE 播放器:', { cameraId: this.cameraId, wsUrl: this.wsUrl });
+        info(`启动 MSE 播放器 - 摄像头: ${this.cameraId}, URL: ${this.wsUrl}`);
 
         // 检查 MSE 基础支持
         if (!window.MediaSource) {
+            error('浏览器不支持 MSE (Media Source Extensions)');
             throw new Error('浏览器不支持 MSE (Media Source Extensions)');
         }
 
@@ -125,14 +135,13 @@ export class MsePlayer {
         }
         
         if (supportedCodec) {
-            console.log('✅ 使用编解码器:', supportedCodec);
-            console.log('📋 浏览器支持的所有编解码器:', supportedCodecs);
+            info(`使用编解码器: ${supportedCodec}`);
+            debug(`浏览器支持的所有编解码器: ${supportedCodecs.join(', ')}`);
         } else {
             const errorMsg = '浏览器不支持任何 H.264 编解码器配置';
-            console.error('❌', errorMsg);
-            console.error('已尝试的编解码器:', codecConfigs);
-            console.error('💡 请确保系统已安装 H.264 解码器：');
-            console.error('   Ubuntu: sudo apt install gstreamer1.0-plugins-bad gstreamer1.0-libav');
+            error(`${errorMsg}`);
+            error(`已尝试的编解码器: ${codecConfigs.join(', ')}`);
+            error('请确保系统已安装 H.264 解码器：Ubuntu: sudo apt install gstreamer1.0-plugins-bad gstreamer1.0-libav');
             throw new Error(errorMsg);
         }
 
@@ -151,7 +160,7 @@ export class MsePlayer {
             this.mediaSource.addEventListener('sourceopen', () => clearTimeout(timeout), { once: true });
         });
 
-        console.log('✅ MediaSource 已就绪');
+        info('MediaSource 已就绪');
 
         // 创建 SourceBuffer（使用检测到的编解码器）
         this.sourceBuffer = this.mediaSource.addSourceBuffer(supportedCodec);
@@ -164,16 +173,22 @@ export class MsePlayer {
             // 🎬 第一次接收到数据后，自动播放视频
             if (!this.hasStartedPlaying && this.video.buffered.length > 0) {
                 this.hasStartedPlaying = true;
-                console.log('🎬 开始播放视频');
+                info('开始播放视频');
+                
+                // 启动实时流监控（每秒检查一次）
+                this.startLiveStreamMonitor();
+                
                 this.video.play().catch(err => {
-                    console.warn('自动播放失败（可能需要用户交互）:', err);
+                    warn(`自动播放失败（可能需要用户交互）: ${err.message || err}`);
+                    // 尝试通过用户交互触发播放
+                    this.setupUserInteractionPlay();
                 });
             }
         };
         this.sourceBuffer.addEventListener('updateend', this.updateEndHandler);
 
         this.errorHandler = (e) => {
-            console.error('❌ SourceBuffer 错误:', e);
+            error(`SourceBuffer 错误: ${e}`);
         };
         this.sourceBuffer.addEventListener('error', this.errorHandler);
 
@@ -181,7 +196,7 @@ export class MsePlayer {
         await this.connectWebSocket();
 
         this.isReady = true;
-        console.log('✅ MSE 播放器已启动');
+        info('MSE 播放器已启动');
     }
 
     /**
@@ -189,25 +204,21 @@ export class MsePlayer {
      */
     async connectWebSocket() {
         return new Promise((resolve, reject) => {
-            console.log('🔌 连接 WebSocket:', this.wsUrl);
-            console.log('🔍 环境信息:', {
-                userAgent: navigator.userAgent,
-                location: window.location.href,
-                protocol: window.location.protocol
-            });
+            info(`连接 WebSocket: ${this.wsUrl}`);
+            debug(`环境信息: UA=${navigator.userAgent}, Location=${window.location.href}`);
 
             try {
                 this.ws = new WebSocket(this.wsUrl);
                 this.ws.binaryType = 'arraybuffer';
-                console.log('✅ WebSocket 对象已创建, readyState:', this.ws.readyState);
+                debug(`WebSocket 对象已创建, readyState: ${this.ws.readyState}`);
             } catch (e) {
-                console.error('❌ 创建 WebSocket 失败:', e);
+                error(`创建 WebSocket 失败: ${e.message || e}`);
                 reject(e);
                 return;
             }
 
             this.ws.onopen = () => {
-                console.log('✅ WebSocket 已连接, readyState:', this.ws.readyState);
+                info(`WebSocket 已连接, readyState: ${this.ws.readyState}`);
                 // 清理超时定时器
                 if (this.wsConnectTimeout) {
                     clearTimeout(this.wsConnectTimeout);
@@ -215,7 +226,7 @@ export class MsePlayer {
                 }
                 // 发送订阅消息
                 const subscribeMsg = { camera_id: this.cameraId };
-                console.log('📤 发送订阅消息:', subscribeMsg);
+                info(`发送订阅消息: camera_id=${this.cameraId}`);
                 this.ws.send(JSON.stringify(subscribeMsg));
             };
 
@@ -224,10 +235,10 @@ export class MsePlayer {
                     // JSON 消息（状态消息）
                     const msg = JSON.parse(event.data);
                     if (msg.status === 'ready') {
-                        console.log('✅ 流已就绪，开始接收数据');
+                        info('流已就绪，开始接收数据');
                         resolve();
                     } else if (msg.error) {
-                        console.error('❌ 服务器错误:', msg.error);
+                        error(`服务器错误: ${msg.error}`);
                         reject(new Error(msg.error));
                     }
                 } else {
@@ -236,13 +247,13 @@ export class MsePlayer {
                 }
             };
 
-            this.ws.onerror = (error) => {
+            this.ws.onerror = (errorEvent) => {
                 // 如果正在停止，静默处理错误（避免控制台误报）
                 if (this.isStopping) {
                     return;
                 }
-                console.error('❌ WebSocket 错误:', error);
-                reject(error);
+                error(`WebSocket 错误: ${errorEvent.type}`);
+                reject(errorEvent);
             };
 
             this.ws.onclose = (event) => {
@@ -254,7 +265,7 @@ export class MsePlayer {
                 
                 // 如果不是正在停止，才记录断开日志
                 if (!this.isStopping) {
-                    console.warn('🔌 WebSocket 意外断开, code:', event.code);
+                    warn(`🔌 WebSocket 意外断开, code: ${event.code}`);
                 }
             };
 
@@ -295,7 +306,7 @@ export class MsePlayer {
 
         // 🔍 队列过长检测（可能数据积压）
         if (this.queue.length > 100) {
-            console.warn(`⚠️ 数据队列积压: ${this.queue.length} 个片段，清理旧数据`);
+            warn(`数据队列积压: ${this.queue.length} 个片段，清理旧数据`);
             // 只保留最新的 50 个片段
             this.queue = this.queue.slice(-50);
         }
@@ -307,12 +318,12 @@ export class MsePlayer {
             this.isAppending = true;
             this.sourceBuffer.appendBuffer(chunk);
         } catch (e) {
-            console.error('❌ appendBuffer 失败:', e);
+            error(`appendBuffer 失败: ${e.message || e}`);
             this.isAppending = false;
             
             // 🔧 如果是 QuotaExceededError，尝试清理更多缓冲区
             if (e.name === 'QuotaExceededError') {
-                console.warn('⚠️ 缓冲区已满，尝试清理更多数据');
+                warn('缓冲区已满，尝试清理更多数据');
                 this.aggressiveCleanupBuffer();
             }
         }
@@ -322,7 +333,7 @@ export class MsePlayer {
     }
 
     /**
-     * 清理旧的 buffer 数据（保留最后 30 秒）
+     * 清理旧的 buffer 数据（实时流模式：保留最后 5-10 秒）
      */
     cleanupBuffer() {
         if (!this.sourceBuffer || this.sourceBuffer.updating) {
@@ -332,22 +343,23 @@ export class MsePlayer {
         const currentTime = this.video.currentTime;
         const buffered = this.sourceBuffer.buffered;
 
-        // 如果 buffer 范围超过 30 秒，清理旧数据
+        // 实时流模式：更激进的清理策略
         if (buffered.length > 0) {
             const bufferStart = buffered.start(0);
             const bufferEnd = buffered.end(buffered.length - 1);
             const bufferDuration = bufferEnd - bufferStart;
 
-            if (bufferDuration > 30 && currentTime - bufferStart > 15) {
+            // 如果 buffer 范围超过 10 秒，清理旧数据（实时流不需要太多历史）
+            if (bufferDuration > 10 && currentTime - bufferStart > 5) {
                 try {
-                    // 移除 15 秒之前的数据
-                    const removeEnd = currentTime - 15;
+                    // 只保留最近 5 秒的数据
+                    const removeEnd = currentTime - 5;
                     if (removeEnd > bufferStart) {
                         this.sourceBuffer.remove(bufferStart, removeEnd);
-                        console.debug('🧹 清理旧 buffer:', bufferStart.toFixed(2), '→', removeEnd.toFixed(2));
+                        debug(`清理旧 buffer: ${bufferStart.toFixed(2)} → ${removeEnd.toFixed(2)}`);
                     }
                 } catch (e) {
-                    console.warn('清理 buffer 失败:', e);
+                    warn(`清理 buffer 失败: ${e.message || e}`);
                 }
             }
         }
@@ -376,19 +388,98 @@ export class MsePlayer {
                 // 移除前面的数据
                 if (keepStart > bufferStart) {
                     this.sourceBuffer.remove(bufferStart, keepStart);
-                    console.warn('🧹 激进清理前部:', bufferStart.toFixed(2), '→', keepStart.toFixed(2));
+                    warn(`🧹 激进清理前部: ${bufferStart.toFixed(2)} → ${keepStart.toFixed(2)}`);
                 }
             } catch (e) {
-                console.error('激进清理失败:', e);
+                error(`激进清理失败: ${e.message || e}`);
             }
         }
+    }
+
+    /**
+     * 启动实时流监控（检测卡顿并自动跳到最新帧）
+     */
+    startLiveStreamMonitor() {
+        // 清理旧的监控定时器
+        if (this.liveStreamMonitor) {
+            clearInterval(this.liveStreamMonitor);
+        }
+
+        this.liveStreamMonitor = setInterval(() => {
+            if (this.video.paused || !this.video.buffered || this.video.buffered.length === 0) {
+                return;
+            }
+
+            const currentTime = this.video.currentTime;
+            const buffered = this.video.buffered;
+            const bufferEnd = buffered.end(buffered.length - 1);
+            const latency = bufferEnd - currentTime;
+
+            // 🔍 如果延迟超过 2 秒，跳到最新帧（实时流模式）
+            if (latency > 2.0) {
+                warn(`实时流延迟过大: ${latency.toFixed(2)}s，跳到最新帧`);
+                this.video.currentTime = bufferEnd - 0.1; // 跳到最新位置（留0.1s缓冲）
+            }
+
+            // 🔍 如果视频卡住不动（currentTime 长时间不变）
+            if (this.lastCurrentTime !== undefined && 
+                Math.abs(currentTime - this.lastCurrentTime) < 0.01 && 
+                !this.video.paused &&
+                latency > 0.5) {
+                warn(`视频卡顿检测，当前时间: ${currentTime.toFixed(2)}s，缓冲区末端: ${bufferEnd.toFixed(2)}s`);
+                
+                // 尝试跳过卡住的帧
+                this.video.currentTime = Math.min(currentTime + 0.1, bufferEnd - 0.1);
+                
+                // 如果还是卡住，强制重新播放
+                if (this.video.paused) {
+                    this.video.play().catch(err => {
+                        error(`重新播放失败: ${err.message || err}`);
+                    });
+                }
+            }
+
+            this.lastCurrentTime = currentTime;
+
+            // 定期输出调试信息
+            if (Math.random() < 0.1) { // 10% 概率输出（避免刷屏）
+                debug(`视频状态: 当前=${currentTime.toFixed(2)}s, 缓冲=${bufferEnd.toFixed(2)}s, 延迟=${latency.toFixed(2)}s, 暂停=${this.video.paused}`);
+            }
+        }, 1000); // 每秒检查一次
+
+        info('实时流监控已启动');
+    }
+
+    /**
+     * 设置用户交互播放（当自动播放被浏览器阻止时）
+     */
+    setupUserInteractionPlay() {
+        const playOnClick = () => {
+            this.video.play().then(() => {
+                info('用户交互后播放成功');
+                document.removeEventListener('click', playOnClick);
+                document.removeEventListener('touchstart', playOnClick);
+            }).catch(err => {
+                error(`用户交互后播放仍然失败: ${err.message || err}`);
+            });
+        };
+
+        document.addEventListener('click', playOnClick, { once: true });
+        document.addEventListener('touchstart', playOnClick, { once: true });
+        info('等待用户交互以开始播放...');
     }
 
     /**
      * 停止播放并清理资源（防止内存泄漏）
      */
     stop() {
-        console.debug('🛑 停止 MSE 播放器');
+        debug('停止 MSE 播放器');
+
+        // 清理实时流监控
+        if (this.liveStreamMonitor) {
+            clearInterval(this.liveStreamMonitor);
+            this.liveStreamMonitor = null;
+        }
 
         // 首先标记正在停止（让所有错误处理器静默）
         this.isStopping = true;
@@ -445,7 +536,7 @@ export class MsePlayer {
                 }
                 this.mediaSource.endOfStream();
             } catch (e) {
-                console.warn('清理 MediaSource 失败:', e);
+                warn(`清理 MediaSource 失败: ${e.message || e}`);
             }
         }
 
@@ -464,13 +555,13 @@ export class MsePlayer {
             }
         }
 
-        // ⚠️ 关键：撤销 Object URL 以释放内存
+        // 关键：撤销 Object URL 以释放内存
         if (this.objectUrl) {
             URL.revokeObjectURL(this.objectUrl);
             this.objectUrl = null;
         }
 
-        console.debug('✅ MSE 播放器已停止，所有资源已清理');
+        debug('MSE 播放器已停止，所有资源已清理');
     }
 }
 

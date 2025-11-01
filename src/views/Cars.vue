@@ -1,29 +1,29 @@
 <template>
     <div class="floating-vehicle-panel-wrapper">
-        <div class="floating-vehicle-panel">
-            <div class="panel-header">
-                <div class="panel-icon">
-                    <fa icon="car-side" />
-                </div>
-                <h2 class="panel-title">车辆信息</h2>
-                <div class="panel-status">
-                    <StatusIndicator 
-                        :status="vehicleStatus" 
-                        :show-label="false" 
-                        size="medium"
-                        title="车辆状态"
-                    />
-                </div>
+    <div class="floating-vehicle-panel">
+        <div class="panel-header">
+            <div class="panel-icon">
+                <fa icon="car-side" />
             </div>
+            <h2 class="panel-title">车辆信息</h2>
+            <div class="panel-status">
+                <StatusIndicator 
+                    :status="vehicleStatus" 
+                    :show-label="false" 
+                    size="medium"
+                    title="车辆状态"
+                />
+            </div>
+        </div>
 
-            <!-- 车载摄像头 -->
-            <CarCamera />
+        <!-- 车载摄像头 -->
+        <CarCamera />
 
-            <!-- 车辆信息 -->
-            <CarInfo :carInfo="selectedCar" :online="vehicleStatus === 'online'" />
+        <!-- 车辆信息 -->
+        <CarInfo :carInfo="selectedCar" :online="vehicleStatus === 'online'" />
 
-            <!-- 传感器 -->
-            <Sensor :carInfo="selectedCar" :online="vehicleStatus === 'online'" />
+        <!-- 传感器 -->
+        <Sensor :carInfo="selectedCar" :online="vehicleStatus === 'online'" />
         </div>
     </div>
 </template>

@@ -389,7 +389,7 @@ const startVideoStream = async (camera) => {
         return;
     }
 
-    try { await plInfo(`🎥 开始连接摄像头: ${camera.name} (${camera.camera_type})`); } catch (_) {}
+    try { await plInfo(`开始连接摄像头: ${camera.name} (${camera.camera_type})`); } catch (_) {}
     
     // 设置加载状态
     isLoading.value = true;
@@ -529,8 +529,12 @@ const startRTSPCamera = async (camera) => {
         throw new Error('RTSP地址不能为空');
     }
 
+    // 问题3修复：在外部作用域保存监听器引用，确保异常情况下也能清理
+    let canPlayHandler = null;
+    let errorHandler = null;
+
     try {
-        try { await plInfo(`🎥 启动 MSE 流: ${camera.rtsp_url}`); } catch (_) {}
+        try { await plInfo(`启动 MSE 流: ${camera.rtsp_url}`); } catch (_) {}
         
         // 标记正在建立连接
         isConnectingWebRTC.value = true;
@@ -564,16 +568,20 @@ const startRTSPCamera = async (camera) => {
         
         console.log('✅ MSE 播放器已启动，等待视频数据...');
         
-        // 清理事件监听器的辅助函数
+        // 清理事件监听器的辅助函数（确保清理外部作用域的引用）
         const cleanupVideoListeners = () => {
-            if (videoRef.value) {
-                videoRef.value.removeEventListener('canplay', onCanPlay);
-                videoRef.value.removeEventListener('error', onError);
+            if (videoRef.value && canPlayHandler) {
+                videoRef.value.removeEventListener('canplay', canPlayHandler);
+                canPlayHandler = null;
+            }
+            if (videoRef.value && errorHandler) {
+                videoRef.value.removeEventListener('error', errorHandler);
+                errorHandler = null;
             }
         };
         
-        // 监听视频真正可以播放的事件
-        const onCanPlay = () => {
+        // 定义监听器函数
+        canPlayHandler = () => {
             console.log('🎬 视频数据已就绪');
             cleanupVideoListeners(); // 清理所有监听器
             
@@ -582,15 +590,16 @@ const startRTSPCamera = async (camera) => {
             isLoading.value = false;
         };
         
-        const onError = (e) => {
+        errorHandler = (e) => {
             console.error('❌ 视频播放错误:', e);
             cleanupVideoListeners(); // 清理所有监听器
         };
         
-        videoRef.value.addEventListener('canplay', onCanPlay);
-        videoRef.value.addEventListener('error', onError);
+        // 添加监听器
+        videoRef.value.addEventListener('canplay', canPlayHandler);
+        videoRef.value.addEventListener('error', errorHandler);
         
-        // 保存清理函数以便在 catch 块中使用
+        // 保存清理函数以便在 catch 块和 stopVideoStream 中使用
         videoRef.value._mseCleanupListeners = cleanupVideoListeners;
         
         // 连接成功，清除标志
@@ -605,9 +614,19 @@ const startRTSPCamera = async (camera) => {
         console.debug('🧹 清理失败连接的资源...');
         
         try {
-            // 清理 video 事件监听器（如果已添加）
+            // 问题3修复：确保在异常时也清理监听器（使用外部作用域的引用）
+            if (canPlayHandler && videoRef.value) {
+                videoRef.value.removeEventListener('canplay', canPlayHandler);
+                canPlayHandler = null;
+                console.debug('  🧹 清理 canplay 监听器');
+            }
+            if (errorHandler && videoRef.value) {
+                videoRef.value.removeEventListener('error', errorHandler);
+                errorHandler = null;
+                console.debug('  🧹 清理 error 监听器');
+            }
+            // 同时尝试通过 _mseCleanupListeners 清理（双重保护）
             if (videoRef.value && videoRef.value._mseCleanupListeners) {
-                console.debug('  🧹 清理 video 事件监听器');
                 videoRef.value._mseCleanupListeners();
                 delete videoRef.value._mseCleanupListeners;
             }

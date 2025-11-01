@@ -381,11 +381,38 @@ class ProtocolProcessor {
                 callback(summary)
             }
         }, intervalMs)
+        
+        // 追踪活跃的监控定时器（防止内存泄漏）
+        if (!this.activeMonitoringTimers) {
+            this.activeMonitoringTimers = new Set();
+        }
+        this.activeMonitoringTimers.add(intervalId);
 
         return () => {
             clearInterval(intervalId)
+            if (this.activeMonitoringTimers) {
+                this.activeMonitoringTimers.delete(intervalId);
+            }
             console.log('📊 协议处理性能监控已停止')
         }
+    }
+    
+    /**
+     * 销毁处理器，清理所有资源
+     */
+    destroy() {
+        // 清理所有活跃的监控定时器
+        if (this.activeMonitoringTimers && this.activeMonitoringTimers.size > 0) {
+            this.activeMonitoringTimers.forEach(timerId => {
+                clearInterval(timerId);
+            });
+            this.activeMonitoringTimers.clear();
+            console.log('✅ ProtocolProcessor 监控定时器已清理');
+        }
+        
+        // 清理统计数据
+        this.stats = null;
+        this.supportedTypes = null;
     }
 }
 

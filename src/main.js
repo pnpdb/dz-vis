@@ -52,7 +52,7 @@ if (Environment.isTauri()) {
         // 预加载消息类型配置（统一前后端定义）
         try {
             await loadMessageTypesConfig();
-            await jsInfo('✅ 消息类型配置已从Rust后端加载');
+            await jsInfo('消息类型配置已从Rust后端加载');
         } catch (e) {
             await jsWarn(`消息类型配置加载失败，使用默认配置: ${e}`);
         }
@@ -207,6 +207,24 @@ window.addEventListener('beforeunload', () => {
     if (window.__videoProcessorCleanup) {
         window.__videoProcessorCleanup();
     }
+    
+    // 清理 ProtocolProcessor
+    try {
+        import('@/utils/protocolProcessor.js').then(({ default: protocolProcessor }) => {
+            if (protocolProcessor && protocolProcessor.destroy) {
+                protocolProcessor.destroy();
+            }
+        }).catch(() => {});
+    } catch (e) {}
+    
+    // 清理 VideoStreamManager
+    try {
+        import('@/utils/videoStreamManager.js').then(({ videoStreamManager }) => {
+            if (videoStreamManager && videoStreamManager.destroy) {
+                videoStreamManager.destroy();
+            }
+        }).catch(() => {});
+    } catch (e) {}
     
     // 清理 Logger
     if (logger && logger.cleanup) {

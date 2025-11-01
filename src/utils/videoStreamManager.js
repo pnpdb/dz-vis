@@ -249,6 +249,40 @@ class VideoStreamManager {
       } catch (_) {}
     }
   }
+  
+  /**
+   * 销毁管理器，清理所有资源
+   */
+  destroy() {
+    // 清理所有车辆的定时器
+    const allVehicleIds = Array.from(this.subscribers.keys());
+    allVehicleIds.forEach(id => {
+      this.cleanupVehicle(id);
+    });
+    
+    // 清理所有订阅者
+    this.subscribers.clear();
+    
+    // 清理监听器
+    if (this.unlisten) {
+      this.unlisten();
+      this.unlisten = null;
+    }
+    
+    // 清理所有 Blob URL
+    for (const blobUrl of this.lastBlobUrls.values()) {
+      URL.revokeObjectURL(blobUrl);
+    }
+    this.lastBlobUrls.clear();
+    
+    // 清理其他资源
+    this.frameCounts.clear();
+    this.lastFrameTimestamps.clear();
+    this.activeVehicleId = null;
+    this.udpServerPromise = null;
+    
+    console.log('✅ VideoStreamManager 资源已清理');
+  }
 }
 
 export const videoStreamManager = new VideoStreamManager();

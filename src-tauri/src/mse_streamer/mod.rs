@@ -41,14 +41,14 @@ impl MseStreamer {
         // 尝试每个路径
         for path in possible_paths {
             if Self::check_ffmpeg_exists(path) {
-                log::info!("✅ 找到 FFmpeg: {}", path);
+                log::info!("找到 FFmpeg: {}", path);
                 return path.to_string();
             }
         }
 
         // 如果都找不到，返回默认值并记录警告
-        log::warn!("⚠️ 未找到 FFmpeg，使用默认值 'ffmpeg'（可能失败）");
-        log::warn!("💡 请安装 FFmpeg: sudo apt install ffmpeg");
+        log::warn!("未找到 FFmpeg，使用默认值 'ffmpeg'（可能失败）");
+        log::warn!("请安装 FFmpeg: sudo apt install ffmpeg");
         "ffmpeg".to_string()
     }
 
@@ -66,7 +66,7 @@ impl MseStreamer {
         // 停止旧流（如果存在）
         self.stop_stream(camera_id).await;
 
-        log::info!("📡 启动 MSE 流: camera_id={}, rtsp_url={}", camera_id, rtsp_url);
+        log::info!("启动 MSE 流: camera_id={}, rtsp_url={}", camera_id, rtsp_url);
 
         // 创建广播通道（容量 100 个 fMP4 片段）
         let (tx, _rx) = broadcast::channel::<Vec<u8>>(100);
@@ -79,7 +79,7 @@ impl MseStreamer {
 
         // 查找 FFmpeg 可执行文件（尝试多个可能的路径）
         let ffmpeg_path = Self::find_ffmpeg_executable();
-        log::info!("🔍 使用 FFmpeg 路径: {}", ffmpeg_path);
+        log::info!("使用 FFmpeg 路径: {}", ffmpeg_path);
 
         // 启动 FFmpeg：RTSP → fMP4 (stdout)
         let mut ffmpeg_cmd = Command::new(&ffmpeg_path);
@@ -139,7 +139,7 @@ impl MseStreamer {
         };
 
         let pid = child.id().unwrap_or(0);
-        log::info!("✅ FFmpeg 已启动: PID={} (路径: {})", pid, ffmpeg_path);
+        log::info!("FFmpeg 已启动: PID={} (路径: {})", pid, ffmpeg_path);
 
         // 获取 stdout 和 stderr
         let stdout = child.stdout.take().context("无法获取 FFmpeg stdout")?;
@@ -206,7 +206,7 @@ impl MseStreamer {
 
     /// 停止流
     pub async fn stop_stream(&self, camera_id: u32) {
-        log::info!("🛑 停止 MSE 流: camera_id={}", camera_id);
+        log::info!("停止 MSE 流: camera_id={}", camera_id);
 
         // 1. 先停止 FFmpeg 进程（避免 Broken pipe 错误）
         {
@@ -214,7 +214,7 @@ impl MseStreamer {
             if let Some(mut child) = processes.remove(&camera_id) {
                 let _ = child.kill().await;
                 let _ = child.wait().await;
-                log::info!("✅ FFmpeg 进程已停止 (camera_id={})", camera_id);
+                log::info!("FFmpeg 进程已停止 (camera_id={})", camera_id);
             }
         }
 

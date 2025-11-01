@@ -84,6 +84,7 @@ const frameInterval = 1000 / targetFPS;
 // 定时器追踪（防止内存泄漏）
 let performanceAdjustTimer = null;
 let batchProcessingTimers = [];
+let sceneInitTimers = []; // 追踪场景初始化相关的定时器
 
 // 场景组织
 let sceneGroup = null;
@@ -2615,9 +2616,23 @@ export const destroyScene = () => {
         performanceAdjustTimer = null;
     }
     
-    // 清理所有批处理定时器
-    batchProcessingTimers.forEach(timer => clearTimeout(timer));
+    // 清理所有批处理定时器（问题2修复：添加安全检查）
+    if (batchProcessingTimers && batchProcessingTimers.length > 0) {
+        batchProcessingTimers.forEach(timer => {
+            if (timer) clearTimeout(timer);
+        });
+        console.log('✅ 批处理定时器已清理');
+    }
     batchProcessingTimers = [];
+    
+    // 清理场景初始化定时器（问题4修复：新增）
+    if (sceneInitTimers && sceneInitTimers.length > 0) {
+        sceneInitTimers.forEach(timer => {
+            if (timer) clearTimeout(timer);
+        });
+        console.log('✅ 场景初始化定时器已清理');
+    }
+    sceneInitTimers = [];
     
     // ============ 清理所有事件监听器 ============
     

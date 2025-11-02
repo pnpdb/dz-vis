@@ -126,6 +126,9 @@ async function initializeApp() {
         const { useCarStore } = await import('./stores/car.js');
         const carStore = useCarStore();
         
+        // 🚀 初始化Store（启动定期清理任务）
+        carStore.init();
+        
         // 加载车辆连接数据
         await jsInfo('正在加载车辆连接数据');
         await carStore.loadVehicleConnections();
@@ -195,6 +198,16 @@ window.addEventListener('beforeunload', () => {
     try {
         import('@/components/Scene3D/pathRenderer.js').then(({ destroyPathRenderer }) => {
             if (destroyPathRenderer) destroyPathRenderer();
+        }).catch(() => {});
+    } catch (e) {}
+    
+    // 清理 CarStore（停止定期清理任务）
+    try {
+        import('@/stores/car.js').then(({ useCarStore }) => {
+            const carStore = useCarStore();
+            if (carStore && carStore.destroy) {
+                carStore.destroy();
+            }
         }).catch(() => {});
     } catch (e) {}
     

@@ -14,6 +14,41 @@ const throttledVehicleStateUpdate = throttle((data) => {
     eventBus.emit(EVENTS.VEHICLE_STATE_UPDATED, data);
 }, 50); // 每50ms最多触发一次
 
+// 🧹 定期清理任务：防止内存泄漏
+let cleanupInterval = null;
+
+// 启动定期清理任务（在Store初始化后调用）
+const startCleanupTask = (store) => {
+    if (cleanupInterval) {
+        return; // 已经启动
+    }
+    
+    // 每2分钟执行一次清理
+    cleanupInterval = setInterval(() => {
+        try {
+            store.cleanupIdleVehicles();
+        } catch (error) {
+            console.error('定期清理任务执行失败:', error);
+        }
+    }, 2 * 60 * 1000); // 2分钟
+    
+    console.log('✅ 车辆状态定期清理任务已启动 (每2分钟)');
+};
+
+// 停止定期清理任务
+const stopCleanupTask = () => {
+    if (cleanupInterval) {
+        clearInterval(cleanupInterval);
+        cleanupInterval = null;
+        console.log('🛑 车辆状态定期清理任务已停止');
+    }
+};
+
+// 确保应用关闭时停止清理任务
+if (typeof window !== 'undefined') {
+    window.addEventListener('beforeunload', stopCleanupTask);
+}
+
 export const useCarStore = defineStore('car', {
     state: () => ({
         filePath,
@@ -59,6 +94,24 @@ export const useCarStore = defineStore('car', {
         },
     },
     actions: {
+        // ========== 初始化和清理 ==========
+        
+        /**
+         * 初始化Store（启动定期清理任务）
+         * 应该在应用启动时调用一次
+         */
+        init() {
+            startCleanupTask(this);
+        },
+        
+        /**
+         * 销毁Store（停止定期清理任务）
+         * 应该在应用关闭时调用
+         */
+        destroy() {
+            stopCleanupTask();
+        },
+        
         changeCarId(id) {
             this.selectedCarId = parseVehicleId(id);
         },
@@ -302,11 +355,7 @@ export const useCarStore = defineStore('car', {
             const now = Date.now();
             const vehiclesToRemove = [];
             
-            // 检查是否超过最大车辆数
-            if (this.vehicles.size <= this.maxVehicles) {
-                return;
-            }
-            
+            // 🚀 优化：始终清理超时的离线车辆，不只在超过最大数量时
             // 找出需要清理的车辆
             for (const [vehicleId, state] of this.vehicles.entries()) {
                 // 只清理离线车辆
@@ -318,23 +367,45 @@ export const useCarStore = defineStore('car', {
                 }
             }
             
-            // 按最后活跃时间排序，优先删除最久未活动的
-            vehiclesToRemove.sort((a, b) => {
-                const timeA = this.vehicles.get(a)?.connection.lastSeen || 0;
-                const timeB = this.vehicles.get(b)?.connection.lastSeen || 0;
-                return timeA - timeB;
-            });
-            
-            // 删除车辆，直到数量低于阈值
-            const targetSize = Math.floor(this.maxVehicles * 0.8); // 清理到80%
-            let removed = 0;
-            
-            for (const vehicleId of vehiclesToRemove) {
-                if (this.vehicles.size <= targetSize) {
-                    break;
+            // 如果超过最大车辆数，额外清理最久未活动的离线车辆
+            if (this.vehicles.size > this.maxVehicles) {
+                // 按最后活跃时间排序，优先删除最久未活动的
+                const offlineVehicles = [];
+                for (const [vehicleId, state] of this.vehicles.entries()) {
+                    if (!state.connection.isOnline && !vehiclesToRemove.includes(vehicleId)) {
+                        offlineVehicles.push({
+                            id: vehicleId,
+                            lastSeen: state.connection.lastSeen || 0
+                        });
+                    }
                 }
                 
+                offlineVehicles.sort((a, b) => a.lastSeen - b.lastSeen);
+                
+                // 添加到删除列表，直到数量低于阈值
+                const targetSize = Math.floor(this.maxVehicles * 0.8); // 清理到80%
+                const needed = this.vehicles.size - targetSize - vehiclesToRemove.length;
+                for (let i = 0; i < Math.min(needed, offlineVehicles.length); i++) {
+                    vehiclesToRemove.push(offlineVehicles[i].id);
+                }
+            }
+            
+            // 执行删除并触发场景清理
+            let removed = 0;
+            for (const vehicleId of vehiclesToRemove) {
                 this.vehicles.delete(vehicleId);
+                
+                // 🧹 同时清理3D场景中的车辆模型和路径
+                try {
+                    import('@/components/Scene3D/index.js').then(({ removeVehicle }) => {
+                        if (removeVehicle) removeVehicle(vehicleId);
+                    }).catch(() => {});
+                    
+                    import('@/components/Scene3D/pathRenderer.js').then(({ removePath }) => {
+                        if (removePath) removePath(vehicleId);
+                    }).catch(() => {});
+                } catch (e) {}
+                
                 removed++;
                 console.info(`🧹 清理闲置车辆: ${vehicleId}`);
             }

@@ -144,43 +144,75 @@ const createVehicleLabel = (vehicleId, color = '#409EFF') => {
     
     // 将车辆颜色调暗作为背景色（使用 Three.js Color 类处理）
     const threeColor = new Color(color);
-    threeColor.multiplyScalar(0.6); // 将颜色调暗到原来的 60%
+    threeColor.multiplyScalar(0.4); // 将颜色调暗到原来的 40%（更深）
     const darkerColor = '#' + threeColor.getHexString();
     
-    // 绘制背景（带圆角矩形）
+    // 绘制背景（带圆角矩形 + 底部尖角，类似对话气泡）
     context.fillStyle = darkerColor;
-    context.globalAlpha = 0.95; // 背景透明度（提高不透明度让颜色更深）
+    context.globalAlpha = 1.0; // 背景完全不透明，显得更深
     const radius = 20;
     const x = 10;
     const y = 10;
     const width = canvas.width - 20;
-    const height = canvas.height - 20;
+    const height = canvas.height - 40; // 留出空间给底部尖角
+    const tipWidth = 30; // 尖角宽度
+    const tipHeight = 25; // 尖角高度
     
     context.beginPath();
+    // 顶部左圆角
+    context.moveTo(x + radius, y);
+    // 顶部边
+    context.lineTo(x + width - radius, y);
+    // 顶部右圆角
+    context.quadraticCurveTo(x + width, y, x + width, y + radius);
+    // 右侧边
+    context.lineTo(x + width, y + height - radius);
+    // 底部右圆角
+    context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    // 底部边到尖角右侧
+    context.lineTo(x + width / 2 + tipWidth / 2, y + height);
+    // 绘制底部尖角（三角形）
+    context.lineTo(x + width / 2, y + height + tipHeight); // 尖角顶点
+    context.lineTo(x + width / 2 - tipWidth / 2, y + height); // 尖角左侧
+    // 底部边到左侧
+    context.lineTo(x + radius, y + height);
+    // 底部左圆角
+    context.quadraticCurveTo(x, y + height, x, y + height - radius);
+    // 左侧边
+    context.lineTo(x, y + radius);
+    // 顶部左圆角
+    context.quadraticCurveTo(x, y, x + radius, y);
+    context.closePath();
+    context.fill();
+    
+    // 绘制边框（同样包含尖角）
+    context.strokeStyle = '#FFFFFF';
+    context.lineWidth = 4;
+    context.globalAlpha = 1.0;
+    context.beginPath();
+    // 重新绘制一遍相同的路径用于描边
     context.moveTo(x + radius, y);
     context.lineTo(x + width - radius, y);
     context.quadraticCurveTo(x + width, y, x + width, y + radius);
     context.lineTo(x + width, y + height - radius);
     context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    context.lineTo(x + width / 2 + tipWidth / 2, y + height);
+    context.lineTo(x + width / 2, y + height + tipHeight);
+    context.lineTo(x + width / 2 - tipWidth / 2, y + height);
     context.lineTo(x + radius, y + height);
     context.quadraticCurveTo(x, y + height, x, y + height - radius);
     context.lineTo(x, y + radius);
     context.quadraticCurveTo(x, y, x + radius, y);
     context.closePath();
-    context.fill();
-    
-    // 绘制边框
-    context.strokeStyle = '#FFFFFF';
-    context.lineWidth = 4;
-    context.globalAlpha = 1.0;
     context.stroke();
     
-    // 绘制文字
+    // 绘制文字（在矩形主体中央，不包括尖角部分）
     context.fillStyle = '#FFFFFF';
     context.font = 'bold 60px Arial, sans-serif';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillText(`${vehicleId}`, canvas.width / 2, canvas.height / 2);
+    const textY = y + height / 2; // 在矩形主体（不含尖角）的垂直中央
+    context.fillText(`${vehicleId}`, canvas.width / 2, textY);
     
     // 创建纹理
     const texture = new CanvasTexture(canvas);
@@ -198,7 +230,7 @@ const createVehicleLabel = (vehicleId, color = '#409EFF') => {
     // 创建 Sprite
     const sprite = new Sprite(spriteMaterial);
     sprite.name = `VehicleLabel_${vehicleId}`;
-    sprite.scale.set(0.15, 0.1, 1); // 调整标签大小，保持合适的显示效果
+    sprite.scale.set(0.15, 0.12, 1); // 调整标签大小，保持合适的显示效果
     
     return sprite;
 };
@@ -260,7 +292,7 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
         // 🏷️ 创建并添加车辆编号标签（显示在车辆头顶）
         const vehicleLabel = createVehicleLabel(vehicleId, color);
         // 将标签放置在车辆上方（相对于车辆容器的局部坐标）
-        vehicleLabel.position.set(0, 0.25, 0);  // Y轴向上，调整高度使其悬浮在车顶上方
+        vehicleLabel.position.set(0, 0.22, 0);  // Y轴向上，调整高度使尖角刚好指向车顶
         vehicleModel.add(vehicleLabel);
         
         // 获取沙盘模型以计算道路表面高度

@@ -698,9 +698,19 @@ class TestClient:
     def disconnect(self):
         """断开连接"""
         self.running = False
+        # 🔧 修复：高频模式下需要等待发送线程完全停止
+        import time as time_module
+        time_module.sleep(0.1)  # 等待100ms，确保发送线程检测到running=False并停止
+        
         if self.socket:
-            self.socket.close()
-            print("🔌 已断开连接")
+            try:
+                # 🔧 修复：立即关闭连接的读写端，确保服务端能快速检测到断开
+                self.socket.shutdown(socket.SHUT_RDWR)
+            except Exception as e:
+                print(f"⚠️ 关闭socket读写端失败（可能已断开）: {e}")
+            finally:
+                self.socket.close()
+                print("🔌 已断开连接")
         
     def send_message(self, message_type, data):
         """发送消息"""

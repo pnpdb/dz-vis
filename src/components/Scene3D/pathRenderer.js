@@ -238,7 +238,7 @@ function removePath(vehicleId) {
 /**
  * 获取车辆颜色
  * @param {number} vehicleId - 车辆ID
- * @returns {number} 颜色值（十六进制）
+ * @returns {string} 颜色值（十六进制字符串，如 "#FF0000"）
  */
 function getVehicleColor(vehicleId) {
     try {
@@ -246,22 +246,26 @@ function getVehicleColor(vehicleId) {
         const { useCarStore } = require('@/stores/car.js');
         const carStore = useCarStore();
         
-        const vehicle = carStore.vehicles.find(v => v.id === vehicleId);
-        if (vehicle && vehicle.color) {
-            const colorStr = vehicle.color.replace('#', '');
-            return parseInt(colorStr, 16);
+        // 🐛 修复：从 carList 数组而不是 vehicles Map 获取颜色
+        if (carStore.carList && Array.isArray(carStore.carList)) {
+            const vehicle = carStore.carList.find(v => v.id === vehicleId || v.vehicleId === vehicleId);
+            if (vehicle && vehicle.color) {
+                // 确保返回十六进制格式
+                return vehicle.color.startsWith('#') ? vehicle.color : `#${vehicle.color}`;
+            }
         }
     } catch (error) {
         // Scene3D 上下文中无法访问 store，使用默认颜色
+        logger.warn(`无法从store获取车辆 ${vehicleId} 的颜色，使用默认颜色:`, error.message);
     }
     
-    // 默认颜色：根据车辆ID分配
+    // 默认颜色：根据车辆ID分配（返回十六进制字符串）
     const defaultColors = [
-        0x00FF00, 0x0080FF, 0xFF8000, 0xFF00FF,
-        0xFFFF00, 0x00FFFF, 0xFF0080, 0x80FF00
+        '#00FF00', '#0080FF', '#FF8000', '#FF00FF',
+        '#FFFF00', '#00FFFF', '#FF0080', '#80FF00'
     ];
     
-    return defaultColors[(vehicleId - 1) % defaultColors.length] || 0x00FF00;
+    return defaultColors[(vehicleId - 1) % defaultColors.length] || '#00FF00';
 }
 
 /**

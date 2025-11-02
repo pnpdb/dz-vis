@@ -18,15 +18,7 @@
                 <div class="camera-desc">{{ cameraEnabled ? '等待视频信号...' : '摄像头已关闭' }}</div>
             </div>
         </div>
-        <div class="camera-controls">
-            <!-- 注释掉连接/断开摄像头按钮，因为右上角已有滑块按钮可以使用 -->
-            <!-- <button class="btn btn-secondary">
-                <fa icon="camera" /> 连接/断开摄像头
-            </button> -->
-            <button v-if="showParallelDrivingBtn" class="btn btn-primary" @click="requestParallelDriving">
-                <fa icon="gamepad" /> 平行驾驶
-            </button>
-        </div>
+        <!-- 🚀 移除了平行驾驶按钮，已移至Cars.vue中独立显示 -->
     </div>
 </template>
 
@@ -46,7 +38,6 @@ const videoSrc = ref('')
 const lastFrameTime = ref(0)
 const videoImg = ref(null)
 const aspectRatio = ref(4 / 3)
-const showParallelDrivingBtn = ref(true) // 默认显示平行驾驶按钮
 
 const cameraEnabled = computed(() => carStore.cameraEnabled)
 const currentRouteName = computed(() => router.currentRoute.value?.name)
@@ -142,16 +133,7 @@ const handleTimeout = ({ vehicleId }) => {
   }
 }
 
-const requestParallelDriving = () => {
-  if (!currentVehicleId.value) {
-    Toast.warning('请先选择车辆')
-    return
-  }
-  router.push({
-    name: 'ParallelDriving',
-    query: { vehicleId: currentVehicleId.value }
-  })
-}
+// 🚀 已移除 requestParallelDriving 方法，平行驾驶按钮已移至Cars.vue
 
 watch(cameraEnabled, (enabled) => {
   if (enabled && isRouteVisible.value) {
@@ -232,41 +214,17 @@ watch(currentVehicleId, async (newVehicleId, oldVehicleId) => {
   }
 })
 
-// 加载平行驾驶按钮显示设置
-const loadParallelDrivingSettings = async () => {
-  try {
-    const result = await invoke('get_menu_visibility_settings')
-    if (result) {
-      showParallelDrivingBtn.value = result.show_parallel_driving ?? true
-      console.log('✅ 平行驾驶按钮显示设置加载成功:', showParallelDrivingBtn.value)
-    }
-  } catch (error) {
-    console.error('❌ 加载平行驾驶按钮显示设置失败:', error)
-    // 加载失败时保持默认显示
-    showParallelDrivingBtn.value = true
-  }
-}
-
-// 监听菜单设置变化
-const handleMenuVisibilityChanged = (settings) => {
-  if (settings && typeof settings.show_parallel_driving === 'boolean') {
-    showParallelDrivingBtn.value = settings.show_parallel_driving
-    console.log('✅ 平行驾驶按钮显示状态已更新:', showParallelDrivingBtn.value)
-  }
-}
+// 🚀 已移除平行驾驶按钮相关的设置加载代码
 
 onMounted(() => {
   updateVideoReceiver()
-  loadParallelDrivingSettings()
   eventBus.on(EVENTS.VIDEO_STREAM_TIMEOUT, handleTimeout)
-  eventBus.on(EVENTS.MENU_VISIBILITY_CHANGED, handleMenuVisibilityChanged)
   window.socketManager?.enforceCameraStatesOnShow?.(currentVehicleId.value)
 })
 
 onBeforeUnmount(() => {
   unsubscribeVideo()
   eventBus.off(EVENTS.VIDEO_STREAM_TIMEOUT, handleTimeout)
-  eventBus.off(EVENTS.MENU_VISIBILITY_CHANGED, handleMenuVisibilityChanged)
 
   if (router.currentRoute.value?.name !== 'ParallelDriving') {
     window.socketManager?.enforceCameraStatesOnHide?.(currentVehicleId.value)

@@ -16,8 +16,15 @@
             </div>
         </div>
 
-        <!-- 车载摄像头 -->
-        <CarCamera />
+        <!-- 🚀 平行驾驶按钮（独立显示，不受车载摄像头设置影响） -->
+        <div v-if="menuSettings.show_parallel_driving" class="parallel-driving-container">
+            <button class="btn btn-primary parallel-driving-btn" @click="navigateToParallelDriving">
+                <fa icon="gamepad" /> 平行驾驶
+            </button>
+        </div>
+
+        <!-- 🚀 车载摄像头（根据设置控制显示） -->
+        <CarCamera v-if="menuSettings.show_vehicle_camera" />
 
         <!-- 车辆信息 -->
         <CarInfo :carInfo="selectedCar" :online="vehicleStatus === 'online'" />
@@ -30,6 +37,8 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { useRouter } from 'vue-router';
+import { invoke } from '@tauri-apps/api/core';
 import CarCamera from '@/components/CarCamera.vue';
 import Sensor from '@/components/Sensor.vue';
 import CarInfo from '@/components/CarInfo.vue';
@@ -38,6 +47,13 @@ import { useCarStore } from '@/stores/car.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
 
 const carStore = useCarStore();
+const router = useRouter();
+
+// 🚀 菜单可见性设置
+const menuSettings = ref({
+    show_parallel_driving: true,
+    show_vehicle_camera: true
+});
 
 // 使用store中的选中车辆ID（只有在车辆列表不为空时才返回）
 const selectedCar = computed(() => {
@@ -74,6 +90,38 @@ const handleVehicleConnectionStatus = ({ carId, isConnected }) => {
     }
 };
 
+// 🚀 加载菜单可见性设置
+const loadMenuSettings = async () => {
+    try {
+        const result = await invoke('get_menu_visibility_settings');
+        if (result) {
+            menuSettings.value = {
+                show_parallel_driving: result.show_parallel_driving ?? true,
+                show_vehicle_camera: result.show_vehicle_camera ?? true
+            };
+            console.log('✅ Cars页面：菜单可见性设置加载成功:', menuSettings.value);
+        }
+    } catch (error) {
+        console.error('❌ Cars页面：加载菜单可见性设置失败:', error);
+    }
+};
+
+// 🚀 处理菜单可见性设置变化
+const handleMenuVisibilityChanged = (settings) => {
+    console.log('📥 Cars页面：收到菜单可见性设置变化事件:', settings);
+    if (settings) {
+        menuSettings.value = {
+            show_parallel_driving: settings.show_parallel_driving ?? true,
+            show_vehicle_camera: settings.show_vehicle_camera ?? true
+        };
+    }
+};
+
+// 🚀 平行驾驶按钮点击事件
+const navigateToParallelDriving = () => {
+    router.push({ name: 'ParallelDriving' });
+};
+
 // 移除模拟状态监控，使用真实的连接状态
 const startVehicleStatusMonitoring = () => {
     // 不再需要模拟状态变化，状态由实际连接事件驱动
@@ -96,11 +144,14 @@ watch(selectedCar, (newVehicleId, oldVehicleId) => {
 
 onMounted(() => {
     eventBus.on(EVENTS.VEHICLE_CONNECTION_STATUS, handleVehicleConnectionStatus);
+    eventBus.on(EVENTS.MENU_VISIBILITY_CHANGED, handleMenuVisibilityChanged); // 🚀 监听菜单设置变化
     startVehicleStatusMonitoring();
+    loadMenuSettings(); // 🚀 加载菜单设置
 });
 
 onBeforeUnmount(() => {
     eventBus.off(EVENTS.VEHICLE_CONNECTION_STATUS, handleVehicleConnectionStatus);
+    eventBus.off(EVENTS.MENU_VISIBILITY_CHANGED, handleMenuVisibilityChanged); // 🚀 清理事件监听
 });
 </script>
 
@@ -195,5 +246,14 @@ onBeforeUnmount(() => {
 
 .floating-vehicle-panel::-webkit-scrollbar-thumb:hover {
     box-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+}
+
+// 🚀 平行驾驶按钮容器样式
+.parallel-driving-container {
+    margin-bottom: 20px;
+    
+    .parallel-driving-btn {
+        width: 100%;
+    }
 }
 </style>

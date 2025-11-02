@@ -339,6 +339,11 @@ impl VehicleDatabase {
             "ALTER TABLE menu_visibility_settings ADD COLUMN show_parallel_driving BOOLEAN NOT NULL DEFAULT 1"
         ).execute(&self.pool).await;
 
+        // 🚀 为现有表添加 show_vehicle_camera 列（兼容旧数据库）
+        let _ = sqlx::query(
+            "ALTER TABLE menu_visibility_settings ADD COLUMN show_vehicle_camera BOOLEAN NOT NULL DEFAULT 1"
+        ).execute(&self.pool).await;
+
         // 初始化默认菜单可见性设置
         self.init_default_menu_visibility_settings().await?;
         
@@ -1231,6 +1236,7 @@ impl VehicleDatabase {
             show_sandbox_control: row.get("show_sandbox_control"),
             show_settings: row.get("show_settings"),
             show_parallel_driving: row.get("show_parallel_driving"),
+            show_vehicle_camera: row.get::<Option<bool>, _>("show_vehicle_camera").unwrap_or(true),
             created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at"))
                 .unwrap_or_default()
                 .with_timezone(&chrono::Utc),
@@ -1250,6 +1256,7 @@ impl VehicleDatabase {
         let show_sandbox_control = req.show_sandbox_control.unwrap_or(current.show_sandbox_control);
         let show_settings = req.show_settings.unwrap_or(current.show_settings);
         let show_parallel_driving = req.show_parallel_driving.unwrap_or(current.show_parallel_driving);
+        let show_vehicle_camera = req.show_vehicle_camera.unwrap_or(current.show_vehicle_camera);
         let now = Utc::now();
 
         sqlx::query(
@@ -1260,6 +1267,7 @@ impl VehicleDatabase {
                 show_sandbox_control = ?, 
                 show_settings = ?,
                 show_parallel_driving = ?,
+                show_vehicle_camera = ?,
                 updated_at = ?
             WHERE id = ?
             "#
@@ -1269,6 +1277,7 @@ impl VehicleDatabase {
         .bind(show_sandbox_control)
         .bind(show_settings)
         .bind(show_parallel_driving)
+        .bind(show_vehicle_camera)
         .bind(now.to_rfc3339())
         .bind(current.id)
         .execute(&self.pool)
@@ -1281,6 +1290,7 @@ impl VehicleDatabase {
             show_sandbox_control,
             show_settings,
             show_parallel_driving,
+            show_vehicle_camera,
             created_at: current.created_at,
             updated_at: now,
         })
@@ -1297,8 +1307,8 @@ impl VehicleDatabase {
             sqlx::query(
                 r#"
                 INSERT INTO menu_visibility_settings 
-                (show_vehicle_info, show_auto_drive, show_sandbox_control, show_settings, show_parallel_driving, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                (show_vehicle_info, show_auto_drive, show_sandbox_control, show_settings, show_parallel_driving, show_vehicle_camera, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 "#
             )
             .bind(true)  // 默认显示所有菜单和功能
@@ -1306,6 +1316,7 @@ impl VehicleDatabase {
             .bind(true)
             .bind(true)
             .bind(true)
+            .bind(true)  // 🚀 默认显示车载摄像头
             .bind(now.to_rfc3339())
             .bind(now.to_rfc3339())
             .execute(&self.pool)

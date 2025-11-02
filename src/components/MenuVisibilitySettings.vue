@@ -60,6 +60,14 @@
                     inactive-text="隐藏"
                 />
             </el-form-item>
+
+            <el-form-item label="车载摄像头">
+                <el-switch
+                    v-model="settings.show_vehicle_camera"
+                    active-text="显示"
+                    inactive-text="隐藏"
+                />
+            </el-form-item>
         </el-form>
     </div>
 </template>
@@ -77,7 +85,8 @@ const settings = ref({
     show_auto_drive: true,
     show_sandbox_control: true,
     show_settings: true,
-    show_parallel_driving: true
+    show_parallel_driving: true,
+    show_vehicle_camera: true
 });
 
 // 保存原始设置（用于重置）
@@ -86,7 +95,8 @@ const originalSettings = ref({
     show_auto_drive: true,
     show_sandbox_control: true,
     show_settings: true,
-    show_parallel_driving: true
+    show_parallel_driving: true,
+    show_vehicle_camera: true
 });
 
 // 加载菜单可见性设置
@@ -100,7 +110,8 @@ const loadSettings = async () => {
                 show_auto_drive: result.show_auto_drive,
                 show_sandbox_control: result.show_sandbox_control,
                 show_settings: result.show_settings,
-                show_parallel_driving: result.show_parallel_driving
+                show_parallel_driving: result.show_parallel_driving,
+                show_vehicle_camera: result.show_vehicle_camera ?? true
             };
             settings.value = { ...loadedSettings };
             originalSettings.value = { ...loadedSettings };
@@ -122,7 +133,8 @@ const saveSettings = async () => {
             show_auto_drive: settings.value.show_auto_drive,
             show_sandbox_control: settings.value.show_sandbox_control,
             show_settings: settings.value.show_settings,
-            show_parallel_driving: settings.value.show_parallel_driving
+            show_parallel_driving: settings.value.show_parallel_driving,
+            show_vehicle_camera: settings.value.show_vehicle_camera
         };
 
         const result = await invoke('update_menu_visibility_settings', { request });
@@ -147,7 +159,8 @@ const resetSettings = () => {
         show_auto_drive: true,
         show_sandbox_control: true,
         show_settings: true,
-        show_parallel_driving: true
+        show_parallel_driving: true,
+        show_vehicle_camera: true
     };
     console.log('✅ 菜单可见性设置已重置为默认状态（全部显示）');
 };

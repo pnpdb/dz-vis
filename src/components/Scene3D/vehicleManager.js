@@ -5,7 +5,7 @@
 
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
-import { Box3, Group } from 'three';
+import { Box3, Group, Sprite, SpriteMaterial, CanvasTexture, Color } from 'three';
 import { validateVehicleId, validatePosition, validateOrientation } from '@/utils/validation.js';
 import { disposeObject3D } from '@/utils/resourceCleanup.js';
 
@@ -128,6 +128,82 @@ const loadCarModelTemplate = async () => {
 };
 
 /**
+ * 创建车辆编号标签（使用 Canvas 渲染文字并生成 Sprite）
+ * @param {number} vehicleId - 车辆ID
+ * @param {string} color - 车辆颜色（用于标签背景）
+ * @returns {Sprite} 车辆编号标签 Sprite
+ */
+const createVehicleLabel = (vehicleId, color = '#409EFF') => {
+    // 创建 Canvas 用于绘制文字
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    
+    // 设置 Canvas 尺寸（高分辨率，提高清晰度）
+    canvas.width = 256;
+    canvas.height = 128;
+    
+    // 将车辆颜色调暗作为背景色（使用 Three.js Color 类处理）
+    const threeColor = new Color(color);
+    threeColor.multiplyScalar(0.6); // 将颜色调暗到原来的 60%
+    const darkerColor = '#' + threeColor.getHexString();
+    
+    // 绘制背景（带圆角矩形）
+    context.fillStyle = darkerColor;
+    context.globalAlpha = 0.95; // 背景透明度（提高不透明度让颜色更深）
+    const radius = 20;
+    const x = 10;
+    const y = 10;
+    const width = canvas.width - 20;
+    const height = canvas.height - 20;
+    
+    context.beginPath();
+    context.moveTo(x + radius, y);
+    context.lineTo(x + width - radius, y);
+    context.quadraticCurveTo(x + width, y, x + width, y + radius);
+    context.lineTo(x + width, y + height - radius);
+    context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    context.lineTo(x + radius, y + height);
+    context.quadraticCurveTo(x, y + height, x, y + height - radius);
+    context.lineTo(x, y + radius);
+    context.quadraticCurveTo(x, y, x + radius, y);
+    context.closePath();
+    context.fill();
+    
+    // 绘制边框
+    context.strokeStyle = '#FFFFFF';
+    context.lineWidth = 4;
+    context.globalAlpha = 1.0;
+    context.stroke();
+    
+    // 绘制文字
+    context.fillStyle = '#FFFFFF';
+    context.font = 'bold 60px Arial, sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(`${vehicleId}`, canvas.width / 2, canvas.height / 2);
+    
+    // 创建纹理
+    const texture = new CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    
+    // 创建 Sprite 材质
+    const spriteMaterial = new SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthTest: true,
+        depthWrite: false,
+        sizeAttenuation: true // 标签大小随距离变化，有透视效果
+    });
+    
+    // 创建 Sprite
+    const sprite = new Sprite(spriteMaterial);
+    sprite.name = `VehicleLabel_${vehicleId}`;
+    sprite.scale.set(0.15, 0.1, 1); // 调整标签大小，保持合适的显示效果
+    
+    return sprite;
+};
+
+/**
  * 添加车辆到场景
  * @param {number} vehicleId - 车辆ID
  * @param {object} position - 位置 {x, z} (模型坐标系)
@@ -180,6 +256,12 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
         carMesh.rotation.x = -Math.PI / 2;  // 修正模型方向
         
         vehicleModel.add(carMesh);
+        
+        // 🏷️ 创建并添加车辆编号标签（显示在车辆头顶）
+        const vehicleLabel = createVehicleLabel(vehicleId, color);
+        // 将标签放置在车辆上方（相对于车辆容器的局部坐标）
+        vehicleLabel.position.set(0, 0.25, 0);  // Y轴向上，调整高度使其悬浮在车顶上方
+        vehicleModel.add(vehicleLabel);
         
         // 获取沙盘模型以计算道路表面高度
         const sandboxModel = models.get('sandbox');

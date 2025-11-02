@@ -160,9 +160,9 @@ function createPath(vehicleId, pathPoints, color = null) {
         linewidth: 5, // 单位是像素，这里设置为5像素
         worldUnits: false, // false 表示使用像素单位
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.8, // 🎨 提高透明度，让重叠路径可以看到颜色混合效果
         depthTest: true,
-        depthWrite: true
+        depthWrite: false // 🎨 禁用深度写入，让透明物体可以正确混合
     });
     
     // 设置渲染分辨率（必须）

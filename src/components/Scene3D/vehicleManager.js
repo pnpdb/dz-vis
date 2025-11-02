@@ -25,6 +25,20 @@ let sharedDracoLoader = null;
 // 性能优化：Promise 缓存，避免重复加载
 let loadingPromise = null;
 
+// 🚀 性能优化：插值系统（平滑车辆移动）
+const vehicleInterpolationData = new Map();  // 存储每个车辆的插值数据
+let interpolationRAF = null;  // requestAnimationFrame ID
+let lastInterpolationTime = 0;  // 上次插值更新时间
+
+// 插值配置
+const INTERPOLATION_CONFIG = {
+    enabled: true,           // 是否启用插值
+    smoothFactor: 0.25,      // 插值平滑系数 (0-1)，越小越平滑但延迟越大
+    minDistance: 0.001,      // 最小移动距离（米），小于此值不更新
+    maxDistance: 0.5,        // 最大插值距离（米），超过此值直接跳转（防止传送效果）
+    rotationSmooth: 0.3      // 旋转插值系数
+};
+
 /**
  * 获取或创建共享的 DRACOLoader 实例（单例模式）
  * @returns {DRACOLoader} DRACOLoader 实例
@@ -238,6 +252,15 @@ export const removeVehicle = (vehicleId) => {
         });
 
         vehicleModels.delete(vehicleId);
+        
+        // 🚀 清理插值数据
+        vehicleInterpolationData.delete(vehicleId);
+        
+        // 如果没有车辆了，停止插值循环
+        if (vehicleModels.size === 0) {
+            stopInterpolationLoop();
+        }
+        
         // console.info(`✅ 车辆 ${vehicleId} 已从场景移除并释放资源`);
         return true;
     }
@@ -245,7 +268,107 @@ export const removeVehicle = (vehicleId) => {
 };
 
 /**
- * 更新车辆位置和朝向
+ * 🚀 插值更新循环（使用 requestAnimationFrame 批量更新所有车辆）
+ */
+const interpolationUpdateLoop = (currentTime) => {
+    if (!INTERPOLATION_CONFIG.enabled) {
+        interpolationRAF = null;
+        return;
+    }
+
+    // 计算帧间隔时间（毫秒）
+    const deltaTime = lastInterpolationTime ? currentTime - lastInterpolationTime : 16;
+    lastInterpolationTime = currentTime;
+
+    let needsRender = false;
+
+    // 批量更新所有车辆（性能优化：一次遍历处理所有车辆）
+    vehicleInterpolationData.forEach((interpData, vehicleId) => {
+        const vehicleModel = vehicleModels.get(vehicleId);
+        if (!vehicleModel || !interpData.targetPosition) {
+            return;
+        }
+
+        // 计算当前位置到目标位置的距离
+        const dx = interpData.targetPosition.x - vehicleModel.position.x;
+        const dz = interpData.targetPosition.z - vehicleModel.position.z;
+        const distance = Math.sqrt(dx * dx + dz * dz);
+
+        // 如果距离太小，直接设置到目标位置
+        if (distance < INTERPOLATION_CONFIG.minDistance) {
+            vehicleModel.position.x = interpData.targetPosition.x;
+            vehicleModel.position.z = interpData.targetPosition.z;
+        }
+        // 如果距离太大，直接跳转（防止传送效果）
+        else if (distance > INTERPOLATION_CONFIG.maxDistance) {
+            vehicleModel.position.x = interpData.targetPosition.x;
+            vehicleModel.position.z = interpData.targetPosition.z;
+            needsRender = true;
+        }
+        // 使用插值平滑移动
+        else {
+            // 使用线性插值（lerp）
+            vehicleModel.position.x += dx * INTERPOLATION_CONFIG.smoothFactor;
+            vehicleModel.position.z += dz * INTERPOLATION_CONFIG.smoothFactor;
+            needsRender = true;
+        }
+
+        // 朝向插值（处理角度环绕问题）
+        if (typeof interpData.targetOrientation === 'number') {
+            const targetRot = interpData.targetOrientation - Math.PI / 2;
+            const currentRot = vehicleModel.rotation.y;
+            
+            // 处理角度环绕（-PI 到 PI）
+            let rotDiff = targetRot - currentRot;
+            if (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
+            if (rotDiff < -Math.PI) rotDiff += Math.PI * 2;
+
+            // 如果角度差很小，直接设置
+            if (Math.abs(rotDiff) < 0.01) {
+                vehicleModel.rotation.y = targetRot;
+            } else {
+                vehicleModel.rotation.y += rotDiff * INTERPOLATION_CONFIG.rotationSmooth;
+                needsRender = true;
+            }
+        }
+    });
+
+    // 如果有更新，标记场景需要重新渲染
+    if (needsRender) {
+        // 通知Scene3D标记为dirty（需要重新渲染）
+        if (typeof window !== 'undefined' && window.__scene3d_markDirty) {
+            window.__scene3d_markDirty();
+        }
+    }
+
+    // 继续下一帧
+    interpolationRAF = requestAnimationFrame(interpolationUpdateLoop);
+};
+
+/**
+ * 启动插值更新循环
+ */
+const startInterpolationLoop = () => {
+    if (!interpolationRAF && INTERPOLATION_CONFIG.enabled) {
+        lastInterpolationTime = 0;
+        interpolationRAF = requestAnimationFrame(interpolationUpdateLoop);
+        console.info('🚀 车辆插值系统已启动');
+    }
+};
+
+/**
+ * 停止插值更新循环
+ */
+const stopInterpolationLoop = () => {
+    if (interpolationRAF) {
+        cancelAnimationFrame(interpolationRAF);
+        interpolationRAF = null;
+        console.info('⏸️ 车辆插值系统已停止');
+    }
+};
+
+/**
+ * 更新车辆位置和朝向（使用插值优化）
  * @param {number} vehicleId - 车辆ID
  * @param {object} position - 位置 {x, z} (模型局部坐标系)
  * @param {number} orientation - 朝向角度（弧度）
@@ -259,9 +382,42 @@ export const updateVehiclePosition = (vehicleId, position, orientation) => {
     }
     
     const vehicleModel = vehicleModels.get(vehicleId);
-    if (vehicleModel) {
-        // 直接更新位置（车辆已经在沙盘局部坐标系中）
-        // 保持Y轴不变，因为车辆应该始终在道路表面
+    if (!vehicleModel) {
+        return false;
+    }
+
+    // 如果启用插值，更新目标位置
+    if (INTERPOLATION_CONFIG.enabled) {
+        // 获取或创建插值数据
+        let interpData = vehicleInterpolationData.get(vehicleId);
+        if (!interpData) {
+            interpData = {
+                targetPosition: { x: 0, z: 0 },
+                targetOrientation: 0
+            };
+            vehicleInterpolationData.set(vehicleId, interpData);
+        }
+
+        // 更新目标位置
+        if (position && typeof position === 'object') {
+            if (typeof position.x === 'number') {
+                interpData.targetPosition.x = position.x;
+            }
+            if (typeof position.z === 'number') {
+                interpData.targetPosition.z = position.z;
+            }
+        }
+
+        // 更新目标朝向
+        if (typeof orientation === 'number') {
+            interpData.targetOrientation = orientation;
+        }
+
+        // 确保插值循环正在运行
+        startInterpolationLoop();
+    } 
+    // 如果未启用插值，直接更新位置（旧行为）
+    else {
         if (position && typeof position === 'object') {
             if (typeof position.x === 'number') {
                 vehicleModel.position.x = position.x;
@@ -271,14 +427,12 @@ export const updateVehiclePosition = (vehicleId, position, orientation) => {
             }
         }
 
-        // 更新朝向
         if (typeof orientation === 'number') {
             vehicleModel.rotation.y = orientation - Math.PI / 2;
         }
-
-        return true;
     }
-    return false;
+
+    return true;
 };
 
 /**
@@ -300,6 +454,11 @@ export const clearAllVehicles = () => {
     });
     
     vehicleModels.clear();
+    
+    // 🚀 清理所有插值数据
+    vehicleInterpolationData.clear();
+    stopInterpolationLoop();
+    
     console.info(`✅ 已清除所有车辆 (${count}辆)`);
 };
 
@@ -308,5 +467,38 @@ export const clearAllVehicles = () => {
  */
 export const hasVehicle = (vehicleId) => {
     return vehicleModels.has(vehicleId);
+};
+
+/**
+ * 🚀 获取插值配置
+ */
+export const getInterpolationConfig = () => {
+    return { ...INTERPOLATION_CONFIG };
+};
+
+/**
+ * 🚀 更新插值配置
+ * @param {object} config - 配置对象
+ */
+export const updateInterpolationConfig = (config) => {
+    if (typeof config.enabled === 'boolean') {
+        INTERPOLATION_CONFIG.enabled = config.enabled;
+        if (!config.enabled) {
+            stopInterpolationLoop();
+        }
+    }
+    if (typeof config.smoothFactor === 'number' && config.smoothFactor >= 0 && config.smoothFactor <= 1) {
+        INTERPOLATION_CONFIG.smoothFactor = config.smoothFactor;
+    }
+    if (typeof config.minDistance === 'number' && config.minDistance >= 0) {
+        INTERPOLATION_CONFIG.minDistance = config.minDistance;
+    }
+    if (typeof config.maxDistance === 'number' && config.maxDistance >= 0) {
+        INTERPOLATION_CONFIG.maxDistance = config.maxDistance;
+    }
+    if (typeof config.rotationSmooth === 'number' && config.rotationSmooth >= 0 && config.rotationSmooth <= 1) {
+        INTERPOLATION_CONFIG.rotationSmooth = config.rotationSmooth;
+    }
+    console.info('🚀 插值配置已更新:', INTERPOLATION_CONFIG);
 };
 

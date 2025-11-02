@@ -1924,6 +1924,16 @@ export const resumeRendering = () => {
     }
 };
 
+// 🚀 标记场景需要重新渲染（用于插值系统）
+export const markDirty = () => {
+    shouldRender = true;
+};
+
+// 🚀 暴露markDirty到全局，供vehicleManager的插值系统使用
+if (typeof window !== 'undefined') {
+    window.__scene3d_markDirty = markDirty;
+}
+
 export const getConstructionMarkersCount = () => {
     return constructionMarkers.size;
 };

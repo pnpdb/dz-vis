@@ -165,7 +165,7 @@ import Scene3D from '@/components/Scene3D/index.vue';
 import VehicleTimeChart from '@/components/VehicleTimeChart.vue';
 import DrivingBehaviorChart from '@/components/DrivingBehaviorChart.vue';
 import { socketManager } from '@/utils/socketManager.js';
-import { startPoseSelectionMode, stopPoseSelectionMode, startPointSelectionMode, stopPointSelectionMode, createConstructionMarkerAt, removeConstructionMarker, getConstructionMarkersDetails, addVehicle, removeVehicle, updateVehiclePosition } from '@/components/Scene3D/index.js';
+import { startPoseSelectionMode, stopPoseSelectionMode, startPointSelectionMode, stopPointSelectionMode, createConstructionMarkerAt, removeConstructionMarker, getConstructionMarkersDetails, addVehicle, removeVehicle, updateVehiclePosition, hasVehicle } from '@/components/Scene3D/index.js';
 import { SEND_MESSAGE_TYPES, CONSTRUCTION_MARKER_PROTOCOL } from '@/constants/messageTypes.js';
 import vehicleBridge from '@/utils/vehicleBridge.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
@@ -256,10 +256,17 @@ const handleVehicleStateUpdate = (vehicleInfo) => {
     const { vehicleId, position, orientation } = vehicleInfo;
     
     // position 已经是模型坐标系了（从 car.js 转换后传递过来的）
-    // 直接使用即可，不需要再次转换
-    addVehicle(vehicleId, position, orientation).catch(error => {
-        console.error(`添加/更新车辆 ${vehicleId} 失败:`, error);
-    });
+    // 🚀 性能优化：区分添加和更新操作
+    // 如果车辆已存在，只更新位置（使用插值）；否则添加新车辆
+    if (hasVehicle(vehicleId)) {
+        // 车辆已存在，使用updateVehiclePosition（启用插值平滑移动）
+        updateVehiclePosition(vehicleId, position, orientation);
+    } else {
+        // 车辆不存在，添加新车辆到场景
+        addVehicle(vehicleId, position, orientation).catch(error => {
+            console.error(`添加车辆 ${vehicleId} 失败:`, error);
+        });
+    }
 };
 
 // 监听车辆连接状态

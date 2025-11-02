@@ -15,6 +15,9 @@ let carModelTemplate = null;  // 车辆模型模板，用于克隆
 let modelsGroup = null;  // 场景模型组
 let models = null;  // 场景模型 Map
 
+// 🔒 防止重复添加车辆的锁
+const vehicleAddingLocks = new Map();  // key: vehicleId, value: Promise
+
 // 性能优化：包围盒缓存
 let cachedSandboxBox = null;  // 缓存的沙盘包围盒
 let cachedCarTemplateBox = null;  // 缓存的车辆模板包围盒
@@ -243,18 +246,26 @@ const createVehicleLabel = (vehicleId, color = '#409EFF') => {
  * @param {string} color - 车辆颜色
  */
 export const addVehicle = async (vehicleId, position, orientation = 0, color = '#409EFF') => {
-    // 记录原始状态（用于错误回滚）
-    const existingModel = vehicleModels.get(vehicleId);
-    let modelAdded = false;
-    let vehicleModel = null;
+    // 🔒 防止重复添加：如果正在添加同一个车辆，等待之前的操作完成
+    if (vehicleAddingLocks.has(vehicleId)) {
+        console.warn(`⚠️ 车辆 ${vehicleId} 正在添加中，跳过重复调用`);
+        return vehicleAddingLocks.get(vehicleId);
+    }
     
-    try {
-        // 参数验证（使用统一验证工具，消除代码重复）
-        const idValidation = validateVehicleId(vehicleId);
-        if (!idValidation.valid) {
-            console.error(`❌ ${idValidation.error}`);
-            return null;
-        }
+    // 创建添加Promise并加锁
+    const addingPromise = (async () => {
+        // 记录原始状态（用于错误回滚）
+        const existingModel = vehicleModels.get(vehicleId);
+        let modelAdded = false;
+        let vehicleModel = null;
+        
+        try {
+            // 参数验证（使用统一验证工具，消除代码重复）
+            const idValidation = validateVehicleId(vehicleId);
+            if (!idValidation.valid) {
+                console.error(`❌ ${idValidation.error}`);
+                return null;
+            }
         
         const posValidation = validatePosition(position, 'model');
         if (!posValidation.valid) {
@@ -329,7 +340,18 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
         modelAdded = true;
         vehicleModels.set(vehicleId, vehicleModel);
 
-        // console.info(`✅ 车辆 ${vehicleId} 已添加到场景 位置: (${position.x?.toFixed(2) ?? 'N/A'}, ${position.z?.toFixed(2) ?? 'N/A'})`);
+        // 🚀 插值初始化：使用车辆的初始位置，避免从(0,0)开始插值
+        if (INTERPOLATION_CONFIG.enabled) {
+            vehicleInterpolationData.set(vehicleId, {
+                targetPosition: { 
+                    x: vehicleModel.position.x, 
+                    z: vehicleModel.position.z 
+                },
+                targetOrientation: vehicleModel.rotation.y + Math.PI / 2
+            });
+        }
+
+        // console.info(`✅ 车辆 ${vehicleId} 已添加到场景 位置: (${position.x?.toFixed(2)}, ${position.z?.toFixed(2)})`);
         return vehicleModel;
 
     } catch (error) {
@@ -345,10 +367,22 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
             }
         }
         
-        // 如果之前存在模型但被删除了，尝试恢复（可选，取决于业务需求）
-        // 这里选择不恢复，因为删除可能是有意的
-        
-        throw error;
+            // 如果之前存在模型但被删除了，尝试恢复（可选，取决于业务需求）
+            // 这里选择不恢复，因为删除可能是有意的
+            
+            return null;
+        }
+    })();
+    
+    // 设置锁
+    vehicleAddingLocks.set(vehicleId, addingPromise);
+    
+    // 执行并清理锁
+    try {
+        const result = await addingPromise;
+        return result;
+    } finally {
+        vehicleAddingLocks.delete(vehicleId);
     }
 };
 
@@ -357,6 +391,9 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
  * @param {number} vehicleId - 车辆ID
  */
 export const removeVehicle = (vehicleId) => {
+    // 🔒 清理添加锁（如果正在添加中）
+    vehicleAddingLocks.delete(vehicleId);
+    
     const vehicleModel = vehicleModels.get(vehicleId);
     if (vehicleModel) {
         // 使用统一的资源清理工具（消除代码重复）
@@ -400,6 +437,10 @@ const interpolationUpdateLoop = (currentTime) => {
     vehicleInterpolationData.forEach((interpData, vehicleId) => {
         const vehicleModel = vehicleModels.get(vehicleId);
         if (!vehicleModel || !interpData.targetPosition) {
+            // 🧹 清理孤立的插值数据（有插值数据但没有模型）
+            if (!vehicleModel && interpData) {
+                vehicleInterpolationData.delete(vehicleId);
+            }
             return;
         }
 
@@ -505,9 +546,13 @@ export const updateVehiclePosition = (vehicleId, position, orientation) => {
         // 获取或创建插值数据
         let interpData = vehicleInterpolationData.get(vehicleId);
         if (!interpData) {
+            // 🐛 修复：使用车辆模型的当前位置作为初始值，而不是 (0, 0)
             interpData = {
-                targetPosition: { x: 0, z: 0 },
-                targetOrientation: 0
+                targetPosition: { 
+                    x: vehicleModel.position.x, 
+                    z: vehicleModel.position.z 
+                },
+                targetOrientation: vehicleModel.rotation.y + Math.PI / 2
             };
             vehicleInterpolationData.set(vehicleId, interpData);
         }
@@ -573,6 +618,9 @@ export const clearAllVehicles = () => {
     vehicleInterpolationData.clear();
     stopInterpolationLoop();
     
+    // 🔒 清理所有添加锁
+    vehicleAddingLocks.clear();
+    
     console.info(`✅ 已清除所有车辆 (${count}辆)`);
 };
 
@@ -582,6 +630,65 @@ export const clearAllVehicles = () => {
 export const hasVehicle = (vehicleId) => {
     return vehicleModels.has(vehicleId);
 };
+
+/**
+ * 🔍 调试工具：列出所有车辆状态
+ */
+export const debugListAllVehicles = () => {
+    console.log('🔍 当前场景中的所有车辆:');
+    console.log('═'.repeat(80));
+    
+    console.log(`📊 总数: ${vehicleModels.size} 个车辆模型, ${vehicleInterpolationData.size} 个插值数据, ${vehicleAddingLocks.size} 个添加锁`);
+    
+    if (vehicleModels.size > 0) {
+        console.log('\n🚗 车辆模型列表:');
+        vehicleModels.forEach((model, id) => {
+            const interpData = vehicleInterpolationData.get(id);
+            const isAdding = vehicleAddingLocks.has(id);
+            console.log(`  [${id}] ${model.name}:`);
+            console.log(`    位置: (${model.position.x.toFixed(2)}, ${model.position.y.toFixed(2)}, ${model.position.z.toFixed(2)})`);
+            console.log(`    朝向: ${((model.rotation.y + Math.PI/2) * 180 / Math.PI).toFixed(1)}°`);
+            console.log(`    子对象: ${model.children.length} 个`);
+            console.log(`    父对象: ${model.parent?.name || 'none'}`);
+            console.log(`    插值数据: ${interpData ? '✓' : '✗'}`);
+            console.log(`    正在添加: ${isAdding ? '⚠️ 是' : '否'}`);
+            if (interpData) {
+                console.log(`      目标位置: (${interpData.targetPosition.x.toFixed(2)}, ${interpData.targetPosition.z.toFixed(2)})`);
+            }
+        });
+    }
+    
+    // 检查是否有孤立的插值数据
+    const orphanedInterpData = [];
+    vehicleInterpolationData.forEach((data, id) => {
+        if (!vehicleModels.has(id)) {
+            orphanedInterpData.push(id);
+        }
+    });
+    
+    if (orphanedInterpData.length > 0) {
+        console.log(`⚠️ 发现 ${orphanedInterpData.length} 个孤立的插值数据:`, orphanedInterpData);
+    }
+    
+    // 检查是否有孤立的添加锁
+    if (vehicleAddingLocks.size > 0) {
+        console.log(`🔒 当前有 ${vehicleAddingLocks.size} 个添加锁:`, Array.from(vehicleAddingLocks.keys()));
+    }
+    
+    console.log('═'.repeat(80));
+    
+    return {
+        modelCount: vehicleModels.size,
+        interpDataCount: vehicleInterpolationData.size,
+        lockCount: vehicleAddingLocks.size,
+        orphanedCount: orphanedInterpData.length
+    };
+};
+
+// 全局暴露调试函数
+if (typeof window !== 'undefined') {
+    window.__debugVehicles = debugListAllVehicles;
+}
 
 /**
  * 🚀 获取插值配置

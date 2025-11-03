@@ -351,7 +351,13 @@ impl SocketServer {
         } else {
             let mut conns = connections.write();
             conns.remove(&vehicle_id);
-            info!("车辆 {} (ID: {}) 连接已清理，剩余连接: {}", vehicle_name, vehicle_id, conns.len());
+            
+            // 🧹 清理车辆状态数据（防止内存泄漏）
+            let mut vehicle_states = vehicle_state.write();
+            vehicle_states.remove(&(vehicle_id as u8));
+            
+            info!("车辆 {} (ID: {}) 连接已清理，剩余连接: {}，剩余状态: {}", 
+                  vehicle_name, vehicle_id, conns.len(), vehicle_states.len());
         }
         
         Ok(())

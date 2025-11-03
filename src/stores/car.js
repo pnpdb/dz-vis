@@ -44,6 +44,13 @@ const stopCleanupTask = () => {
     }
 };
 
+// 🧹 清理 beforeunload 监听器（避免内存泄漏）
+const cleanupBeforeUnloadListener = () => {
+    if (typeof window !== 'undefined') {
+        window.removeEventListener('beforeunload', stopCleanupTask);
+    }
+};
+
 // 确保应用关闭时停止清理任务
 if (typeof window !== 'undefined') {
     window.addEventListener('beforeunload', stopCleanupTask);
@@ -110,6 +117,7 @@ export const useCarStore = defineStore('car', {
          */
         destroy() {
             stopCleanupTask();
+            cleanupBeforeUnloadListener(); // 🧹 清理事件监听器
         },
         
         changeCarId(id) {

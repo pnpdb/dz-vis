@@ -65,11 +65,7 @@
           "gstreamer1.0-plugins-bad",
           "gstreamer1.0-libav",
           "v4l-utils"
-        ],
-        "files": {
-          "../LINUX_CAMERA_SETUP.md": "usr/share/doc/dz-car-manager/",
-          "../fix-camera-permission.sh": "usr/share/doc/dz-car-manager/"
-        }
+        ]
       },
       "appimage": {
         "bundleMediaFramework": false

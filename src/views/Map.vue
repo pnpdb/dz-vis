@@ -263,7 +263,11 @@ const handleVehicleStateUpdate = (vehicleInfo) => {
         updateVehiclePosition(vehicleId, position, orientation);
     } else {
         // 车辆不存在，添加新车辆到场景
-        addVehicle(vehicleId, position, orientation).catch(error => {
+        // 🎨 从 carStore 获取车辆的自定义颜色
+        const vehicleData = carStore.carList.find(car => car.id === vehicleId);
+        const vehicleColor = vehicleData?.color || '#409EFF'; // 默认蓝色
+        
+        addVehicle(vehicleId, position, orientation, vehicleColor).catch(error => {
             console.error(`添加车辆 ${vehicleId} 失败:`, error);
         });
     }

@@ -5,7 +5,7 @@
 
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
-import { Box3, Group, Sprite, SpriteMaterial, CanvasTexture, Color } from 'three';
+import { Box3, Group, Sprite, SpriteMaterial, CanvasTexture, Color, MeshStandardMaterial } from 'three';
 import { validateVehicleId, validatePosition, validateOrientation } from '@/utils/validation.js';
 import { disposeObject3D } from '@/utils/resourceCleanup.js';
 
@@ -32,6 +32,7 @@ let loadingPromise = null;
 const vehicleInterpolationData = new Map();  // 存储每个车辆的插值数据
 let interpolationRAF = null;  // requestAnimationFrame ID
 let lastInterpolationTime = 0;  // 上次插值更新时间
+let lastUpdateStartIndex = 0;  // 🎯 时间分片：上次更新的起始索引（轮流更新）
 
 // 插值配置
 const INTERPOLATION_CONFIG = {
@@ -39,7 +40,8 @@ const INTERPOLATION_CONFIG = {
     smoothFactor: 0.25,      // 插值平滑系数 (0-1)，越小越平滑但延迟越大
     minDistance: 0.001,      // 最小移动距离（米），小于此值不更新
     maxDistance: 0.5,        // 最大插值距离（米），超过此值直接跳转（防止传送效果）
-    rotationSmooth: 0.3      // 旋转插值系数
+    rotationSmooth: 0.3,     // 旋转插值系数
+    maxUpdatesPerFrame: 1    // 🎯 每帧最多更新的车辆数量（时间分片，防止多车时单帧计算峰值）
 };
 
 /**
@@ -239,6 +241,81 @@ const createVehicleLabel = (vehicleId, color = '#409EFF') => {
 };
 
 /**
+ * 🎨 为克隆的车辆模型设置材质颜色（避免共享材质）
+ * @param {Object3D} clonedModel - 克隆的车辆模型
+ * @param {string} bodyColor - 车壳颜色（十六进制，如 '#409EFF'）
+ */
+const applyVehicleColors = (clonedModel, bodyColor) => {
+    // 预定义的固定颜色
+    // const WHEEL_COLOR = '#1a1a1a';        // 轮子：深黑色
+    // const LIDAR_PANEL_COLOR = '#2a2a2a';  // 激光雷达面板：深灰色
+    // const LIDAR_HEAD_COLOR = '#3a3a3a';   // 激光发射头：稍浅的灰色
+    const WHEEL_COLOR = '#1a1a1a';        // 轮子：深黑色
+    const LIDAR_PANEL_COLOR = '#4f5555';  // 激光雷达面板：深灰色
+    const LIDAR_HEAD_COLOR = '#4f5555';   // 激光发射头：稍浅的灰色
+    
+    // 将十六进制颜色转为 Three.js Color 对象
+    const wheelColor = new Color(WHEEL_COLOR);
+    const bodyColorObj = new Color(bodyColor);
+    const lidarPanelColor = new Color(LIDAR_PANEL_COLOR);
+    const lidarHeadColor = new Color(LIDAR_HEAD_COLOR);
+    
+    // 递归遍历模型树，为每个 Mesh 克隆材质并设置颜色
+    clonedModel.traverse((child) => {
+        if (child.isMesh && child.material) {
+            // 🔑 关键：克隆材质，避免多个车辆共享同一个材质对象
+            const originalMaterial = child.material;
+            const newMaterial = originalMaterial.clone();
+            
+            // 根据材质名称或对象名称判断部件类型
+            const meshName = child.name.toLowerCase();
+            const materialName = originalMaterial.name ? originalMaterial.name.toLowerCase() : '';
+            
+            // 🎨 根据部件类型设置颜色
+            if (materialName.includes('material_0') || 
+                materialName.includes('material_1') || 
+                materialName.includes('material_2') || 
+                materialName.includes('material_3') ||
+                meshName.includes('wheel') || 
+                meshName.includes('mesh_0') ||
+                meshName.includes('mesh_1') ||
+                meshName.includes('mesh_2') ||
+                meshName.includes('mesh_3')) {
+                // 轮子（Material_0 到 Material_3）
+                newMaterial.color = wheelColor;
+            } 
+            else if (materialName.includes('material_4') || 
+                     meshName.includes('body') || 
+                     meshName.includes('mesh_4')) {
+                // 车壳（Material_4）- 使用车辆自定义颜色
+                newMaterial.color = bodyColorObj;
+            } 
+            else if (materialName.includes('material_5') || 
+                     meshName.includes('lidar') || 
+                     meshName.includes('mesh_5')) {
+                // 激光雷达面板（Material_5）
+                newMaterial.color = lidarPanelColor;
+            } 
+            else if (materialName.includes('material_6') || 
+                     meshName.includes('mesh_6')) {
+                // 激光发射头（Material_6）
+                newMaterial.color = lidarHeadColor;
+            } 
+            else {
+                // 未知部件，使用车身颜色
+                newMaterial.color = bodyColorObj;
+            }
+            
+            // 应用新材质到 Mesh
+            child.material = newMaterial;
+            
+            // 🚀 性能优化：禁用不必要的材质特性
+            newMaterial.needsUpdate = true;
+        }
+    });
+};
+
+/**
  * 添加车辆到场景
  * @param {number} vehicleId - 车辆ID
  * @param {object} position - 位置 {x, z} (模型坐标系)
@@ -294,6 +371,9 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
         // 克隆车辆模型并添加到容器组
         const carMesh = carModelTemplate.clone();
         carMesh.name = `Vehicle_${vehicleId}_Mesh`;
+        
+        // 🎨 为克隆的模型设置颜色（必须在添加到场景前完成）
+        applyVehicleColors(carMesh, color);
         
         // 在容器组内修正模型朝向（固定旋转，不会受运动朝向影响）
         carMesh.rotation.x = -Math.PI / 2;  // 修正模型方向
@@ -419,7 +499,7 @@ export const removeVehicle = (vehicleId) => {
 };
 
 /**
- * 🚀 插值更新循环（使用 requestAnimationFrame 批量更新所有车辆）
+ * 🚀 插值更新循环（时间分片：每帧只更新部分车辆，防止多车卡顿）
  */
 const interpolationUpdateLoop = (currentTime) => {
     if (!INTERPOLATION_CONFIG.enabled) {
@@ -433,15 +513,32 @@ const interpolationUpdateLoop = (currentTime) => {
 
     let needsRender = false;
 
-    // 批量更新所有车辆（性能优化：一次遍历处理所有车辆）
-    vehicleInterpolationData.forEach((interpData, vehicleId) => {
+    // 🎯 时间分片优化：将所有车辆ID转为数组，实现轮流更新
+    const vehicleIds = Array.from(vehicleInterpolationData.keys());
+    const totalVehicles = vehicleIds.length;
+
+    if (totalVehicles === 0) {
+        interpolationRAF = requestAnimationFrame(interpolationUpdateLoop);
+        return;
+    }
+
+    // 确定本帧要更新的车辆范围
+    const maxUpdates = INTERPOLATION_CONFIG.maxUpdatesPerFrame;
+    const startIdx = lastUpdateStartIndex % totalVehicles;
+    const endIdx = Math.min(startIdx + maxUpdates, totalVehicles);
+    
+    // 更新本帧分配的车辆
+    for (let i = startIdx; i < endIdx; i++) {
+        const vehicleId = vehicleIds[i];
+        const interpData = vehicleInterpolationData.get(vehicleId);
         const vehicleModel = vehicleModels.get(vehicleId);
-        if (!vehicleModel || !interpData.targetPosition) {
+        
+        if (!vehicleModel || !interpData?.targetPosition) {
             // 🧹 清理孤立的插值数据（有插值数据但没有模型）
             if (!vehicleModel && interpData) {
                 vehicleInterpolationData.delete(vehicleId);
             }
-            return;
+            continue;
         }
 
         // 计算当前位置到目标位置的距离
@@ -486,7 +583,15 @@ const interpolationUpdateLoop = (currentTime) => {
                 needsRender = true;
             }
         }
-    });
+    }
+
+    // 🎯 更新下一帧的起始索引（轮流更新）
+    lastUpdateStartIndex = endIdx % totalVehicles;
+    
+    // 如果本轮已经更新完所有车辆，重置索引
+    if (endIdx >= totalVehicles) {
+        lastUpdateStartIndex = 0;
+    }
 
     // 如果有更新，标记场景需要重新渲染
     if (needsRender) {
@@ -618,6 +723,9 @@ export const clearAllVehicles = () => {
     vehicleInterpolationData.clear();
     stopInterpolationLoop();
     
+    // 🎯 重置时间分片索引
+    lastUpdateStartIndex = 0;
+    
     // 🔒 清理所有添加锁
     vehicleAddingLocks.clear();
     
@@ -685,9 +793,10 @@ export const debugListAllVehicles = () => {
     };
 };
 
-// 全局暴露调试函数
+// 全局暴露调试函数和数据（用于分析模型结构）
 if (typeof window !== 'undefined') {
     window.__debugVehicles = debugListAllVehicles;
+    window.__vehicleModels = vehicleModels; // 暴露供分析脚本使用
 }
 
 /**

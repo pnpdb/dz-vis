@@ -80,13 +80,19 @@ const handleVehicleConnectionStatus = (payload) => {
     
     // 只有在"显示所有路径"开启时，才自动添加新连接的车辆
     if (isConnected && showAllPaths.value) {
-        console.log(`车辆 ${carId} 已连接，自动开启路径显示`);
-        enablePath(carId); // 使用全局方法
-        
-        // 发送路径显示指令给新连接的车辆
-        socketManager.sendVehiclePathDisplay(carId, 1).catch(error => {
-            console.error(`为新连接车辆 ${carId} 开启路径显示失败:`, error);
-        });
+        // 🔑 关键修复：检查车辆是否已经在路径显示列表中
+        // 如果已经在列表中，说明之前已经发送过协议，避免重复发送
+        if (!pathEnabledVehicles.value.has(carId)) {
+            console.log(`车辆 ${carId} 已连接，自动开启路径显示`);
+            enablePath(carId); // 使用全局方法
+            
+            // 发送路径显示指令给新连接的车辆（只发送一次）
+            socketManager.sendVehiclePathDisplay(carId, 1).catch(error => {
+                console.error(`为新连接车辆 ${carId} 开启路径显示失败:`, error);
+            });
+        } else {
+            console.debug(`车辆 ${carId} 已在路径显示列表中，跳过重复发送`);
+        }
     }
 };
 

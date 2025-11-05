@@ -52,7 +52,9 @@
     "longDescription": "A comprehensive car management system for autonomous vehicle monitoring and control.",
     "externalBin": [],
     "resources": {
-      "../public/routes/*.txt": "routes/"
+      "../public/routes/*.txt": "routes/",
+      "../public/models/*.glb": "models/",
+      "../public/draco/*": "draco/"
     },
     "linux": {
       "deb": {
@@ -63,8 +65,7 @@
           "gstreamer1.0-plugins-base",
           "gstreamer1.0-plugins-good",
           "gstreamer1.0-plugins-bad",
-          "gstreamer1.0-libav",
-          "v4l-utils"
+          "gstreamer1.0-libav"
         ]
       },
       "appimage": {

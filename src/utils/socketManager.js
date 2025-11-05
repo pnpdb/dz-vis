@@ -16,6 +16,8 @@ import { normalizeVehicleList, parseVehicleId } from '@/utils/vehicleTypes.js'
 import { useCarStore } from '@/stores/car.js'
 import { throttle, createThrottledEmitter } from '@/utils/eventThrottle.js';
 import { vehicleToModelCoordinates } from '@/utils/coordinateTransform.js';
+import { removeTaxiMarkersForVehicle, updateTrafficLightGroup, isTrafficLightManagerInitialized } from '@/components/Scene3D/index.js';
+import { trimVehiclePath, removePath } from '@/components/Scene3D/pathRenderer.js';
 
 const socketLogger = createLogger('SocketManager');
 const bytesToHex = (bytes) => Array.from(bytes || [], (b) => b.toString(16).padStart(2, '0')).join(' ');
@@ -393,7 +395,6 @@ class SocketManager {
                 
                 // 清除该车辆的专属起点终点图标
                 try {
-                    const { removeTaxiMarkersForVehicle } = await import('@/components/Scene3D/index.js');
                     removeTaxiMarkersForVehicle(vehicleId);
                     console.log(`🎉 车辆 ${vehicleId} 已到达接客终点，打车任务完成，已清除该车辆的打车图标`);
                 } catch (error) {
@@ -410,7 +411,6 @@ class SocketManager {
                 try {
                     console.log(`🚗 车辆 ${vehicleId} 导航状态 ${navigation.code}，准备裁剪路径`);
                     console.log(`   车辆坐标(原始): (${position.x.toFixed(3)}, ${position.y.toFixed(3)})`);
-                    const { trimVehiclePath } = await import('@/components/Scene3D/pathRenderer.js');
                     // 将车辆坐标转换为模型坐标（用于路径比较）
                     const modelPos = vehicleToModelCoordinates(position.x, position.y);
                     console.log(`   车辆坐标(模型): (${modelPos.x.toFixed(3)}, ${modelPos.z.toFixed(3)})`);
@@ -427,7 +427,6 @@ class SocketManager {
             // 状态13: 倒车入库中
             if ([10, 13].includes(navigation.code)) {
                 try {
-                    const { removePath } = await import('@/components/Scene3D/pathRenderer.js');
                     removePath(vehicleId);
                     console.log(`🗑️ 车辆 ${vehicleId} 导航状态 ${navigation.code}，已清除所有路径`);
                 } catch (error) {
@@ -954,24 +953,21 @@ class SocketManager {
 
             socketLogger.info(
                 `收到红绿灯状态 - ` +
-                `1组(6个): ${SANDBOX_TRAFFIC_LIGHT_PROTOCOL.COLOR_NAMES[lights[0].color] || '未知'} ${lights[0].remaining}秒, ` +
-                `2组(2个): ${SANDBOX_TRAFFIC_LIGHT_PROTOCOL.COLOR_NAMES[lights[1].color] || '未知'} ${lights[1].remaining}秒`
+                `1组(6个): ${SANDBOX_TRAFFIC_LIGHT_PROTOCOL.COLOR_NAMES[lights[1].color] || '未知'} ${lights[1].remaining}秒, ` +
+                `2组(2个): ${SANDBOX_TRAFFIC_LIGHT_PROTOCOL.COLOR_NAMES[lights[0].color] || '未知'} ${lights[0].remaining}秒`
             );
 
-            // 动态导入 Scene3D 模块（避免循环依赖）
-            const { updateTrafficLightGroup, isTrafficLightManagerInitialized } = await import('@/components/Scene3D/index.js');
-            
             // 检查红绿灯管理器是否已初始化
             if (!isTrafficLightManagerInitialized()) {
                 socketLogger.warn('红绿灯管理器未初始化，跳过更新');
                 return;
             }
 
-            // 更新两组红绿灯状态
-            // lights[0] -> 1组（6个红绿灯）-> groupIndex = 1
-            // lights[1] -> 2组（2个红绿灯）-> groupIndex = 0
-            updateTrafficLightGroup(1, lights[0].color, lights[0].remaining);
-            updateTrafficLightGroup(0, lights[1].color, lights[1].remaining);
+            // 🔧 修复：交换1组和2组的数据对应关系
+            // lights[0] -> 2组（2个红绿灯）-> groupIndex = 0
+            // lights[1] -> 1组（6个红绿灯）-> groupIndex = 1
+            updateTrafficLightGroup(1, lights[1].color, lights[1].remaining);
+            updateTrafficLightGroup(0, lights[0].color, lights[0].remaining);
 
         } catch (error) {
             socketLogger.error(`处理红绿灯状态失败:`, error);

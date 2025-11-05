@@ -18,6 +18,9 @@ export default defineConfig(async () => ({
   // Public directory for static assets
   publicDir: 'public',
   
+  // 🔧 确保大型资源文件（如 .glb 模型）被正确处理
+  assetsInclude: ['**/*.glb', '**/*.wasm'],
+  
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
   // 1. prevent Vite from obscuring rust errors
@@ -61,8 +64,6 @@ export default defineConfig(async () => ({
           'vue-vendor': ['vue', 'vue-router', 'pinia'],
           // UI组件库
           'element-plus': ['element-plus'],
-          // 图表库
-          'charts': ['echarts'],
           // Three.js核心
           'three-core': ['three'],
           // Three.js扩展
@@ -70,8 +71,6 @@ export default defineConfig(async () => ({
             'three/examples/jsm/Addons.js',
             'three/examples/jsm/libs/stats.module.js'
           ],
-          // 网络请求
-          'network': ['axios'],
           // Tauri API
           'tauri': ['@tauri-apps/api', '@tauri-apps/plugin-opener']
         }
@@ -125,11 +124,7 @@ export default defineConfig(async () => ({
       // UI组件
       'element-plus',
       // Three.js (核心部分预构建)
-      'three/src/Three.js',
-      // 网络请求
-      'axios',
-      // 图表库
-      'echarts'
+      'three/src/Three.js'
     ],
     exclude: [
       // Tauri API在运行时动态加载

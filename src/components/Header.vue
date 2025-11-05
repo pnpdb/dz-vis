@@ -526,6 +526,7 @@ import SandboxSettingsManager from '@/components/SandboxSettingsManager.vue';
 import MenuVisibilitySettings from '@/components/MenuVisibilitySettings.vue';
 import { toggleAxesVisibility, toggleGridVisibility, getSandboxDimensionsInfo } from '@/components/Scene3D/index.js';
 import { useCarStore } from '@/stores/car.js';
+import { setCoordinateOffset } from '@/utils/coordinateTransform.js';
 // 使用后端命令，避免前端插件导入问题
 import { convertFileSrc } from '@tauri-apps/api/core';
 import eventBus, { EVENTS } from '@/utils/eventBus.js'
@@ -866,7 +867,7 @@ const handleLogin = async () => {
         const { username, password } = loginForm.value;
         
         // 硬编码的账号密码
-        if (username === 'dz' && password === '123456') {
+        if (username === 'dz' && password === 'duzhong39') {
             Toast.success('登录成功！');
             loginDialogVisible.value = false;
             settingsDialogVisible.value = true;
@@ -910,10 +911,8 @@ const saveSettings = async () => {
         appTitle.value = settings.value.appTitle;
         
         // 同步坐标偏移量到coordinateTransform模块
-        import('@/utils/coordinateTransform.js').then(module => {
-            module.setCoordinateOffset(settings.value.coordinateOffsetX, settings.value.coordinateOffsetY);
-            console.info(`[坐标偏移] 已更新: X=${settings.value.coordinateOffsetX}m, Y=${settings.value.coordinateOffsetY}m`);
-        });
+        setCoordinateOffset(settings.value.coordinateOffsetX, settings.value.coordinateOffsetY);
+        console.info(`[坐标偏移] 已更新: X=${settings.value.coordinateOffsetX}m, Y=${settings.value.coordinateOffsetY}m`);
         
         settingsDialogVisible.value = false;
     } catch (e) {
@@ -1101,10 +1100,8 @@ onMounted(() => {
             appTitle.value = settings.value.appTitle;
             
             // 同步坐标偏移量到coordinateTransform模块
-            import('@/utils/coordinateTransform.js').then(module => {
-                module.setCoordinateOffset(settings.value.coordinateOffsetX, settings.value.coordinateOffsetY);
-                console.info(`[坐标偏移] 已加载: X=${settings.value.coordinateOffsetX}m, Y=${settings.value.coordinateOffsetY}m`);
-            });
+            setCoordinateOffset(settings.value.coordinateOffsetX, settings.value.coordinateOffsetY);
+            console.info(`[坐标偏移] 已加载: X=${settings.value.coordinateOffsetX}m, Y=${settings.value.coordinateOffsetY}m`);
             
             // 根据读取到的设置初始化前端日志级别
             if (settings.value?.logLevel) {

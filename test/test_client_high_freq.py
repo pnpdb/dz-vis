@@ -644,7 +644,7 @@ def create_vehicle_info_data(vehicle_id=1):
     data.extend(struct.pack('<B', gyro_status))
 
     # 车位占用状态 (1字节, UINT8) - 0:未占用（行驶中不占用车位）
-    parking_slot = 0
+    parking_slot = 1
     data.extend(struct.pack('<B', parking_slot))
 
     # 🔇 打印节流：每秒最多打印1次（避免50Hz刷屏）

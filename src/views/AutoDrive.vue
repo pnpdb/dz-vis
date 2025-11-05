@@ -132,7 +132,8 @@ import {
     createStartPointMarker, 
     createEndPointMarker,
     removeStartPointMarker,
-    removeEndPointMarker
+    removeEndPointMarker,
+    createTaxiMarkersForVehicle
 } from '@/components/Scene3D/index.js';
 import { findNearestFreeSlot, modelToVehicleCoordinates, applyOffsetToSend } from '@/utils/coordinateTransform.js';
 
@@ -289,7 +290,6 @@ const callTaxi = async () => {
         removeEndPointMarker();
         
         // 为车辆创建专属的起点终点图标
-        const { createTaxiMarkersForVehicle } = await import('@/components/Scene3D/index.js');
         createTaxiMarkersForVehicle(assignedVehicleId, startCoords, endCoords);
         
         // 9. 将车辆添加到打车状态列表（用于后续监听导航状态10）

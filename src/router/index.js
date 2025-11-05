@@ -3,6 +3,8 @@ import { pauseRendering, resumeRendering } from '@/components/Scene3D/index.js'
 import Toast from '@/utils/toast.js'
 import { invoke } from '@tauri-apps/api/core'
 import { useCarStore } from '@/stores/car.js'
+import MainLayout from '@/views/MainLayout.vue'
+import ParallelDriving from '@/views/ParallelDriving.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -10,31 +12,31 @@ const router = createRouter({
     {
       path: '/',
       name: 'Cars',
-      component: () => import('@/views/MainLayout.vue'),
+      component: MainLayout,
       meta: { layout: 'main' }
     },
     {
       path: '/auto-drive',
       name: 'AutoDrive',
-      component: () => import('@/views/MainLayout.vue'),
+      component: MainLayout,
       meta: { layout: 'main' }
     },
     {
       path: '/control',
       name: 'Control',
-      component: () => import('@/views/MainLayout.vue'),
+      component: MainLayout,
       meta: { layout: 'main' }
     },
     {
       path: '/settings',
       name: 'Settings',
-      component: () => import('@/views/MainLayout.vue'),
+      component: MainLayout,
       meta: { layout: 'main' }
     },
     {
       path: '/parallel-driving',
       name: 'ParallelDriving',
-      component: () => import('@/views/ParallelDriving.vue'),
+      component: ParallelDriving,
       meta: { layout: 'parallel' }
     },
     {

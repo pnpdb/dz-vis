@@ -6,6 +6,8 @@ import eventBus, { EVENTS } from '@/utils/eventBus.js';
 import { throttle } from '@/utils/throttle.js';
 import { deepClone } from '@/utils/stateManager.js';
 import { validateVehicleInfo } from '@/utils/validation.js';
+import { removeTaxiMarkersForVehicle, removeVehicle } from '@/components/Scene3D/index.js';
+import { removePath } from '@/components/Scene3D/pathRenderer.js';
 
 const filePath = localStorage.getItem('filePath') || '';
 
@@ -211,13 +213,12 @@ export const useCarStore = defineStore('car', {
                     console.log(`🚗 车辆 ${vehicleId} 断开连接，已清除打车订单`);
                     
                     // 清除该车辆的专属打车图标
-                    // 注意：这里使用动态导入避免循环依赖
-                    import('@/components/Scene3D/index.js').then(({ removeTaxiMarkersForVehicle }) => {
+                    try {
                         removeTaxiMarkersForVehicle(vehicleId);
                         console.log(`🗺️ 已清除车辆 ${vehicleId} 的打车图标`);
-                    }).catch(err => {
+                    } catch (err) {
                         console.warn('清除车辆打车图标失败:', err);
-                    });
+                    }
                 }
             }
             
@@ -279,7 +280,8 @@ export const useCarStore = defineStore('car', {
             eventBus.emit(EVENTS.VEHICLE_INFO_UPDATE, {
                 vehicleId,
                 ...state.state,  // 展开所有状态字段（包含应用偏移后的车辆坐标系position）
-                sensors: state.state.sensors || { camera: false, lidar: false, gyro: false }
+                sensors: state.state.sensors || { camera: false, lidar: false, gyro: false },
+                parkingSlot: state.parking.slotId  // 🔧 修复：添加车位占用状态
             });
             
             // 3️⃣ 转换为模型坐标系（用于3D模型渲染）
@@ -405,14 +407,11 @@ export const useCarStore = defineStore('car', {
                 
                 // 🧹 同时清理3D场景中的车辆模型和路径
                 try {
-                    import('@/components/Scene3D/index.js').then(({ removeVehicle }) => {
-                        if (removeVehicle) removeVehicle(vehicleId);
-                    }).catch(() => {});
-                    
-                    import('@/components/Scene3D/pathRenderer.js').then(({ removePath }) => {
-                        if (removePath) removePath(vehicleId);
-                    }).catch(() => {});
-                } catch (e) {}
+                    if (removeVehicle) removeVehicle(vehicleId);
+                    if (removePath) removePath(vehicleId);
+                } catch (e) {
+                    console.warn(`清理车辆 ${vehicleId} 3D资源失败:`, e);
+                }
                 
                 removed++;
                 console.info(`🧹 清理闲置车辆: ${vehicleId}`);

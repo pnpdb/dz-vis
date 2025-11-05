@@ -26,6 +26,11 @@ import { debug as jsDebug, info as jsInfo, warn as jsWarn, error as jsError } fr
 import { loadMessageTypesConfig } from '@/constants/messageTypesLoader.js';
 import { initPathManager } from '@/utils/pathManager.js';
 import Toast from '@/utils/toast.js';
+import { useCarStore } from '@/stores/car.js';
+import { destroyScene } from '@/components/Scene3D/index.js';
+import { destroyPathRenderer } from '@/components/Scene3D/pathRenderer.js';
+import { videoStreamManager } from '@/utils/videoStreamManager.js';
+import protocolProcessor from '@/utils/protocolProcessor.js';
 
 // 将 Toast 暴露到 window 对象供全局使用
 window.Toast = Toast;
@@ -123,7 +128,6 @@ async function initializeApp() {
         // JS 侧日志插件测试
         await jsInfo('前端启动 initializeApp');
         // 获取store实例
-        const { useCarStore } = await import('./stores/car.js');
         const carStore = useCarStore();
         
         // 🚀 初始化Store（启动定期清理任务）
@@ -189,59 +193,71 @@ window.addEventListener('beforeunload', () => {
     
     // 清理 Scene3D
     try {
-        import('@/components/Scene3D/index.js').then(({ destroyScene }) => {
-            if (destroyScene) destroyScene();
-        }).catch(() => {});
-    } catch (e) {}
+        if (destroyScene) destroyScene();
+    } catch (e) {
+        console.error('清理 Scene3D 失败:', e);
+    }
     
     // 清理路径渲染器
     try {
-        import('@/components/Scene3D/pathRenderer.js').then(({ destroyPathRenderer }) => {
-            if (destroyPathRenderer) destroyPathRenderer();
-        }).catch(() => {});
-    } catch (e) {}
+        if (destroyPathRenderer) destroyPathRenderer();
+    } catch (e) {
+        console.error('清理 PathRenderer 失败:', e);
+    }
     
     // 清理 CarStore（停止定期清理任务）
     try {
-        import('@/stores/car.js').then(({ useCarStore }) => {
-            const carStore = useCarStore();
-            if (carStore && carStore.destroy) {
-                carStore.destroy();
-            }
-        }).catch(() => {});
-    } catch (e) {}
+        const carStore = useCarStore();
+        if (carStore && carStore.destroy) {
+            carStore.destroy();
+        }
+    } catch (e) {
+        console.error('清理 CarStore 失败:', e);
+    }
     
     // 清理 SocketManager
-    if (socketManager && socketManager.cleanup) {
-        socketManager.cleanup();
+    try {
+        if (socketManager && socketManager.cleanup) {
+            socketManager.cleanup();
+        }
+    } catch (e) {
+        console.error('清理 SocketManager 失败:', e);
     }
     
     // 清理 VideoProcessor
-    if (window.__videoProcessorCleanup) {
-        window.__videoProcessorCleanup();
+    try {
+        if (window.__videoProcessorCleanup) {
+            window.__videoProcessorCleanup();
+        }
+    } catch (e) {
+        console.error('清理 VideoProcessor 失败:', e);
     }
     
     // 清理 ProtocolProcessor
     try {
-        import('@/utils/protocolProcessor.js').then(({ default: protocolProcessor }) => {
-            if (protocolProcessor && protocolProcessor.destroy) {
-                protocolProcessor.destroy();
-            }
-        }).catch(() => {});
-    } catch (e) {}
+        if (protocolProcessor && protocolProcessor.destroy) {
+            protocolProcessor.destroy();
+        }
+    } catch (e) {
+        console.error('清理 ProtocolProcessor 失败:', e);
+    }
     
     // 清理 VideoStreamManager
     try {
-        import('@/utils/videoStreamManager.js').then(({ videoStreamManager }) => {
-            if (videoStreamManager && videoStreamManager.destroy) {
-                videoStreamManager.destroy();
-            }
-        }).catch(() => {});
-    } catch (e) {}
+        if (videoStreamManager && videoStreamManager.destroy) {
+            videoStreamManager.destroy();
+        }
+    } catch (e) {
+        console.error('清理 VideoStreamManager 失败:', e);
+    }
     
     // 清理 Logger
-    if (logger && logger.cleanup) {
-        logger.cleanup();
+    try {
+        if (logger && logger.cleanup) {
+            logger.cleanup();
+        }
+    } catch (e) {
+        console.error('清理 Logger 失败:', e);
     }
     
     console.log('✅ 应用资源清理完成');

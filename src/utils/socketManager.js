@@ -35,8 +35,9 @@ class SocketManager {
         this.unlisteners = [];
         
         // 创建节流的事件发射器（性能优化）
+        // 🚀 优化：调整节流时间以匹配50Hz车辆数据
         this.throttledEmitters = {
-            vehicleInfo: createThrottledEmitter(eventBus, EVENTS.VEHICLE_INFO_UPDATE, 50), // 50ms节流
+            vehicleInfo: createThrottledEmitter(eventBus, EVENTS.VEHICLE_INFO_UPDATE, 30), // 30ms节流（约33Hz）
             connectionStatus: createThrottledEmitter(eventBus, EVENTS.VEHICLE_CONNECTION_STATUS, 100),
             onlineCountChanged: createThrottledEmitter(eventBus, EVENTS.ONLINE_VEHICLES_COUNT_CHANGED, 200),
         };
@@ -344,47 +345,40 @@ class SocketManager {
             timestamp,
         };
 
-        // ✅ 优化：使用Rust进行状态比对（移除JS端重复比对）
+        // 🚀 优化：使用前端快速比对，避免频繁的 Rust IPC 调用
         const store = this.ensureCarStore();
         if (store) {
             const prevVehicleState = store.getVehicleState(vehicleId);
             
-            // 如果有前一个状态且数据完整，使用Rust比对
+            // 如果有前一个状态，先在前端快速比对
             if (prevVehicleState && prevVehicleState.state) {
-                try {
-                    // 准备前一个状态（需要包含停车位信息）
-                    const prevState = {
-                        ...prevVehicleState.state,
-                        parkingSlot: prevVehicleState.parking.slotId,
-                        vehicleId: vehicleId
-                    };
-                    
-                    // 准备Rust比对所需的数据格式
-                    const prevForRust = this.prepareStateForRustComparison(prevState);
-                    const nextForRust = this.prepareStateForRustComparison(vehicleInfo);
-                    
-                    const { invoke } = await import('@tauri-apps/api/core');
-                    const result = await invoke('is_vehicle_state_changed', {
-                        prev: prevForRust,
-                        next: nextForRust
-                    });
-
-                    if (!result.changed) {
-            socketLogger.debug(`车辆 ${vehicleId} 数据未变化，跳过UI更新`);
-            return;
-        }
-
-                    // 记录变化的字段（开发环境）
-                    if (import.meta.env.DEV && result.changed_fields?.length > 0) {
-                        socketLogger.debug(`车辆 ${vehicleId} 变化字段: ${result.changed_fields.join(', ')}`);
-                    }
-                } catch (error) {
-                    // Rust比对失败时回退到更新（保证可靠性）
-                    // 只在第一次失败时警告，避免日志刷屏
-                    if (!this._rustCompareErrorLogged) {
-                        socketLogger.warn(`Rust状态比对失败，回退到直接更新:`, error.message || error);
-                        this._rustCompareErrorLogged = true;
-                    }
+                const prevState = prevVehicleState.state;
+                
+                // 🚀 前端快速比对（只比对关键字段，避免IPC开销）
+                const positionChanged = 
+                    Math.abs((prevState.position?.x ?? 0) - position.x) > 0.001 ||
+                    Math.abs((prevState.position?.y ?? 0) - position.y) > 0.001;
+                
+                const orientationChanged = 
+                    Math.abs((prevState.orientation ?? 0) - orientation) > 0.01;
+                
+                const speedChanged = 
+                    Math.abs((prevState.speed ?? 0) - speed) > 0.01;
+                
+                const batteryChanged = 
+                    Math.abs((prevState.battery ?? 0) - battery) > 0.5;
+                
+                const navigationChanged = 
+                    (prevState.navigation?.code ?? 0) !== navigation.code;
+                
+                const parkingSlotChanged = 
+                    (prevVehicleState.parking?.slotId ?? 0) !== parkingSlot;
+                
+                // 如果关键字段都没变化，跳过更新
+                if (!positionChanged && !orientationChanged && !speedChanged && 
+                    !batteryChanged && !navigationChanged && !parkingSlotChanged) {
+                    // socketLogger.debug(`车辆 ${vehicleId} 关键数据未变化，跳过更新`);
+                    return;
                 }
             }
 

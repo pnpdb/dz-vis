@@ -12,9 +12,10 @@ import { removePath } from '@/components/Scene3D/pathRenderer.js';
 const filePath = localStorage.getItem('filePath') || '';
 
 // 性能优化：为高频事件创建节流函数
+// 🚀 优化：50Hz数据(20ms间隔)，节流改为30ms，避免延迟累积
 const throttledVehicleStateUpdate = throttle((data) => {
     eventBus.emit(EVENTS.VEHICLE_STATE_UPDATED, data);
-}, 50); // 每50ms最多触发一次
+}, 30); // 每30ms最多触发一次（约33Hz）
 
 // 🧹 定期清理任务：防止内存泄漏
 let cleanupInterval = null;

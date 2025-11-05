@@ -101,22 +101,26 @@ export function applyOffsetToSend(x, y) {
  * @returns {{x: number, z: number}} 模型坐标系的 {x, z}
  */
 export function vehicleToModelCoordinates(vehicleX, vehicleY) {
-    // 参数验证（健壮性优化）
-    if (typeof vehicleX !== 'number' || typeof vehicleY !== 'number') {
-        console.error('❌ 坐标转换参数必须为数字:', { vehicleX, vehicleY });
-        return { x: 0, z: 0 };
-    }
-    
-    if (isNaN(vehicleX) || isNaN(vehicleY)) {
-        console.error('❌ 坐标转换参数不能为NaN:', { vehicleX, vehicleY });
-        return { x: 0, z: 0 };
-    }
-    
-    // 边界检查（警告但不阻止）
-    if (vehicleX < -0.1 || vehicleX > SANDBOX_DIMENSIONS.width + 0.1 ||
-        vehicleY < -0.1 || vehicleY > SANDBOX_DIMENSIONS.depth + 0.1) {
-        console.warn(`⚠️ 车辆坐标超出范围: (${vehicleX.toFixed(3)}, ${vehicleY.toFixed(3)})`);
-        console.warn(`   期望范围: X(0-${SANDBOX_DIMENSIONS.width}), Y(0-${SANDBOX_DIMENSIONS.depth})`);
+    // 🚀 生产环境优化：简化验证，避免性能开销
+    // 只在开发环境进行详细验证
+    if (import.meta.env.DEV) {
+        // 参数验证（健壮性优化）
+        if (typeof vehicleX !== 'number' || typeof vehicleY !== 'number') {
+            console.error('❌ 坐标转换参数必须为数字:', { vehicleX, vehicleY });
+            return { x: 0, z: 0 };
+        }
+        
+        if (isNaN(vehicleX) || isNaN(vehicleY)) {
+            console.error('❌ 坐标转换参数不能为NaN:', { vehicleX, vehicleY });
+            return { x: 0, z: 0 };
+        }
+        
+        // 边界检查（警告但不阻止）
+        if (vehicleX < -0.1 || vehicleX > SANDBOX_DIMENSIONS.width + 0.1 ||
+            vehicleY < -0.1 || vehicleY > SANDBOX_DIMENSIONS.depth + 0.1) {
+            console.warn(`⚠️ 车辆坐标超出范围: (${vehicleX.toFixed(3)}, ${vehicleY.toFixed(3)})`);
+            console.warn(`   期望范围: X(0-${SANDBOX_DIMENSIONS.width}), Y(0-${SANDBOX_DIMENSIONS.depth})`);
+        }
     }
     
     return {
@@ -141,25 +145,29 @@ export const PARKING_SLOTS_MODEL = {
  * @returns {{x: number, y: number}} 车辆坐标系的 {x, y}
  */
 export function modelToVehicleCoordinates(modelX, modelZ) {
-    // 参数验证（健壮性优化）
-    if (typeof modelX !== 'number' || typeof modelZ !== 'number') {
-        console.error('❌ 坐标转换参数必须为数字:', { modelX, modelZ });
-        return { x: 0, y: 0 };
-    }
-    
-    if (isNaN(modelX) || isNaN(modelZ)) {
-        console.error('❌ 坐标转换参数不能为NaN:', { modelX, modelZ });
-        return { x: 0, y: 0 };
-    }
-    
+    // 🚀 生产环境优化：简化验证，避免性能开销
     const vehicleX = modelX + SANDBOX_DIMENSIONS.halfWidth;
     const vehicleY = SANDBOX_DIMENSIONS.halfDepth - modelZ;
     
-    // 验证转换结果是否在合理范围内
-    if (vehicleX < -0.1 || vehicleX > SANDBOX_DIMENSIONS.width + 0.1 ||
-        vehicleY < -0.1 || vehicleY > SANDBOX_DIMENSIONS.depth + 0.1) {
-        console.warn(`⚠️ 坐标转换结果超出范围: 模型坐标(${modelX.toFixed(3)}, ${modelZ.toFixed(3)}) → 车辆坐标(${vehicleX.toFixed(3)}, ${vehicleY.toFixed(3)})`);
-        console.warn(`   期望范围: X(0-${SANDBOX_DIMENSIONS.width}), Y(0-${SANDBOX_DIMENSIONS.depth})`);
+    // 只在开发环境进行详细验证
+    if (import.meta.env.DEV) {
+        // 参数验证（健壮性优化）
+        if (typeof modelX !== 'number' || typeof modelZ !== 'number') {
+            console.error('❌ 坐标转换参数必须为数字:', { modelX, modelZ });
+            return { x: 0, y: 0 };
+        }
+        
+        if (isNaN(modelX) || isNaN(modelZ)) {
+            console.error('❌ 坐标转换参数不能为NaN:', { modelX, modelZ });
+            return { x: 0, y: 0 };
+        }
+        
+        // 验证转换结果是否在合理范围内
+        if (vehicleX < -0.1 || vehicleX > SANDBOX_DIMENSIONS.width + 0.1 ||
+            vehicleY < -0.1 || vehicleY > SANDBOX_DIMENSIONS.depth + 0.1) {
+            console.warn(`⚠️ 坐标转换结果超出范围: 模型坐标(${modelX.toFixed(3)}, ${modelZ.toFixed(3)}) → 车辆坐标(${vehicleX.toFixed(3)}, ${vehicleY.toFixed(3)})`);
+            console.warn(`   期望范围: X(0-${SANDBOX_DIMENSIONS.width}), Y(0-${SANDBOX_DIMENSIONS.depth})`);
+        }
     }
     
     return { x: vehicleX, y: vehicleY };
@@ -174,18 +182,7 @@ export function modelToVehicleCoordinates(modelX, modelZ) {
  * @returns {number} 距离
  */
 export function calculateDistance(x1, y1, x2, y2) {
-    // 参数验证（健壮性优化）
-    if (typeof x1 !== 'number' || typeof y1 !== 'number' || 
-        typeof x2 !== 'number' || typeof y2 !== 'number') {
-        console.error('❌ 距离计算参数必须为数字:', { x1, y1, x2, y2 });
-        return Infinity; // 返回无限大表示无效距离
-    }
-    
-    if (isNaN(x1) || isNaN(y1) || isNaN(x2) || isNaN(y2)) {
-        console.error('❌ 距离计算参数不能为NaN:', { x1, y1, x2, y2 });
-        return Infinity;
-    }
-    
+    // 🚀 生产环境优化：快速计算，跳过验证
     const dx = x2 - x1;
     const dy = y2 - y1;
     return Math.sqrt(dx * dx + dy * dy);
@@ -253,17 +250,7 @@ export function isWithinBounds(vehicleX, vehicleY) {
  * @returns {{x: number, y: number}} 百分比位置 {x: 0-100, y: 0-100}
  */
 export function vehicleToMapPercent(vehicleX, vehicleY) {
-    // 参数验证
-    if (typeof vehicleX !== 'number' || typeof vehicleY !== 'number') {
-        console.error('❌ 地图坐标转换参数必须为数字:', { vehicleX, vehicleY });
-        return { x: 50, y: 50 }; // 返回地图中心
-    }
-    
-    if (isNaN(vehicleX) || isNaN(vehicleY)) {
-        console.error('❌ 地图坐标转换参数不能为NaN:', { vehicleX, vehicleY });
-        return { x: 50, y: 50 };
-    }
-    
+    // 🚀 生产环境优化：快速转换，跳过验证
     // 转换为百分比
     // X轴：0m -> 0%, 4.81m -> 100%
     // Y轴：0m -> 100% (底部), 2.81m -> 0% (顶部) - 注意Y轴方向相反

@@ -34,14 +34,20 @@ let interpolationRAF = null;  // requestAnimationFrame ID
 let lastInterpolationTime = 0;  // 上次插值更新时间
 let lastUpdateStartIndex = 0;  // 🎯 时间分片：上次更新的起始索引（轮流更新）
 
+// 🚀 批量更新机制 - 收集多辆车的更新，统一处理并只触发一次markDirty
+const pendingUpdates = new Map();  // 待处理的车辆更新
+let batchUpdateTimer = null;       // 批量更新定时器
+const BATCH_UPDATE_DELAY = 16;     // 批量更新延迟（毫秒）- 约1帧时间
+let dirtyMarkScheduled = false;    // 是否已安排markDirty调用
+
 // 插值配置
 const INTERPOLATION_CONFIG = {
-    enabled: true,           // 是否启用插值
-    smoothFactor: 0.25,      // 插值平滑系数 (0-1)，越小越平滑但延迟越大
+    enabled: false,          // 🔧 禁用插值 - 对50Hz高频数据，直接更新更流畅
+    smoothFactor: 0.5,       // 🔧 提高平滑系数 - 如果启用插值，使用更快的响应速度
     minDistance: 0.001,      // 最小移动距离（米），小于此值不更新
     maxDistance: 0.5,        // 最大插值距离（米），超过此值直接跳转（防止传送效果）
-    rotationSmooth: 0.3,     // 旋转插值系数
-    maxUpdatesPerFrame: 1    // 🎯 每帧最多更新的车辆数量（时间分片，防止多车时单帧计算峰值）
+    rotationSmooth: 0.5,     // 🔧 提高旋转插值系数 - 更快的朝向响应
+    maxUpdatesPerFrame: 10   // 🔧 增加每帧更新数量 - 支持多车场景（之前是1，导致3辆车需要3帧才更新完）
 };
 
 /**
@@ -628,7 +634,101 @@ const stopInterpolationLoop = () => {
 };
 
 /**
- * 更新车辆位置和朝向（使用插值优化）
+ * 🚀 批量处理待更新的车辆
+ */
+const processBatchUpdates = () => {
+    if (pendingUpdates.size === 0) {
+        batchUpdateTimer = null;
+        return;
+    }
+
+    // 批量处理所有待更新的车辆
+    for (const [vehicleId, updateData] of pendingUpdates.entries()) {
+        const vehicleModel = vehicleModels.get(vehicleId);
+        if (!vehicleModel) {
+            continue;
+        }
+
+        const { position, orientation } = updateData;
+
+        // 如果启用插值，更新目标位置
+        if (INTERPOLATION_CONFIG.enabled) {
+            let interpData = vehicleInterpolationData.get(vehicleId);
+            if (!interpData) {
+                interpData = {
+                    targetPosition: { 
+                        x: vehicleModel.position.x, 
+                        z: vehicleModel.position.z 
+                    },
+                    targetOrientation: vehicleModel.rotation.y + Math.PI / 2
+                };
+                vehicleInterpolationData.set(vehicleId, interpData);
+            }
+
+            if (position && typeof position === 'object') {
+                if (typeof position.x === 'number') {
+                    interpData.targetPosition.x = position.x;
+                }
+                if (typeof position.z === 'number') {
+                    interpData.targetPosition.z = position.z;
+                }
+            }
+
+            if (typeof orientation === 'number') {
+                interpData.targetOrientation = orientation;
+            }
+        } 
+        // 如果未启用插值，直接更新位置
+        else {
+            if (position && typeof position === 'object') {
+                if (typeof position.x === 'number') {
+                    vehicleModel.position.x = position.x;
+                }
+                if (typeof position.z === 'number') {
+                    vehicleModel.position.z = position.z;
+                }
+            }
+
+            if (typeof orientation === 'number') {
+                vehicleModel.rotation.y = orientation - Math.PI / 2;
+            }
+        }
+    }
+
+    // 清空待更新队列
+    pendingUpdates.clear();
+    batchUpdateTimer = null;
+
+    // 启动插值循环（如果启用）
+    if (INTERPOLATION_CONFIG.enabled) {
+        startInterpolationLoop();
+    }
+
+    // 🎯 批量更新完成后，统一触发一次markDirty（防抖）
+    scheduleMarkDirty();
+};
+
+/**
+ * 🎯 安排markDirty调用（防抖）- 避免频繁触发渲染
+ */
+const scheduleMarkDirty = () => {
+    if (dirtyMarkScheduled) {
+        return; // 已经安排了，跳过
+    }
+
+    dirtyMarkScheduled = true;
+    
+    // 使用 requestAnimationFrame 确保在下一帧渲染前标记
+    requestAnimationFrame(() => {
+        if (typeof window !== 'undefined' && window.__scene3d_markDirty) {
+            window.__scene3d_markDirty();
+        }
+        dirtyMarkScheduled = false;
+    });
+};
+
+/**
+ * 更新车辆位置和朝向（批量更新优化）
  * @param {number} vehicleId - 车辆ID
  * @param {object} position - 位置 {x, z} (模型局部坐标系)
  * @param {number} orientation - 朝向角度（弧度）
@@ -646,55 +746,14 @@ export const updateVehiclePosition = (vehicleId, position, orientation) => {
         return false;
     }
 
-    // 如果启用插值，更新目标位置
-    if (INTERPOLATION_CONFIG.enabled) {
-        // 获取或创建插值数据
-        let interpData = vehicleInterpolationData.get(vehicleId);
-        if (!interpData) {
-            // 🐛 修复：使用车辆模型的当前位置作为初始值，而不是 (0, 0)
-            interpData = {
-                targetPosition: { 
-                    x: vehicleModel.position.x, 
-                    z: vehicleModel.position.z 
-                },
-                targetOrientation: vehicleModel.rotation.y + Math.PI / 2
-            };
-            vehicleInterpolationData.set(vehicleId, interpData);
-        }
+    // 🚀 将更新添加到待处理队列
+    pendingUpdates.set(vehicleId, { position, orientation });
 
-        // 更新目标位置
-        if (position && typeof position === 'object') {
-            if (typeof position.x === 'number') {
-                interpData.targetPosition.x = position.x;
-            }
-            if (typeof position.z === 'number') {
-                interpData.targetPosition.z = position.z;
-            }
-        }
-
-        // 更新目标朝向
-        if (typeof orientation === 'number') {
-            interpData.targetOrientation = orientation;
-        }
-
-        // 确保插值循环正在运行
-        startInterpolationLoop();
-    } 
-    // 如果未启用插值，直接更新位置（旧行为）
-    else {
-        if (position && typeof position === 'object') {
-            if (typeof position.x === 'number') {
-                vehicleModel.position.x = position.x;
-            }
-            if (typeof position.z === 'number') {
-                vehicleModel.position.z = position.z;
-            }
-        }
-
-        if (typeof orientation === 'number') {
-            vehicleModel.rotation.y = orientation - Math.PI / 2;
-        }
+    // 🚀 安排批量处理（防抖）
+    if (batchUpdateTimer) {
+        clearTimeout(batchUpdateTimer);
     }
+    batchUpdateTimer = setTimeout(processBatchUpdates, BATCH_UPDATE_DELAY);
 
     return true;
 };

@@ -309,18 +309,13 @@ const initSceneCore = async () => {
 
             controls.update();
 
-            const delta = clock?.getDelta?.() ?? 0;
-            scene.traverse((object) => {
-                if (object.isMesh && object.material && object.material.uniforms) {
-                    const uTime = object.material.uniforms.uTime;
-                    if (uTime) {
-                        uTime.value += delta;
-                    }
-                }
-            });
+            // ❌ 移除每帧的 scene.traverse() - 性能优化
+            // 如果需要更新shader的uTime，应该在创建材质时缓存对象，而不是每帧遍历
+            // const delta = clock?.getDelta?.() ?? 0;
+            // scene.traverse((object) => { ... });
 
-            // 更新场景进度 (仅在初始化阶段)
-            eventBus.emit(EVENTS.SCENE3D_PROGRESS, Math.min(100, Math.round((currentTime / 1000) * 10)));
+            // ❌ 移除每帧的进度事件 - 性能优化（只在初始化阶段需要）
+            // eventBus.emit(EVENTS.SCENE3D_PROGRESS, ...);
 
             if (stats) {
                 stats.update();

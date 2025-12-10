@@ -5,7 +5,7 @@
 
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
-import { Box3, Group, Sprite, SpriteMaterial, CanvasTexture, Color, MeshStandardMaterial } from 'three';
+import { Box3, Group, Sprite, SpriteMaterial, CanvasTexture, Color, MeshStandardMaterial, Vector3 } from 'three';
 import { validateVehicleId, validatePosition, validateOrientation } from '@/utils/validation.js';
 import { disposeObject3D } from '@/utils/resourceCleanup.js';
 
@@ -399,20 +399,81 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
             return null;
         }
         
-        // 计算沙盘道路表面的局部Y坐标（使用缓存优化性能）
+        // 查找地面网格并计算道路表面高度（沙盘局部坐标）
+        let roadSurfaceY = 0;
         if (!cachedSandboxBox) {
-            cachedSandboxBox = new Box3().setFromObject(sandboxModel);
+            // 查找地面网格（支持多种命名）
+            const groundMeshNames = ['Standardmaterial206', 'MD_CaoPing', 'Ground', 'Plane', 'Floor'];
+            let foundGroundMesh = null;
+            let maxArea = 0;
+            
+            sandboxModel.traverse((child) => {
+                if (child.isMesh && child.geometry) {
+                    const matchesName = groundMeshNames.some(name => child.name.includes(name));
+                    if (matchesName) {
+                        const box = new Box3().setFromObject(child);
+                        const size = box.getSize(new Vector3());
+                        const area = size.x * size.z;
+                        
+                        if (area > maxArea) {
+                            maxArea = area;
+                            foundGroundMesh = { mesh: child, box };
+                        }
+                    }
+                }
+            });
+            
+            if (foundGroundMesh) {
+                // 将地面顶部的世界坐标转换为沙盘局部坐标
+                const worldBox = foundGroundMesh.box;
+                const worldTopCenter = new Vector3(
+                    (worldBox.min.x + worldBox.max.x) / 2,
+                    worldBox.max.y,  // 地面顶部（世界坐标）
+                    (worldBox.min.z + worldBox.max.z) / 2
+                );
+                const localTopPoint = sandboxModel.worldToLocal(worldTopCenter.clone());
+                roadSurfaceY = localTopPoint.y;  // 局部坐标
+                
+                // 缓存信息（包含世界坐标和局部坐标）
+                cachedSandboxBox = {
+                    worldBox: worldBox,
+                    localY: roadSurfaceY
+                };
+                
+                console.info(`✅ 车辆管理器：地面高度 (局部坐标) Y = ${roadSurfaceY.toFixed(4)} (地面网格: ${foundGroundMesh.mesh.name}, 世界坐标: ${worldBox.max.y.toFixed(4)})`);
+            } else {
+                // 如果找不到地面网格，使用整个沙盘的底部（局部坐标）
+                console.warn('⚠️ 车辆管理器：未找到地面网格，使用沙盘底部作为地面高度');
+                const worldBox = new Box3().setFromObject(sandboxModel);
+                const worldBottomCenter = new Vector3(
+                    (worldBox.min.x + worldBox.max.x) / 2,
+                    worldBox.min.y,
+                    (worldBox.min.z + worldBox.max.z) / 2
+                );
+                const localBottomPoint = sandboxModel.worldToLocal(worldBottomCenter);
+                roadSurfaceY = localBottomPoint.y;
+                
+                cachedSandboxBox = {
+                    worldBox: worldBox,
+                    localY: roadSurfaceY
+                };
+            }
+        } else {
+            // 使用缓存的地面高度（局部坐标）
+            roadSurfaceY = cachedSandboxBox.localY;
         }
-        const roadSurfaceY = cachedSandboxBox.min.y;  // 道路表面 = 沙盘底部
 
         // 计算车辆模型的底部偏移（使用缓存的模板包围盒）
         const carBottomOffset = cachedCarTemplateBox ? cachedCarTemplateBox.min.y : new Box3().setFromObject(vehicleModel).min.y;
+        
+        // 计算车辆最终的Y坐标（局部坐标系）
+        const vehicleY = roadSurfaceY - carBottomOffset;  // 确保车底在道路表面
         
         // 设置车辆位置（使用沙盘局部坐标系）
         // position 已经是模型局部坐标 (x, z)，直接使用
         vehicleModel.position.set(
             position.x ?? 0,
-            roadSurfaceY - carBottomOffset,  // 确保车底在道路表面
+            vehicleY,
             position.z ?? 0
         );
 
@@ -437,7 +498,10 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
             });
         }
 
-        // console.info(`✅ 车辆 ${vehicleId} 已添加到场景 位置: (${position.x?.toFixed(2)}, ${position.z?.toFixed(2)})`);
+        console.info(`✅ 车辆 ${vehicleId} 已添加到场景`);
+        console.info(`   沙盘局部坐标: X=${vehicleModel.position.x.toFixed(3)}, Y=${vehicleY.toFixed(3)}, Z=${vehicleModel.position.z.toFixed(3)}`);
+        console.info(`   地面高度(局部): ${roadSurfaceY.toFixed(3)}, 车底偏移: ${carBottomOffset.toFixed(3)}`);
+        
         return vehicleModel;
 
     } catch (error) {
@@ -889,5 +953,14 @@ export const updateInterpolationConfig = (config) => {
         INTERPOLATION_CONFIG.rotationSmooth = config.rotationSmooth;
     }
     console.info('🚀 插值配置已更新:', INTERPOLATION_CONFIG);
+};
+
+/**
+ * 🔄 清除沙盘缓存（当沙盘模型更换时调用）
+ */
+export const clearSandboxCache = () => {
+    cachedSandboxBox = null;
+    cachedCarTemplateBox = null;
+    console.log('🔄 车辆管理器：沙盘缓存已清除');
 };
 

@@ -4,13 +4,13 @@
  * 坐标系说明：
  * 1. 车辆坐标系（协议坐标系）：
  *    - 原点在左下角 (0, 0)
- *    - X轴：0 → 4.81m（向右为正）
- *    - Y轴：0 → 2.81m（向上为正，对应模型Z轴变小）
+ *    - X轴：0 → 6.0m（向右为正）
+ *    - Y轴：0 → 5.0m（向上为正，对应模型Z轴变小）
  * 
  * 2. 沙盘模型坐标系（Three.js世界坐标）：
  *    - 原点在中心 (0, 0, 0)
- *    - X轴：-2.405 → +2.405（向右为正）
- *    - Z轴：+1.405 → -1.405（向前为正，注意方向相反）
+ *    - X轴：-3.0 → +3.0（向右为正）
+ *    - Z轴：+2.5 → -2.5（向前为正，注意方向相反）
  */
 
 // ============ 常量定义 ============
@@ -19,18 +19,20 @@
  * 沙盘模型原始尺寸（单位：米，与缩放无关）
  */
 export const SANDBOX_DIMENSIONS = {
-    width: 4.81,   // X轴总宽度（米）
-    depth: 2.81,   // Z轴总深度（米）
-    halfWidth: 4.81 / 2,   // 2.405
-    halfDepth: 2.81 / 2    // 1.405
+    width: 6.0,   // X轴总宽度（米）
+    depth: 5.0,   // Z轴总深度（米）
+    halfWidth: 6.0 / 2,   // 3.0
+    halfDepth: 5.0 / 2    // 2.5
 };
 
 /**
  * 车位中心点坐标（车辆坐标系，单位：米）
+ * ⚠️ 注意：这些坐标需要根据新模型重新测量！
+ * 以下是按比例缩放的临时值（X轴 * 1.247, Y轴 * 1.779）
  */
 export const PARKING_SLOTS = {
-    1: { x: 3.46875, y: 0.72991 },  // 1号车位
-    2: { x: 3.93503, y: 0.72991 }   // 2号车位
+    1: { x: 4.326, y: 1.299 },  // 1号车位（临时值，需重新测量）
+    2: { x: 4.907, y: 1.299 }   // 2号车位（临时值，需重新测量）
 };
 
 // ============ 全局坐标偏移量管理 ============
@@ -96,8 +98,8 @@ export function applyOffsetToSend(x, y) {
 
 /**
  * 将车辆坐标系转换为模型坐标系
- * @param {number} vehicleX - 车辆X坐标（0-4.81m）
- * @param {number} vehicleY - 车辆Y坐标（0-2.81m）
+ * @param {number} vehicleX - 车辆X坐标（0-6.0m）
+ * @param {number} vehicleY - 车辆Y坐标（0-5.0m）
  * @returns {{x: number, z: number}} 模型坐标系的 {x, z}
  */
 export function vehicleToModelCoordinates(vehicleX, vehicleY) {
@@ -245,15 +247,15 @@ export function isWithinBounds(vehicleX, vehicleY) {
 /**
  * 将车辆坐标转换为地图图片上的百分比位置
  * 用于在地图上显示车辆的位置点
- * @param {number} vehicleX - 车辆X坐标（0-4.81m）
- * @param {number} vehicleY - 车辆Y坐标（0-2.81m）
+ * @param {number} vehicleX - 车辆X坐标（0-6.0m）
+ * @param {number} vehicleY - 车辆Y坐标（0-5.0m）
  * @returns {{x: number, y: number}} 百分比位置 {x: 0-100, y: 0-100}
  */
 export function vehicleToMapPercent(vehicleX, vehicleY) {
     // 🚀 生产环境优化：快速转换，跳过验证
     // 转换为百分比
-    // X轴：0m -> 0%, 4.81m -> 100%
-    // Y轴：0m -> 100% (底部), 2.81m -> 0% (顶部) - 注意Y轴方向相反
+    // X轴：0m -> 0%, 6.0m -> 100%
+    // Y轴：0m -> 100% (底部), 5.0m -> 0% (顶部) - 注意Y轴方向相反
     const xPercent = (vehicleX / SANDBOX_DIMENSIONS.width) * 100;
     const yPercent = 100 - (vehicleY / SANDBOX_DIMENSIONS.depth) * 100;
     

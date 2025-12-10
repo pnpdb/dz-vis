@@ -49,7 +49,8 @@ import {
     updateVehiclePosition as updateVehicleInScene,
     clearAllVehicles,
     getAllVehicleIds,
-    hasVehicle
+    hasVehicle,
+    clearSandboxCache as clearVehicleManagerSandboxCache
 } from './vehicleManager.js';
 import { 
     initPathRenderer, 
@@ -517,10 +518,109 @@ const initSceneCore = async () => {
                     console.log('=' .repeat(80));
                     
                     console.log('💡 提示: 如果某些网格尺寸异常大，可能是导致包围盒尺寸不准确的原因');
+                },
+                testGroundHeight: () => {
+                    const sandbox = models.get('sandbox');
+                    if (!sandbox) {
+                        console.error('❌ 沙盘模型未找到');
+                        return null;
+                    }
+                    
+                    console.log('🔍 测试地面高度 - 查找 Standardmaterial206');
+                    console.log('=' .repeat(80));
+                    
+                    let foundGroundMesh = null;
+                    let allGroundCandidates = [];
+                    
+                    // 遍历所有网格
+                    sandbox.traverse((child) => {
+                        if (child.isMesh) {
+                            const name = child.name || '(unnamed)';
+                            
+                            // 检查是否包含 Standardmaterial206
+                            if (name.includes('Standardmaterial206')) {
+                                const meshBox = new Box3().setFromObject(child);
+                                const meshSize = new Vector3();
+                                meshBox.getSize(meshSize);
+                                const worldPos = child.getWorldPosition(new Vector3());
+                                
+                                const info = {
+                                    name: name,
+                                    localPosition: { ...child.position },
+                                    worldPosition: { x: worldPos.x, y: worldPos.y, z: worldPos.z },
+                                    size: { x: meshSize.x, y: meshSize.y, z: meshSize.z },
+                                    bounds: {
+                                        min: { x: meshBox.min.x, y: meshBox.min.y, z: meshBox.min.z },
+                                        max: { x: meshBox.max.x, y: meshBox.max.y, z: meshBox.max.z }
+                                    },
+                                    area: meshSize.x * meshSize.z
+                                };
+                                
+                                allGroundCandidates.push(info);
+                                
+                                if (!foundGroundMesh || info.area > foundGroundMesh.area) {
+                                    foundGroundMesh = info;
+                                }
+                            }
+                        }
+                    });
+                    
+                    if (allGroundCandidates.length === 0) {
+                        console.log('❌ 未找到包含 "Standardmaterial206" 的网格');
+                        console.log('');
+                        console.log('🔍 尝试列出所有网格名称:');
+                        sandbox.traverse((child) => {
+                            if (child.isMesh && child.name) {
+                                console.log(`  - ${child.name}`);
+                            }
+                        });
+                    } else {
+                        console.log(`✅ 找到 ${allGroundCandidates.length} 个匹配的地面网格\n`);
+                        
+                        allGroundCandidates.forEach((info, idx) => {
+                            console.log(`[${idx + 1}] ${info.name}`);
+                            console.log(`  📍 局部坐标: X=${info.localPosition.x.toFixed(4)} Y=${info.localPosition.y.toFixed(4)} Z=${info.localPosition.z.toFixed(4)}`);
+                            console.log(`  🌍 世界坐标: X=${info.worldPosition.x.toFixed(4)} Y=${info.worldPosition.y.toFixed(4)} Z=${info.worldPosition.z.toFixed(4)}`);
+                            console.log(`  📐 尺寸: X=${info.size.x.toFixed(3)} Y=${info.size.y.toFixed(3)} Z=${info.size.z.toFixed(3)}`);
+                            console.log(`  📦 Y范围: ${info.bounds.min.y.toFixed(4)} ~ ${info.bounds.max.y.toFixed(4)}`);
+                            console.log(`  📏 面积: ${info.area.toFixed(3)}`);
+                            console.log('');
+                        });
+                        
+                        if (foundGroundMesh) {
+                            // 计算地面顶部在沙盘局部坐标系中的Y值
+                            const worldTopPoint = new Vector3(
+                                (foundGroundMesh.bounds.min.x + foundGroundMesh.bounds.max.x) / 2,
+                                foundGroundMesh.bounds.max.y,
+                                (foundGroundMesh.bounds.min.z + foundGroundMesh.bounds.max.z) / 2
+                            );
+                            const localTopPoint = sandbox.worldToLocal(worldTopPoint.clone());
+                            
+                            console.log('=' .repeat(80));
+                            console.log('🎯 选定的地面网格 (面积最大):');
+                            console.log(`  名称: ${foundGroundMesh.name}`);
+                            console.log(`  🌍 世界坐标 - 地面高度(Y max): ${foundGroundMesh.bounds.max.y.toFixed(4)}`);
+                            console.log(`  🌍 世界坐标 - 地面底部(Y min): ${foundGroundMesh.bounds.min.y.toFixed(4)}`);
+                            console.log(`  📍 沙盘局部坐标 - 地面高度(Y): ${localTopPoint.y.toFixed(4)} ⭐`);
+                            console.log('=' .repeat(80));
+                            console.log('');
+                            console.log('💡 提示: 施工标记、车辆等应使用沙盘局部坐标 (Y ≈ ' + localTopPoint.y.toFixed(2) + ')');
+                            console.log('   可以使用 getRoadSurfaceY() 获取缓存的局部坐标');
+                            
+                            return foundGroundMesh;
+                        }
+                    }
+                    
+                    return null;
+                },
+                getSandboxDimensionsInfo: () => {
+                    return getSandboxDimensionsInfo();
                 }
             };
             console.log('🔧 调试工具已挂载到 window.__scene3d__');
             console.log('💡 快速调试命令:');
+            console.log('  - window.__scene3d__.testGroundHeight() // 🆕 测试地面高度 (查找 Standardmaterial206)');
+            console.log('  - window.__scene3d__.getSandboxDimensionsInfo() // 查看沙盘尺寸信息');
             console.log('  - window.__scene3d__.logAlignmentInfo() // 查看沙盘和小车对齐信息');
             console.log('  - window.__scene3d__.analyzeSandboxMeshes() // 分析沙盘网格尺寸（找出尺寸差异原因）');
             console.log('  - window.__scene3d__.adjustCarPosition(0, Y, 0) // 微调小车Y位置');
@@ -727,6 +827,10 @@ const loadModelsWithProgress = async () => {
                         
                         // 🎯 对齐沙盘模型
                         alignSandbox(sandboxModel, scene, '异步加载');
+                        
+                        // 🔄 清除地面高度缓存（强制重新计算新沙盘的地面高度）
+                        clearRoadSurfaceCache();
+                        clearVehicleManagerSandboxCache();
                     } else {
                         console.error('❌ 无法从models中获取沙盘模型！');
                     }
@@ -1468,14 +1572,14 @@ const calculateSandboxDimensions = (model) => {
     // 获取模型的缩放比例
     const scale = model.scale.x; // 假设xyz缩放比例相同
     
-    // 1️⃣ 查找地面网格（草坪）作为X/Z尺寸的基准
+    // 1️⃣ 查找地面网格作为X/Z尺寸的基准
     let groundMesh = null;
     let maxGroundArea = 0;
     
     model.traverse((child) => {
         if (child.isMesh) {
-            // 查找名为 MD_CaoPing 的草坪网格
-            if (child.name && child.name.includes('CaoPing')) {
+            // 优先查找名为 Standardmaterial206 的地面网格（新模型）
+            if (child.name && child.name.includes('Standardmaterial206')) {
                 const meshBox = new Box3().setFromObject(child);
                 const meshSize = new Vector3();
                 meshBox.getSize(meshSize);
@@ -1485,11 +1589,35 @@ const calculateSandboxDimensions = (model) => {
                     maxGroundArea = area;
                     groundMesh = child;
                 }
+                console.log(`🔍 找到 Standardmaterial206 网格:`, {
+                    name: child.name,
+                    size: { x: meshSize.x, y: meshSize.y, z: meshSize.z },
+                    area: area,
+                    position: child.position,
+                    worldPosition: child.getWorldPosition(new Vector3())
+                });
+            }
+            // 备用：查找名为 MD_CaoPing 的草坪网格（旧模型）
+            else if (child.name && child.name.includes('CaoPing')) {
+                const meshBox = new Box3().setFromObject(child);
+                const meshSize = new Vector3();
+                meshBox.getSize(meshSize);
+                const area = meshSize.x * meshSize.z;
+                
+                if (area > maxGroundArea) {
+                    maxGroundArea = area;
+                    groundMesh = child;
+                }
+                console.log(`🔍 找到 CaoPing 网格:`, {
+                    name: child.name,
+                    size: { x: meshSize.x, y: meshSize.y, z: meshSize.z },
+                    area: area
+                });
             }
         }
     });
     
-    // 如果没找到草坪，就找最大的水平网格（Y高度接近0的网格）
+    // 如果没找到特定名称的地面，就找最大的水平网格（Y高度接近0的网格）
     if (!groundMesh) {
         model.traverse((child) => {
             if (child.isMesh) {
@@ -1510,11 +1638,22 @@ const calculateSandboxDimensions = (model) => {
     let groundSize = new Vector3();
     let groundBox = null;
     let groundName = '(未找到地面)';
+    let groundYPosition = 0; // 地面的Y坐标高度
     
     if (groundMesh) {
         groundBox = new Box3().setFromObject(groundMesh);
         groundBox.getSize(groundSize);
         groundName = groundMesh.name || '(unnamed)';
+        
+        // 获取地面的Y坐标（使用包围盒的最大Y值作为地面高度）
+        groundYPosition = groundBox.max.y;
+        
+        console.log(`📍 地面高度信息:`, {
+            name: groundName,
+            yMin: groundBox.min.y.toFixed(4),
+            yMax: groundBox.max.y.toFixed(4),
+            groundHeight: groundYPosition.toFixed(4)
+        });
     }
     
     // 3️⃣ 计算整体包围盒（用于Y高度）
@@ -1575,7 +1714,8 @@ const calculateSandboxDimensions = (model) => {
         // 地面信息
         ground: {
             name: groundName,
-            found: !!groundMesh
+            found: !!groundMesh,
+            yPosition: groundYPosition  // 地面的Y坐标高度
         },
         // 缩放比例
         scale: scale
@@ -1589,6 +1729,9 @@ const calculateSandboxDimensions = (model) => {
     console.log('  - Z轴(蓝色): 沙盘深度 (前后方向)');
     console.log('');
     console.log(`🌿 地面基准: ${groundName} ${groundMesh ? '✅' : '❌未找到'}`);
+    if (groundMesh) {
+        console.log(`   📍 地面高度(Y): ${groundYPosition.toFixed(4)} 单位`);
+    }
     console.log('');
     console.log('📐 场景中实际尺寸 (已应用缩放):');
     console.log(`  - 宽度(X轴): ${dimensions.scaled.width.toFixed(3)} 单位 ${groundMesh ? '(基于地面)' : '(整体)'}`);
@@ -1674,8 +1817,76 @@ export const getSandboxDimensionsInfo = () => {
 let cachedRoadSurfaceY = null; // 缓存道路表面高度
 
 /**
- * 获取沙盘道路表面的Y坐标（局部坐标系）
- * @returns {number} 道路表面的Y坐标
+ * 查找地面网格（支持多种命名方式）
+ * @returns {Object|null} 地面网格的信息 {mesh, worldBox, localY}
+ */
+const findGroundMesh = () => {
+    const sandboxModel = models.get('sandbox');
+    if (!sandboxModel) {
+        return null;
+    }
+    
+    // 支持的地面网格名称列表（按优先级排序）
+    const groundMeshNames = [
+        'Standardmaterial206',  // 新沙盘模型（带底座）
+        'MD_CaoPing',          // 旧沙盘模型（草坪）
+        'Ground',              // 通用命名
+        'Plane',               // 平面命名
+        'Floor'                // 地板命名
+    ];
+    
+    let foundMesh = null;
+    let maxArea = 0;
+    
+    // 遍历沙盘模型，查找地面网格
+    sandboxModel.traverse((child) => {
+        if (child.isMesh && child.geometry) {
+            // 检查名称是否匹配
+            const matchesName = groundMeshNames.some(name => 
+                child.name.includes(name)
+            );
+            
+            if (matchesName) {
+                const box = new Box3().setFromObject(child);
+                const size = box.getSize(new Vector3());
+                const area = size.x * size.z; // XZ平面面积
+                
+                // 选择面积最大的作为地面（避免误选小网格）
+                if (area > maxArea) {
+                    maxArea = area;
+                    foundMesh = child;
+                }
+            }
+        }
+    });
+    
+    if (foundMesh) {
+        // 计算世界坐标包围盒
+        const worldBox = new Box3().setFromObject(foundMesh);
+        
+        // 将地面顶部的世界坐标转换为沙盘局部坐标
+        const worldTopCenter = new Vector3(
+            (worldBox.min.x + worldBox.max.x) / 2,
+            worldBox.max.y,  // 地面顶部
+            (worldBox.min.z + worldBox.max.z) / 2
+        );
+        
+        // 转换为沙盘局部坐标
+        const localPosition = sandboxModel.worldToLocal(worldTopCenter.clone());
+        
+        return { 
+            mesh: foundMesh, 
+            worldBox: worldBox,
+            localY: localPosition.y  // 地面在沙盘局部坐标系中的 Y 值
+        };
+    }
+    
+    return null;
+};
+
+/**
+ * 获取沙盘道路表面的Y坐标（沙盘局部坐标系）
+ * @returns {number} 道路表面的Y坐标（局部坐标）
  */
 export const getRoadSurfaceY = () => {
     if (cachedRoadSurfaceY !== null) {
@@ -1683,14 +1894,38 @@ export const getRoadSurfaceY = () => {
     }
     
     const sandboxModel = models.get('sandbox');
-    if (sandboxModel) {
-        const box = new Box3().setFromObject(sandboxModel);
-        cachedRoadSurfaceY = box.min.y;
+    if (!sandboxModel) {
+        return 0;
+    }
+    
+    // 尝试查找地面网格
+    const groundMeshInfo = findGroundMesh();
+    if (groundMeshInfo) {
+        // 使用地面网格在沙盘局部坐标系中的Y坐标
+        cachedRoadSurfaceY = groundMeshInfo.localY;
+        console.log(`✅ 地面高度已缓存 (沙盘局部坐标): Y = ${cachedRoadSurfaceY.toFixed(4)} (地面网格: ${groundMeshInfo.mesh.name}, 世界坐标: ${groundMeshInfo.worldBox.max.y.toFixed(4)})`);
         return cachedRoadSurfaceY;
     }
     
-    // 沙盘未加载时返回默认值
-    return 0;
+    // 如果找不到地面网格，使用沙盘底部（局部坐标）
+    console.warn('⚠️ 未找到地面网格，使用沙盘底部作为地面高度');
+    const worldBox = new Box3().setFromObject(sandboxModel);
+    const worldBottomCenter = new Vector3(
+        (worldBox.min.x + worldBox.max.x) / 2,
+        worldBox.min.y,
+        (worldBox.min.z + worldBox.max.z) / 2
+    );
+    const localPosition = sandboxModel.worldToLocal(worldBottomCenter);
+    cachedRoadSurfaceY = localPosition.y;
+    return cachedRoadSurfaceY;
+};
+
+/**
+ * 清除地面高度缓存（当沙盘模型更换时调用）
+ */
+export const clearRoadSurfaceCache = () => {
+    cachedRoadSurfaceY = null;
+    console.log('🔄 地面高度缓存已清除');
 };
 
 // ============ 标记管理（施工标记、起点、终点） ============
@@ -1828,7 +2063,8 @@ export const createConstructionMarkerAt = (x, z, options = {}) => {
     // 使用沙盘模型的局部坐标系（x, z是沙盘的局部坐标）
     // Y坐标使用道路表面高度，稍微抬高一点避免Z-fighting
     const roadY = getRoadSurfaceY();
-    sprite.position.set(x, roadY + 0.01, z);
+    const markerY = roadY + 0.01;
+    sprite.position.set(x, markerY, z);
     sprite.name = 'ConstructionMarker';
 
     // 将标记添加到沙盘模型内部，而不是modelsGroup
@@ -1843,7 +2079,8 @@ export const createConstructionMarkerAt = (x, z, options = {}) => {
         position: sprite.position.clone()
     });
     
-    console.log(`🚧 施工标记已创建在沙盘局部坐标: (${x.toFixed(3)}, ${z.toFixed(3)})`);
+    console.log(`🚧 施工标记已创建 - 沙盘局部坐标: X=${x.toFixed(3)}, Y=${markerY.toFixed(3)}, Z=${z.toFixed(3)}`);
+    console.log(`   地面高度(局部): ${roadY.toFixed(3)}, 标记高度: ${markerY.toFixed(3)}`);
     
     return { id, x, z };
 };
@@ -2202,8 +2439,22 @@ const createPositionMarker = (position) => {
     // 创建圆点标记
     positionMarker = new Mesh(geometry, material);
     positionMarker.position.copy(position);
-    positionMarker.position.y = 0.1; // 调整高度与新的半径匹配
+    
+    // 使用 groundPlane 的高度（世界坐标），如果 groundPlane 存在的话
+    if (groundPlane) {
+        positionMarker.position.y = groundPlane.position.y + 0.1; // 地面高度 + 半径偏移
+    } else {
+        // 后备方案：尝试从沙盘尺寸信息获取地面高度
+        const dimensions = getSandboxDimensionsInfo();
+        if (dimensions && dimensions.ground.found) {
+            positionMarker.position.y = dimensions.ground.yPosition + 0.1;
+        } else {
+            positionMarker.position.y = 0.1; // 默认值
+        }
+    }
+    
     scene.add(positionMarker);
+    console.debug(`📍 位置标记已创建 - 世界坐标: X=${positionMarker.position.x.toFixed(3)}, Y=${positionMarker.position.y.toFixed(3)}, Z=${positionMarker.position.z.toFixed(3)}`);
 };
 
 // 创建角度标签
@@ -2322,9 +2573,20 @@ const updateDirectionLine = (start, end) => {
         if (angleLabel.material) angleLabel.material.dispose();
     }
     
+    // 获取地面高度（世界坐标）
+    let groundHeight = 0.1; // 默认值
+    if (groundPlane) {
+        groundHeight = groundPlane.position.y + 0.1; // 使用 groundPlane 的高度
+    } else {
+        const dimensions = getSandboxDimensionsInfo();
+        if (dimensions && dimensions.ground.found) {
+            groundHeight = dimensions.ground.yPosition + 0.1;
+        }
+    }
+    
     // 创建粗射线 - 使用圆柱体几何来实现真正的粗线
-    const startPos = new Vector3(start.x, 0.1, start.z);
-    const endPos = new Vector3(end.x, 0.1, end.z);
+    const startPos = new Vector3(start.x, groundHeight, start.z);
+    const endPos = new Vector3(end.x, groundHeight, end.z);
     const direction = new Vector3().subVectors(endPos, startPos);
     const length = direction.length();
     
@@ -2352,10 +2614,10 @@ const updateDirectionLine = (start, end) => {
     directionArrow = new Mesh(arrowGeometry, arrowMaterial);
     
     // 设置箭头位置和旋转
-    directionArrow.position.set(end.x, 0.1, end.z);
+    directionArrow.position.set(end.x, groundHeight, end.z);
     directionArrow.lookAt(
         end.x + arrowDirection.x,
-        0.1 + arrowDirection.y,
+        groundHeight + arrowDirection.y,
         end.z + arrowDirection.z
     );
     // 将箭头旋转90度，使其指向正确方向
@@ -2373,7 +2635,7 @@ const updateDirectionLine = (start, end) => {
     // 计算射线中点位置用于放置标签
     const midPoint = new Vector3(
         (start.x + end.x) / 2,
-        0.1,
+        groundHeight,
         (start.z + end.z) / 2
     );
     
@@ -2391,6 +2653,9 @@ const createGroundPlane = () => {
     const centerX = (dimensions.bounds.max.x + dimensions.bounds.min.x) / 2;
     const centerZ = (dimensions.bounds.max.z + dimensions.bounds.min.z) / 2;
     
+    // 使用实际的地面高度（如果有的话），否则默认为0
+    const groundY = dimensions.ground.found ? dimensions.ground.yPosition : 0;
+    
     // 创建足够大的平面确保覆盖整个沙盘区域
     const geometry = new PlaneGeometry(width * 1.5, depth * 1.5);
     const material = new MeshBasicMaterial({ 
@@ -2402,13 +2667,14 @@ const createGroundPlane = () => {
     
     groundPlane = new Mesh(geometry, material);
     groundPlane.rotation.x = -Math.PI / 2; // 水平放置
-    groundPlane.position.set(centerX, 0, centerZ); // 设置到沙盘中心位置
+    groundPlane.position.set(centerX, groundY, centerZ); // 使用实际地面高度
     groundPlane.visible = false; // 不可见，只用于射线检测
     scene.add(groundPlane);
     
     console.log('🎯 地面检测平面已创建:', {
-        center: { x: centerX, z: centerZ },
-        size: { width: width * 1.5, depth: depth * 1.5 }
+        center: { x: centerX, y: groundY, z: centerZ },
+        size: { width: width * 1.5, depth: depth * 1.5 },
+        groundReference: dimensions.ground.name
     });
 };
 

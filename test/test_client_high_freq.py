@@ -486,8 +486,8 @@ class VehiclePath:
         self.vehicle_id = vehicle_id
         
         # 沙盘尺寸（米）
-        self.SANDBOX_WIDTH = 4.81
-        self.SANDBOX_DEPTH = 2.81
+        self.SANDBOX_WIDTH = 6.0
+        self.SANDBOX_DEPTH = 5.0
         
         # 道路边距（稍微往里一点，因为道路不在最边缘）
         self.MARGIN_X = 0.23  # X轴边距

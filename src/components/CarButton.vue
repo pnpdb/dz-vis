@@ -220,8 +220,8 @@ const showPoseConfirmDialog = (vehicleId, pose) => {
     // 转换为车辆坐标系用于显示
     const vehicleCoords = modelToVehicleCoordinates(pose.x, pose.z);
     selectedPoseData.value = {
-        x: vehicleCoords.x,  // 车辆坐标系 X (0-4.81m)
-        z: vehicleCoords.y,  // 车辆坐标系 Y (0-2.81m)，显示为Z
+        x: vehicleCoords.x,  // 车辆坐标系 X (0-6.0m)
+        z: vehicleCoords.y,  // 车辆坐标系 Y (0-5.0m)，显示为Z
         orientation: pose.orientation  // 弧度 (-π 到 π)
     };
     
@@ -277,7 +277,7 @@ const cancelPoseSelection = () => {
 // 执行位姿初始化
 const executePoseInitialization = async (vehicleId, x, y, orientation) => {
     try {
-        // x, y 已经是车辆坐标系 (0-4.81m, 0-2.81m)
+        // x, y 已经是车辆坐标系 (0-6.0m, 0-5.0m)
         // orientation 是弧度 (-π 到 π)
         console.log(`📤 发送初始化位姿 - 车辆${vehicleId}: X=${x.toFixed(3)}m, Y=${y.toFixed(3)}m, 朝向=${orientation.toFixed(3)}rad`);
         await socketManager.initializePose(vehicleId, x, y, orientation);

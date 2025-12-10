@@ -1551,15 +1551,15 @@ import CardWithBorder from '@/components/CardWithBorder.vue';
 ```
 特点：
 - 原点：左下角
-- X 轴：向右（正方向），范围 0 ~ 4.81m
-- Y 轴：向上（正方向），范围 0 ~ 2.81m
+- X 轴：向右（正方向），范围 0 ~ 6.0m
+- Y 轴：向上（正方向），范围 0 ~ 5.0m
 - 朝向角度：X 轴正方向为 0 弧度
   - 逆时针旋转为正（0 到 π）
   - 顺时针旋转为负（-π 到 0）
 
 车位坐标（硬编码在 coordinateTransform.js）：
-- 1号车位：X: 3.46875m, Y: 0.72991m
-- 2号车位：X: 3.93503m, Y: 0.72991m
+- 1号车位：X: 4.326m, Y: 1.299m（临时值，需根据新模型重新测量）
+- 2号车位：X: 4.907m, Y: 1.299m（临时值，需根据新模型重新测量）
 ```
 
 ### 2. 沙盘模型坐标系统（Three.js 局部坐标）
@@ -1590,12 +1590,12 @@ function vehicleToModelCoordinates(vehicleX, vehicleY) {
   const offsetVehicleY = vehicleY + coordinateOffset.y;
   
   // 2. 坐标系转换
-  // 车辆 X (0-4.81) → 模型 X (-2.405 to 2.405)
-  const modelX = (offsetVehicleX - 2.405) / 6;
+  // 车辆 X (0-6.0) → 模型 X (-3.0 to 3.0)
+  const modelX = (offsetVehicleX - 3.0) / 6;
   
-  // 车辆 Y (0-2.81) → 模型 Z (1.405 to -1.405)
+  // 车辆 Y (0-5.0) → 模型 Z (2.5 to -2.5)
   // 注意：Y 轴方向相反！
-  const modelZ = (1.405 - offsetVehicleY) / 6;
+  const modelZ = (2.5 - offsetVehicleY) / 6;
   
   return { x: modelX, z: modelZ };
 }
@@ -1605,8 +1605,8 @@ function vehicleToModelCoordinates(vehicleX, vehicleY) {
 ```javascript
 function modelToVehicleCoordinates(modelX, modelZ) {
   // 反向转换
-  const vehicleX = modelX * 6 + 2.405;
-  const vehicleY = 1.405 - modelZ * 6;
+  const vehicleX = modelX * 6 + 3.0;
+  const vehicleY = 2.5 - modelZ * 6;
   
   return { x: vehicleX, z: vehicleY };
 }
@@ -1697,8 +1697,8 @@ vehicleModel.rotation.y = orientation - Math.PI / 2;
 
 // 沙盘尺寸（硬编码，与3D模型匹配）
 export const SANDBOX_DIMENSIONS = {
-  width: 4.81,   // X方向，米
-  depth: 2.81    // Y方向（对应Z轴），米
+  width: 6.0,   // X方向，米
+  depth: 5.0    // Y方向（对应Z轴），米
 };
 
 // 坐标偏移（用户可在设置中调整）
@@ -2602,7 +2602,7 @@ import { vehicleToModelCoordinates, modelToVehicleCoordinates }
   from '@/utils/coordinateTransform.js';
 
 // 测试往返转换
-const vehicle = { x: 2.4, z: 1.4 };
+const vehicle = { x: 3.0, z: 2.5 };
 const model = vehicleToModelCoordinates(vehicle.x, vehicle.z);
 const back = modelToVehicleCoordinates(model.x, model.z);
 

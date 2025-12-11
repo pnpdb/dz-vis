@@ -489,9 +489,9 @@ class VehiclePath:
         self.SANDBOX_WIDTH = 6.0
         self.SANDBOX_DEPTH = 5.0
         
-        # 道路边距（稍微往里一点，因为道路不在最边缘）
-        self.MARGIN_X = 0.23  # X轴边距
-        self.MARGIN_Y = 0.23  # Y轴边距
+        # 道路边距（沿着内圈走，距离边界0.43m）
+        self.MARGIN_X = 0.43  # X轴边距（内圈）
+        self.MARGIN_Y = 0.43  # Y轴边距（内圈）
         
         # 定义矩形路径的四个角点（顺时针绕行）
         # 左下 -> 左上 -> 右上 -> 右下 -> 左下
@@ -591,11 +591,13 @@ def create_vehicle_info_data(vehicle_id=1):
     data.extend(struct.pack('<d', speed))
     
     # 位置X (8字节, DOUBLE) - 从路径管理器获取
-    position_x = state['position_x'] + 0.18
+    # 走内圈：MARGIN已设置为0.43，不需要额外偏移
+    position_x = state['position_x']
     data.extend(struct.pack('<d', position_x))
     
     # 位置Y (8字节, DOUBLE) - 从路径管理器获取
-    position_y = state['position_y'] + 0.18
+    # 走内圈：MARGIN已设置为0.43，不需要额外偏移
+    position_y = state['position_y']
     data.extend(struct.pack('<d', position_y))
     
     # 朝向 (8字节, DOUBLE) - 从路径管理器获取（自动根据移动方向计算）
@@ -676,7 +678,7 @@ def create_vehicle_info_data(vehicle_id=1):
     return bytes(data)
 
 class TestClient:
-    def __init__(self, server_host='192.168.1.69', server_port=8888, vehicle_id=1):
+    def __init__(self, server_host='127.0.0.1', server_port=8888, vehicle_id=1):
         self.server_host = server_host
         self.server_port = server_port
         self.vehicle_id = vehicle_id

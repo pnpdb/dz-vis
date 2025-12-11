@@ -775,7 +775,7 @@ const loadModelsWithProgress = async () => {
             setTimeout(() => {
                 console.info('开始加载沙盘模型');
                 loadModelAsync(loader, '/models/sandbox.glb', 'sandbox', {
-                    scale: 6,  // 缩小沙盘显示（原6，调整为5.5更合适）
+                    scale: 4.5,  // 缩小沙盘显示（原6，调整为5.5更合适）
                     position: [0, 0, 0],  // 初始位置，稍后会自动调整让底座贴地
                     processMaterial: true,
                     priority: 'low',
@@ -883,7 +883,7 @@ const loadModels = () => {
     // 延迟加载大模型，给界面更多响应时间
     setTimeout(() => {
         loadModel(loader, '/models/sandbox.glb', 'sandbox', {
-            scale: 6,  // 与异步加载保持一致（调整为5.5更合适）
+            scale: 4.5,  // 与异步加载保持一致（调整为5.5更合适）
             position: [0, 0, 0],  // 初始位置，稍后会自动调整让底座贴地
             processMaterial: true,
             priority: 'low',

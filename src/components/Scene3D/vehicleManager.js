@@ -78,12 +78,13 @@ const ELEVATION_CONFIG = {
 };
 
 /**
- * 🌉 根据车辆位置计算高度和倾角（高架桥系统）
+ * 🌉 根据车辆位置和朝向计算高度和倾角（高架桥系统）
  * @param {number} vehicleX - 车辆X坐标 (车辆坐标系，0-6m)
  * @param {number} vehicleY - 车辆Y坐标 (车辆坐标系，0-5m)
+ * @param {number} orientation - 车辆朝向角度 (弧度)，用于判断移动方向
  * @returns {Object} { height, pitchAngle, region } - 高度增量(沙盘局部坐标)、倾角(弧度)、区域名称
  */
-const calculateVehicleElevation = (vehicleX, vehicleY) => {
+const calculateVehicleElevation = (vehicleX, vehicleY, orientation = null) => {
     if (!ELEVATION_CONFIG.enabled) {
         return { height: 0, pitchAngle: 0, region: 'ground' };
     }
@@ -101,27 +102,41 @@ const calculateVehicleElevation = (vehicleX, vehicleY) => {
         };
     }
     
-    // 2️⃣ 左侧上坡区域（X <= X1 且 Y1 < Y <= Y2）
-    if (vehicleX <= X1 && vehicleY > Y1 && vehicleY <= Y2) {
-        const progress = (vehicleY - Y1) / SLOPE_LENGTH;  // 0-1
+    // 2️⃣ 坡道区域（左侧或右侧，Y1 < Y <= Y2）
+    const isInSlopeZone = vehicleY > Y1 && vehicleY <= Y2;
+    const isLeftZone = vehicleX <= X1;
+    const isRightZone = vehicleX >= X2;
+    
+    if (isInSlopeZone && (isLeftZone || isRightZone)) {
+        const progress = (vehicleY - Y1) / SLOPE_LENGTH;  // 0-1，表示从Y1到Y2的进度
+        
+        // 🔑 关键：根据车辆朝向判断是上坡还是下坡
+        let pitchAngle = 0;
+        if (typeof orientation === 'number') {
+            // 计算朝向在Y轴方向的分量（sin值）
+            const dy = Math.sin(orientation);
+            
+            // dy > 0: Y在增大（朝+Y方向移动）→ 上坡（车头朝上，正倾角）
+            // dy < 0: Y在减小（朝-Y方向移动）→ 下坡（车头朝下，负倾角）
+            // 阈值0.05：只在接近垂直方向时判断，转弯时保持水平
+            if (Math.abs(dy) > 0.05) {
+                pitchAngle = dy > 0 ? SLOPE_ANGLE : -SLOPE_ANGLE;
+            }
+        } else {
+            // 如果没有朝向信息，使用区域默认值（向后兼容）
+            pitchAngle = isLeftZone ? SLOPE_ANGLE : -SLOPE_ANGLE;
+        }
+        
+        const region = isLeftZone ? 'left_slope' : 'right_slope';
+        
         return {
             height: progress * BRIDGE_HEIGHT,
-            pitchAngle: SLOPE_ANGLE,  // 正值：车头朝上
-            region: 'left_upslope'
+            pitchAngle: pitchAngle,
+            region: region
         };
     }
     
-    // 3️⃣ 右侧下坡区域（X >= X2 且 Y1 < Y <= Y2）
-    if (vehicleX >= X2 && vehicleY > Y1 && vehicleY <= Y2) {
-        const progress = (Y2 - vehicleY) / SLOPE_LENGTH;  // 1-0（从高到低）
-        return {
-            height: (1 - progress) * BRIDGE_HEIGHT,  // 从桥面高度逐渐降到地面
-            pitchAngle: -SLOPE_ANGLE,  // 负值：车头朝下
-            region: 'right_downslope'
-        };
-    }
-    
-    // 4️⃣ 地面区域（默认）
+    // 3️⃣ 地面区域（默认）
     return {
         height: 0,
         pitchAngle: 0,
@@ -453,6 +468,10 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
         vehicleModel = new Group();
         vehicleModel.name = `Vehicle_${vehicleId}_Container`;
         
+        // 🔑 关键：设置旋转顺序为 YXZ，确保倾角相对于车辆自身坐标系
+        // YXZ 顺序：先绕Y轴旋转（朝向），再绕X轴旋转（倾角）
+        vehicleModel.rotation.order = 'YXZ';
+        
         // 克隆车辆模型并添加到容器组
         const carMesh = carModelTemplate.clone();
         carMesh.name = `Vehicle_${vehicleId}_Mesh`;
@@ -553,7 +572,8 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
         if (ELEVATION_CONFIG.enabled) {
             // 将沙盘局部坐标转换为车辆坐标系（用于判断区域）
             const vehicleCoords = modelToVehicleCoordinates(position.x ?? 0, position.z ?? 0);
-            const elevation = calculateVehicleElevation(vehicleCoords.x, vehicleCoords.y);
+            // 添加车辆时传入朝向，用于判断上下坡方向
+            const elevation = calculateVehicleElevation(vehicleCoords.x, vehicleCoords.y, orientation);
             elevationHeight = elevation.height;
             pitchAngle = elevation.pitchAngle;
             regionName = elevation.region;
@@ -866,14 +886,15 @@ const processBatchUpdates = () => {
                     if (!cachedSandboxBox || !cachedCarTemplateBox) {
                         // 缓存未初始化时只更新倾角，不更新Y坐标
                         const vehicleCoords = modelToVehicleCoordinates(position.x, position.z);
-                        const elevation = calculateVehicleElevation(vehicleCoords.x, vehicleCoords.y);
+                        // 传入朝向用于判断上下坡方向
+                        const elevation = calculateVehicleElevation(vehicleCoords.x, vehicleCoords.y, orientation);
                         vehicleModel.rotation.x = elevation.pitchAngle;
                     } else {
                         // 将沙盘局部坐标转换为车辆坐标系（用于判断区域）
                         const vehicleCoords = modelToVehicleCoordinates(position.x, position.z);
                         
-                        // 计算该位置的高度和倾角
-                        const elevation = calculateVehicleElevation(vehicleCoords.x, vehicleCoords.y);
+                        // 计算该位置的高度和倾角（传入朝向用于判断上下坡方向）
+                        const elevation = calculateVehicleElevation(vehicleCoords.x, vehicleCoords.y, orientation);
                         
                         // 获取地面基准高度（缓存已验证存在）
                         const roadSurfaceY = cachedSandboxBox.localY;
@@ -1192,14 +1213,22 @@ export const updateElevationConfig = (config) => {
 
 /**
  * 🧪 调试工具：测试指定坐标的高度和倾角
+ * @param {number} vehicleX - 车辆X坐标
+ * @param {number} vehicleY - 车辆Y坐标
+ * @param {number} orientation - 车辆朝向（弧度，可选）
  */
-export const testElevationAt = (vehicleX, vehicleY) => {
-    const elevation = calculateVehicleElevation(vehicleX, vehicleY);
+export const testElevationAt = (vehicleX, vehicleY, orientation = null) => {
+    const elevation = calculateVehicleElevation(vehicleX, vehicleY, orientation);
     
     console.log(`🧪 坐标 (${vehicleX.toFixed(3)}, ${vehicleY.toFixed(3)}) 的高度测试:`);
+    if (orientation !== null) {
+        console.log(`  朝向: ${(orientation * 180 / Math.PI).toFixed(1)}° (${orientation.toFixed(3)} rad)`);
+        console.log(`  Y方向分量: ${Math.sin(orientation).toFixed(3)} (${Math.sin(orientation) > 0 ? '朝+Y(上坡)' : '朝-Y(下坡)'})`);
+    }
     console.log(`  区域: ${elevation.region}`);
     console.log(`  高度增量: ${elevation.height.toFixed(4)}m`);
     console.log(`  倾角: ${(elevation.pitchAngle * 180 / Math.PI).toFixed(2)}° (${elevation.pitchAngle.toFixed(4)} rad)`);
+    console.log(`  ${elevation.pitchAngle > 0 ? '↗️ 上坡(车头朝上)' : elevation.pitchAngle < 0 ? '↘️ 下坡(车头朝下)' : '→ 平地'}`);
     
     return elevation;
 };

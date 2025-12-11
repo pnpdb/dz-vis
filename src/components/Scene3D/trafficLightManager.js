@@ -301,8 +301,13 @@ export function updateTrafficLightGroup(groupIndex, color, countdown) {
         return;
     }
 
+    // 🔄 交换一组和二组（修正协议组号与实际组号的对应关系）
+    // 协议第一组(0) → 实际第二组(1)
+    // 协议第二组(1) → 实际第一组(0)
+    const actualGroupIndex = groupIndex === 0 ? 1 : 0;
+
     // 找出该组的所有红绿灯
-    const targetLights = trafficLights.filter(light => light.groupIndex === groupIndex);
+    const targetLights = trafficLights.filter(light => light.groupIndex === actualGroupIndex);
 
     if (targetLights.length === 0) {
         logger.warn(`第${groupIndex + 1}组没有找到红绿灯`);
@@ -314,7 +319,7 @@ export function updateTrafficLightGroup(groupIndex, color, countdown) {
         setTrafficLightState(light.index, color);
     });
 
-    logger.info(`✅ 第${groupIndex + 1}组的 ${targetLights.length} 个红绿灯已更新为: ${getColorName(color)}`);
+    logger.info(`✅ 协议第${groupIndex + 1}组 (实际第${actualGroupIndex + 1}组) 的 ${targetLights.length} 个红绿灯已更新为: ${getColorName(color)}`);
 }
 
 /**

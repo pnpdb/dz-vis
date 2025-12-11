@@ -440,7 +440,7 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
                     localY: roadSurfaceY
                 };
                 
-                console.info(`✅ 车辆管理器：地面高度 (局部坐标) Y = ${roadSurfaceY.toFixed(4)} (地面网格: ${foundGroundMesh.mesh.name}, 世界坐标: ${worldBox.max.y.toFixed(4)})`);
+                console.info(`✅ 车辆管理器：路面高度 (局部坐标Y) = ${roadSurfaceY.toFixed(4)} (基于: ${foundGroundMesh.mesh.name}, 世界Y: ${worldBox.max.y.toFixed(4)})`);
             } else {
                 // 如果找不到地面网格，使用整个沙盘的底部（局部坐标）
                 console.warn('⚠️ 车辆管理器：未找到地面网格，使用沙盘底部作为地面高度');
@@ -476,6 +476,16 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
             vehicleY,
             position.z ?? 0
         );
+        
+        console.log(`🚗 车辆 ${vehicleId} 位置设置:`);
+        console.log(`  - 输入位置: (${position.x?.toFixed(3)}, ${position.z?.toFixed(3)})`);
+        console.log(`  - 地面高度 (局部Y): ${roadSurfaceY.toFixed(4)}`);
+        console.log(`  - 车底偏移: ${carBottomOffset.toFixed(4)}`);
+        console.log(`  - 最终位置 (局部): (${vehicleModel.position.x.toFixed(3)}, ${vehicleModel.position.y.toFixed(3)}, ${vehicleModel.position.z.toFixed(3)})`);
+        
+        // 转换为世界坐标并输出（调试用）
+        const worldPos = sandboxModel.localToWorld(vehicleModel.position.clone());
+        console.log(`  - 世界坐标: (${worldPos.x.toFixed(3)}, ${worldPos.y.toFixed(3)}, ${worldPos.z.toFixed(3)})`);
 
         // 设置车辆朝向（从车辆坐标系角度转换为Three.js rotation.y）
         const safeOrientation = typeof orientation === 'number' ? orientation : 0;

@@ -378,9 +378,9 @@
                         </div>
                     </div>
 
-                    <!-- 第一行第二列 -->
+                    <!-- 第一行第二列 - 模型实际尺寸 -->
                     <div class="info-card size-card">
-                        <h3>场景实际尺寸</h3>
+                        <h3>模型实际尺寸 <span style="color: #999; font-size: 12px;">(整体包括底座)</span></h3>
                         <div class="info-content">
                             <div class="data-row">
                                 <span>宽度 (X轴):</span>
@@ -394,10 +394,19 @@
                                 <span>深度 (Z轴):</span>
                                 <span class="value">{{ sandboxDimensionsData.scaled.depth.toFixed(3) }} 单位</span>
                             </div>
+                            <div class="data-row">
+                                <span>实际长宽比:</span>
+                                <span class="value" :style="{ 
+                                    color: Math.abs(sandboxDimensionsData.scaled.aspectRatio - 1.2) < 0.1 ? '#67C23A' : '#E6A23C' 
+                                }">
+                                    {{ sandboxDimensionsData.scaled.aspectRatio.toFixed(3) }}
+                                    {{ Math.abs(sandboxDimensionsData.scaled.aspectRatio - 1.2) < 0.1 ? '✅' : '⚠️' }}
+                                </span>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- 第二行第一列 -->
+                    <!-- 第二行第一列 - 中心坐标 -->
                     <div class="info-card center-card">
                         <h3>中心坐标</h3>
                         <div class="info-content">
@@ -416,7 +425,7 @@
                         </div>
                     </div>
 
-                    <!-- 第二行第二列 -->
+                    <!-- 第二行第二列 - 坐标范围 -->
                     <div class="info-card bounds-card">
                         <h3>坐标范围 
                             <span v-if="sandboxDimensionsData.ground?.found" class="ground-badge">基于地面</span>
@@ -439,19 +448,19 @@
 
                     <!-- 第三行跨两列 -->
                     <div class="info-card original-card full-width">
-                        <h3>原始尺寸</h3>
+                        <h3>模型原始尺寸 <span style="color: #999; font-size: 12px;">(缩放前)</span></h3>
                         <div class="info-content original-grid">
                             <div class="data-row">
                                 <span>宽度:</span>
-                                <span class="value">{{ sandboxDimensionsData.original.width.toFixed(1) }} 单位</span>
+                                <span class="value">{{ sandboxDimensionsData.original.width.toFixed(3) }} 单位</span>
                             </div>
                             <div class="data-row">
                                 <span>高度:</span>
-                                <span class="value">{{ sandboxDimensionsData.original.height.toFixed(1) }} 单位</span>
+                                <span class="value">{{ sandboxDimensionsData.original.height.toFixed(3) }} 单位</span>
                             </div>
                             <div class="data-row">
                                 <span>深度:</span>
-                                <span class="value">{{ sandboxDimensionsData.original.depth.toFixed(1) }} 单位</span>
+                                <span class="value">{{ sandboxDimensionsData.original.depth.toFixed(3) }} 单位</span>
                             </div>
                             <div class="data-row">
                                 <span>缩放比例:</span>
@@ -464,11 +473,10 @@
                 <!-- 使用说明居中 -->
                 <div class="usage-section">
                     <div class="usage-card">
-                        <h3>使用说明</h3>
+                        <h3>💡 重要说明</h3>
                         <div class="usage-content">
-                            <div>坐标范围用于车辆位置映射计算</div>
-                            <div>中心点是沙盘几何中心位置</div>
-                            <div>可通过设置面板控制坐标轴和网格显示</div>
+                            <div><strong>模型实际尺寸</strong>（整个沙盘包括底座）对应客户端坐标系统 6m × 5m</div>
+                            <div><strong>坐标转换</strong>基于整体模型尺寸进行计算</div>
                         </div>
                     </div>
                 </div>

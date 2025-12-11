@@ -42,6 +42,7 @@ import {
 } from 'three';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
+import { updateSandboxBounds } from '@/utils/coordinateTransform.js';
 import { 
     initVehicleManager, 
     addVehicle as addVehicleToScene, 
@@ -155,8 +156,8 @@ const initSceneCore = async () => {
         camera = new PerspectiveCamera(
             21,
             container.clientWidth / container.clientHeight,
-            1,
-            1000
+            0.1,    // near: 从 1 改为 0.1，增加深度缓冲区精度
+            1000    // far
         );
         camera.position.set(0, 40, 50);
         camera.lookAt(0, 0, 0);
@@ -199,7 +200,7 @@ const initSceneCore = async () => {
             powerPreference: "high-performance",
             stencil: false,
             depth: true,
-            logarithmicDepthBuffer: false,
+            logarithmicDepthBuffer: true,  // 启用对数深度缓冲，解决 Z-fighting（闪烁）问题
             preserveDrawingBuffer: false,
             failIfMajorPerformanceCaveat: false // 允许软件渲染
         });
@@ -637,40 +638,38 @@ const initSceneCore = async () => {
     }
 };
 
-// 设置光照系统（专业级配置 - 降低亮度避免过曝）
+// 设置光照系统
 const setupLighting = () => {
-    // 🌐 半球光（Hemisphere Light）- 模拟天空和地面的环境光
-    // 提供更真实的全局照明，替代简单的环境光
+    // 🌐 半球光 - 模拟天空和地面的环境光
     const hemisphereLight = new HemisphereLight(
-        0xddeeff,  // 天空颜色（淡蓝色，降低亮度）
+        0xddeeff,  // 天空颜色（淡蓝色）
         0x332222,  // 地面颜色（深灰棕色）
-        0.4        // 强度（从0.6降低到0.4）
+        0.9        // 强度
     );
     hemisphereLight.name = 'HemisphereLight';
     hemisphereLight.position.set(0, 50, 0);
     lightsGroup.add(hemisphereLight);
 
-    // ☀️ 主平行光（Directional Light）- 模拟太阳光
-    // 使用物理光照模式（intensity以坎德拉为单位）
-    const directionalLight = new DirectionalLight(0xffffff, 1.2);  // 从2.0降低到1.2
+    // ☀️ 主平行光 - 模拟太阳光
+    const directionalLight = new DirectionalLight(0xffffff, 5);
     directionalLight.position.set(10, 20, 10);
     directionalLight.name = 'MainDirectionalLight';
-    directionalLight.castShadow = false; // 暂时关闭阴影以提升性能
+    directionalLight.castShadow = false;
     lightsGroup.add(directionalLight);
 
-    // 💡 补充平行光（Fill Light）- 提亮阴影区域
-    const fillLight = new DirectionalLight(0x87ceeb, 0.5);  // 从1.0降低到0.5
+    // 💡 补充平行光 - 提亮阴影区域
+    const fillLight = new DirectionalLight(0x87ceeb, 1.0);
     fillLight.position.set(-10, 10, -10);
     fillLight.name = 'FillLight';
     lightsGroup.add(fillLight);
 
-    // 🔆 背光（Back Light）- 增加轮廓感
-    const backLight = new DirectionalLight(0xffffff, 0.3);  // 从0.5降低到0.3
+    // 🔆 背光 - 增加轮廓感
+    const backLight = new DirectionalLight(0xffffff, 0.7);
     backLight.position.set(0, 5, -15);
     backLight.name = 'BackLight';
     lightsGroup.add(backLight);
 
-    console.log('💡 光照系统已优化: 半球光 + 三点光照（总强度: 2.4，避免过曝）');
+    console.log('💡 光照系统已设置: 半球光 + 三点光照（总强度: 4.8）');
 };
 
 // 模型动画更新
@@ -776,7 +775,7 @@ const loadModelsWithProgress = async () => {
             setTimeout(() => {
                 console.info('开始加载沙盘模型');
                 loadModelAsync(loader, '/models/sandbox.glb', 'sandbox', {
-                    scale: 6,
+                    scale: 6,  // 缩小沙盘显示（原6，调整为5.5更合适）
                     position: [0, 0, 0],  // 初始位置，稍后会自动调整让底座贴地
                     processMaterial: true,
                     priority: 'low',
@@ -791,6 +790,10 @@ const loadModelsWithProgress = async () => {
                     // 获取加载的沙盘模型并计算尺寸
                     const sandboxModel = models.get('sandbox');
                     if (sandboxModel) {
+                        // ⚠️ 重要：立即计算沙盘尺寸并更新坐标转换包围盒
+                        console.log('🔍 开始计算沙盘尺寸并更新坐标转换...');
+                        calculateSandboxDimensions(sandboxModel);
+                        
                         // 初始化路径渲染器（现在沙盘模型已加载）
                         initPathRenderer(scene, sandboxModel);
                         console.log('✅ 路径渲染器已初始化（使用沙盘模型）');
@@ -877,11 +880,11 @@ const loadModels = () => {
      //    });
      //}, 100);
 
-     // 延迟加载大模型，给界面更多响应时间
-     setTimeout(() => {
-         loadModel(loader, '/models/sandbox.glb', 'sandbox', {
-             scale: 6,  // 与异步加载保持一致
-             position: [0, 0, 0],  // 初始位置，稍后会自动调整让底座贴地
+    // 延迟加载大模型，给界面更多响应时间
+    setTimeout(() => {
+        loadModel(loader, '/models/sandbox.glb', 'sandbox', {
+            scale: 6,  // 与异步加载保持一致（调整为5.5更合适）
+            position: [0, 0, 0],  // 初始位置，稍后会自动调整让底座贴地
             processMaterial: true,
             priority: 'low',
             enableLOD: false // 暂时禁用LOD避免顶点缓冲区错误
@@ -1568,6 +1571,10 @@ const calculateSandboxDimensions = (model) => {
         console.error('❌ 沙盘模型未找到');
         return null;
     }
+
+    // ⚠️ 关键：强制更新整个模型树的世界矩阵
+    // 必须在使用 worldToLocal() 之前调用，否则车辆和标记位置会错误！
+    model.updateMatrixWorld(true);
     
     // 获取模型的缩放比例
     const scale = model.scale.x; // 假设xyz缩放比例相同
@@ -1589,13 +1596,6 @@ const calculateSandboxDimensions = (model) => {
                     maxGroundArea = area;
                     groundMesh = child;
                 }
-                console.log(`🔍 找到 Standardmaterial206 网格:`, {
-                    name: child.name,
-                    size: { x: meshSize.x, y: meshSize.y, z: meshSize.z },
-                    area: area,
-                    position: child.position,
-                    worldPosition: child.getWorldPosition(new Vector3())
-                });
             }
             // 备用：查找名为 MD_CaoPing 的草坪网格（旧模型）
             else if (child.name && child.name.includes('CaoPing')) {
@@ -1608,11 +1608,6 @@ const calculateSandboxDimensions = (model) => {
                     maxGroundArea = area;
                     groundMesh = child;
                 }
-                console.log(`🔍 找到 CaoPing 网格:`, {
-                    name: child.name,
-                    size: { x: meshSize.x, y: meshSize.y, z: meshSize.z },
-                    area: area
-                });
             }
         }
     });
@@ -1648,68 +1643,147 @@ const calculateSandboxDimensions = (model) => {
         // 获取地面的Y坐标（使用包围盒的最大Y值作为地面高度）
         groundYPosition = groundBox.max.y;
         
-        console.log(`📍 地面高度信息:`, {
-            name: groundName,
-            yMin: groundBox.min.y.toFixed(4),
-            yMax: groundBox.max.y.toFixed(4),
-            groundHeight: groundYPosition.toFixed(4)
+        console.log('🌿 地面基准:', groundName, '✅');
+        console.log('   📍 地面高度(Y):', groundYPosition.toFixed(4), '单位');
+    }
+    
+    // 3️⃣ 查找底座网格（Standardmaterial202）- 这才是真正的 6m×5m 底座
+    let baseMesh = null;
+    let baseBoxWorld = null;
+    let baseBoxLocal = null;
+    
+    model.traverse((child) => {
+        if (child.isMesh && child.name && child.name.includes('Standardmaterial202')) {
+            baseMesh = child;
+            
+            // 获取世界坐标包围盒
+            baseBoxWorld = new Box3().setFromObject(child);
+            
+            // 计算沙盘局部坐标系中的包围盒
+            // 方法：将世界坐标的8个顶点转换为沙盘局部坐标
+            const worldCorners = [
+                new Vector3(baseBoxWorld.min.x, baseBoxWorld.min.y, baseBoxWorld.min.z),
+                new Vector3(baseBoxWorld.max.x, baseBoxWorld.min.y, baseBoxWorld.min.z),
+                new Vector3(baseBoxWorld.min.x, baseBoxWorld.max.y, baseBoxWorld.min.z),
+                new Vector3(baseBoxWorld.max.x, baseBoxWorld.max.y, baseBoxWorld.min.z),
+                new Vector3(baseBoxWorld.min.x, baseBoxWorld.min.y, baseBoxWorld.max.z),
+                new Vector3(baseBoxWorld.max.x, baseBoxWorld.min.y, baseBoxWorld.max.z),
+                new Vector3(baseBoxWorld.min.x, baseBoxWorld.max.y, baseBoxWorld.max.z),
+                new Vector3(baseBoxWorld.max.x, baseBoxWorld.max.y, baseBoxWorld.max.z),
+            ];
+            
+            // 转换为局部坐标
+            baseBoxLocal = new Box3();
+            worldCorners.forEach(corner => {
+                const localCorner = model.worldToLocal(corner.clone());
+                baseBoxLocal.expandByPoint(localCorner);
+            });
+            
+            console.log('🎯 底座网格:', child.name);
+        }
+    });
+    
+    // 如果没找到 Standardmaterial202，使用整体包围盒
+    if (!baseBoxLocal) {
+        console.warn('⚠️ 未找到 Standardmaterial202 底座，使用整体包围盒');
+        baseBoxWorld = new Box3().setFromObject(model);
+        
+        // 转换为局部坐标
+        const worldCorners = [
+            new Vector3(baseBoxWorld.min.x, baseBoxWorld.min.y, baseBoxWorld.min.z),
+            new Vector3(baseBoxWorld.max.x, baseBoxWorld.min.y, baseBoxWorld.min.z),
+            new Vector3(baseBoxWorld.min.x, baseBoxWorld.max.y, baseBoxWorld.min.z),
+            new Vector3(baseBoxWorld.max.x, baseBoxWorld.max.y, baseBoxWorld.min.z),
+            new Vector3(baseBoxWorld.min.x, baseBoxWorld.min.y, baseBoxWorld.max.z),
+            new Vector3(baseBoxWorld.max.x, baseBoxWorld.min.y, baseBoxWorld.max.z),
+            new Vector3(baseBoxWorld.min.x, baseBoxWorld.max.y, baseBoxWorld.max.z),
+            new Vector3(baseBoxWorld.max.x, baseBoxWorld.max.y, baseBoxWorld.max.z),
+        ];
+        
+        baseBoxLocal = new Box3();
+        worldCorners.forEach(corner => {
+            const localCorner = model.worldToLocal(corner.clone());
+            baseBoxLocal.expandByPoint(localCorner);
         });
     }
     
-    // 3️⃣ 计算整体包围盒（用于Y高度）
-    const totalBox = new Box3().setFromObject(model);
-    const totalSize = new Vector3();
-    totalBox.getSize(totalSize);
-    const center = totalBox.getCenter(new Vector3());
+    const baseSize = new Vector3();
+    baseBoxLocal.getSize(baseSize);
+    const center = baseBoxLocal.getCenter(new Vector3());
     
-    // 4️⃣ 组合尺寸：X/Z来自地面，Y来自整体包围盒
-    const combinedSize = {
-        x: groundMesh ? groundSize.x : totalSize.x,  // 地面宽度
-        y: totalSize.y,                               // 整体高度
-        z: groundMesh ? groundSize.z : totalSize.z   // 地面深度
+    console.log('📐 底座尺寸(局部坐标):', `${baseSize.x.toFixed(2)} × ${baseSize.z.toFixed(2)} × ${baseSize.y.toFixed(2)}`);
+    // ⭐ 重要：使用底座的局部坐标尺寸对应客户端定义的 6m × 5m
+    const modelSize = {
+        x: baseSize.x,  // 底座宽度（局部坐标）
+        y: baseSize.y,  // 底座高度
+        z: baseSize.z   // 底座深度（局部坐标）
     };
     
-    // 计算原始尺寸（去除缩放影响）
+    // 计算原始尺寸（这些已经是局部坐标，但如果沙盘自身有缩放，需要考虑）
     const originalSize = {
-        x: combinedSize.x / scale,
-        y: combinedSize.y / scale,
-        z: combinedSize.z / scale
+        x: modelSize.x,  // 局部坐标已经考虑了沙盘的缩放
+        y: modelSize.y,
+        z: modelSize.z
     };
     
-    // 5️⃣ 组合坐标范围：X/Z来自地面，Y来自整体包围盒（用于坐标转换）
+    // 验证长宽比（应该接近 6:5 = 1.2）
+    const aspectRatio = modelSize.x / modelSize.z;
+    console.log(`📊 底座长宽比: ${aspectRatio.toFixed(3)} (应该接近 1.2，即 6:5)`);
+    
+    // ⚠️ 坐标范围（用于坐标转换）- 使用底座的**局部坐标**包围盒
     const bounds = {
         min: {
-            x: groundBox ? groundBox.min.x : totalBox.min.x,  // 地面X最小值
-            y: totalBox.min.y,                                 // 整体Y最小值
-            z: groundBox ? groundBox.min.z : totalBox.min.z   // 地面Z最小值
+            x: baseBoxLocal.min.x,
+            y: baseBoxLocal.min.y,
+            z: baseBoxLocal.min.z
         },
         max: {
-            x: groundBox ? groundBox.max.x : totalBox.max.x,  // 地面X最大值
-            y: totalBox.max.y,                                 // 整体Y最大值
-            z: groundBox ? groundBox.max.z : totalBox.max.z   // 地面Z最大值
+            x: baseBoxLocal.max.x,
+            y: baseBoxLocal.max.y,
+            z: baseBoxLocal.max.z
         }
     };
     
+    // ⭐ 逻辑尺寸：客户端定义的固定尺寸（用于坐标转换）
+    const LOGICAL_DIMENSIONS = {
+        width: 6.0,   // X轴（米）
+        depth: 5.0    // Z轴（米）
+    };
+    
     const dimensions = {
-        // 当前场景中的实际尺寸（基于地面）
+        // ⭐ 逻辑尺寸（用于坐标转换，固定值）
+        logical: {
+            width: LOGICAL_DIMENSIONS.width,    // 6.0m
+            depth: LOGICAL_DIMENSIONS.depth,    // 5.0m
+            aspectRatio: LOGICAL_DIMENSIONS.width / LOGICAL_DIMENSIONS.depth  // 1.2
+        },
+        // 模型实际尺寸（场景中，整个模型包括底座）
         scaled: {
-            width: combinedSize.x,   // X轴宽度（地面）
-            height: combinedSize.y,  // Y轴高度（整体）
-            depth: combinedSize.z    // Z轴深度（地面）
+            width: modelSize.x,   // X轴宽度（整体）
+            height: modelSize.y,  // Y轴高度（整体）
+            depth: modelSize.z,   // Z轴深度（整体）
+            aspectRatio: aspectRatio  // 实际长宽比
         },
-        // 模型原始尺寸（基于地面）
+        // 模型原始尺寸（缩放前，整体）
         original: {
-            width: originalSize.x,   // X轴宽度（地面）
-            height: originalSize.y,  // Y轴高度（整体）
-            depth: originalSize.z    // Z轴深度（地面）
+            width: originalSize.x,   // X轴宽度
+            height: originalSize.y,  // Y轴高度
+            depth: originalSize.z    // Z轴深度
         },
+        // 地面网格信息（仅供参考）
+        groundMesh: groundMesh ? {
+            name: groundName,
+            width: groundSize.x,
+            depth: groundSize.z,
+            yPosition: groundYPosition
+        } : null,
         // 中心点位置
         center: {
             x: center.x,
             y: center.y,
             z: center.z
         },
-        // 包围盒范围（X/Z基于地面，用于坐标转换）
+        // 包围盒范围（整体，用于坐标转换）
         bounds: bounds,
         // 地面信息
         ground: {
@@ -1721,40 +1795,74 @@ const calculateSandboxDimensions = (model) => {
         scale: scale
     };
     
-    console.log('📏 沙盘模型尺寸计算结果:');
-    console.log('='.repeat(50));
-    console.log('🎯 坐标轴对应:');
-    console.log('  - X轴(红色): 沙盘宽度 (左右方向)');
-    console.log('  - Y轴(绿色): 沙盘高度 (上下方向)');  
-    console.log('  - Z轴(蓝色): 沙盘深度 (前后方向)');
-    console.log('');
-    console.log(`🌿 地面基准: ${groundName} ${groundMesh ? '✅' : '❌未找到'}`);
-    if (groundMesh) {
-        console.log(`   📍 地面高度(Y): ${groundYPosition.toFixed(4)} 单位`);
+    console.log('📏 沙盘尺寸 - 逻辑: 6.0m × 5.0m (用于坐标转换) ✅');
+    
+    // 🔄 更新坐标转换模块的动态包围盒
+    // ⚠️ 使用底座的**局部坐标**包围盒
+    // 因为客户端的 6m×5m 对应底座，车辆是沙盘的子对象（使用局部坐标）
+    updateSandboxBounds({
+        min: { x: dimensions.bounds.min.x, z: dimensions.bounds.min.z },
+        max: { x: dimensions.bounds.max.x, z: dimensions.bounds.max.z },
+        scale: 1.0  // 已经是局部坐标，不需要缩放
+    });
+    console.log(`✅ 坐标转换包围盒已更新（使用底座局部坐标 ${baseMesh ? baseMesh.name : '整体包围盒'}）`);
+    console.log(`   更新后的包围盒: X[${dimensions.bounds.min.x.toFixed(3)} ~ ${dimensions.bounds.max.x.toFixed(3)}], Z[${dimensions.bounds.min.z.toFixed(3)} ~ ${dimensions.bounds.max.z.toFixed(3)}]`);
+    
+    if (groundMesh && groundBox) {
+        console.log(`💡 Standardmaterial206 范围（仅用于车辆Y高度计算）:`);
+        console.log(`  - X: ${groundBox.min.x.toFixed(3)} ~ ${groundBox.max.x.toFixed(3)}`);
+        console.log(`  - Z: ${groundBox.min.z.toFixed(3)} ~ ${groundBox.max.z.toFixed(3)}`);
+        console.log(`  - Y (路面高度): ${groundYPosition.toFixed(3)}`);
     }
-    console.log('');
-    console.log('📐 场景中实际尺寸 (已应用缩放):');
-    console.log(`  - 宽度(X轴): ${dimensions.scaled.width.toFixed(3)} 单位 ${groundMesh ? '(基于地面)' : '(整体)'}`);
-    console.log(`  - 高度(Y轴): ${dimensions.scaled.height.toFixed(3)} 单位 (整体)`);
-    console.log(`  - 深度(Z轴): ${dimensions.scaled.depth.toFixed(3)} 单位 ${groundMesh ? '(基于地面)' : '(整体)'}`);
-    console.log('');
-    console.log('📏 模型原始尺寸 (缩放前):');
-    console.log(`  - 宽度(X轴): ${dimensions.original.width.toFixed(3)} 单位`);
-    console.log(`  - 高度(Y轴): ${dimensions.original.height.toFixed(3)} 单位`);
-    console.log(`  - 深度(Z轴): ${dimensions.original.depth.toFixed(3)} 单位`);
-    console.log('');
-    console.log('🎯 模型中心点:');
-    console.log(`  - X: ${dimensions.center.x.toFixed(3)}`);
-    console.log(`  - Y: ${dimensions.center.y.toFixed(3)}`);
-    console.log(`  - Z: ${dimensions.center.z.toFixed(3)}`);
-    console.log('');
-    console.log(`📦 坐标范围 ${groundMesh ? '(基于地面，用于坐标转换)' : '(整体)'}:`);
-    console.log(`  - X范围: ${dimensions.bounds.min.x.toFixed(3)} 到 ${dimensions.bounds.max.x.toFixed(3)}`);
-    console.log(`  - Y范围: ${dimensions.bounds.min.y.toFixed(3)} 到 ${dimensions.bounds.max.y.toFixed(3)}`);
-    console.log(`  - Z范围: ${dimensions.bounds.min.z.toFixed(3)} 到 ${dimensions.bounds.max.z.toFixed(3)}`);
-    console.log('');
-    console.log(`🔄 缩放比例: ${scale} (${(scale * 100).toFixed(1)}%)`);
-    console.log('='.repeat(50));
+    
+    // // 🧪 测试坐标映射（手动验证）
+    // console.log('🧪 验证坐标映射（客户端 → 沙盘局部）:');
+    // console.log(`   客户端(0, 0) 应该 → 局部(-3.000, 2.500) [左下角]`);
+    // console.log(`   客户端(6, 0) 应该 → 局部(3.000, 2.500) [右下角]`);
+    // console.log(`   客户端(0, 5) 应该 → 局部(-3.000, -2.500) [左上角]`);
+    // console.log(`   客户端(6, 5) 应该 → 局部(3.000, -2.500) [右上角]`);
+    
+    // // 🔍 分析所有大型网格，找出真正的底座
+    // console.log('🔍 分析沙盘中的所有大型网格（按面积排序）:');
+    // const meshInfoList = [];
+    // model.traverse((child) => {
+    //     if (child.isMesh && child.geometry) {
+    //         const box = new Box3().setFromObject(child);
+    //         const size = box.getSize(new Vector3());
+    //         const area = size.x * size.z;
+            
+    //         // 只记录较大的网格（面积 > 1）
+    //         if (area > 1) {
+    //             meshInfoList.push({
+    //                 name: child.name || '(unnamed)',
+    //                 area: area,
+    //                 size: { x: size.x, y: size.y, z: size.z },
+    //                 bounds: { 
+    //                     minX: box.min.x, maxX: box.max.x, 
+    //                     minY: box.min.y, maxY: box.max.y,
+    //                     minZ: box.min.z, maxZ: box.max.z 
+    //                 },
+    //                 aspectRatio: size.x / size.z,
+    //                 visible: child.visible
+    //             });
+    //         }
+    //     }
+    // });
+    
+    // // 按面积排序（从大到小）
+    // meshInfoList.sort((a, b) => b.area - a.area);
+    
+    // console.log(`找到 ${meshInfoList.length} 个大型网格:`);
+    // meshInfoList.forEach((info, index) => {
+    //     console.log(`  ${index + 1}. ${info.name}:`);
+    //     console.log(`     面积: ${info.area.toFixed(2)}, 长宽比: ${info.aspectRatio.toFixed(3)} ${Math.abs(info.aspectRatio - 1.2) < 0.05 ? '✅ (接近6:5)' : ''}`);
+    //     console.log(`     尺寸: ${info.size.x.toFixed(2)} × ${info.size.y.toFixed(2)} × ${info.size.z.toFixed(2)}`);
+    //     console.log(`     X范围: [${info.bounds.minX.toFixed(2)}, ${info.bounds.maxX.toFixed(2)}]`);
+    //     console.log(`     Z范围: [${info.bounds.minZ.toFixed(2)}, ${info.bounds.maxZ.toFixed(2)}]`);
+    //     console.log(`     Y范围: [${info.bounds.minY.toFixed(2)}, ${info.bounds.maxY.toFixed(2)}]`);
+    //     console.log(`     可见: ${info.visible ? '是' : '否'}`);
+    // });
+    
     
     return dimensions;
 };
@@ -2274,8 +2382,8 @@ const onMouseDown = (event) => {
         
         if (intersects.length > 0) {
             startPosition = intersects[0].point.clone();
-            // 确保startPosition在地面上
-            startPosition.y = 0;
+            // 🔧 使用射线检测到的实际地面高度，不要硬编码为0
+            // startPosition.y 已经是正确的地面高度（groundPlane.position.y）
             currentPosition = startPosition.clone();
             
             // 只在位姿选择模式下创建位置标记（点选择模式和车位选择模式不需要）
@@ -2319,8 +2427,8 @@ const onMouseMove = (event) => {
     
     if (intersects.length > 0) {
         currentPosition = intersects[0].point.clone();
-        // 确保currentPosition在地面上
-        currentPosition.y = 0;
+        // 🔧 使用射线检测到的实际地面高度
+        // currentPosition.y 已经是正确的地面高度
         
         // 更新方向线
         updateDirectionLine(startPosition, currentPosition);
@@ -2353,7 +2461,7 @@ const onMouseUp = (event) => {
                     const localPos = sandboxModel.worldToLocal(startPosition.clone());
                     localX = localPos.x;
                     localZ = localPos.z;
-                    console.log(`🔄 坐标转换: 世界坐标 (${startPosition.x.toFixed(3)}, ${startPosition.z.toFixed(3)}) → 局部坐标 (${localX.toFixed(3)}, ${localZ.toFixed(3)})`);
+                    // console.log(`🔄 坐标转换: 世界坐标 (${startPosition.x.toFixed(3)}, ${startPosition.z.toFixed(3)}) → 局部坐标 (${localX.toFixed(3)}, ${localZ.toFixed(3)})`);
                 } else {
                     console.warn('⚠️ 沙盘模型未找到，使用世界坐标');
                 }
@@ -2648,16 +2756,38 @@ const createGroundPlane = () => {
     const dimensions = getSandboxDimensionsInfo();
     if (!dimensions) return;
     
-    const width = dimensions.bounds.max.x - dimensions.bounds.min.x;
-    const depth = dimensions.bounds.max.z - dimensions.bounds.min.z;
-    const centerX = (dimensions.bounds.max.x + dimensions.bounds.min.x) / 2;
-    const centerZ = (dimensions.bounds.max.z + dimensions.bounds.min.z) / 2;
+    // 🔧 清理旧的 groundPlane（如果存在）
+    // if (groundPlane) {
+    //     scene.remove(groundPlane);
+    //     groundPlane.geometry?.dispose();
+    //     groundPlane.material?.dispose();
+    //     groundPlane = null;
+    // }
+    
+    // ⚠️ 关键修复：bounds 是局部坐标，需要乘以缩放因子得到世界坐标尺寸
+    const scale = dimensions.scale || 6;  // 沙盘缩放因子
+    const localWidth = dimensions.bounds.max.x - dimensions.bounds.min.x;
+    const localDepth = dimensions.bounds.max.z - dimensions.bounds.min.z;
+    
+    // 世界坐标中的实际尺寸
+    const worldWidth = localWidth * scale;
+    const worldDepth = localDepth * scale;
+    
+    // 中心点也需要考虑缩放（或直接从沙盘模型获取世界坐标）
+    const sandboxModel = models.get('sandbox');
+    let centerX = 0, centerZ = 0;
+    if (sandboxModel) {
+        const worldPos = new Vector3();
+        sandboxModel.getWorldPosition(worldPos);
+        centerX = worldPos.x;
+        centerZ = worldPos.z;
+    }
     
     // 使用实际的地面高度（如果有的话），否则默认为0
     const groundY = dimensions.ground.found ? dimensions.ground.yPosition : 0;
     
-    // 创建足够大的平面确保覆盖整个沙盘区域
-    const geometry = new PlaneGeometry(width * 1.5, depth * 1.5);
+    // 创建足够大的平面确保覆盖整个沙盘区域（扩大2倍确保充分覆盖）
+    const geometry = new PlaneGeometry(worldWidth * 2, worldDepth * 2);
     const material = new MeshBasicMaterial({ 
         color: 0x000000, 
         transparent: true, 
@@ -2667,14 +2797,14 @@ const createGroundPlane = () => {
     
     groundPlane = new Mesh(geometry, material);
     groundPlane.rotation.x = -Math.PI / 2; // 水平放置
-    groundPlane.position.set(centerX, groundY, centerZ); // 使用实际地面高度
+    groundPlane.position.set(centerX, groundY, centerZ); // 使用实际地面高度和中心位置
     groundPlane.visible = false; // 不可见，只用于射线检测
     scene.add(groundPlane);
     
     console.log('🎯 地面检测平面已创建:', {
-        center: { x: centerX, y: groundY, z: centerZ },
-        size: { width: width * 1.5, depth: depth * 1.5 },
-        groundReference: dimensions.ground.name
+        世界尺寸: `${worldWidth.toFixed(1)} × ${worldDepth.toFixed(1)}`,
+        平面尺寸: `${(worldWidth * 2).toFixed(1)} × ${(worldDepth * 2).toFixed(1)}`,
+        中心: `(${centerX.toFixed(1)}, ${groundY.toFixed(2)}, ${centerZ.toFixed(1)})`
     });
 };
 

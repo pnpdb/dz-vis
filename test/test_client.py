@@ -489,8 +489,10 @@ class VehiclePath:
         self.SANDBOX_DEPTH = 5.0
         
         # 道路边距（稍微往里一点，因为道路不在最边缘）
-        self.MARGIN_X = 0.23  # X轴边距
-        self.MARGIN_Y = 0.23  # Y轴边距
+        # self.MARGIN_X = 0.23  # X轴边距
+        # self.MARGIN_Y = 0.23  # Y轴边距
+        self.MARGIN_X = 0.0  # X轴边距
+        self.MARGIN_Y = 0.0  # Y轴边距
         
         # 定义矩形路径的四个角点（顺时针绕行）
         # 左下 -> 左上 -> 右上 -> 右下 -> 左下
@@ -585,11 +587,12 @@ def create_vehicle_info_data(vehicle_id=1):
     data.extend(struct.pack('<d', speed))
     
     # 位置X (8字节, DOUBLE) - 从路径管理器获取
-    position_x = state['position_x'] + 0.18
+    # 注意：如果需要车辆中心压在底座边缘，偏移设为 0；如果要避免车辆边缘超出，保持 0.18
+    position_x = state['position_x'] + 0.0  # 改为 0.0 让车辆中心压边缘
     data.extend(struct.pack('<d', position_x))
     
     # 位置Y (8字节, DOUBLE) - 从路径管理器获取
-    position_y = state['position_y'] + 0.18
+    position_y = state['position_y'] + 0.0  # 改为 0.0 让车辆中心压边缘
     data.extend(struct.pack('<d', position_y))
     
     # 朝向 (8字节, DOUBLE) - 从路径管理器获取（自动根据移动方向计算）

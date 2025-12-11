@@ -16,23 +16,93 @@
 // ============ 常量定义 ============
 
 /**
- * 沙盘模型原始尺寸（单位：米，与缩放无关）
+ * 沙盘模型逻辑尺寸（单位：米，客户端坐标系统）
+ * ⚠️ 这些是固定的逻辑尺寸，不会改变
  */
-export const SANDBOX_DIMENSIONS = {
+export const LOGICAL_DIMENSIONS = {
     width: 6.0,   // X轴总宽度（米）
-    depth: 5.0,   // Z轴总深度（米）
-    halfWidth: 6.0 / 2,   // 3.0
-    halfDepth: 5.0 / 2    // 2.5
+    depth: 5.0    // Z轴总深度（米）
 };
 
 /**
- * 车位中心点坐标（车辆坐标系，单位：米）
- * ⚠️ 注意：这些坐标需要根据新模型重新测量！
- * 以下是按比例缩放的临时值（X轴 * 1.247, Y轴 * 1.779）
+ * 动态沙盘尺寸（从实际模型包围盒计算）
+ * 这些值会在沙盘模型加载后动态更新
+ */
+let dynamicSandboxBounds = {
+    minX: -3.0,   // 初始值（会被更新）
+    maxX: 3.0,
+    minZ: -2.5,
+    maxZ: 2.5,
+    centerX: 0,
+    centerZ: 0,
+    width: 6.0,
+    depth: 5.0,
+    scale: 1.0    // 沙盘模型的缩放比例
+};
+
+/**
+ * 为了向后兼容，保留 SANDBOX_DIMENSIONS
+ * @deprecated 请使用 LOGICAL_DIMENSIONS
+ */
+export const SANDBOX_DIMENSIONS = LOGICAL_DIMENSIONS;
+
+/**
+ * 更新沙盘动态包围盒（从实际模型计算）
+ * ⚠️ 应该使用整个沙盘模型（包括底座）的包围盒
+ * @param {Object} bounds - 包围盒信息 {min: {x, z}, max: {x, z}, scale: number}
+ */
+export function updateSandboxBounds(bounds) {
+    const scale = bounds.scale || 1.0;
+    
+    dynamicSandboxBounds = {
+        minX: bounds.min.x,
+        maxX: bounds.max.x,
+        minZ: bounds.min.z,
+        maxZ: bounds.max.z,
+        centerX: (bounds.min.x + bounds.max.x) / 2,
+        centerZ: (bounds.min.z + bounds.max.z) / 2,
+        width: bounds.max.x - bounds.min.x,
+        depth: bounds.max.z - bounds.min.z,
+        scale: scale
+    };
+    
+    console.log('📐 坐标转换包围盒已更新:');
+    console.log(`  世界坐标范围 (缩放后):`);
+    console.log(`    X: ${dynamicSandboxBounds.minX.toFixed(3)} ~ ${dynamicSandboxBounds.maxX.toFixed(3)} (宽度: ${dynamicSandboxBounds.width.toFixed(3)})`);
+    console.log(`    Z: ${dynamicSandboxBounds.minZ.toFixed(3)} ~ ${dynamicSandboxBounds.maxZ.toFixed(3)} (深度: ${dynamicSandboxBounds.depth.toFixed(3)})`);
+    console.log(`  沙盘缩放比例: ${dynamicSandboxBounds.scale}x`);
+    console.log(`  沙盘局部坐标范围 (原始尺寸):`);
+    console.log(`    X: ${(dynamicSandboxBounds.minX / dynamicSandboxBounds.scale).toFixed(3)} ~ ${(dynamicSandboxBounds.maxX / dynamicSandboxBounds.scale).toFixed(3)}`);
+    console.log(`    Z: ${(dynamicSandboxBounds.minZ / dynamicSandboxBounds.scale).toFixed(3)} ~ ${(dynamicSandboxBounds.maxZ / dynamicSandboxBounds.scale).toFixed(3)}`);
+    console.log(`  中心点: (${dynamicSandboxBounds.centerX.toFixed(3)}, ${dynamicSandboxBounds.centerZ.toFixed(3)})`);
+    console.log(`  长宽比: ${(dynamicSandboxBounds.width / dynamicSandboxBounds.depth).toFixed(3)} (应该接近1.2)`);
+    
+    // 测试坐标映射（手动计算）
+    console.log('🧪 测试坐标映射 (客户端 → 世界 → 局部):');
+    const localMinX = dynamicSandboxBounds.minX / dynamicSandboxBounds.scale;
+    const localMaxX = dynamicSandboxBounds.maxX / dynamicSandboxBounds.scale;
+    const localMinZ = dynamicSandboxBounds.minZ / dynamicSandboxBounds.scale;
+    const localMaxZ = dynamicSandboxBounds.maxZ / dynamicSandboxBounds.scale;
+    console.log(`  客户端(0,0) 应该映射到局部左下角: (${localMinX.toFixed(3)}, ${localMaxZ.toFixed(3)})`);
+    console.log(`  客户端(6,0) 应该映射到局部右下角: (${localMaxX.toFixed(3)}, ${localMaxZ.toFixed(3)})`);
+    console.log(`  客户端(0,5) 应该映射到局部左上角: (${localMinX.toFixed(3)}, ${localMinZ.toFixed(3)})`);
+    console.log(`  客户端(6,5) 应该映射到局部右上角: (${localMaxX.toFixed(3)}, ${localMinZ.toFixed(3)})`);
+}
+
+/**
+ * 获取当前沙盘包围盒
+ * @returns {Object} 当前包围盒信息
+ */
+export function getSandboxBounds() {
+    return { ...dynamicSandboxBounds };
+}
+
+/**
+ * 车位中心点坐标（单位：米）
  */
 export const PARKING_SLOTS = {
-    1: { x: 4.326, y: 1.299 },  // 1号车位（临时值，需重新测量）
-    2: { x: 4.907, y: 1.299 }   // 2号车位（临时值，需重新测量）
+    1: { x: 4.627, y: 1.331 },  // 1号车位
+    2: { x: 3.948, y: 1.331 }   // 2号车位
 };
 
 // ============ 全局坐标偏移量管理 ============
@@ -118,17 +188,42 @@ export function vehicleToModelCoordinates(vehicleX, vehicleY) {
         }
         
         // 边界检查（警告但不阻止）
-        if (vehicleX < -0.1 || vehicleX > SANDBOX_DIMENSIONS.width + 0.1 ||
-            vehicleY < -0.1 || vehicleY > SANDBOX_DIMENSIONS.depth + 0.1) {
+        if (vehicleX < -0.1 || vehicleX > LOGICAL_DIMENSIONS.width + 0.1 ||
+            vehicleY < -0.1 || vehicleY > LOGICAL_DIMENSIONS.depth + 0.1) {
             console.warn(`⚠️ 车辆坐标超出范围: (${vehicleX.toFixed(3)}, ${vehicleY.toFixed(3)})`);
-            console.warn(`   期望范围: X(0-${SANDBOX_DIMENSIONS.width}), Y(0-${SANDBOX_DIMENSIONS.depth})`);
+            console.warn(`   期望范围: X(0-${LOGICAL_DIMENSIONS.width}), Y(0-${LOGICAL_DIMENSIONS.depth})`);
         }
     }
     
-    return {
-        x: vehicleX - SANDBOX_DIMENSIONS.halfWidth,
-        z: SANDBOX_DIMENSIONS.halfDepth - vehicleY
-    };
+    // ⚠️ 先限制客户端坐标在有效范围内，防止超出沙盘边界
+    const clampedX = Math.max(0, Math.min(LOGICAL_DIMENSIONS.width, vehicleX));
+    const clampedY = Math.max(0, Math.min(LOGICAL_DIMENSIONS.depth, vehicleY));
+    
+    // 使用动态包围盒进行转换
+    // 将客户端坐标 (0→6, 0→5) 线性映射到模型包围盒范围（世界坐标）
+    const worldX = dynamicSandboxBounds.minX + (clampedX / LOGICAL_DIMENSIONS.width) * dynamicSandboxBounds.width;
+    const worldZ = dynamicSandboxBounds.maxZ - (clampedY / LOGICAL_DIMENSIONS.depth) * dynamicSandboxBounds.depth;
+    
+    // ⚠️ 重要：由于车辆是作为沙盘模型的子对象添加的，需要转换为沙盘的局部坐标
+    // 沙盘模型有缩放（6x），所以需要除以缩放比例
+    const localX = worldX / dynamicSandboxBounds.scale;
+    const localZ = worldZ / dynamicSandboxBounds.scale;
+    
+    // 开发环境下输出详细的转换信息（每5秒最多输出一次，避免刷屏）
+    if (import.meta.env.DEV) {
+        const now = Date.now();
+        if (!vehicleToModelCoordinates._lastLog || now - vehicleToModelCoordinates._lastLog > 5000) {
+            const clamped = (clampedX !== vehicleX || clampedY !== vehicleY);
+            console.log(`🔄 坐标转换${clamped ? ' (已限制到边界内)' : ''}:`);
+            console.log(`   客户端(${vehicleX.toFixed(3)}, ${vehicleY.toFixed(3)})${clamped ? ` → 限制后(${clampedX.toFixed(3)}, ${clampedY.toFixed(3)})` : ''}`);
+            console.log(`   → 世界坐标(${worldX.toFixed(3)}, ${worldZ.toFixed(3)})`);
+            console.log(`   → 沙盘局部坐标(${localX.toFixed(3)}, ${localZ.toFixed(3)})`);
+            console.log(`   📦 沙盘局部边界: X[-3.0 ~ 3.0], Z[-2.5 ~ 2.5]`);
+            vehicleToModelCoordinates._lastLog = now;
+        }
+    }
+    
+    return { x: localX, z: localZ };
 }
 
 /**
@@ -142,33 +237,40 @@ export const PARKING_SLOTS_MODEL = {
 
 /**
  * 将模型坐标系转换为车辆坐标系
- * @param {number} modelX - 模型X坐标（-2.405 ~ +2.405）
- * @param {number} modelZ - 模型Z坐标（-1.405 ~ +1.405）
+ * @param {number} localX - 沙盘局部坐标 X
+ * @param {number} localZ - 沙盘局部坐标 Z
  * @returns {{x: number, y: number}} 车辆坐标系的 {x, y}
  */
-export function modelToVehicleCoordinates(modelX, modelZ) {
-    // 🚀 生产环境优化：简化验证，避免性能开销
-    const vehicleX = modelX + SANDBOX_DIMENSIONS.halfWidth;
-    const vehicleY = SANDBOX_DIMENSIONS.halfDepth - modelZ;
+export function modelToVehicleCoordinates(localX, localZ) {
+    // 参数验证（只在开发环境）
+    if (import.meta.env.DEV) {
+        if (typeof localX !== 'number' || typeof localZ !== 'number') {
+            console.error('❌ 坐标转换参数必须为数字:', { localX, localZ });
+            return { x: 0, y: 0 };
+        }
+        
+        if (isNaN(localX) || isNaN(localZ)) {
+            console.error('❌ 坐标转换参数不能为NaN:', { localX, localZ });
+            return { x: 0, y: 0 };
+        }
+    }
+    
+    // ⚠️ 先将局部坐标转换为世界坐标（乘以缩放比例）
+    const worldX = localX * dynamicSandboxBounds.scale;
+    const worldZ = localZ * dynamicSandboxBounds.scale;
+    
+    // 使用动态包围盒进行反向转换
+    // 将世界坐标线性映射回客户端坐标 (0→6, 0→5)
+    const vehicleX = ((worldX - dynamicSandboxBounds.minX) / dynamicSandboxBounds.width) * LOGICAL_DIMENSIONS.width;
+    const vehicleY = ((dynamicSandboxBounds.maxZ - worldZ) / dynamicSandboxBounds.depth) * LOGICAL_DIMENSIONS.depth;
     
     // 只在开发环境进行详细验证
     if (import.meta.env.DEV) {
-        // 参数验证（健壮性优化）
-        if (typeof modelX !== 'number' || typeof modelZ !== 'number') {
-            console.error('❌ 坐标转换参数必须为数字:', { modelX, modelZ });
-            return { x: 0, y: 0 };
-        }
-        
-        if (isNaN(modelX) || isNaN(modelZ)) {
-            console.error('❌ 坐标转换参数不能为NaN:', { modelX, modelZ });
-            return { x: 0, y: 0 };
-        }
-        
         // 验证转换结果是否在合理范围内
-        if (vehicleX < -0.1 || vehicleX > SANDBOX_DIMENSIONS.width + 0.1 ||
-            vehicleY < -0.1 || vehicleY > SANDBOX_DIMENSIONS.depth + 0.1) {
+        if (vehicleX < -0.1 || vehicleX > LOGICAL_DIMENSIONS.width + 0.1 ||
+            vehicleY < -0.1 || vehicleY > LOGICAL_DIMENSIONS.depth + 0.1) {
             console.warn(`⚠️ 坐标转换结果超出范围: 模型坐标(${modelX.toFixed(3)}, ${modelZ.toFixed(3)}) → 车辆坐标(${vehicleX.toFixed(3)}, ${vehicleY.toFixed(3)})`);
-            console.warn(`   期望范围: X(0-${SANDBOX_DIMENSIONS.width}), Y(0-${SANDBOX_DIMENSIONS.depth})`);
+            console.warn(`   期望范围: X(0-${LOGICAL_DIMENSIONS.width}), Y(0-${LOGICAL_DIMENSIONS.depth})`);
         }
     }
     
@@ -240,8 +342,8 @@ export function findNearestFreeSlot(modelX, modelZ, isSlotOccupied) {
  * @returns {boolean}
  */
 export function isWithinBounds(vehicleX, vehicleY) {
-    return vehicleX >= 0 && vehicleX <= SANDBOX_DIMENSIONS.width &&
-           vehicleY >= 0 && vehicleY <= SANDBOX_DIMENSIONS.depth;
+    return vehicleX >= 0 && vehicleX <= LOGICAL_DIMENSIONS.width &&
+           vehicleY >= 0 && vehicleY <= LOGICAL_DIMENSIONS.depth;
 }
 
 /**
@@ -256,8 +358,8 @@ export function vehicleToMapPercent(vehicleX, vehicleY) {
     // 转换为百分比
     // X轴：0m -> 0%, 6.0m -> 100%
     // Y轴：0m -> 100% (底部), 5.0m -> 0% (顶部) - 注意Y轴方向相反
-    const xPercent = (vehicleX / SANDBOX_DIMENSIONS.width) * 100;
-    const yPercent = 100 - (vehicleY / SANDBOX_DIMENSIONS.depth) * 100;
+    const xPercent = (vehicleX / LOGICAL_DIMENSIONS.width) * 100;
+    const yPercent = 100 - (vehicleY / LOGICAL_DIMENSIONS.depth) * 100;
     
     return {
         x: xPercent,
@@ -279,12 +381,14 @@ export function getAllParkingSlots() {
 
 // ============ 日志输出（初始化时） ============
 console.log('📐 坐标转换工具已加载');
-console.log('沙盘尺寸（米）:', SANDBOX_DIMENSIONS.width, 'x', SANDBOX_DIMENSIONS.depth);
+console.log('逻辑尺寸（米）:', LOGICAL_DIMENSIONS.width, 'x', LOGICAL_DIMENSIONS.depth);
+console.log('动态包围盒（初始值）:', dynamicSandboxBounds);
+console.log('⚠️ 注意：实际包围盒将在沙盘模型加载后动态更新');
 console.log('车位坐标（车辆坐标系）:', PARKING_SLOTS);
-console.log('车位坐标（模型坐标系）:', PARKING_SLOTS_MODEL);
+console.log('车位坐标（模型坐标系，初始值）:', PARKING_SLOTS_MODEL);
 
 // 验证车位坐标转换
-console.log('🔍 验证车位坐标转换:');
+console.log('🔍 验证车位坐标转换（基于初始包围盒）:');
 for (const [id, vehicleCoords] of Object.entries(PARKING_SLOTS)) {
     const modelCoords = PARKING_SLOTS_MODEL[id];
     console.log(`  车位${id}:`);

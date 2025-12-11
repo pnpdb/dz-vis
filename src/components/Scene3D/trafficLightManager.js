@@ -85,15 +85,15 @@ export function initTrafficLightManager(sandbox) {
             const trafficLight = extractTrafficLightComponents(config, index);
             if (trafficLight) {
                 trafficLights.push(trafficLight);
-            } else {
+                    } else {
                 logger.warn(`红绿灯 ${index} (${config.group}) 提取失败`);
-            }
+                    }
         });
 
         if (trafficLights.length === 0) {
             logger.error('未找到任何红绿灯');
             return false;
-        }
+            }
 
         logger.info(`✅ 成功初始化 ${trafficLights.length} 个红绿灯`);
         logger.info(`   第一组: 8个红绿灯 (索引0-7)`);
@@ -280,7 +280,7 @@ export function setTrafficLightState(index, color) {
             logger.warn(`无效的灯光颜色: ${color}`);
             break;
     }
-
+    
     logger.debug(`红绿灯 ${index} (${light.config.group}) 设置为: ${getColorName(color)}`);
 }
 

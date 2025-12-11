@@ -5,9 +5,10 @@
 
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
-import { Box3, Group, Sprite, SpriteMaterial, CanvasTexture, Color, MeshStandardMaterial, Vector3 } from 'three';
+import { Box3, Group, Sprite, SpriteMaterial, CanvasTexture, Color, MeshStandardMaterial, Vector3, LineBasicMaterial, BufferGeometry, Line, Vector2 } from 'three';
 import { validateVehicleId, validatePosition, validateOrientation } from '@/utils/validation.js';
 import { disposeObject3D } from '@/utils/resourceCleanup.js';
+import { modelToVehicleCoordinates, vehicleToModelCoordinates } from '@/utils/coordinateTransform.js';
 
 // 车辆模型存储
 const vehicleModels = new Map();  // key: vehicleId, value: model
@@ -27,6 +28,9 @@ let sharedDracoLoader = null;
 
 // 性能优化：Promise 缓存，避免重复加载
 let loadingPromise = null;
+
+// 🌉 高架桥调试：边界线容器
+let elevationDebugLines = null;
 
 // 🚀 性能优化：插值系统（平滑车辆移动）
 const vehicleInterpolationData = new Map();  // 存储每个车辆的插值数据
@@ -48,6 +52,81 @@ const INTERPOLATION_CONFIG = {
     maxDistance: 0.5,        // 最大插值距离（米），超过此值直接跳转（防止传送效果）
     rotationSmooth: 0.5,     // 🔧 提高旋转插值系数 - 更快的朝向响应
     maxUpdatesPerFrame: 10   // 🔧 增加每帧更新数量 - 支持多车场景（之前是1，导致3辆车需要3帧才更新完）
+};
+
+// 🌉 高架桥高度配置
+const ELEVATION_CONFIG = {
+    enabled: true,           // 是否启用高架桥高度控制
+    X1: 0.790,              // 左侧上坡区域边界 (车辆坐标系，米)
+    X2: 5.205,              // 右侧下坡区域边界 (车辆坐标系，米)
+    Y1: 2.958,              // 坡道开始高度 (车辆坐标系，米)
+    Y2: 3.913,              // 高架桥开始高度 (车辆坐标系，米)
+    BRIDGE_HEIGHT: 0.22,    // 高架桥高度 (沙盘局部坐标，米) - 需要根据实际测量调整
+    
+    // 计算坡度（自动计算，不需要手动设置）
+    get SLOPE_LENGTH() {
+        return this.Y2 - this.Y1;  // 坡道长度
+    },
+    get SLOPE_ANGLE() {
+        // 坡度角（弧度）= arctan(高度差 / 水平距离)
+        return Math.atan(this.BRIDGE_HEIGHT / this.SLOPE_LENGTH);
+    },
+    get SLOPE_ANGLE_DEGREES() {
+        // 坡度角（度数）- 用于调试
+        return this.SLOPE_ANGLE * 180 / Math.PI;
+    }
+};
+
+/**
+ * 🌉 根据车辆位置计算高度和倾角（高架桥系统）
+ * @param {number} vehicleX - 车辆X坐标 (车辆坐标系，0-6m)
+ * @param {number} vehicleY - 车辆Y坐标 (车辆坐标系，0-5m)
+ * @returns {Object} { height, pitchAngle, region } - 高度增量(沙盘局部坐标)、倾角(弧度)、区域名称
+ */
+const calculateVehicleElevation = (vehicleX, vehicleY) => {
+    if (!ELEVATION_CONFIG.enabled) {
+        return { height: 0, pitchAngle: 0, region: 'ground' };
+    }
+    
+    const { X1, X2, Y1, Y2, BRIDGE_HEIGHT, SLOPE_LENGTH, SLOPE_ANGLE } = ELEVATION_CONFIG;
+    
+    // 区域判断优先级（从上到下）：
+    
+    // 1️⃣ 高架桥区域（固定高度，Y > Y2）
+    if (vehicleY > Y2) {
+        return {
+            height: BRIDGE_HEIGHT,
+            pitchAngle: 0,
+            region: 'bridge'
+        };
+    }
+    
+    // 2️⃣ 左侧上坡区域（X <= X1 且 Y1 < Y <= Y2）
+    if (vehicleX <= X1 && vehicleY > Y1 && vehicleY <= Y2) {
+        const progress = (vehicleY - Y1) / SLOPE_LENGTH;  // 0-1
+        return {
+            height: progress * BRIDGE_HEIGHT,
+            pitchAngle: SLOPE_ANGLE,  // 正值：车头朝上
+            region: 'left_upslope'
+        };
+    }
+    
+    // 3️⃣ 右侧下坡区域（X >= X2 且 Y1 < Y <= Y2）
+    if (vehicleX >= X2 && vehicleY > Y1 && vehicleY <= Y2) {
+        const progress = (Y2 - vehicleY) / SLOPE_LENGTH;  // 1-0（从高到低）
+        return {
+            height: (1 - progress) * BRIDGE_HEIGHT,  // 从桥面高度逐渐降到地面
+            pitchAngle: -SLOPE_ANGLE,  // 负值：车头朝下
+            region: 'right_downslope'
+        };
+    }
+    
+    // 4️⃣ 地面区域（默认）
+    return {
+        height: 0,
+        pitchAngle: 0,
+        region: 'ground'
+    };
 };
 
 /**
@@ -466,8 +545,22 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
         // 计算车辆模型的底部偏移（使用缓存的模板包围盒）
         const carBottomOffset = cachedCarTemplateBox ? cachedCarTemplateBox.min.y : new Box3().setFromObject(vehicleModel).min.y;
         
+        // 🌉 计算高架桥高度和倾角
+        let elevationHeight = 0;
+        let pitchAngle = 0;
+        let regionName = 'ground';
+        
+        if (ELEVATION_CONFIG.enabled) {
+            // 将沙盘局部坐标转换为车辆坐标系（用于判断区域）
+            const vehicleCoords = modelToVehicleCoordinates(position.x ?? 0, position.z ?? 0);
+            const elevation = calculateVehicleElevation(vehicleCoords.x, vehicleCoords.y);
+            elevationHeight = elevation.height;
+            pitchAngle = elevation.pitchAngle;
+            regionName = elevation.region;
+        }
+        
         // 计算车辆最终的Y坐标（局部坐标系）
-        const vehicleY = roadSurfaceY - carBottomOffset;  // 确保车底在道路表面
+        const vehicleY = roadSurfaceY - carBottomOffset + elevationHeight;  // 基准高度 + 高架桥增量
         
         // 设置车辆位置（使用沙盘局部坐标系）
         // position 已经是模型局部坐标 (x, z)，直接使用
@@ -477,10 +570,15 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
             position.z ?? 0
         );
         
+        // 设置车辆倾角（高架桥坡度）
+        vehicleModel.rotation.x = pitchAngle;
+        
         console.log(`🚗 车辆 ${vehicleId} 位置设置:`);
         console.log(`  - 输入位置: (${position.x?.toFixed(3)}, ${position.z?.toFixed(3)})`);
         console.log(`  - 地面高度 (局部Y): ${roadSurfaceY.toFixed(4)}`);
         console.log(`  - 车底偏移: ${carBottomOffset.toFixed(4)}`);
+        console.log(`  - 高架增量: ${elevationHeight.toFixed(4)} (区域: ${regionName})`);
+        console.log(`  - 倾角: ${(pitchAngle * 180 / Math.PI).toFixed(2)}°`);
         console.log(`  - 最终位置 (局部): (${vehicleModel.position.x.toFixed(3)}, ${vehicleModel.position.y.toFixed(3)}, ${vehicleModel.position.z.toFixed(3)})`);
         
         // 转换为世界坐标并输出（调试用）
@@ -761,6 +859,33 @@ const processBatchUpdates = () => {
                 if (typeof position.z === 'number') {
                     vehicleModel.position.z = position.z;
                 }
+                
+                // 🌉 应用高架桥高度和倾角
+                if (ELEVATION_CONFIG.enabled && typeof position.x === 'number' && typeof position.z === 'number') {
+                    // ⚠️ 检查缓存是否已初始化（在第一辆车添加时会初始化）
+                    if (!cachedSandboxBox || !cachedCarTemplateBox) {
+                        // 缓存未初始化时只更新倾角，不更新Y坐标
+                        const vehicleCoords = modelToVehicleCoordinates(position.x, position.z);
+                        const elevation = calculateVehicleElevation(vehicleCoords.x, vehicleCoords.y);
+                        vehicleModel.rotation.x = elevation.pitchAngle;
+                    } else {
+                        // 将沙盘局部坐标转换为车辆坐标系（用于判断区域）
+                        const vehicleCoords = modelToVehicleCoordinates(position.x, position.z);
+                        
+                        // 计算该位置的高度和倾角
+                        const elevation = calculateVehicleElevation(vehicleCoords.x, vehicleCoords.y);
+                        
+                        // 获取地面基准高度（缓存已验证存在）
+                        const roadSurfaceY = cachedSandboxBox.localY;
+                        const carBottomOffset = cachedCarTemplateBox.min.y;
+                        
+                        // 应用高度：基准高度 + 高架桥增量
+                        vehicleModel.position.y = (roadSurfaceY - carBottomOffset) + elevation.height;
+                        
+                        // 应用倾角（绕X轴旋转，pitch角度）
+                        vehicleModel.rotation.x = elevation.pitchAngle;
+                    }
+                }
             }
 
             if (typeof orientation === 'number') {
@@ -862,6 +987,9 @@ export const clearAllVehicles = () => {
     // 🔒 清理所有添加锁
     vehicleAddingLocks.clear();
     
+    // 🌉 清理高架桥调试线
+    removeElevationDebugLines();
+    
     console.info(`✅ 已清除所有车辆 (${count}辆)`);
 };
 
@@ -926,10 +1054,167 @@ export const debugListAllVehicles = () => {
     };
 };
 
+/**
+ * 🎨 创建高架桥区域边界线（可视化调试）
+ */
+export const createElevationDebugLines = () => {
+    // 清除旧的边界线
+    removeElevationDebugLines();
+    
+    if (!models) {
+        console.warn('⚠️ 场景模型未初始化，无法创建边界线');
+        return;
+    }
+    
+    const sandboxModel = models.get('sandbox');
+    if (!sandboxModel) {
+        console.warn('⚠️ 沙盘模型未找到，无法创建边界线');
+        return;
+    }
+    
+    // 创建容器组
+    elevationDebugLines = new Group();
+    elevationDebugLines.name = 'ElevationDebugLines';
+    
+    const { X1, X2, Y1, Y2 } = ELEVATION_CONFIG;
+    
+    // 将车辆坐标转换为沙盘局部坐标
+    const convertToLocal = (vx, vy) => {
+        const local = vehicleToModelCoordinates(vx, vy);
+        return new Vector3(local.x, 0.01, local.z);  // Y稍微抬高，避免Z-fighting
+    };
+    
+    // 定义边界线（车辆坐标系）
+    const lines = [
+        // 左侧边界 (X1)
+        { start: [X1, 0], end: [X1, 5], color: 0xff0000, name: 'X1_left_boundary' },
+        // 右侧边界 (X2)
+        { start: [X2, 0], end: [X2, 5], color: 0x00ff00, name: 'X2_right_boundary' },
+        // Y1 水平线（坡道起点）
+        { start: [0, Y1], end: [6, Y1], color: 0x0000ff, name: 'Y1_slope_start' },
+        // Y2 水平线（高架起点）
+        { start: [0, Y2], end: [6, Y2], color: 0xffff00, name: 'Y2_bridge_start' }
+    ];
+    
+    // 创建线条
+    lines.forEach(lineData => {
+        const points = [
+            convertToLocal(lineData.start[0], lineData.start[1]),
+            convertToLocal(lineData.end[0], lineData.end[1])
+        ];
+        
+        const geometry = new BufferGeometry().setFromPoints(points);
+        const material = new LineBasicMaterial({ 
+            color: lineData.color,
+            linewidth: 2,
+            transparent: true,
+            opacity: 0.8
+        });
+        const line = new Line(geometry, material);
+        line.name = lineData.name;
+        
+        elevationDebugLines.add(line);
+    });
+    
+    // 将边界线添加到沙盘模型内部（使用局部坐标）
+    sandboxModel.add(elevationDebugLines);
+    
+    console.log('✅ 高架桥区域边界线已创建');
+    console.log('   🔴 红色: X1 左侧边界');
+    console.log('   🟢 绿色: X2 右侧边界');
+    console.log('   🔵 蓝色: Y1 坡道起点');
+    console.log('   🟡 黄色: Y2 高架起点');
+    
+    return elevationDebugLines;
+};
+
+/**
+ * 🧹 移除高架桥区域边界线
+ */
+export const removeElevationDebugLines = () => {
+    if (elevationDebugLines) {
+        disposeObject3D(elevationDebugLines, { removeFromParent: true, recursive: true });
+        elevationDebugLines = null;
+        console.log('✅ 高架桥区域边界线已移除');
+    }
+};
+
+/**
+ * 🔍 调试工具：查看高架桥配置
+ */
+export const debugElevationConfig = () => {
+    console.log('🌉 高架桥配置:');
+    console.log('═'.repeat(80));
+    console.log(`启用状态: ${ELEVATION_CONFIG.enabled ? '✅ 已启用' : '❌ 已禁用'}`);
+    console.log(`\n📏 边界坐标 (车辆坐标系):`);
+    console.log(`  X1 (左侧边界): ${ELEVATION_CONFIG.X1}m`);
+    console.log(`  X2 (右侧边界): ${ELEVATION_CONFIG.X2}m`);
+    console.log(`  Y1 (坡道起点): ${ELEVATION_CONFIG.Y1}m`);
+    console.log(`  Y2 (高架起点): ${ELEVATION_CONFIG.Y2}m`);
+    console.log(`\n📐 高度和坡度:`);
+    console.log(`  高架桥高度: ${ELEVATION_CONFIG.BRIDGE_HEIGHT}m (沙盘局部坐标)`);
+    console.log(`  坡道长度: ${ELEVATION_CONFIG.SLOPE_LENGTH.toFixed(3)}m`);
+    console.log(`  坡度角: ${ELEVATION_CONFIG.SLOPE_ANGLE_DEGREES.toFixed(2)}°`);
+    console.log(`  坡度角 (弧度): ${ELEVATION_CONFIG.SLOPE_ANGLE.toFixed(4)}`);
+    console.log('═'.repeat(80));
+    
+    return { ...ELEVATION_CONFIG };
+};
+
+/**
+ * 🔧 调试工具：更新高架桥配置
+ */
+export const updateElevationConfig = (config) => {
+    if (typeof config.enabled === 'boolean') {
+        ELEVATION_CONFIG.enabled = config.enabled;
+    }
+    if (typeof config.X1 === 'number') {
+        ELEVATION_CONFIG.X1 = config.X1;
+    }
+    if (typeof config.X2 === 'number') {
+        ELEVATION_CONFIG.X2 = config.X2;
+    }
+    if (typeof config.Y1 === 'number') {
+        ELEVATION_CONFIG.Y1 = config.Y1;
+    }
+    if (typeof config.Y2 === 'number') {
+        ELEVATION_CONFIG.Y2 = config.Y2;
+    }
+    if (typeof config.BRIDGE_HEIGHT === 'number') {
+        ELEVATION_CONFIG.BRIDGE_HEIGHT = config.BRIDGE_HEIGHT;
+    }
+    
+    console.log('✅ 高架桥配置已更新');
+    debugElevationConfig();
+    
+    return ELEVATION_CONFIG;
+};
+
+/**
+ * 🧪 调试工具：测试指定坐标的高度和倾角
+ */
+export const testElevationAt = (vehicleX, vehicleY) => {
+    const elevation = calculateVehicleElevation(vehicleX, vehicleY);
+    
+    console.log(`🧪 坐标 (${vehicleX.toFixed(3)}, ${vehicleY.toFixed(3)}) 的高度测试:`);
+    console.log(`  区域: ${elevation.region}`);
+    console.log(`  高度增量: ${elevation.height.toFixed(4)}m`);
+    console.log(`  倾角: ${(elevation.pitchAngle * 180 / Math.PI).toFixed(2)}° (${elevation.pitchAngle.toFixed(4)} rad)`);
+    
+    return elevation;
+};
+
 // 全局暴露调试函数和数据（用于分析模型结构）
 if (typeof window !== 'undefined') {
     window.__debugVehicles = debugListAllVehicles;
     window.__vehicleModels = vehicleModels; // 暴露供分析脚本使用
+    
+    // 🌉 高架桥调试工具
+    window.__debugElevation = debugElevationConfig;
+    window.__updateElevation = updateElevationConfig;
+    window.__testElevation = testElevationAt;
+    window.__showElevationLines = createElevationDebugLines;
+    window.__hideElevationLines = removeElevationDebugLines;
 }
 
 /**

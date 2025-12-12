@@ -5,7 +5,7 @@
 
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
-import { Box3, Group, Sprite, SpriteMaterial, CanvasTexture, Color, MeshStandardMaterial, Vector3, LineBasicMaterial, BufferGeometry, Line, Vector2 } from 'three';
+import { Box3, Group, Sprite, SpriteMaterial, CanvasTexture, Color, MeshStandardMaterial, Vector3 } from 'three';
 import { validateVehicleId, validatePosition, validateOrientation } from '@/utils/validation.js';
 import { disposeObject3D } from '@/utils/resourceCleanup.js';
 import { modelToVehicleCoordinates, vehicleToModelCoordinates } from '@/utils/coordinateTransform.js';
@@ -28,9 +28,6 @@ let sharedDracoLoader = null;
 
 // 性能优化：Promise 缓存，避免重复加载
 let loadingPromise = null;
-
-// 🌉 高架桥调试：边界线容器
-let elevationDebugLines = null;
 
 // 🚀 性能优化：插值系统（平滑车辆移动）
 const vehicleInterpolationData = new Map();  // 存储每个车辆的插值数据
@@ -198,7 +195,7 @@ const loadCarModelTemplate = async () => {
                 
                 // 由于车辆会添加到沙盘内部（沙盘scale=6），
                 // 车辆会继承沙盘的缩放，所以这里设置为1即可
-                carModelTemplate.scale.set(0.001, 0.001, 0.001);
+                carModelTemplate.scale.set(1, 1, 1);
                 
                 // 🔧 关键修复：应用旋转后再计算包围盒
                 // 因为实际使用时车辆会被旋转 -90°（carMesh.rotation.x = -Math.PI / 2）
@@ -685,6 +682,9 @@ export const removeVehicle = (vehicleId) => {
         // 🚀 清理插值数据
         vehicleInterpolationData.delete(vehicleId);
         
+        // 🧹 清理待处理的更新队列（防止内存泄漏）
+        pendingUpdates.delete(vehicleId);
+        
         // 如果没有车辆了，停止插值循环
         if (vehicleModels.size === 0) {
             stopInterpolationLoop();
@@ -1008,8 +1008,14 @@ export const clearAllVehicles = () => {
     // 🔒 清理所有添加锁
     vehicleAddingLocks.clear();
     
-    // 🌉 清理高架桥调试线
-    removeElevationDebugLines();
+    // 🧹 清理批量更新定时器（防止内存泄漏）
+    if (batchUpdateTimer) {
+        clearTimeout(batchUpdateTimer);
+        batchUpdateTimer = null;
+    }
+    
+    // 🧹 清理待处理的更新队列
+    pendingUpdates.clear();
     
     console.info(`✅ 已清除所有车辆 (${count}辆)`);
 };
@@ -1073,91 +1079,6 @@ export const debugListAllVehicles = () => {
         lockCount: vehicleAddingLocks.size,
         orphanedCount: orphanedInterpData.length
     };
-};
-
-/**
- * 🎨 创建高架桥区域边界线（可视化调试）
- */
-export const createElevationDebugLines = () => {
-    // 清除旧的边界线
-    removeElevationDebugLines();
-    
-    if (!models) {
-        console.warn('⚠️ 场景模型未初始化，无法创建边界线');
-        return;
-    }
-    
-    const sandboxModel = models.get('sandbox');
-    if (!sandboxModel) {
-        console.warn('⚠️ 沙盘模型未找到，无法创建边界线');
-        return;
-    }
-    
-    // 创建容器组
-    elevationDebugLines = new Group();
-    elevationDebugLines.name = 'ElevationDebugLines';
-    
-    const { X1, X2, Y1, Y2 } = ELEVATION_CONFIG;
-    
-    // 将车辆坐标转换为沙盘局部坐标
-    const convertToLocal = (vx, vy) => {
-        const local = vehicleToModelCoordinates(vx, vy);
-        return new Vector3(local.x, 0.01, local.z);  // Y稍微抬高，避免Z-fighting
-    };
-    
-    // 定义边界线（车辆坐标系）
-    const lines = [
-        // 左侧边界 (X1)
-        { start: [X1, 0], end: [X1, 5], color: 0xff0000, name: 'X1_left_boundary' },
-        // 右侧边界 (X2)
-        { start: [X2, 0], end: [X2, 5], color: 0x00ff00, name: 'X2_right_boundary' },
-        // Y1 水平线（坡道起点）
-        { start: [0, Y1], end: [6, Y1], color: 0x0000ff, name: 'Y1_slope_start' },
-        // Y2 水平线（高架起点）
-        { start: [0, Y2], end: [6, Y2], color: 0xffff00, name: 'Y2_bridge_start' }
-    ];
-    
-    // 创建线条
-    lines.forEach(lineData => {
-        const points = [
-            convertToLocal(lineData.start[0], lineData.start[1]),
-            convertToLocal(lineData.end[0], lineData.end[1])
-        ];
-        
-        const geometry = new BufferGeometry().setFromPoints(points);
-        const material = new LineBasicMaterial({ 
-            color: lineData.color,
-            linewidth: 2,
-            transparent: true,
-            opacity: 0.8
-        });
-        const line = new Line(geometry, material);
-        line.name = lineData.name;
-        
-        elevationDebugLines.add(line);
-    });
-    
-    // 将边界线添加到沙盘模型内部（使用局部坐标）
-    sandboxModel.add(elevationDebugLines);
-    
-    console.log('✅ 高架桥区域边界线已创建');
-    console.log('   🔴 红色: X1 左侧边界');
-    console.log('   🟢 绿色: X2 右侧边界');
-    console.log('   🔵 蓝色: Y1 坡道起点');
-    console.log('   🟡 黄色: Y2 高架起点');
-    
-    return elevationDebugLines;
-};
-
-/**
- * 🧹 移除高架桥区域边界线
- */
-export const removeElevationDebugLines = () => {
-    if (elevationDebugLines) {
-        disposeObject3D(elevationDebugLines, { removeFromParent: true, recursive: true });
-        elevationDebugLines = null;
-        console.log('✅ 高架桥区域边界线已移除');
-    }
 };
 
 /**
@@ -1242,8 +1163,6 @@ if (typeof window !== 'undefined') {
     window.__debugElevation = debugElevationConfig;
     window.__updateElevation = updateElevationConfig;
     window.__testElevation = testElevationAt;
-    window.__showElevationLines = createElevationDebugLines;
-    window.__hideElevationLines = removeElevationDebugLines;
 }
 
 /**

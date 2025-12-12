@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Socket客户端测试程序 - 2号车
-模拟2号小车连接Tauri Socket服务器并发送协议数据
+Socket客户端测试程序 - 50Hz高频版本
+模拟小车连接Tauri Socket服务器并发送协议数据
+发送频率：50Hz（每秒50次，即每0.02秒发送1次）
 """
 
 import socket
@@ -43,6 +44,76 @@ CONTROL_COMMANDS = {
     3: '紧急制动',
     4: '初始化位姿'
 }
+
+# ========== 打车状态机全局变量 ==========
+# 打车状态机：用于模拟收到0x1003协议后的导航状态变化
+# 状态转换：1（默认）→ 3（去起点，5秒）→ 9（到起点，5秒）→ 4（去终点，5秒）→ 10（到终点，5秒）→ 1
+taxi_state_machine = {
+    'active': False,              # 是否激活打车状态机
+    'current_state': 1,           # 当前导航状态
+    'state_start_time': 0,        # 当前状态开始时间（秒）
+    'state_sequence': [3, 9, 4, 10],  # 打车状态序列
+    'state_index': 0,             # 当前在序列中的索引
+    'state_duration': 5           # 每个状态持续时间（秒）
+}
+
+def start_taxi_state_machine():
+    """启动打车状态机"""
+    global taxi_state_machine
+    taxi_state_machine['active'] = True
+    taxi_state_machine['current_state'] = 3  # 第一个状态：去起点接客
+    taxi_state_machine['state_start_time'] = time.time()
+    taxi_state_machine['state_index'] = 0
+    taxi_state_machine['last_debug_time'] = 0  # 重置调试时间
+    print(f"\n🚕 [打车状态机] 已启动，导航状态切换为: 3 (接客模式-去起点)")
+    print(f"   状态序列: {taxi_state_machine['state_sequence']}")
+    print(f"   每个状态持续: {taxi_state_machine['state_duration']}秒")
+
+def update_taxi_state_machine():
+    """更新打车状态机（在每次发送车辆信息时调用）"""
+    global taxi_state_machine
+    
+    if not taxi_state_machine['active']:
+        return 1  # 默认状态
+    
+    current_time = time.time()
+    elapsed = current_time - taxi_state_machine['state_start_time']
+    
+    # 🐛 调试：每秒输出一次状态
+    if 'last_debug_time' not in taxi_state_machine:
+        taxi_state_machine['last_debug_time'] = 0
+    
+    if current_time - taxi_state_machine['last_debug_time'] >= 1.0:
+        remaining = taxi_state_machine['state_duration'] - elapsed
+        print(f"🚕 [状态机] 当前状态: {taxi_state_machine['current_state']}, 已持续: {elapsed:.1f}s, 剩余: {remaining:.1f}s")
+        taxi_state_machine['last_debug_time'] = current_time
+    
+    # 检查是否需要切换到下一个状态
+    if elapsed >= taxi_state_machine['state_duration']:
+        # 切换到下一个状态
+        taxi_state_machine['state_index'] += 1
+        
+        if taxi_state_machine['state_index'] >= len(taxi_state_machine['state_sequence']):
+            # 所有状态完成，回到默认状态1
+            taxi_state_machine['active'] = False
+            taxi_state_machine['current_state'] = 1
+            taxi_state_machine['state_index'] = 0
+            print(f"🚕 [打车状态机] 打车流程完成，回到默认状态: 1 (正常行驶)")
+        else:
+            # 切换到下一个状态
+            next_state = taxi_state_machine['state_sequence'][taxi_state_machine['state_index']]
+            taxi_state_machine['current_state'] = next_state
+            taxi_state_machine['state_start_time'] = current_time
+            
+            state_names = {
+                3: '接客模式-去起点',
+                9: '到达接客起点',
+                4: '接客模式-去终点',
+                10: '到达接客终点'
+            }
+            print(f"🚕 [打车状态机] 导航状态切换为: {next_state} ({state_names.get(next_state, '未知状态')})")
+    
+    return taxi_state_machine['current_state']
 
 def crc16_ccitt_false(data: bytes) -> int:
     """计算 CRC16-CCITT-FALSE 校验码"""
@@ -410,7 +481,7 @@ force_parallel_until = 0
 vehicle_paths = {}
 
 class VehiclePath:
-    """车辆路径管理类 - 沿沙盘道路绕圈"""
+    """车辆路径管理类 - 沿沙盘道路绕圈（50Hz高频版本）"""
     def __init__(self, vehicle_id):
         self.vehicle_id = vehicle_id
         
@@ -418,11 +489,11 @@ class VehiclePath:
         self.SANDBOX_WIDTH = 6.0
         self.SANDBOX_DEPTH = 5.0
         
-        # 道路边距（稍微往里一点，因为道路不在最边缘）
-        self.MARGIN_X = 0.23  # X轴边距
-        self.MARGIN_Y = 0.23  # Y轴边距
+        # 道路边距（沿着内圈走，距离边界0.43m）
+        self.MARGIN_X = 0.43  # X轴边距（内圈）
+        self.MARGIN_Y = 0.43  # Y轴边距（内圈）
         
-        # 定义矩形路径的四个角点（顺时针绕行）
+        # 定义矩形路径的四个角点（逆时针绕行）
         # 左下 -> 右下 -> 右上 -> 左上 -> 左下
         self.path_points = [
             (self.MARGIN_X, self.MARGIN_Y),                                      # 左下角
@@ -439,9 +510,10 @@ class VehiclePath:
         self.orientation = 0.0  # 朝向角度（度）
         self.battery = 85.0  # 初始电量
         
-        # 移动参数
+        # 移动参数（50Hz高频版本）
         self.speed = 0.25  # 固定速度 0.25 m/s (模拟慢速行驶)
-        self.step_distance = self.speed * 0.5  # 每0.5秒移动的距离（1秒发送2次）
+        # 🚀 50Hz版本：每0.02秒发送一次，步进距离 = 0.25 * 0.02 = 0.005米
+        self.step_distance = self.speed * 0.02  # 每0.02秒移动的距离（1秒发送50次）
         
     def update_position(self):
         """更新车辆位置（每次调用前进一步）"""
@@ -474,8 +546,8 @@ class VehiclePath:
         dy = end_point[1] - start_point[1]
         self.orientation = math.atan2(dy, dx)
         
-        # 电量缓慢下降（模拟消耗）
-        self.battery = max(20.0, self.battery - 0.0125)
+        # 电量缓慢下降（模拟消耗）- 50Hz下需要更慢的下降速率
+        self.battery = max(20.0, self.battery - 0.0005)  # 从0.0125调整为0.0005（25倍）
     
     def get_current_state(self):
         """获取当前状态"""
@@ -492,6 +564,10 @@ def get_vehicle_path(vehicle_id):
     if vehicle_id not in vehicle_paths:
         vehicle_paths[vehicle_id] = VehiclePath(vehicle_id)
     return vehicle_paths[vehicle_id]
+
+# 🔇 打印节流控制（避免50Hz刷屏）
+last_print_time = 0
+print_interval = 1.0  # 每秒最多打印1次
 
 def create_vehicle_info_data(vehicle_id=1):
     """
@@ -515,11 +591,13 @@ def create_vehicle_info_data(vehicle_id=1):
     data.extend(struct.pack('<d', speed))
     
     # 位置X (8字节, DOUBLE) - 从路径管理器获取
-    position_x = state['position_x'] + 0.18
+    # 走内圈：MARGIN已设置为0.43，不需要额外偏移
+    position_x = state['position_x']
     data.extend(struct.pack('<d', position_x))
     
     # 位置Y (8字节, DOUBLE) - 从路径管理器获取
-    position_y = state['position_y'] + 0.18
+    # 走内圈：MARGIN已设置为0.43，不需要额外偏移
+    position_y = state['position_y']
     data.extend(struct.pack('<d', position_y))
     
     # 朝向 (8字节, DOUBLE) - 从路径管理器获取（自动根据移动方向计算）
@@ -544,13 +622,16 @@ def create_vehicle_info_data(vehicle_id=1):
         steering_angle = 0.0
     data.extend(struct.pack('<d', steering_angle))
     
-    # 导航状态 (1字节, UINT8) - 新定义 1..15 (注意10为终点)
+    # 导航状态 (1字节, UINT8) - 使用打车状态机
+    # 状态转换：1（默认）→ 收到0x1003后 → 3（5秒）→ 9（5秒）→ 4（5秒）→ 10（5秒）→ 回到1
     now_ms = int(time.time() * 1000)
     if now_ms < force_parallel_until:
+        # 平行驾驶模式优先级最高
         nav_status = 15
     else:
-        nav_status = 5  # 5 = 正常导航中
-    data.extend(struct.pack('<B', 1))
+        # 使用打车状态机的状态
+        nav_status = update_taxi_state_machine()
+    data.extend(struct.pack('<B', nav_status))
     
     # 相机状态 (1字节, UINT8) - 0:异常, 1:正常（模拟正常工作）
     camera_status = 1
@@ -565,28 +646,34 @@ def create_vehicle_info_data(vehicle_id=1):
     data.extend(struct.pack('<B', gyro_status))
 
     # 车位占用状态 (1字节, UINT8) - 0:未占用（行驶中不占用车位）
-    parking_slot = 0
+    parking_slot = 1
     data.extend(struct.pack('<B', parking_slot))
 
-    # 格式化打印车辆信息协议
-    gear_names = {1: 'P', 2: 'R', 3: 'N', 4: 'D1', 5: 'D2', 6: 'D3', 7: 'D4', 8: 'D5', 9: 'D'}
-    nav_status_names = {
-        1: '正常行驶(空载不入库)', 2: '正常行驶(空载倒车入库)', 3: '接客模式-去起点',
-        4: '接客模式-去终点', 5: '去往充电车位', 6: '充电中', 7: '去往停车位',
-        8: '车位停车中', 9: '到达接客起点', 10: '到达接客终点', 11: '倒车入库中',
-        12: '出库中', 13: '倒车入库中', 14: '出库完成', 15: '平行驾驶模式'
-    }
-    
-    print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    print(f"🚗 车辆编号: {vehicle_id}")
-    print(f"   📍 位置: X={position_x:.3f}m, Y={position_y:.3f}m")
-    print(f"   🧭 朝向: {orientation:.3f}rad ({math.degrees(orientation):.1f}°)")
-    print(f"   🚀 车速: {speed:.3f}m/s | 🔋 电量: {battery:.1f}%")
-    print(f"   ⚙️  档位: {gear_names.get(gear, '未知')} | 🎯 方向盘: {steering_angle:.1f}°")
-    print(f"   🗺️  导航: {nav_status_names.get(nav_status, '未知状态')}")
-    print(f"   📷 相机: {'正常' if camera_status else '异常'} | 📡 雷达: {'正常' if lidar_status else '异常'} | 🔄 陀螺仪: {'正常' if gyro_status else '异常'}")
-    print(f"   🅿️  车位占用: {'未占用' if parking_slot == 0 else f'{parking_slot}号车位'}")
-    print(f"   🛣️  路段: {path.current_segment} | 进度: {path.progress:.2%}")
+    # 🔇 打印节流：每秒最多打印1次（避免50Hz刷屏）
+    global last_print_time
+    current_time = time.time()
+    if current_time - last_print_time >= print_interval:
+        gear_names = {1: 'P', 2: 'R', 3: 'N', 4: 'D1', 5: 'D2', 6: 'D3', 7: 'D4', 8: 'D5', 9: 'D'}
+        nav_status_names = {
+            1: '正常行驶(空载不入库)', 2: '正常行驶(空载倒车入库)', 3: '接客模式-去起点',
+            4: '接客模式-去终点', 5: '去往充电车位', 6: '充电中', 7: '去往停车位',
+            8: '车位停车中', 9: '到达接客起点', 10: '到达接客终点', 11: '倒车入库中',
+            12: '出库中', 13: '倒车入库中', 14: '出库完成', 15: '平行驾驶模式'
+        }
+        
+        print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print(f"🚗 车辆编号: {vehicle_id} (50Hz高频模式)")
+        print(f"   📍 位置: X={position_x:.3f}m, Y={position_y:.3f}m")
+        print(f"   🧭 朝向: {orientation:.3f}rad ({math.degrees(orientation):.1f}°)")
+        print(f"   🚀 车速: {speed:.3f}m/s | 🔋 电量: {battery:.1f}%")
+        print(f"   ⚙️  档位: {gear_names.get(gear, '未知')} | 🎯 方向盘: {steering_angle:.1f}°")
+        print(f"   🗺️  导航: {nav_status_names.get(nav_status, '未知状态')}")
+        print(f"   📷 相机: {'正常' if camera_status else '异常'} | 📡 雷达: {'正常' if lidar_status else '异常'} | 🔄 陀螺仪: {'正常' if gyro_status else '异常'}")
+        print(f"   🅿️  车位占用: {'未占用' if parking_slot == 0 else f'{parking_slot}号车位'}")
+        print(f"   🛣️  路段: {path.current_segment} | 进度: {path.progress:.2%}")
+        print(f"   📡 发送频率: 50Hz | 步进距离: {path.step_distance*1000:.2f}mm")
+        
+        last_print_time = current_time
     
     return bytes(data)
 
@@ -604,46 +691,41 @@ class TestClient:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.socket.connect((self.server_host, self.server_port))
             self.running = True
-            print(f" 成功连接到服务器 {self.server_host}:{self.server_port}")
+            print(f"✅ 成功连接到服务器 {self.server_host}:{self.server_port}")
             return True
         except Exception as e:
-            print(f" 连接失败: {e}")
+            print(f"❌ 连接失败: {e}")
             return False
         
     def disconnect(self):
         """断开连接"""
         self.running = False
+        # 🔧 修复：高频模式下需要等待发送线程完全停止
+        import time as time_module
+        time_module.sleep(0.1)  # 等待100ms，确保发送线程检测到running=False并停止
+        
         if self.socket:
-            self.socket.close()
-            print(" 已断开连接")
+            try:
+                # 🔧 修复：立即关闭连接的读写端，确保服务端能快速检测到断开
+                self.socket.shutdown(socket.SHUT_RDWR)
+            except Exception as e:
+                print(f"⚠️ 关闭socket读写端失败（可能已断开）: {e}")
+            finally:
+                self.socket.close()
+                print("🔌 已断开连接")
         
     def send_message(self, message_type, data):
         """发送消息"""
         if not self.socket:
-            print(" 未连接到服务器")
+            print("❌ 未连接到服务器")
             return False
             
         try:
             packet = build_message(message_type, data)
             self.socket.send(packet)
-            
-            # 查找消息类型名称
-            type_name = None
-            for k, v in RECEIVE_MESSAGE_TYPES.items():
-                if v == message_type:
-                    type_name = k
-                    break
-            if not type_name:
-                for k, v in SEND_MESSAGE_TYPES.items():
-                    if v == message_type:
-                        type_name = k
-                        break
-            if not type_name:
-                type_name = f"0x{message_type:04X}"
-            print(f" 发送消息: {type_name}, 数据长度: {len(data)} 字节")
             return True
         except Exception as e:
-            print(f" 发送消息失败: {e}")
+            print(f"❌ 发送消息失败: {e}")
             return False
         
     def start_heartbeat(self, interval=5):
@@ -656,14 +738,15 @@ class TestClient:
         
         thread = threading.Thread(target=heartbeat_loop, daemon=True)
         thread.start()
-        print(f" 心跳发送已启动 (间隔: {interval}秒)")
+        print(f"💓 心跳发送已启动 (间隔: {interval}秒)")
         
     def start_data_simulation(self):
-        """启动数据模拟发送"""
+        """启动数据模拟发送（50Hz版本）"""
         def data_simulation_loop():
             counter = 0
             while self.running:
-                time.sleep(0.5)  # 每0.5秒发送一次数据（1秒发送2次）
+                # 🚀 50Hz：每0.02秒发送一次数据（1秒发送50次）
+                time.sleep(0.02)
                 counter += 1
                 
                 # 发送车辆信息协议
@@ -672,7 +755,7 @@ class TestClient:
         
         thread = threading.Thread(target=data_simulation_loop, daemon=True)
         thread.start()
-        print(" 数据模拟发送已启动")
+        print("🚀 数据模拟发送已启动 (50Hz高频模式)")
         
     def send_path_file_selection(self, path_ids):
         """
@@ -710,7 +793,6 @@ class TestClient:
                         break
                     
                     buffer.extend(data)
-                    print(f" 收到服务器数据: {len(data)} 字节")
                     
                     # 尝试解析完整的协议消息
                     while len(buffer) >= 25:  # 最小协议长度
@@ -748,12 +830,12 @@ class TestClient:
                     
                 except Exception as e:
                     if self.running:
-                        print(f" 接收数据错误: {e}")
+                        print(f"❌ 接收数据错误: {e}")
                     break
         
         thread = threading.Thread(target=listen_loop, daemon=True)
         thread.start()
-        print(" 开始监听服务器命令")
+        print("👂 开始监听服务器命令")
     
     def handle_received_message(self, message):
         """处理接收到的协议消息"""
@@ -761,7 +843,7 @@ class TestClient:
         data_domain = message['data_domain']
         timestamp_dt = datetime.fromtimestamp(message['timestamp'] / 1000)
         
-        print(f"\n收到协议消息:")
+        print(f"\n📥 收到协议消息:")
         print(f"   消息类型: 0x{message_type:04X}")
         print(f"   时间戳: {timestamp_dt}")
         print(f"   数据长度: {message['data_length']} 字节")
@@ -779,7 +861,7 @@ class TestClient:
             # 解析车辆控制指令
             control_info = parse_vehicle_control_message(data_domain)
             if control_info:
-                print(f" 车辆控制指令:")
+                print(f"🎮 车辆控制指令:")
                 print(f"   目标车辆: {control_info['vehicle_id']}")
                 print(f"   控制指令: {control_info['command_name']} ({control_info['control_command']})")
                 
@@ -789,57 +871,62 @@ class TestClient:
                     print(f"   朝向: {control_info['orientation']:.3f}")
                 
                 # 模拟执行指令
-                print(f" 车辆{control_info['vehicle_id']}执行{control_info['command_name']}指令")
+                print(f"✅ 车辆{control_info['vehicle_id']}执行{control_info['command_name']}指令")
                 
         elif message_type == SEND_MESSAGE_TYPES['DATA_RECORDING']:
             # 解析数据记录控制指令
             recording_info = parse_data_recording_message(data_domain)
             if recording_info:
-                print(f" 数据记录控制指令:")
+                print(f"📹 数据记录控制指令:")
                 print(f"   目标车辆: {recording_info['vehicle_id']}")
                 print(f"   记录状态: {recording_info['status_name']} ({recording_info['recording_status']})")
                 
                 # 模拟执行指令
-                print(f" 车辆{recording_info['vehicle_id']}数据记录{recording_info['status_name']}")
+                print(f"✅ 车辆{recording_info['vehicle_id']}数据记录{recording_info['status_name']}")
                 
         elif message_type == SEND_MESSAGE_TYPES['TAXI_ORDER']:
             # 解析出租车订单指令
             taxi_info = parse_taxi_order_message(data_domain)
             if taxi_info:
-                print(f"出租车订单:")
+                print(f"🚕 出租车订单:")
                 print(f"   目标车辆: {taxi_info['vehicle_id']}")
                 print(f"   起点: ({taxi_info['start_x']:.3f}, {taxi_info['start_y']:.3f})")
                 print(f"   终点: ({taxi_info['end_x']:.3f}, {taxi_info['end_y']:.3f})")
                 
-                # 模拟接单处理
-                print(f" 车辆{self.vehicle_id}收到出租车订单，目标车辆: {taxi_info['vehicle_id']}")
+                # 检查是否是当前车辆的订单
+                if taxi_info['vehicle_id'] == self.vehicle_id:
+                    print(f"✅ 车辆{self.vehicle_id}收到出租车订单，启动打车状态机")
+                    # 启动打车状态机
+                    start_taxi_state_machine()
+                else:
+                    print(f"ℹ️ 订单目标车辆({taxi_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
                 
         elif message_type == SEND_MESSAGE_TYPES['AVP_PARKING']:
             # 解析AVP泊车指令
             parking_info = parse_avp_parking_message(data_domain)
             if parking_info:
-                print(f" AVP自主代客泊车指令:")
+                print(f"🅿️ AVP自主代客泊车指令:")
                 print(f"   目标车辆: {parking_info['vehicle_id']}")
                 print(f"   停车位: {parking_info['parking_spot']}号车位")
                 
                 # 模拟执行泊车
                 if parking_info['vehicle_id'] == self.vehicle_id:
-                    print(f" 车辆{self.vehicle_id}开始执行AVP泊车，目标车位: {parking_info['parking_spot']}号")
+                    print(f"✅ 车辆{self.vehicle_id}开始执行AVP泊车，目标车位: {parking_info['parking_spot']}号")
                 else:
-                    print(f" 泊车指令目标车辆({parking_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
+                    print(f"ℹ️ 泊车指令目标车辆({parking_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
                     
         elif message_type == SEND_MESSAGE_TYPES['AVP_PICKUP']:
             # 解析AVP取车指令
             pickup_info = parse_avp_pickup_message(data_domain)
             if pickup_info:
-                print(f" AVP取车指令:")
+                print(f"🚗 AVP取车指令:")
                 print(f"   目标车辆: {pickup_info['vehicle_id']}")
                 
                 # 模拟执行取车
                 if pickup_info['vehicle_id'] == self.vehicle_id:
-                    print(f" 车辆{self.vehicle_id}开始执行AVP取车操作")
+                    print(f"✅ 车辆{self.vehicle_id}开始执行AVP取车操作")
                 else:
-                    print(f" 取车指令目标车辆({pickup_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
+                    print(f"ℹ️ 取车指令目标车辆({pickup_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
                     
         elif message_type == SEND_MESSAGE_TYPES['VEHICLE_FUNCTION_SETTING']:
             # 解析车辆功能设置指令
@@ -852,9 +939,9 @@ class TestClient:
                 
                 # 模拟执行功能设置
                 if function_info['vehicle_id'] == self.vehicle_id:
-                    print(f" 车辆{self.vehicle_id}执行功能设置: {function_info['function_name']} -> {function_info['status_name']}")
+                    print(f"✅ 车辆{self.vehicle_id}执行功能设置: {function_info['function_name']} -> {function_info['status_name']}")
                 else:
-                    print(f" 功能设置指令目标车辆({function_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
+                    print(f"ℹ️ 功能设置指令目标车辆({function_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
                     
         elif message_type == SEND_MESSAGE_TYPES['VEHICLE_PATH_DISPLAY']:
             # 解析车辆路径显示控制指令
@@ -867,19 +954,19 @@ class TestClient:
                 # 模拟执行路径显示控制
                 if path_info['vehicle_id'] == self.vehicle_id:
                     if path_info['display_path'] == 1:
-                        print(f" 车辆{self.vehicle_id}开始发送路径数据到服务端")
+                        print(f"✅ 车辆{self.vehicle_id}开始发送路径数据到服务端")
                         # 收到开启路径显示指令后，主动发送路径文件选择（0x0003）
                         self.send_path_file_selection([1, 2, 3, 4, 5, 6, 7, 8])
                     else:
-                        print(f" 车辆{self.vehicle_id}停止发送路径数据到服务端")
+                        print(f"✅ 车辆{self.vehicle_id}停止发送路径数据到服务端")
                 else:
-                    print(f"路径显示指令目标车辆({path_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
+                    print(f"ℹ️ 路径显示指令目标车辆({path_info['vehicle_id']})与当前车辆({self.vehicle_id})不匹配")
                     
         elif message_type == SEND_MESSAGE_TYPES['CONSTRUCTION_MARKER']:
             # 解析施工标记指令 - 新格式：所有施工点坐标
             marker_info = parse_construction_marker_message(data_domain)
             if marker_info:
-                print(f"施工标记指令:")
+                print(f"🚧 施工标记指令:")
                 print(f"   施工点数量: {marker_info['marker_count']} 个")
                 
                 if marker_info['marker_count'] == 0:
@@ -890,9 +977,9 @@ class TestClient:
                         print(f"     施工点{marker['index']}: ({marker['position_x']:.3f}, {marker['position_y']:.3f})")
                 
                 # 模拟执行施工标记操作
-                print(f" 已更新本地施工点列表，共 {marker_info['marker_count']} 个施工点")
+                print(f"✅ 已更新本地施工点列表，共 {marker_info['marker_count']} 个施工点")
         else:
-            print(f"   未知消息类型: 0x{message_type:04X}")
+            print(f"❓ 未知消息类型: 0x{message_type:04X}")
             print(f"   数据: {data_domain.hex()}")
         
         print()  # 添加空行便于阅读
@@ -901,17 +988,21 @@ class TestClient:
 def main():
     import sys
     
-    # 获取命令行参数 - 车辆ID（默认为2）
+    # 获取命令行参数 - 车辆ID
     vehicle_id = 2
     if len(sys.argv) > 1:
         try:
             vehicle_id = int(sys.argv[1])
         except ValueError:
-            print(" 车辆ID必须是数字")
+            print("❌ 车辆ID必须是数字")
             sys.exit(1)
     
-    print(f" Socket客户端测试程序 - 车辆ID: {vehicle_id}")
-    print("=" * 50)
+    print(f"🚀 Socket客户端测试程序 - 50Hz高频版本")
+    print(f"   车辆ID: {vehicle_id}")
+    print(f"   发送频率: 50Hz (每0.02秒发送1次)")
+    print(f"   车速: 0.25 m/s (保持不变)")
+    print(f"   步进距离: 0.005m (5mm)")
+    print("=" * 70)
     
     # 创建测试客户端
     client = TestClient(vehicle_id=vehicle_id)
@@ -924,26 +1015,27 @@ def main():
         # 启动心跳
         client.start_heartbeat(interval=10)
         
-        # 启动数据模拟
+        # 启动数据模拟（50Hz）
         client.start_data_simulation()
         
         # 监听服务器命令
         client.listen_for_commands()
         
-        print(f"\n 测试客户端已启动 (车辆ID: {vehicle_id})，按 Ctrl+C 停止")
+        print(f"\n✅ 测试客户端已启动 (车辆ID: {vehicle_id})，按 Ctrl+C 停止")
         print("正在发送以下类型的数据:")
         print("- 心跳包 (每10秒)")
-        print("- 车辆信息协议 (每0.5秒，即1秒2次)")
-        print("\n 车辆信息协议数据域 (54字节):")
+        print("- 车辆信息协议 (50Hz，即每0.02秒1次)")
+        print("\n📊 车辆信息协议数据域 (54字节):")
         print("- 车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 朝向(8) + 电量(8)")
         print("- 档位(1) + 方向盘转角(8) + 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1)")
+        print("\n💡 提示: 为避免刷屏，状态信息每秒最多打印1次")
         
         # 保持程序运行
         while client.running:
             time.sleep(1)
             
     except KeyboardInterrupt:
-        print("\n用户中断，正在退出...")
+        print("\n⛔ 用户中断，正在退出...")
     finally:
         client.disconnect()
 

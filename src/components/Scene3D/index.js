@@ -834,18 +834,6 @@ const loadModelsWithProgress = async () => {
                         // 🔄 清除地面高度缓存（强制重新计算新沙盘的地面高度）
                         clearRoadSurfaceCache();
                         clearVehicleManagerSandboxCache();
-                        
-                        // 🌉 自动绘制高架桥区域边界线（调试用）
-                        setTimeout(() => {
-                            try {
-                                if (window.__showElevationLines) {
-                                    window.__showElevationLines();
-                                    console.log('🌉 高架桥区域边界线已自动绘制');
-                                }
-                            } catch (error) {
-                                console.warn('高架桥边界线绘制失败:', error);
-                            }
-                        }, 500); // 延迟500ms确保沙盘完全初始化
                     } else {
                         console.error('❌ 无法从models中获取沙盘模型！');
                     }

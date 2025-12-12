@@ -29,6 +29,10 @@ export function disposeMaterialTextures(material) {
     
     textureProperties.forEach(prop => {
         if (material[prop] && typeof material[prop].dispose === 'function') {
+            // 如果是 CanvasTexture，清理 canvas 引用（防止内存泄漏）
+            if (material[prop].isCanvasTexture && material[prop].image) {
+                material[prop].image = null;
+            }
             material[prop].dispose();
             material[prop] = null;
         }

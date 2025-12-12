@@ -1,6 +1,6 @@
 # DZ-VIZ 项目快速参考
 
-**版本**: v1.5+ | **更新**: 2025-12-11
+**版本**: v1.6 | **更新**: 2025-12-12
 
 ---
 
@@ -8,193 +8,190 @@
 
 自动驾驶车辆可视化管理系统：Tauri + Vue 3 + Three.js
 
-**核心功能**：多车辆实时3D可视化、AVP泊车、打车服务、施工标记、红绿灯系统、摄像头支持
+**核心功能**：多车辆实时3D可视化、AVP泊车、打车服务、施工标记、红绿灯系统、摄像头、高架桥倾角
 
 ---
 
-## 最新修复 (2025-12-11)
+## 核心系统
 
-### 1. 地面高度和点击交互修复
-- **问题**：硬编码 `y=0` 导致标记在地下，点击无反应
-- **修复**：使用射线检测的实际地面高度（约2.82）
-- **位置**：`index.js` 第2383行、2430行
+### 1. 坐标系统（最关键！）
 
-### 2. groundPlane 尺寸修复
-- **问题**：使用局部坐标尺寸（6×5），但沙盘缩放6倍，导致有效区域太小
-- **修复**：世界尺寸 = 局部尺寸 × 缩放因子，平面扩大2倍覆盖
-- **位置**：`index.js` `createGroundPlane()` 函数
-
-### 3. 关键矩阵更新
-- **必须保留**：`model.updateMatrixWorld(true)` 在 `calculateSandboxDimensions()` 中
-- **原因**：确保 `worldToLocal()` 使用最新矩阵，否则车辆和标记位置错误
-
-### 4. 沙盘亮度优化
-- 半球光：0.6 → 0.9
-- 主光源：1.6 → 2.2
-- 补光：0.7 → 1.0
-- 背光：0.5 → 0.7
-- 总强度：3.4 → 4.8
-
----
-
-## 核心技术要点
-
-### 坐标系统（最关键！）
-
+**三层坐标系**：
 ```
-车辆坐标: X(0-6.0m), Y(0-5.0m)  ← 客户端发送（逻辑尺寸）
+车辆坐标: X(0-6m), Y(0-5m)     ← UDP协议发送
     ↓ vehicleToModelCoordinates()
-模型坐标: X(-3.0~3.0), Z(-2.5~2.5)  ← 沙盘局部坐标
+模型坐标: X(-3~3), Z(-2.5~2.5) ← 沙盘局部坐标，添加车辆模型用
     ↓ 沙盘缩放6倍
-世界坐标: X(-18~18), Z(-15~15)  ← Three.js场景
+世界坐标: X(-18~18), Z(-15~15) ← Three.js场景坐标
 ```
 
-**规则**：
-- 添加到沙盘内部 → 使用局部坐标
-- 添加到 Scene → 使用世界坐标
-- groundPlane 在 Scene，需要世界坐标尺寸
+**转换函数**（`coordinateTransform.js`）：
+- `vehicleToModelCoordinates(vehicleX, vehicleY)` → `{x, z}` 模型坐标
+- `modelToVehicleCoordinates(modelX, modelZ)` → `{x, y}` 车辆坐标
 
-### 沙盘模型信息
+**关键规则**：
+- 车辆模型添加到 `sandboxModel` 内部 → 使用模型坐标
+- groundPlane 添加到 `scene` → 使用世界坐标
+- 地面高度：约2.82（世界坐标）
 
-- **尺寸**：逻辑6m × 5m，缩放因子6
-- **地面参照**：`Standardmaterial206`（新）/ `MD_CaoPing`（旧）
-- **地面高度**：约2.82（世界坐标）
-- **底座参照**：`Standardmaterial202`
+### 2. 高架桥倾角系统
 
-### 关键文件位置
+**配置参数**（`vehicleManager.js` 第57-78行）：
+```javascript
+const ELEVATION_CONFIG = {
+    enabled: true,
+    X1: 0.790,    // 左侧上坡起点 X坐标（车辆坐标系）
+    X2: 5.205,    // 右侧下坡起点 X坐标
+    Y1: 2.958,    // 上下坡起点 Y坐标
+    Y2: 3.913,    // 高架开始 Y坐标
+    BRIDGE_HEIGHT: 0.244  // 高架高度（模型坐标）
+};
+```
+
+**区域判断逻辑**（`calculateVehicleElevation()` 第80-144行）：
+```javascript
+// 地面：X在范围外 且 Y < Y1
+// 上坡：(X < X1 或 X > X2) 且 Y1 ≤ Y < Y2，线性插值高度
+// 下坡：同上坡条件，根据orientation方向判断
+// 高架：Y ≥ Y2，固定高度BRIDGE_HEIGHT
+```
+
+**倾角计算**：
+- 坡度角 = `Math.atan((Y2-Y1) / BRIDGE_HEIGHT)`
+- 上坡：`rotation.x` = 坡度角（车头上仰）
+- 下坡：`rotation.x` = -坡度角（车头下倾）
+- 关键：`vehicleModel.rotation.order = 'YXZ'`（确保pitch在局部坐标系）
+
+**调试命令**：
+```javascript
+window.__scene3d__.testElevationAt(x, y, orientation)  // 测试指定位置
+window.__scene3d__.updateElevationConfig({BRIDGE_HEIGHT: 0.3})  // 调整参数
+window.__showElevationLines()  // 显示边界线
+```
+
+### 3. 红绿灯系统
+
+**组号映射**（`trafficLightManager.js` 第305行）：
+```javascript
+// 协议组号与实际组号反向映射
+const actualGroupIndex = groupIndex === 0 ? 1 : 0;
+```
+- 协议第一组(0) → 控制沙盘第二组(8个红绿灯)
+- 协议第二组(1) → 控制沙盘第一组(8个红绿灯)
+
+**配置**（第40-60行）：
+- 第一组：索引0-7，groupIndex=0
+- 第二组：索引8-15，groupIndex=1
+- 颜色：1=红，2=绿，3=黄
+
+### 4. 关键文件结构
 
 ```
-src/utils/coordinateTransform.js  ⭐⭐⭐ 坐标转换核心
-src/components/Scene3D/index.js   ⭐⭐ 场景管理、地面检测
-src/components/Scene3D/vehicleManager.js  ⭐⭐ 车辆管理
-src/stores/car.js  ⭐ 车辆状态
-src-tauri/src/socket_server/  UDP通信
+src/utils/coordinateTransform.js              ⭐⭐⭐ 坐标转换
+src/components/Scene3D/index.js               ⭐⭐⭐ 场景初始化、地面检测
+src/components/Scene3D/vehicleManager.js      ⭐⭐⭐ 车辆管理、高架倾角
+src/components/Scene3D/trafficLightManager.js ⭐⭐ 红绿灯控制
+src/views/MainLayout.vue                      ⭐⭐ 主布局、右侧面板
+src/stores/car.js                             ⭐ 车辆状态
+src-tauri/src/socket_server/                  UDP通信
 ```
+
+### 5. 沙盘参数
+
+**尺寸**：6m × 5m（逻辑），缩放因子6
+**地面高度**：2.82（世界坐标）
+**地面Mesh**：`Standardmaterial206`
+**缓存高度**：`cachedSandboxBox`、`cachedCarTemplateBox`（`vehicleManager.js`）
+
+### 6. UI布局
+
+**右侧面板折叠**（`MainLayout.vue`）：
+- 状态：`isPanelCollapsed`
+- 按钮位置：`right: 440px`（展开），`right: 20px`（折叠）
+- 动画：`transform: translateX(calc(100% + 20px))`
+- 图标：展开 `>`，折叠 `<`
+- 圆角：始终左侧，`border-radius: 12px 0 0 12px`
 
 ---
 
-## 性能优化 (2025-11-05)
+## 性能优化
 
-### 已修复的关键瓶颈
-1. ❌ 删除每帧的 `scene.traverse()` 更新 shader uTime
-2. ✅ 禁用插值系统（对50Hz高频数据）
-3. ✅ 前端快速比对，避免频繁 Rust IPC
-4. ✅ 批量车辆更新机制
-5. ✅ 简化坐标转换验证（生产环境）
-6. ✅ 优化时间分片：`maxUpdatesPerFrame: 10`
-
-**效果**：单帧开销从15-30ms → 3-5ms（减少80-85%），支持5+辆车流畅运行
+**关键优化**：
+- 禁用插值系统（50Hz高频数据）
+- 批量车辆更新：`maxUpdatesPerFrame: 10`
+- 删除每帧 `scene.traverse()`
+- 前端快速比对，减少Rust IPC
+- 效果：单帧15-30ms → 3-5ms
 
 ---
 
-## 摄像头架构 (v1.5)
+## 协议通信
 
-**USB摄像头**：`getUserMedia()` → `<video>`
-**RTSP摄像头**：`GStreamer` → `MJPEG` → `WebSocket` → `<img>`
+**UDP端口**: 8888（车辆）| **WebSocket**: 3030（前后端）
 
-### Linux USB 摄像头权限
-```bash
-sudo usermod -aG video $USER
-sudo reboot  # 必须重启
-```
+**发送协议**：
+- `0x1001` 车辆控制 | `0x1004` AVP停车 | `0x1005` 打车 | `0x1006` 施工标记
 
-### GStreamer 安装
-**macOS (MacPorts)**：
-```bash
-sudo port install gstreamer1 gstreamer1-gst-plugins-base \
-    gstreamer1-gst-plugins-good gstreamer1-gst-plugins-bad
-export PKG_CONFIG_PATH=/opt/local/lib/pkgconfig:$PKG_CONFIG_PATH
-```
-
-**Ubuntu**：
-```bash
-sudo apt-get install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
-    gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
-```
-
----
-
-## 红绿灯系统
-
-**分组**：
-- GROUP_2: [0, 2] - Zu1, Zu3
-- GROUP_1: [1, 3, 4, 5, 6, 7] - Zu2, Zu4-Zu8
-
-**命名规则**：
-- Zu1：无后缀 `MD_HongLvDeng_Hong`
-- Zu2-Zu8：使用 `_(N)` 后缀 `MD_HongLvDeng_Hong_(1)`
-
-**倒计时区域**：`MD_HongLvDeng_Hui`
-
----
-
-## 常见问题
-
-### 车辆位置错误
-- 检查 `updateMatrixWorld(true)` 是否被调用
-- 检查坐标转换函数使用是否正确
-- 检查是否使用了局部坐标 vs 世界坐标
-
-### 点击沙盘无反应
-- 检查 `groundPlane` 尺寸是否正确（世界坐标）
-- 检查是否硬编码了 `y=0`
-- 检查 `isEventFromCanvas()` 判断
-
-### 车辆在天上或地下
-- 检查地面高度是否正确获取
-- 检查是否使用了局部坐标
-- 使用 `getRoadSurfaceY()` 获取地面高度
+**接收协议**：
+- `0x0001` 车辆信息 | `0x0002` 红绿灯状态 | `0x0003` 路径文件
 
 ---
 
 ## 调试命令
 
 ```javascript
-// 浏览器控制台
-window.__scene3d__.testGroundHeight()  // 测试地面高度
+// 高架桥系统
+window.__scene3d__.testElevationAt(x, y, orientation)  // 测试指定位置倾角
+window.__scene3d__.updateElevationConfig({BRIDGE_HEIGHT: 0.3})  // 动态调整
+window.__showElevationLines()  // 显示区域边界线
+window.__hideElevationLines()  // 隐藏边界线
+
+// 场景信息
+window.__scene3d__.testGroundHeight()  // 地面高度检测
 window.__scene3d__.getSandboxDimensionsInfo()  // 沙盘尺寸
-window.__scene3d__.logSandboxInfo()  // 沙盘信息
-window.__eventBus__.getActiveListeners()  // 事件监听器
+window.__scene3d__.logSandboxInfo()  // 沙盘详细信息
+
+// 事件系统
+window.__eventBus__.getActiveListeners()  // 查看活跃监听器
 ```
 
 ---
 
-## 协议与通信
+## 常见问题
 
-**UDP端口**：8888（车辆通信）
-**WebSocket端口**：3030（前后端通信）、9003（GStreamer MJPEG）
+**车辆位置错误**：
+- 检查 `updateMatrixWorld(true)` 调用
+- 确认使用正确坐标系（模型 vs 世界）
+- 检查 `vehicleToModelCoordinates()` 转换
 
-**发送协议**：
-- `0x1001` - 车辆控制（初始化位姿）
-- `0x1004` - AVP停车
-- `0x1005` - 打车服务
-- `0x1006` - 施工标记
+**车辆倾角错误**：
+- 确认 `rotation.order = 'YXZ'`
+- 检查 `ELEVATION_CONFIG` 参数
+- 使用 `testElevationAt()` 测试
 
-**接收协议**：
-- `0x0001` - 车辆信息
-- `0x0002` - 红绿灯状态
-- `0x0003` - 路径文件选择
+**红绿灯控制反向**：
+- 已修复：协议组号自动交换映射
+- 第一组 → 实际第二组，第二组 → 实际第一组
 
----
-
-## 待办事项
-
-⚠️ **车位坐标需要重新测量**（当前是按比例计算的临时值）
-- 使用位姿选择功能点击车位中心
-- 更新 `coordinateTransform.js` 中的 `PARKING_SLOTS`
+**点击沙盘无响应**：
+- 检查 `groundPlane` 使用世界坐标尺寸
+- 确认地面高度不是硬编码 `y=0`
 
 ---
 
-## 启动
+## 快速启动
 
 ```bash
-# 开发
+# 开发模式
 npm run tauri:dev
 
-# 测试客户端
-python test/test_client.py --id 1
+# 测试客户端（内圈路径）
+python test/test_client.py --id 1           # 2Hz
+python test/test_client_high_freq.py --id 1 # 50Hz
+
+# 测试路径：6m×5m沙盘，距边缘0.43m内圈矩形
 ```
 
 ---
 
-**最后更新**: 2025-12-11 | **状态**: ✅ 完成地面检测和光照优化
+**版本**: v1.6 | **更新**: 2025-12-12 | **状态**: ✅ 高架倾角、红绿灯、UI折叠

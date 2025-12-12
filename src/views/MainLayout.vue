@@ -19,7 +19,7 @@
         </div>
         
         <!-- 悬浮控制面板 -->
-        <div class="floating-panels">
+        <div class="floating-panels" :class="{ collapsed: isPanelCollapsed }">
             <Suspense>
                 <component :is="currentComponent" v-if="currentComponent" />
                 <template #fallback>
@@ -32,6 +32,16 @@
                 </template>
             </Suspense>
         </div>
+
+        <!-- 右侧面板折叠按钮 -->
+        <button 
+            class="panel-collapse-toggle" 
+            :class="{ collapsed: isPanelCollapsed }"
+            @click="togglePanel"
+            :title="isPanelCollapsed ? '展开面板' : '折叠面板'"
+        >
+            <fa :icon="isPanelCollapsed ? 'chevron-left' : 'chevron-right'" />
+        </button>
 
         <!-- HUD状态指示器 -->
         <div class="hud-overlay">
@@ -135,6 +145,14 @@ const { networkStatus } = useNetworkStatus();
 // 施工标记列表状态
 const constructionMarkers = ref([]);
 const constructionListCollapsed = ref(false);
+
+// 右侧面板折叠状态
+const isPanelCollapsed = ref(false);
+
+// 切换右侧面板折叠状态
+const togglePanel = () => {
+    isPanelCollapsed.value = !isPanelCollapsed.value;
+};
 
 // 窗口 resize 处理
 const handleResize = () => {

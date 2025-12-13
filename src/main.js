@@ -130,7 +130,7 @@ async function initializeApp() {
         // 获取store实例
         const carStore = useCarStore();
         
-        // 🚀 初始化Store（启动定期清理任务）
+        // 初始化Store（启动定期清理任务）
         carStore.init();
         
         // 加载车辆连接数据
@@ -260,5 +260,5 @@ window.addEventListener('beforeunload', () => {
         console.error('清理 Logger 失败:', e);
     }
     
-    console.log('✅ 应用资源清理完成');
+    console.log('应用资源清理完成');
 });

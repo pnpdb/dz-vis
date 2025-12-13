@@ -179,7 +179,7 @@ async fn handle_websocket(
     };
     
     if !camera_exists {
-        log::warn!("❌ 摄像头不存在: camera_id={}", camera_id);
+        log::warn!("摄像头不存在: camera_id={}", camera_id);
         return ws.on_upgrade(|socket| async move {
             let _ = socket.close().await;
         });

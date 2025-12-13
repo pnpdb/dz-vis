@@ -330,7 +330,7 @@ const loadServiceSettings = async () => {
             console.debug('📝 暂无沙盘服务设置');
         }
     } catch (error) {
-        console.error('❌ 加载沙盘服务设置失败:', error);
+        console.error('加载沙盘服务设置失败:', error);
         Toast.error(`加载沙盘服务设置失败: ${error}`);
         hasServiceSettings.value = false;
     } finally {
@@ -360,7 +360,7 @@ const saveServiceSettings = async () => {
             Toast.error(`保存沙盘服务设置失败: ${result.error}`);
         }
     } catch (error) {
-        console.error('❌ 保存沙盘服务设置失败:', error);
+        console.error('保存沙盘服务设置失败:', error);
         Toast.error(`保存沙盘服务设置失败: ${error}`);
     } finally {
         serviceSaving.value = false;
@@ -393,7 +393,7 @@ const deleteServiceSettings = async () => {
         }
     } catch (error) {
         if (error === 'cancel') return;
-        console.error('❌ 删除沙盘服务设置失败:', error);
+        console.error('删除沙盘服务设置失败:', error);
         Toast.error(`删除沙盘服务设置失败: ${error}`);
     } finally {
         serviceDeleting.value = false;
@@ -419,7 +419,7 @@ const loadCameras = async () => {
             }
         }
     } catch (error) {
-        console.error('❌ 加载摄像头列表失败:', error);
+        console.error('加载摄像头列表失败:', error);
         Toast.error(`加载摄像头列表失败: ${error}`);
         cameras.value = [];
     } finally {
@@ -468,7 +468,7 @@ const deleteCamera = async (camera) => {
         }
     } catch (error) {
         if (error === 'cancel') return;
-        console.error('❌ 删除摄像头失败:', error);
+        console.error('删除摄像头失败:', error);
         Toast.error(`删除摄像头失败: ${error}`);
     }
 };
@@ -509,7 +509,7 @@ const saveCameraSettings = async () => {
             Toast.error(`保存摄像头设置失败: ${result.error}`);
         }
     } catch (error) {
-        console.error('❌ 保存摄像头设置失败:', error);
+        console.error('保存摄像头设置失败:', error);
         Toast.error(`保存摄像头设置失败: ${error}`);
     } finally {
         cameraSaving.value = false;

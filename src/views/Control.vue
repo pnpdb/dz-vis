@@ -266,7 +266,7 @@ const enqueueLightingUpdate = () => {
         try {
             await window.socketManager.sendSandboxLightingControl(payload);
         } catch (error) {
-            console.error('❌ 发送沙盘灯光控制失败:', error);
+            console.error('发送沙盘灯光控制失败:', error);
             Toast.warning('发送灯光控制指令失败');
             throw error;
         }
@@ -294,13 +294,13 @@ const loadTrafficLightSettings = async () => {
         if (result.success && result.data) {
             trafficSettings.value.redLight = result.data.red_light_duration ?? 30;
             trafficSettings.value.greenLight = result.data.green_light_duration ?? 30;
-            console.log('✅ 交通灯设置加载成功:', result.data);
+            console.log('交通灯设置加载成功:', result.data);
         } else {
-            console.error('❌ 交通灯设置加载失败:', result.error);
+            console.error('交通灯设置加载失败:', result.error);
             Toast.warning('加载交通灯设置失败: ' + result.error);
         }
     } catch (error) {
-        console.error('❌ 交通灯设置加载异常:', error);
+        console.error('交通灯设置加载异常:', error);
         Toast.warning('加载交通灯设置异常');
     }
 };
@@ -340,7 +340,7 @@ const updateTrafficLightSettings = async () => {
                 Number(trafficSettings.value.greenLight)
             );
             if (!save.success) {
-                console.warn('⚠️ 保存到数据库失败:', save.error);
+                console.warn('保存到数据库失败:', save.error);
             } else {
                 await loadTrafficLightSettings();
             }
@@ -350,7 +350,7 @@ const updateTrafficLightSettings = async () => {
         }
     } catch (error) {
         Toast.warning('更新异常: ' + error.message);
-        console.error('❌ 交通灯设置更新异常:', error);
+        console.error('交通灯设置更新异常:', error);
     } finally {
         updating.value = false;
     }
@@ -362,7 +362,7 @@ const loadCameras = async () => {
         const result = await SandboxAPI.getAllCameras();
         if (result.success) {
             cameras.value = result.data || [];
-            console.log('✅ 加载摄像头列表成功:', cameras.value);
+            console.log('加载摄像头列表成功:', cameras.value);
             
             // 不自动选择摄像头，让用户手动选择
         } else {
@@ -370,7 +370,7 @@ const loadCameras = async () => {
             console.log('📝 暂无摄像头配置');
         }
     } catch (error) {
-        console.error('❌ 加载摄像头列表失败:', error);
+        console.error('加载摄像头列表失败:', error);
         cameras.value = [];
     }
 };
@@ -430,7 +430,7 @@ const startVideoStream = async (camera) => {
             await startRTSPCamera(camera);
         }
     } catch (error) {
-        try { await plError(`❌ 启动视频流失败: ${error.message || error}`); } catch (_) {}
+        try { await plError(`启动视频流失败: ${error.message || error}`); } catch (_) {}
         Toast.warning(`连接摄像头失败: ${error.message || error}`);
         isStreaming.value = false;
         isLoading.value = false; // 错误时结束 loading
@@ -489,13 +489,13 @@ const startUSBCamera = async (camera) => {
         
         if (videoRef.value) {
             videoRef.value.srcObject = stream;
-            console.log('✅ USB摄像头连接成功，视频流已设置到video元素');
+            console.log('USB摄像头连接成功，视频流已设置到video元素');
         } else {
-            console.error('❌ video元素引用为空');
+            console.error('video元素引用为空');
             throw new Error('video元素未找到');
         }
     } catch (error) {
-        try { await plError(`❌ USB摄像头连接失败: ${error.name} ${error.message}`); } catch (_) {}
+        try { await plError(`USB摄像头连接失败: ${error.name} ${error.message}`); } catch (_) {}
         
         // 重置状态
         isStreaming.value = false;
@@ -527,7 +527,7 @@ const waitForHLSReady = async (hlsUrl, maxRetries = 10, delay = 1000) => {
                 cache: 'no-cache'
             });
             if (response.ok) {
-                console.log('✅ HLS流已就绪');
+                console.log('HLS流已就绪');
                 return;
             }
         } catch (error) {
@@ -539,7 +539,7 @@ const waitForHLSReady = async (hlsUrl, maxRetries = 10, delay = 1000) => {
         }
     }
     
-    console.warn('⚠️ HLS流可能还未完全就绪，但将尝试播放');
+    console.warn('HLS流可能还未完全就绪，但将尝试播放');
 };
 
 // RTSP摄像头处理（通过 GStreamer MJPEG）
@@ -555,15 +555,15 @@ const startRTSPCamera = async (camera) => {
         isConnectingWebRTC.value = true;
         
         // 1. 启动 GStreamer RTSP → MJPEG 转换
-        console.log('📡 启动 GStreamer 流转换...');
-        console.log('   📹 RTSP URL:', camera.rtsp_url);
-        console.log('   🎯 摄像头 ID:', camera.id);
+        console.log(' 启动 GStreamer 流转换...');
+        console.log('   RTSP URL:', camera.rtsp_url);
+        console.log('   摄像头 ID:', camera.id);
         
         await invoke('start_gstreamer_stream', {
             cameraId: camera.id,
             rtspUrl: camera.rtsp_url
         });
-        console.log('✅ GStreamer 流转换已启动');
+        console.log('GStreamer 流转换已启动');
                     
         // 2. 确保图像元素已挂载
         await nextTick();
@@ -572,11 +572,11 @@ const startRTSPCamera = async (camera) => {
             throw new Error('图像元素未找到：请检查组件配置');
         }
         
-        console.log('✅ 图像元素已就绪');
+        console.log('图像元素已就绪');
         
         // 3. 获取 MJPEG WebSocket URL 并创建播放器
         const wsUrl = await invoke('get_mjpeg_websocket_url', { cameraId: camera.id });
-        console.log(`🔄 连接 MJPEG WebSocket: ${wsUrl}`);
+        console.log(`连接 MJPEG WebSocket: ${wsUrl}`);
         
         mjpegPlayer.value = new MjpegPlayer(videoRef.value);
         
@@ -611,7 +611,7 @@ const startRTSPCamera = async (camera) => {
                 // 不在这里设置 isStreaming，等待图像真正加载
             },
             onError: (error) => {
-                console.error('❌ MJPEG 播放错误:', error);
+                console.error('MJPEG 播放错误:', error);
                 Toast.warning(`播放失败: ${error.message}`);
             isLoading.value = false;
         isConnectingWebRTC.value = false;
@@ -627,11 +627,11 @@ const startRTSPCamera = async (camera) => {
             }
         });
         
-        console.log('✅ MJPEG 播放器已启动');
-        console.log('✅ GStreamer MJPEG 流连接建立成功');
+        console.log('MJPEG 播放器已启动');
+        console.log('GStreamer MJPEG 流连接建立成功');
         
     } catch (error) {
-        try { await plError(`❌ GStreamer流连接失败: ${error.message || error}`); } catch (_) {}
+        try { await plError(`GStreamer流连接失败: ${error.message || error}`); } catch (_) {}
         
         // 错误时清理已创建的资源
         console.debug('🧹 清理失败连接的资源...');
@@ -644,7 +644,7 @@ const startRTSPCamera = async (camera) => {
                 mjpegPlayer.value = null;
             }
         } catch (cleanupError) {
-            console.warn('⚠️ 清理 MJPEG 播放器时出错:', cleanupError);
+            console.warn('清理 MJPEG 播放器时出错:', cleanupError);
         }
         
         // 停止 GStreamer 流转换
@@ -652,7 +652,7 @@ const startRTSPCamera = async (camera) => {
             await invoke('stop_gstreamer_stream', { cameraId: camera.id });
             console.debug('  🛑 已停止 GStreamer 流转换');
         } catch (e) {
-            console.warn('⚠️ 停止流转换失败:', e);
+            console.warn('停止流转换失败:', e);
         }
         
         isStreaming.value = false;
@@ -726,7 +726,7 @@ const stopVideoStream = async () => {
                 await invoke('stop_gstreamer_stream', { cameraId });
                 console.debug(`🛑 GStreamer 流转换已停止 (摄像头 ${cameraId})`);
             } catch (error) {
-                console.warn(`⚠️ 停止 GStreamer 流转换失败:`, error);
+                console.warn(`停止 GStreamer 流转换失败:`, error);
             }
         }
         
@@ -736,10 +736,10 @@ const stopVideoStream = async () => {
         isConnectingWebRTC.value = false;
         isTimeout.value = false; // 重置超时状态
         
-        console.debug('✅ 视频流已完全停止');
+        console.debug('视频流已完全停止');
         
     } catch (error) {
-        console.warn('⚠️ 停止视频流时出现警告:', error.message);
+        console.warn('停止视频流时出现警告:', error.message);
         // 确保状态被重置
         isStreaming.value = false;
         isLoading.value = false;
@@ -765,7 +765,7 @@ const onVideoLoadStart = () => {
 };
 
 const onVideoLoaded = () => {
-    console.debug('✅ 视频加载完成');
+    console.debug('视频加载完成');
     isLoading.value = false;
     isStreaming.value = true;
 };
@@ -776,7 +776,7 @@ const onVideoCanPlay = () => {
     if (videoRef.value) {
         // 确保视频开始播放
         videoRef.value.play().catch(error => {
-            console.warn('⚠️ 自动播放失败:', error.message);
+            console.warn('自动播放失败:', error.message);
         });
     }
 };
@@ -793,7 +793,7 @@ const onVideoError = (event) => {
         return;
     }
     
-    console.error('❌ 视频加载错误:', event);
+    console.error('视频加载错误:', event);
     const videoEl = event.target;
     
     // 详细的错误信息
@@ -823,7 +823,7 @@ const onVideoError = (event) => {
         
         // 对于RTSP摄像头，可能需要更多时间让HLS流准备就绪
         if (isRTSP && errorCode === 4) {
-            console.log('🔄 HLS流可能还在准备中，等待一下再重试...');
+            console.log('HLS流可能还在准备中，等待一下再重试...');
             // 对于RTSP，给HLS转换更多时间
             // 清除之前的重试定时器
             if (hlsRetryTimer) {
@@ -836,7 +836,7 @@ const onVideoError = (event) => {
                             cameraId: selectedCamera.value.id,
                             hlsPort: 9002
                         });
-                    console.debug('🔄 重新尝试播放HLS流:', hlsUrl);
+                    console.debug('重新尝试播放HLS流:', hlsUrl);
                         if (videoRef.value) {
                         videoRef.value.src = hlsUrl;
                             // 只对 video 元素调用 load()
@@ -845,7 +845,7 @@ const onVideoError = (event) => {
                             }
                         }
                     } catch (retryError) {
-                        console.error('❌ 重试失败:', retryError);
+                        console.error('重试失败:', retryError);
                         // WebRTC 不需要 HLS 重试提示
                         // Toast.warning('RTSP转换失败，请检查RTSP流是否可用');
                     }
@@ -868,7 +868,7 @@ const onVideoError = (event) => {
 // 监听摄像头选择变化
 watch(cameraId, async (newCameraId, oldCameraId) => {
     if (newCameraId !== oldCameraId) {
-        console.log(`🔄 摄像头切换: ${oldCameraId} → ${newCameraId}`);
+        console.log(`摄像头切换: ${oldCameraId} → ${newCameraId}`);
         
         try {
             // 停止之前的流（包括清理RTSP转换）
@@ -882,7 +882,7 @@ watch(cameraId, async (newCameraId, oldCameraId) => {
                 await startVideoStream(camera);
             }
         } catch (error) {
-            console.error('❌ 摄像头切换失败:', error);
+            console.error('摄像头切换失败:', error);
             Toast.warning(`摄像头切换失败: ${error.message}`);
         }
     }
@@ -901,7 +901,7 @@ const checkCameraPermission = async () => {
         
         return permission.state;
     } catch (error) {
-        console.log('⚠️ 无法检查摄像头权限:', error);
+        console.log('无法检查摄像头权限:', error);
         return 'unknown';
     }
 };

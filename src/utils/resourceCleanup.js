@@ -157,7 +157,7 @@ export function disposeObject3D(object, options = {}) {
  */
 export function disposeObjects(objects, options = {}) {
     if (!Array.isArray(objects)) {
-        console.warn('⚠️ disposeObjects: 输入不是数组');
+        console.warn('disposeObjects: 输入不是数组');
         return 0;
     }
     
@@ -180,7 +180,7 @@ export function disposeObjects(objects, options = {}) {
  */
 export function disposeMapObjects(objectMap, filter = null) {
     if (!(objectMap instanceof Map)) {
-        console.warn('⚠️ disposeMapObjects: 输入不是 Map');
+        console.warn('disposeMapObjects: 输入不是 Map');
         return 0;
     }
     

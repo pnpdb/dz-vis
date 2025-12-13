@@ -151,7 +151,7 @@ onMounted(() => {
         if (carStore.taxi.startCoords) {
             const { x, z } = carStore.taxi.startCoords;
             createStartPointMarker(x, z);
-            console.log(`🚀 恢复起点标记: (${x.toFixed(3)}, ${z.toFixed(3)})`);
+            console.log(`恢复起点标记: (${x.toFixed(3)}, ${z.toFixed(3)})`);
         }
         
         if (carStore.taxi.endCoords) {
@@ -389,12 +389,12 @@ const selectStartPoint = () => {
     Toast.info('请在地图上点击选择起点位置');
     
     // 启动点选择模式
-    startPointSelectionMode(({ x, z }) => {
+    startPointSelectionMode(({ x, y, z }) => {
         // 结束选择模式
         stopPointSelectionMode();
         
-        // 创建起点标记（使用模型坐标）
-        const result = createStartPointMarker(x, z);
+        // 创建起点标记（使用模型坐标，包括Y坐标）
+        const result = createStartPointMarker(x, z, y);
         if (result) {
             // 将模型坐标转换为车辆坐标系用于显示
             const vehicleCoords = modelToVehicleCoordinates(x, z);
@@ -406,7 +406,7 @@ const selectStartPoint = () => {
             );
             
             Toast.success('起点已选择');
-            console.log(`🚀 起点 - 车辆坐标: (${vehicleCoords.x.toFixed(3)}, ${vehicleCoords.y.toFixed(3)}), 模型坐标: (${x.toFixed(3)}, ${z.toFixed(3)})`);
+            console.log(`起点 - 车辆坐标: (${vehicleCoords.x.toFixed(3)}, ${vehicleCoords.y.toFixed(3)}), 模型坐标: (${x.toFixed(3)}, ${z.toFixed(3)})`);
         } else {
             Toast.error('起点标记创建失败');
         }
@@ -418,12 +418,12 @@ const selectEndPoint = () => {
     Toast.info('请在地图上点击选择终点位置');
     
     // 启动点选择模式
-    startPointSelectionMode(({ x, z }) => {
+    startPointSelectionMode(({ x, y, z }) => {
         // 结束选择模式
         stopPointSelectionMode();
         
-        // 创建终点标记（使用模型坐标）
-        const result = createEndPointMarker(x, z);
+        // 创建终点标记（使用模型坐标，包括Y坐标）
+        const result = createEndPointMarker(x, z, y);
         if (result) {
             // 将模型坐标转换为车辆坐标系用于显示
             const vehicleCoords = modelToVehicleCoordinates(x, z);
@@ -484,11 +484,11 @@ const selectParkingSpot = () => {
             parking.value.slotId = nearestSlot.slotId;
             
             Toast.success(`已选择${nearestSlot.slotId}号车位`);
-            console.log(`✅ 车位选择完成: ${nearestSlot.slotId}号`);
+            console.log(`车位选择完成: ${nearestSlot.slotId}号`);
             
         } catch (error) {
             // 用户取消
-            console.log('❌ 用户取消车位选择');
+            console.log('用户取消车位选择');
         }
     });
 };

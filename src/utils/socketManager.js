@@ -35,7 +35,7 @@ class SocketManager {
         this.unlisteners = [];
         
         // 创建节流的事件发射器（性能优化）
-        // 🚀 优化：调整节流时间以匹配50Hz车辆数据
+        // 优化：调整节流时间以匹配50Hz车辆数据
         this.throttledEmitters = {
             vehicleInfo: createThrottledEmitter(eventBus, EVENTS.VEHICLE_INFO_UPDATE, 30), // 30ms节流（约33Hz）
             connectionStatus: createThrottledEmitter(eventBus, EVENTS.VEHICLE_CONNECTION_STATUS, 100),
@@ -196,7 +196,7 @@ class SocketManager {
             }
         });
         
-        socketLogger.info('✅ SocketManager 资源清理完成');
+        socketLogger.info('SocketManager 资源清理完成');
     }
 
     /**
@@ -345,7 +345,7 @@ class SocketManager {
             timestamp,
         };
 
-        // 🚀 优化：使用前端快速比对，避免频繁的 Rust IPC 调用
+        // 优化：使用前端快速比对，避免频繁的 Rust IPC 调用
         const store = this.ensureCarStore();
         if (store) {
             const prevVehicleState = store.getVehicleState(vehicleId);
@@ -354,7 +354,7 @@ class SocketManager {
             if (prevVehicleState && prevVehicleState.state) {
                 const prevState = prevVehicleState.state;
                 
-                // 🚀 前端快速比对（只比对关键字段，避免IPC开销）
+                // 前端快速比对（只比对关键字段，避免IPC开销）
                 const positionChanged = 
                     Math.abs((prevState.position?.x ?? 0) - position.x) > 0.001 ||
                     Math.abs((prevState.position?.y ?? 0) - position.y) > 0.001;
@@ -411,7 +411,7 @@ class SocketManager {
                     trimVehiclePath(vehicleId, modelPos, orientation, navigation.code);
                 } catch (error) {
                     // 静默失败，不影响主流程
-                    console.error(`❌ 路径裁剪失败 - 车辆: ${vehicleId}`, error);
+                    console.error(`路径裁剪失败 - 车辆: ${vehicleId}`, error);
                     socketLogger.debug(`路径裁剪失败 - 车辆: ${vehicleId}`, error);
                 }
             }

@@ -56,11 +56,6 @@ pub async fn get_merged_path_data(
 
     let point_count = points_with_offset.len();
 
-    info!(
-        "✅ 成功获取合并路径数据 - {} 个点（应用偏移后）",
-        point_count
-    );
-
     Ok(PathDataResponse {
         success: true,
         points: points_with_offset,
@@ -96,11 +91,11 @@ pub async fn reload_all_paths(
     match path_loader.preload_all_paths() {
         Ok(count) => {
             let message = format!("成功重新加载 {} 个路径文件", count);
-            info!("✅ {}", message);
+            info!("[PathCmd] {}", message);
             Ok(message)
         }
         Err(e) => {
-            error!("❌ 重新加载路径文件失败: {}", e);
+            error!("[PathCmd] 重新加载路径文件失败: {}", e);
             Err(e)
         }
     }

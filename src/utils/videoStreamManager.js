@@ -281,7 +281,7 @@ class VideoStreamManager {
     this.activeVehicleId = null;
     this.udpServerPromise = null;
     
-    console.log('✅ VideoStreamManager 资源已清理');
+    console.log('VideoStreamManager 资源已清理');
   }
 }
 

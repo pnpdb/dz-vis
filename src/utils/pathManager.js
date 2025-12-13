@@ -9,6 +9,8 @@ import eventBus, { EVENTS } from './eventBus.js';
 import { invoke } from '@tauri-apps/api/core';
 import { getCoordinateOffset, vehicleToModelCoordinates, applyOffsetToReceived } from './coordinateTransform.js';
 import { getRoadSurfaceY } from '@/components/Scene3D/index.js';
+import { calculateVehicleElevation } from '@/components/Scene3D/vehicleManager.js';
+import { warn as plWarn, error as plError } from '@tauri-apps/plugin-log';
 
 const logger = createLogger('PathManager');
 
@@ -71,8 +73,9 @@ export function enablePaths(vehicleIds) {
 /**
  * 处理车辆路径更新事件（从0x0003协议）
  * @param {Object} payload - 事件载荷
+ * @param {number} retryCount - 重试次数（内部使用）
  */
-export async function handleVehiclePathUpdate(payload) {
+export async function handleVehiclePathUpdate(payload, retryCount = 0) {
     try {
         const { vehicleId, pathFileIds, color, timestamp } = payload;
         
@@ -80,6 +83,7 @@ export async function handleVehiclePathUpdate(payload) {
         
         // 检查路径编号列表
         if (!pathFileIds || pathFileIds.length === 0) {
+            await plWarn(`[PathManager] 车辆 ${vehicleId} 的路径编号列表为空`);
             logger.warn(`车辆 ${vehicleId} 的路径编号列表为空`);
             return;
         }
@@ -101,27 +105,69 @@ export async function handleVehiclePathUpdate(payload) {
         });
         
         if (!result.success) {
+            await plError(`[PathManager] 获取路径数据失败 - 车辆: ${vehicleId}, 错误: ${result.message || '未知错误'}`);
             logger.error(`获取路径数据失败 - 车辆: ${vehicleId}, 错误: ${result.message || '未知错误'}`);
             return;
         }
         
         if (!result.points || result.points.length === 0) {
+            await plWarn(`[PathManager] 车辆 ${vehicleId} 的路径数据为空 - 可能路径文件不存在或为空`);
             logger.warn(`车辆 ${vehicleId} 的路径数据为空 - 可能路径文件不存在或为空`);
             return;
         }
         
-        logger.info(`✅ 成功获取车辆 ${vehicleId} 的路径数据 - ${result.point_count} 个点`);
+        logger.info(`成功获取车辆 ${vehicleId} 的路径数据 - ${result.point_count} 个点`);
         
         // 获取道路表面高度
         const roadY = getRoadSurfaceY();
         
-        // 将路径点转换为模型坐标系
+        // 关键修复：如果沙盘未加载完成（roadY为0），延迟绘制路径
+        if (roadY === 0) {
+            const maxRetries = 5; // 最多重试5次
+            
+            if (retryCount >= maxRetries) {
+                await plError(`[PathManager] 车辆 ${vehicleId} 路径绘制失败: 沙盘模型加载超时（已重试${retryCount}次）`);
+                logger.error(`车辆 ${vehicleId} 路径绘制失败：沙盘模型加载超时（已重试${retryCount}次）`);
+                logger.error(`   建议检查沙盘模型是否正确加载`);
+                return;
+            }
+            
+            const delayMs = 500 + retryCount * 200; // 逐步增加延迟时间
+            await plWarn(`[PathManager] 车辆 ${vehicleId} 路径绘制被延迟: 沙盘模型未完全加载，地面高度为0，将在${delayMs}ms后重试（第${retryCount + 1}/${maxRetries}次）`);
+            logger.warn(`车辆 ${vehicleId} 路径绘制被延迟：沙盘模型未完全加载，地面高度为0`);
+            logger.info(`   将在${delayMs}ms后重试（第${retryCount + 1}/${maxRetries}次）`);
+            
+            // 延迟后重试
+            setTimeout(() => {
+                logger.info(`重试车辆 ${vehicleId} 的路径绘制（第${retryCount + 1}次）...`);
+                handleVehiclePathUpdate(payload, retryCount + 1);
+            }, delayMs);
+            return;
+        }
+        
+        // 如果是重试成功，输出成功信息
+        if (retryCount > 0) {
+            logger.info(`车辆 ${vehicleId} 路径绘制重试成功（第${retryCount}次重试后）`);
+        }
+        
+        // 将路径点转换为模型坐标系（包含高架桥高度）
         const modelPoints = result.points.map(point => {
             // point已经包含了偏移量，直接转换为模型坐标
             const modelCoords = vehicleToModelCoordinates(point.x, point.y);
+            
+            // 计算该位置的高架桥高度增量
+            let elevationHeight = 0;
+            try {
+                // point.x 和 point.y 是车辆坐标系，直接传入计算高度
+                const elevation = calculateVehicleElevation(point.x, point.y, null);
+                elevationHeight = elevation.height;
+            } catch (error) {
+                logger.warn(`计算路径点 (${point.x.toFixed(3)}, ${point.y.toFixed(3)}) 高度失败，使用地面高度:`, error);
+            }
+            
             return {
                 x: modelCoords.x,
-                y: roadY + 0.01, // 使用道路表面高度，稍微抬高避免Z-fighting
+                y: roadY + elevationHeight + 0.01, // 使用道路表面高度 + 高架桥高度增量，稍微抬高避免Z-fighting
                 z: modelCoords.z
             };
         });
@@ -135,6 +181,8 @@ export async function handleVehiclePathUpdate(payload) {
         });
         
     } catch (error) {
+        await plError(`[PathManager] 处理车辆路径更新失败: ${error.message || '未知错误'}`);
+        await plError(`[PathManager] 错误堆栈: ${error.stack || '无堆栈信息'}`);
         logger.error(`处理车辆路径更新失败:`, error);
         logger.error(`错误详情: ${error.message || '未知错误'}`);
         logger.error(`错误堆栈:`, error.stack || '无堆栈信息');
@@ -173,7 +221,7 @@ export function initPathManager() {
     // 监听车辆连接状态变化事件
     eventBus.on(EVENTS.VEHICLE_CONNECTION_STATUS, handleVehicleDisconnect);
     
-    logger.info('✅ 路径管理器初始化完成');
+    logger.info('路径管理器初始化完成');
 }
 
 /**

@@ -21,7 +21,7 @@ pub async fn start_websocket_server(port: u16) -> Result<()> {
             listener
         }
         Err(e) => {
-            log::error!("❌ 绑定 WebSocket 服务器失败: {}", e);
+            log::error!("绑定 WebSocket 服务器失败: {}", e);
             log::error!("   地址: {}", addr);
             log::error!("   可能原因: 端口 {} 已被占用", port);
             return Err(e.into());
@@ -77,7 +77,7 @@ async fn handle_client(
         }
     };
 
-    log::info!("📡 客户端 {} 订阅摄像头: {}", peer, camera_id);
+    log::info!("客户端 {} 订阅摄像头: {}", peer, camera_id);
 
     // 订阅 fMP4 流
     let streamer = get_mse_streamer();

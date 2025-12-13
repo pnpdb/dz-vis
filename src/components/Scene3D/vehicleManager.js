@@ -19,6 +19,11 @@ let models = null;  // 场景模型 Map
 // 🔒 防止重复添加车辆的锁
 const vehicleAddingLocks = new Map();  // key: vehicleId, value: Promise
 
+// 位置缓存：用于检测是否真正发生了移动（多车优化）
+const lastPositions = new Map();  // key: vehicleId, value: {x, z, orientation}
+const POSITION_THRESHOLD = 0.0001;  // 位置变化阈值（米），小于此值不更新
+const ROTATION_THRESHOLD = 0.001;   // 旋转变化阈值（弧度），小于此值不更新
+
 // 性能优化：包围盒缓存
 let cachedSandboxBox = null;  // 缓存的沙盘包围盒
 let cachedCarTemplateBox = null;  // 缓存的车辆模板包围盒
@@ -29,16 +34,15 @@ let sharedDracoLoader = null;
 // 性能优化：Promise 缓存，避免重复加载
 let loadingPromise = null;
 
-// 🚀 性能优化：插值系统（平滑车辆移动）
+// 性能优化：插值系统（平滑车辆移动）
 const vehicleInterpolationData = new Map();  // 存储每个车辆的插值数据
 let interpolationRAF = null;  // requestAnimationFrame ID
 let lastInterpolationTime = 0;  // 上次插值更新时间
 let lastUpdateStartIndex = 0;  // 🎯 时间分片：上次更新的起始索引（轮流更新）
 
-// 🚀 批量更新机制 - 收集多辆车的更新，统一处理并只触发一次markDirty
+// 批量更新机制 - 收集多辆车的更新，统一处理并只触发一次markDirty
 const pendingUpdates = new Map();  // 待处理的车辆更新
-let batchUpdateTimer = null;       // 批量更新定时器
-const BATCH_UPDATE_DELAY = 16;     // 批量更新延迟（毫秒）- 约1帧时间
+let batchUpdateTimer = null;       // 批量更新定时器ID（用于RAF或setTimeout）
 let dirtyMarkScheduled = false;    // 是否已安排markDirty调用
 
 // 插值配置
@@ -51,7 +55,7 @@ const INTERPOLATION_CONFIG = {
     maxUpdatesPerFrame: 10   // 🔧 增加每帧更新数量 - 支持多车场景（之前是1，导致3辆车需要3帧才更新完）
 };
 
-// 🌉 高架桥高度配置
+// 高架桥高度配置
 const ELEVATION_CONFIG = {
     enabled: true,           // 是否启用高架桥高度控制
     X1: 0.790,              // 左侧上坡区域边界 (车辆坐标系，米)
@@ -75,13 +79,13 @@ const ELEVATION_CONFIG = {
 };
 
 /**
- * 🌉 根据车辆位置和朝向计算高度和倾角（高架桥系统）
+ * 根据车辆位置和朝向计算高度和倾角（高架桥系统）
  * @param {number} vehicleX - 车辆X坐标 (车辆坐标系，0-6m)
  * @param {number} vehicleY - 车辆Y坐标 (车辆坐标系，0-5m)
  * @param {number} orientation - 车辆朝向角度 (弧度)，用于判断移动方向
  * @returns {Object} { height, pitchAngle, region } - 高度增量(沙盘局部坐标)、倾角(弧度)、区域名称
  */
-const calculateVehicleElevation = (vehicleX, vehicleY, orientation = null) => {
+export const calculateVehicleElevation = (vehicleX, vehicleY, orientation = null) => {
     if (!ELEVATION_CONFIG.enabled) {
         return { height: 0, pitchAngle: 0, region: 'ground' };
     }
@@ -150,7 +154,7 @@ const getSharedDracoLoader = () => {
         sharedDracoLoader = new DRACOLoader();
         // 使用本地解码器文件（离线可用）
         sharedDracoLoader.setDecoderPath('/draco/');
-        console.info('✅ DRACOLoader 单例已创建（本地解码器）');
+        console.info('DRACOLoader 单例已创建（本地解码器）');
     }
     return sharedDracoLoader;
 };
@@ -163,7 +167,7 @@ const getSharedDracoLoader = () => {
 export const initVehicleManager = (_modelsGroup, _models) => {
     modelsGroup = _modelsGroup;
     models = _models;
-    console.info('✅ 车辆管理器已初始化');
+    console.info('车辆管理器已初始化');
 };
 
 /**
@@ -171,8 +175,19 @@ export const initVehicleManager = (_modelsGroup, _models) => {
  * 使用 Promise 缓存避免重复加载（性能优化）
  */
 const loadCarModelTemplate = async () => {
-    // 如果已经加载完成，直接返回
+    // 如果已经加载完成，检查缓存是否完整
     if (carModelTemplate) {
+        // 修复：如果模板存在但包围盒缓存丢失（比如 clearSandboxCache 被调用），重新计算包围盒
+        if (!cachedCarTemplateBox) {
+            console.warn('车辆模板包围盒缓存丢失，重新计算...');
+            const tempContainer = new Group();
+            const tempMesh = carModelTemplate.clone();
+            tempMesh.rotation.x = -Math.PI / 2;  // 应用相同的旋转
+            tempContainer.add(tempMesh);
+            cachedCarTemplateBox = new Box3().setFromObject(tempContainer);
+            console.info('车辆模板包围盒已重新计算');
+            console.info(`   包围盒底部 Y: ${cachedCarTemplateBox.min.y.toFixed(4)}`);
+        }
         return carModelTemplate;
     }
 
@@ -209,7 +224,7 @@ const loadCarModelTemplate = async () => {
                 // 预计算车辆模板的包围盒（性能优化）
                 cachedCarTemplateBox = new Box3().setFromObject(tempContainer);
                 
-                console.info('✅ 车辆模型模板加载成功');
+                console.info('车辆模型模板加载成功');
                 console.info(`   包围盒底部 Y: ${cachedCarTemplateBox.min.y.toFixed(4)}`);
                 console.info(`   包围盒顶部 Y: ${cachedCarTemplateBox.max.y.toFixed(4)}`);
                 console.info(`   模型高度: ${(cachedCarTemplateBox.max.y - cachedCarTemplateBox.min.y).toFixed(4)}`);
@@ -220,7 +235,7 @@ const loadCarModelTemplate = async () => {
             undefined,
             (error) => {
                 loadingPromise = null; // 加载失败后清除缓存的 Promise，允许重试
-                console.error('❌ 车辆模型模板加载失败:', error);
+                console.error('车辆模型模板加载失败:', error);
                 reject(error);
             }
         );
@@ -406,7 +421,7 @@ const applyVehicleColors = (clonedModel, bodyColor) => {
             // 应用新材质到 Mesh
             child.material = newMaterial;
             
-            // 🚀 性能优化：禁用不必要的材质特性
+            // 性能优化：禁用不必要的材质特性
             newMaterial.needsUpdate = true;
         }
     });
@@ -422,7 +437,7 @@ const applyVehicleColors = (clonedModel, bodyColor) => {
 export const addVehicle = async (vehicleId, position, orientation = 0, color = '#409EFF') => {
     // 🔒 防止重复添加：如果正在添加同一个车辆，等待之前的操作完成
     if (vehicleAddingLocks.has(vehicleId)) {
-        console.warn(`⚠️ 车辆 ${vehicleId} 正在添加中，跳过重复调用`);
+        console.warn(`车辆 ${vehicleId} 正在添加中，跳过重复调用`);
         return vehicleAddingLocks.get(vehicleId);
     }
     
@@ -437,19 +452,19 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
             // 参数验证（使用统一验证工具，消除代码重复）
             const idValidation = validateVehicleId(vehicleId);
             if (!idValidation.valid) {
-                console.error(`❌ ${idValidation.error}`);
+                console.error(`${idValidation.error}`);
                 return null;
             }
         
         const posValidation = validatePosition(position, 'model');
         if (!posValidation.valid) {
-            console.error(`❌ 车辆 ${vehicleId} ${posValidation.error}`);
+            console.error(`车辆 ${vehicleId} ${posValidation.error}`);
             return null;
         }
         
         const oriValidation = validateOrientation(orientation);
         if (!oriValidation.valid) {
-            console.error(`❌ 车辆 ${vehicleId} ${oriValidation.error}`);
+            console.error(`车辆 ${vehicleId} ${oriValidation.error}`);
             return null;
         }
         
@@ -490,7 +505,7 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
         // 获取沙盘模型以计算道路表面高度
         const sandboxModel = models.get('sandbox');
         if (!sandboxModel) {
-            console.error('❌ 沙盘模型未找到，无法添加车辆');
+            console.error('沙盘模型未找到，无法添加车辆');
             return null;
         }
         
@@ -535,10 +550,10 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
                     localY: roadSurfaceY
                 };
                 
-                console.info(`✅ 车辆管理器：路面高度 (局部坐标Y) = ${roadSurfaceY.toFixed(4)} (基于: ${foundGroundMesh.mesh.name}, 世界Y: ${worldBox.max.y.toFixed(4)})`);
+                console.info(`车辆管理器：路面高度 (局部坐标Y) = ${roadSurfaceY.toFixed(4)} (基于: ${foundGroundMesh.mesh.name}, 世界Y: ${worldBox.max.y.toFixed(4)})`);
             } else {
                 // 如果找不到地面网格，使用整个沙盘的底部（局部坐标）
-                console.warn('⚠️ 车辆管理器：未找到地面网格，使用沙盘底部作为地面高度');
+                console.warn('车辆管理器：未找到地面网格，使用沙盘底部作为地面高度');
                 const worldBox = new Box3().setFromObject(sandboxModel);
                 const worldBottomCenter = new Vector3(
                     (worldBox.min.x + worldBox.max.x) / 2,
@@ -561,7 +576,7 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
         // 计算车辆模型的底部偏移（使用缓存的模板包围盒）
         const carBottomOffset = cachedCarTemplateBox ? cachedCarTemplateBox.min.y : new Box3().setFromObject(vehicleModel).min.y;
         
-        // 🌉 计算高架桥高度和倾角
+        // 计算高架桥高度和倾角
         let elevationHeight = 0;
         let pitchAngle = 0;
         let regionName = 'ground';
@@ -612,7 +627,7 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
         modelAdded = true;
         vehicleModels.set(vehicleId, vehicleModel);
 
-        // 🚀 插值初始化：使用车辆的初始位置，避免从(0,0)开始插值
+        // 插值初始化：使用车辆的初始位置，避免从(0,0)开始插值
         if (INTERPOLATION_CONFIG.enabled) {
             vehicleInterpolationData.set(vehicleId, {
                 targetPosition: { 
@@ -623,14 +638,14 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
             });
         }
 
-        console.info(`✅ 车辆 ${vehicleId} 已添加到场景`);
+        console.info(`车辆 ${vehicleId} 已添加到场景`);
         console.info(`   沙盘局部坐标: X=${vehicleModel.position.x.toFixed(3)}, Y=${vehicleY.toFixed(3)}, Z=${vehicleModel.position.z.toFixed(3)}`);
         console.info(`   地面高度(局部): ${roadSurfaceY.toFixed(3)}, 车底偏移: ${carBottomOffset.toFixed(3)}`);
         
         return vehicleModel;
 
     } catch (error) {
-        console.error(`❌ 添加车辆 ${vehicleId} 失败:`, error);
+        console.error(`添加车辆 ${vehicleId} 失败:`, error);
         
         // 错误回滚：清理已添加的模型（使用统一清理工具）
         if (modelAdded && vehicleModel) {
@@ -638,7 +653,7 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
                 disposeObject3D(vehicleModel, { removeFromParent: true });
                 vehicleModels.delete(vehicleId);
             } catch (rollbackError) {
-                console.error(`❌ 回滚清理失败:`, rollbackError);
+                console.error(`回滚清理失败:`, rollbackError);
             }
         }
         
@@ -679,25 +694,28 @@ export const removeVehicle = (vehicleId) => {
 
         vehicleModels.delete(vehicleId);
         
-        // 🚀 清理插值数据
+        // 清理插值数据
         vehicleInterpolationData.delete(vehicleId);
         
         // 🧹 清理待处理的更新队列（防止内存泄漏）
         pendingUpdates.delete(vehicleId);
+        
+        // 🧹 清理位置缓存（防止重连时使用旧数据）
+        lastPositions.delete(vehicleId);
         
         // 如果没有车辆了，停止插值循环
         if (vehicleModels.size === 0) {
             stopInterpolationLoop();
         }
         
-        // console.info(`✅ 车辆 ${vehicleId} 已从场景移除并释放资源`);
+        // console.info(`车辆 ${vehicleId} 已从场景移除并释放资源`);
         return true;
     }
     return false;
 };
 
 /**
- * 🚀 插值更新循环（时间分片：每帧只更新部分车辆，防止多车卡顿）
+ * 插值更新循环（时间分片：每帧只更新部分车辆，防止多车卡顿）
  */
 const interpolationUpdateLoop = (currentTime) => {
     if (!INTERPOLATION_CONFIG.enabled) {
@@ -810,7 +828,7 @@ const startInterpolationLoop = () => {
     if (!interpolationRAF && INTERPOLATION_CONFIG.enabled) {
         lastInterpolationTime = 0;
         interpolationRAF = requestAnimationFrame(interpolationUpdateLoop);
-        console.info('🚀 车辆插值系统已启动');
+        console.info('车辆插值系统已启动');
     }
 };
 
@@ -826,7 +844,7 @@ const stopInterpolationLoop = () => {
 };
 
 /**
- * 🚀 批量处理待更新的车辆
+ * 批量处理待更新的车辆
  */
 const processBatchUpdates = () => {
     if (pendingUpdates.size === 0) {
@@ -872,39 +890,32 @@ const processBatchUpdates = () => {
         } 
         // 如果未启用插值，直接更新位置
         else {
-            if (position && typeof position === 'object') {
-                if (typeof position.x === 'number') {
-                    vehicleModel.position.x = position.x;
-                }
-                if (typeof position.z === 'number') {
-                    vehicleModel.position.z = position.z;
-                }
+            const hasPositionUpdate = position && typeof position === 'object' && 
+                                     typeof position.x === 'number' && 
+                                     typeof position.z === 'number';
+            
+            if (hasPositionUpdate) {
+                vehicleModel.position.x = position.x;
+                vehicleModel.position.z = position.z;
                 
-                // 🌉 应用高架桥高度和倾角
-                if (ELEVATION_CONFIG.enabled && typeof position.x === 'number' && typeof position.z === 'number') {
-                    // ⚠️ 检查缓存是否已初始化（在第一辆车添加时会初始化）
-                    if (!cachedSandboxBox || !cachedCarTemplateBox) {
-                        // 缓存未初始化时只更新倾角，不更新Y坐标
-                        const vehicleCoords = modelToVehicleCoordinates(position.x, position.z);
-                        // 传入朝向用于判断上下坡方向
-                        const elevation = calculateVehicleElevation(vehicleCoords.x, vehicleCoords.y, orientation);
-                        vehicleModel.rotation.x = elevation.pitchAngle;
-                    } else {
-                        // 将沙盘局部坐标转换为车辆坐标系（用于判断区域）
-                        const vehicleCoords = modelToVehicleCoordinates(position.x, position.z);
-                        
-                        // 计算该位置的高度和倾角（传入朝向用于判断上下坡方向）
-                        const elevation = calculateVehicleElevation(vehicleCoords.x, vehicleCoords.y, orientation);
-                        
+                // 应用高架桥高度和倾角
+                if (ELEVATION_CONFIG.enabled) {
+                    // 只转换一次坐标（性能优化）
+                    const vehicleCoords = modelToVehicleCoordinates(position.x, position.z);
+                    // 计算该位置的高度和倾角（传入朝向用于判断上下坡方向）
+                    const elevation = calculateVehicleElevation(vehicleCoords.x, vehicleCoords.y, orientation);
+                    
+                    // 应用倾角（绕X轴旋转，pitch角度）
+                    vehicleModel.rotation.x = elevation.pitchAngle;
+                    
+                    // 只在缓存已初始化时更新Y坐标
+                    if (cachedSandboxBox && cachedCarTemplateBox) {
                         // 获取地面基准高度（缓存已验证存在）
                         const roadSurfaceY = cachedSandboxBox.localY;
                         const carBottomOffset = cachedCarTemplateBox.min.y;
                         
                         // 应用高度：基准高度 + 高架桥增量
                         vehicleModel.position.y = (roadSurfaceY - carBottomOffset) + elevation.height;
-                        
-                        // 应用倾角（绕X轴旋转，pitch角度）
-                        vehicleModel.rotation.x = elevation.pitchAngle;
                     }
                 }
             }
@@ -938,13 +949,11 @@ const scheduleMarkDirty = () => {
 
     dirtyMarkScheduled = true;
     
-    // 使用 requestAnimationFrame 确保在下一帧渲染前标记
-    requestAnimationFrame(() => {
-        if (typeof window !== 'undefined' && window.__scene3d_markDirty) {
-            window.__scene3d_markDirty();
-        }
-        dirtyMarkScheduled = false;
-    });
+    // 直接调用 markDirty，不再使用额外的 RAF（已经在 processBatchUpdates RAF 中了）
+    if (typeof window !== 'undefined' && window.__scene3d_markDirty) {
+        window.__scene3d_markDirty();
+    }
+    dirtyMarkScheduled = false;
 };
 
 /**
@@ -957,7 +966,7 @@ export const updateVehiclePosition = (vehicleId, position, orientation) => {
     // 参数验证（使用统一验证工具）
     const idValidation = validateVehicleId(vehicleId);
     if (!idValidation.valid) {
-        console.warn(`⚠️ updateVehiclePosition: ${idValidation.error}`);
+        console.warn(`updateVehiclePosition: ${idValidation.error}`);
         return false;
     }
     
@@ -966,14 +975,17 @@ export const updateVehiclePosition = (vehicleId, position, orientation) => {
         return false;
     }
 
-    // 🚀 将更新添加到待处理队列
+    // 将更新添加到待处理队列
     pendingUpdates.set(vehicleId, { position, orientation });
 
-    // 🚀 安排批量处理（防抖）
-    if (batchUpdateTimer) {
-        clearTimeout(batchUpdateTimer);
+    // 🎯 多车优化：使用 requestAnimationFrame 同步到下一帧渲染
+    // 这样所有在同一帧内到达的更新会被一起处理，避免卡顿
+    if (!batchUpdateTimer) {
+        batchUpdateTimer = requestAnimationFrame(() => {
+            processBatchUpdates();
+            batchUpdateTimer = null;
+        });
     }
-    batchUpdateTimer = setTimeout(processBatchUpdates, BATCH_UPDATE_DELAY);
 
     return true;
 };
@@ -998,7 +1010,7 @@ export const clearAllVehicles = () => {
     
     vehicleModels.clear();
     
-    // 🚀 清理所有插值数据
+    // 清理所有插值数据
     vehicleInterpolationData.clear();
     stopInterpolationLoop();
     
@@ -1008,16 +1020,19 @@ export const clearAllVehicles = () => {
     // 🔒 清理所有添加锁
     vehicleAddingLocks.clear();
     
-    // 🧹 清理批量更新定时器（防止内存泄漏）
+    // 🧹 清理批量更新RAF（防止内存泄漏）
     if (batchUpdateTimer) {
-        clearTimeout(batchUpdateTimer);
+        cancelAnimationFrame(batchUpdateTimer);
         batchUpdateTimer = null;
     }
     
     // 🧹 清理待处理的更新队列
     pendingUpdates.clear();
     
-    console.info(`✅ 已清除所有车辆 (${count}辆)`);
+    // 🧹 清理所有位置缓存
+    lastPositions.clear();
+    
+    console.info(`已清除所有车辆 (${count}辆)`);
 };
 
 /**
@@ -1047,7 +1062,7 @@ export const debugListAllVehicles = () => {
             console.log(`    子对象: ${model.children.length} 个`);
             console.log(`    父对象: ${model.parent?.name || 'none'}`);
             console.log(`    插值数据: ${interpData ? '✓' : '✗'}`);
-            console.log(`    正在添加: ${isAdding ? '⚠️ 是' : '否'}`);
+            console.log(`    正在添加: ${isAdding ? '是' : '否'}`);
             if (interpData) {
                 console.log(`      目标位置: (${interpData.targetPosition.x.toFixed(2)}, ${interpData.targetPosition.z.toFixed(2)})`);
             }
@@ -1063,7 +1078,7 @@ export const debugListAllVehicles = () => {
     });
     
     if (orphanedInterpData.length > 0) {
-        console.log(`⚠️ 发现 ${orphanedInterpData.length} 个孤立的插值数据:`, orphanedInterpData);
+        console.log(`发现 ${orphanedInterpData.length} 个孤立的插值数据:`, orphanedInterpData);
     }
     
     // 检查是否有孤立的添加锁
@@ -1085,9 +1100,9 @@ export const debugListAllVehicles = () => {
  * 🔍 调试工具：查看高架桥配置
  */
 export const debugElevationConfig = () => {
-    console.log('🌉 高架桥配置:');
+    console.log('高架桥配置:');
     console.log('═'.repeat(80));
-    console.log(`启用状态: ${ELEVATION_CONFIG.enabled ? '✅ 已启用' : '❌ 已禁用'}`);
+    console.log(`启用状态: ${ELEVATION_CONFIG.enabled ? '已启用' : '已禁用'}`);
     console.log(`\n📏 边界坐标 (车辆坐标系):`);
     console.log(`  X1 (左侧边界): ${ELEVATION_CONFIG.X1}m`);
     console.log(`  X2 (右侧边界): ${ELEVATION_CONFIG.X2}m`);
@@ -1126,7 +1141,7 @@ export const updateElevationConfig = (config) => {
         ELEVATION_CONFIG.BRIDGE_HEIGHT = config.BRIDGE_HEIGHT;
     }
     
-    console.log('✅ 高架桥配置已更新');
+    console.log('高架桥配置已更新');
     debugElevationConfig();
     
     return ELEVATION_CONFIG;
@@ -1159,21 +1174,21 @@ if (typeof window !== 'undefined') {
     window.__debugVehicles = debugListAllVehicles;
     window.__vehicleModels = vehicleModels; // 暴露供分析脚本使用
     
-    // 🌉 高架桥调试工具
+    // 高架桥调试工具
     window.__debugElevation = debugElevationConfig;
     window.__updateElevation = updateElevationConfig;
     window.__testElevation = testElevationAt;
 }
 
 /**
- * 🚀 获取插值配置
+ * 获取插值配置
  */
 export const getInterpolationConfig = () => {
     return { ...INTERPOLATION_CONFIG };
 };
 
 /**
- * 🚀 更新插值配置
+ * 更新插值配置
  * @param {object} config - 配置对象
  */
 export const updateInterpolationConfig = (config) => {
@@ -1195,15 +1210,15 @@ export const updateInterpolationConfig = (config) => {
     if (typeof config.rotationSmooth === 'number' && config.rotationSmooth >= 0 && config.rotationSmooth <= 1) {
         INTERPOLATION_CONFIG.rotationSmooth = config.rotationSmooth;
     }
-    console.info('🚀 插值配置已更新:', INTERPOLATION_CONFIG);
+    console.info('插值配置已更新:', INTERPOLATION_CONFIG);
 };
 
 /**
- * 🔄 清除沙盘缓存（当沙盘模型更换时调用）
+ * 清除沙盘缓存（当沙盘模型更换时调用）
  */
 export const clearSandboxCache = () => {
     cachedSandboxBox = null;
     cachedCarTemplateBox = null;
-    console.log('🔄 车辆管理器：沙盘缓存已清除');
+    console.log('车辆管理器：沙盘缓存已清除');
 };
 

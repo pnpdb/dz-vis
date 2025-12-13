@@ -956,7 +956,7 @@ class TestClient:
                     if path_info['display_path'] == 1:
                         print(f"✅ 车辆{self.vehicle_id}开始发送路径数据到服务端")
                         # 收到开启路径显示指令后，主动发送路径文件选择（0x0003）
-                        self.send_path_file_selection([1, 2, 3, 4, 5, 6, 7, 8])
+                        self.send_path_file_selection([13, 14,15])
                     else:
                         print(f"✅ 车辆{self.vehicle_id}停止发送路径数据到服务端")
                 else:

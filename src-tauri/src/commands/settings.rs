@@ -70,7 +70,7 @@ pub async fn update_menu_visibility_settings(
     let db = app.state::<VehicleDatabase>();
     match db.update_menu_visibility_settings(request).await {
         Ok(settings) => {
-            info!("✅ 菜单可见性设置已更新");
+            info!("菜单可见性设置已更新");
             Ok(serde_json::to_value(settings).unwrap())
         },
         Err(e) => Err(format!("更新菜单可见性设置失败: {}", e))

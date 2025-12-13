@@ -157,10 +157,10 @@ class ErrorHandler {
                 console.info(`[${error.category}]`, logData);
                 break;
             case ErrorLevel.WARN:
-                console.warn(`⚠️ [${error.category}]`, logData.message, logData);
+                console.warn(`[${error.category}]`, logData.message, logData);
                 break;
             case ErrorLevel.ERROR:
-                console.error(`❌ [${error.category}]`, logData.message, logData);
+                console.error(`[${error.category}]`, logData.message, logData);
                 break;
             case ErrorLevel.FATAL:
                 console.error(`💥 [FATAL][${error.category}]`, logData.message, logData);
@@ -323,7 +323,7 @@ export const removeErrorListener = (listener) => globalErrorHandler.removeListen
  */
 export function setupGlobalErrorHandler(app) {
     if (!app) {
-        console.warn('⚠️ setupGlobalErrorHandler: Vue 应用实例未提供');
+        console.warn('setupGlobalErrorHandler: Vue 应用实例未提供');
         return;
     }
     
@@ -381,5 +381,5 @@ export function setupGlobalErrorHandler(app) {
         });
     });
     
-    console.info('✅ 全局错误处理器已安装');
+    console.info('全局错误处理器已安装');
 }

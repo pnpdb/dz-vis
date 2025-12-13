@@ -31,7 +31,7 @@ pub async fn start_socket_server(app: tauri::AppHandle) -> Result<String, String
     // 在后台启动服务器
     tokio::spawn(async move {
         if let Err(e) = server.start().await {
-            error!("❌ Socket服务器错误: {}", e);
+            error!("Socket服务器错误: {}", e);
         }
     });
 
@@ -291,7 +291,7 @@ pub async fn send_taxi_order_to_vehicle(
         {
             Ok(_) => {
                 info!(
-                    "✅ 出租车订单发送并保存成功: 订单{}, 车辆{}",
+                    "出租车订单发送并保存成功: 订单{}, 车辆{}",
                     order_id, vehicle_id
                 );
                 Ok(format!(
@@ -301,7 +301,7 @@ pub async fn send_taxi_order_to_vehicle(
             }
             Err(e) => {
                 warn!(
-                    "⚠️ 出租车订单发送成功但保存失败: 订单{}, 车辆{}, 错误: {}",
+                    "出租车订单发送成功但保存失败: 订单{}, 车辆{}, 错误: {}",
                     order_id, vehicle_id, e
                 );
                 // 即使保存失败，也认为发送成功
@@ -354,10 +354,10 @@ pub async fn broadcast_taxi_order(
 
             match db.create_taxi_order(taxi_order_request).await {
                 Ok(_) => {
-                    info!("✅ 出租车订单已保存到数据库: {}", order_id);
+                    info!("出租车订单已保存到数据库: {}", order_id);
                 }
                 Err(e) => {
-                    warn!("❌ 保存出租车订单到数据库失败: {}", e);
+                    warn!("保存出租车订单到数据库失败: {}", e);
                     // 虽然数据库保存失败，但消息已发送，所以不返回错误
                 }
             }
@@ -395,12 +395,12 @@ pub async fn send_avp_parking(app: tauri::AppHandle, vehicle_id: i32, parking_sp
                 match db.create_avp_parking(avp_parking_request).await {
                     Ok(_) => {
                         info!(
-                            "✅ AVP泊车记录已保存到数据库: 车辆{}, 车位{}",
+                            "AVP泊车记录已保存到数据库: 车辆{}, 车位{}",
                             vehicle_id, parking_spot
                         );
                     }
                     Err(e) => {
-                        warn!("❌ 保存AVP泊车记录到数据库失败: {}", e);
+                        warn!("保存AVP泊车记录到数据库失败: {}", e);
                         // 虽然数据库保存失败，但消息已发送，所以不返回错误
                     }
                 }
@@ -433,10 +433,10 @@ pub async fn send_avp_pickup(app: tauri::AppHandle, vehicle_id: i32) -> Result<S
 
                 match db.create_avp_pickup(avp_pickup_request).await {
                     Ok(_) => {
-                        info!("✅ AVP取车记录已保存到数据库: 车辆{}", vehicle_id);
+                        info!("AVP取车记录已保存到数据库: 车辆{}", vehicle_id);
                     }
                     Err(e) => {
-                        warn!("❌ 保存AVP取车记录到数据库失败: {}", e);
+                        warn!("保存AVP取车记录到数据库失败: {}", e);
                         // 虽然数据库保存失败，但消息已发送，所以不返回错误
                     }
                 }

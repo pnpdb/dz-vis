@@ -152,7 +152,7 @@ const startCar = async () => {
     try {
         console.debug(`🚗 开始发送启动指令给车辆${vehicleId}`);
         const result = await socketManager.startVehicle(vehicleId);
-        console.debug(`✅ 启动指令发送结果:`, result);
+        console.debug(`启动指令发送结果:`, result);
         showMsg(true, `车辆${vehicleId}启动指令发送成功`);
     } catch (error) {
         console.error('启动车辆失败:', error);

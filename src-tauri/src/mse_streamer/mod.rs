@@ -123,7 +123,7 @@ impl MseStreamer {
         let mut child = match ffmpeg_cmd.spawn() {
             Ok(child) => child,
             Err(e) => {
-                log::error!("❌ 启动 FFmpeg 进程失败: {}", e);
+                log::error!("启动 FFmpeg 进程失败: {}", e);
                 log::error!("   FFmpeg 路径: {}", ffmpeg_path);
                 log::error!("   错误类型: {:?}", e.kind());
                 

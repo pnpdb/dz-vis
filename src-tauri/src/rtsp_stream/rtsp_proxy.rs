@@ -59,7 +59,7 @@ impl RTSPProxy {
         let frame_receiver = self.frame_sender.subscribe();
         let frame_sender = self.frame_sender.clone();
         
-        log::info!("✅ 接受WebSocket连接: camera_id={}", camera_id);
+        log::info!("接受WebSocket连接: camera_id={}", camera_id);
         
         ws.on_upgrade(move |socket| async move {
             Self::handle_socket(socket, camera_id, streams, frame_receiver, frame_sender).await;
@@ -128,9 +128,9 @@ impl RTSPProxy {
                                 if let Ok(status_json) = serde_json::to_string(&status_msg) {
                                     let mut sender_guard = sender.lock().await;
                                     if let Err(e) = sender_guard.send(axum::extract::ws::Message::Text(status_json)).await {
-                                        log::warn!("❌ 发送状态消息失败: {}", e);
+                                        log::warn!("发送状态消息失败: {}", e);
                                     } else {
-                                        log::debug!("📡 已发送流状态: streaming");
+                                        log::debug!("已发送流状态: streaming");
                                     }
                                 }
 
@@ -152,7 +152,7 @@ impl RTSPProxy {
                     break;
                 }
                 Err(e) => {
-                    log::error!("❌ WebSocket错误: {}", e);
+                    log::error!("WebSocket错误: {}", e);
                     break;
                 }
                 _ => {}
@@ -166,13 +166,13 @@ impl RTSPProxy {
     /// 启动RTSP流处理
     async fn start_rtsp_stream(camera_id: i64, rtsp_url: String, _frame_sender: broadcast::Sender<(i64, Vec<u8>)>) {
         tokio::spawn(async move {
-            log::debug!("🔄 准备连接RTSP流: {} -> {}", camera_id, rtsp_url);
+            log::debug!("准备连接RTSP流: {} -> {}", camera_id, rtsp_url);
             
             // 这里为真实的RTSP流连接做准备
             // 实际的RTSP处理将通过您的推流服务来完成
             // 当前只是确保WebSocket连接建立成功
             
-            log::info!("✅ RTSP流连接已准备就绪: camera_id={}, url={}", camera_id, rtsp_url);
+            log::info!("RTSP流连接已准备就绪: camera_id={}, url={}", camera_id, rtsp_url);
             
             // 真实的RTSP流处理逻辑可以在这里添加
             // 例如使用FFmpeg或其他RTSP客户端库来接收和转码RTSP流

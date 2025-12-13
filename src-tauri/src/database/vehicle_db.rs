@@ -339,7 +339,7 @@ impl VehicleDatabase {
             "ALTER TABLE menu_visibility_settings ADD COLUMN show_parallel_driving BOOLEAN NOT NULL DEFAULT 1"
         ).execute(&self.pool).await;
 
-        // 🚀 为现有表添加 show_vehicle_camera 列（兼容旧数据库）
+        // 为现有表添加 show_vehicle_camera 列（兼容旧数据库）
         let _ = sqlx::query(
             "ALTER TABLE menu_visibility_settings ADD COLUMN show_vehicle_camera BOOLEAN NOT NULL DEFAULT 1"
         ).execute(&self.pool).await;
@@ -596,7 +596,7 @@ impl VehicleDatabase {
             .execute(&self.pool)
             .await?;
             
-            log::info!("✅ 初始化默认交通灯设置: 红灯45秒, 绿灯60秒");
+            log::info!("初始化默认交通灯设置: 红灯45秒, 绿灯60秒");
         }
         
         Ok(())
@@ -1316,13 +1316,13 @@ impl VehicleDatabase {
             .bind(true)
             .bind(true)
             .bind(true)
-            .bind(true)  // 🚀 默认显示车载摄像头
+            .bind(true)  // 默认显示车载摄像头
             .bind(now.to_rfc3339())
             .bind(now.to_rfc3339())
             .execute(&self.pool)
             .await?;
 
-            log::info!("✅ 已初始化默认菜单可见性设置");
+            log::info!("已初始化默认菜单可见性设置");
         }
 
         Ok(())

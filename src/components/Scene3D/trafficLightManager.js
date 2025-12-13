@@ -95,7 +95,7 @@ export function initTrafficLightManager(sandbox) {
             return false;
             }
 
-        logger.info(`✅ 成功初始化 ${trafficLights.length} 个红绿灯`);
+        logger.info(`成功初始化 ${trafficLights.length} 个红绿灯`);
         logger.info(`   第一组: 8个红绿灯 (索引0-7)`);
         logger.info(`   第二组: 8个红绿灯 (索引8-15)`);
 
@@ -159,7 +159,7 @@ function extractTrafficLightComponents(config, index) {
     // 克隆材质，避免共享材质导致的联动问题
     cloneMaterialsForTrafficLight(components);
 
-    logger.debug(`✅ 成功提取红绿灯 ${index} (${config.group}) 的组件，属于第${config.groupIndex + 1}组`);
+    logger.debug(`成功提取红绿灯 ${index} (${config.group}) 的组件，属于第${config.groupIndex + 1}组`);
     return components;
 }
 
@@ -301,7 +301,7 @@ export function updateTrafficLightGroup(groupIndex, color, countdown) {
         return;
     }
 
-    // 🔄 交换一组和二组（修正协议组号与实际组号的对应关系）
+    // 交换一组和二组（修正协议组号与实际组号的对应关系）
     // 协议第一组(0) → 实际第二组(1)
     // 协议第二组(1) → 实际第一组(0)
     const actualGroupIndex = groupIndex === 0 ? 1 : 0;
@@ -319,7 +319,7 @@ export function updateTrafficLightGroup(groupIndex, color, countdown) {
         setTrafficLightState(light.index, color);
     });
 
-    logger.info(`✅ 协议第${groupIndex + 1}组 (实际第${actualGroupIndex + 1}组) 的 ${targetLights.length} 个红绿灯已更新为: ${getColorName(color)}`);
+    logger.info(`协议第${groupIndex + 1}组 (实际第${actualGroupIndex + 1}组) 的 ${targetLights.length} 个红绿灯已更新为: ${getColorName(color)}`);
 }
 
 /**

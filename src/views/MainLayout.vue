@@ -109,7 +109,7 @@ import eventBus, { EVENTS } from '@/utils/eventBus.js';
 import vehicleBridge from '@/utils/vehicleBridge.js';
 import { modelToVehicleCoordinates } from '@/utils/coordinateTransform.js';
 
-// ✅ 使用组合式函数（代码复用优化）
+// 使用组合式函数（代码复用优化）
 import { useSystemTime } from '@/composables/useSystemTime.js';
 import { useFPS } from '@/composables/useFPS.js';
 import { useNetworkStatus } from '@/composables/useNetworkStatus.js';
@@ -137,7 +137,7 @@ const currentComponent = computed(() => {
     return componentMap[route.name] || Cars;
 });
 
-// ✅ 使用组合式函数获取状态数据
+// 使用组合式函数获取状态数据
 const { currentTime } = useSystemTime();
 const { fps, fpsPercentage } = useFPS();
 const { networkStatus } = useNetworkStatus();

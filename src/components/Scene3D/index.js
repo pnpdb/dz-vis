@@ -42,7 +42,8 @@ import {
 } from 'three';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
-import { updateSandboxBounds } from '@/utils/coordinateTransform.js';
+import { updateSandboxBounds, modelToVehicleCoordinates } from '@/utils/coordinateTransform.js';
+import { warn as plWarn } from '@tauri-apps/plugin-log';
 import { 
     initVehicleManager, 
     addVehicle as addVehicleToScene, 
@@ -51,7 +52,8 @@ import {
     clearAllVehicles,
     getAllVehicleIds,
     hasVehicle,
-    clearSandboxCache as clearVehicleManagerSandboxCache
+    clearSandboxCache as clearVehicleManagerSandboxCache,
+    calculateVehicleElevation
 } from './vehicleManager.js';
 import { 
     initPathRenderer, 
@@ -311,12 +313,12 @@ const initSceneCore = async () => {
 
             controls.update();
 
-            // ❌ 移除每帧的 scene.traverse() - 性能优化
+            // 移除每帧的 scene.traverse() - 性能优化
             // 如果需要更新shader的uTime，应该在创建材质时缓存对象，而不是每帧遍历
             // const delta = clock?.getDelta?.() ?? 0;
             // scene.traverse((object) => { ... });
 
-            // ❌ 移除每帧的进度事件 - 性能优化（只在初始化阶段需要）
+            // 移除每帧的进度事件 - 性能优化（只在初始化阶段需要）
             // eventBus.emit(EVENTS.SCENE3D_PROGRESS, ...);
 
             if (stats) {
@@ -402,27 +404,27 @@ const initSceneCore = async () => {
                     const sandbox = models.get('sandbox');
                     if (sandbox) {
                         sandbox.scale.setScalar(scale);
-                        console.log(`✅ 沙盘缩放已调整为: ${scale}`);
+                        console.log(`沙盘缩放已调整为: ${scale}`);
                     } else {
-                        console.error('❌ 沙盘模型未找到');
+                        console.error('沙盘模型未找到');
                     }
                 },
                 adjustSandboxPosition: (x, y, z) => {
                     const sandbox = models.get('sandbox');
                     if (sandbox) {
                         sandbox.position.set(x, y, z);
-                        console.log(`✅ 沙盘位置已调整为: (${x}, ${y}, ${z})`);
+                        console.log(`沙盘位置已调整为: (${x}, ${y}, ${z})`);
                     } else {
-                        console.error('❌ 沙盘模型未找到');
+                        console.error('沙盘模型未找到');
                     }
                 },
                 adjustCarPosition: (x, y, z) => {
                     const car = models.get('cars');
                     if (car) {
                         car.position.set(x, y, z);
-                        console.log(`✅ 小车位置已调整为: (${x}, ${y}, ${z})`);
+                        console.log(`小车位置已调整为: (${x}, ${y}, ${z})`);
                     } else {
-                        console.error('❌ 小车模型未找到');
+                        console.error('小车模型未找到');
                     }
                 },
                 logAlignmentInfo: () => {
@@ -444,7 +446,7 @@ const initSceneCore = async () => {
                         console.log(`  - 包围盒顶部: Y=${carBox.max.y.toFixed(3)}`);
                         console.log(`  - 小车底部与道路表面的距离: ${(carBox.min.y - sandboxBox.min.y).toFixed(3)} (应该≈0)`);
                     } else {
-                        console.error('❌ 模型未找到');
+                        console.error('模型未找到');
                     }
                 },
                 logSandboxInfo: () => {
@@ -461,13 +463,13 @@ const initSceneCore = async () => {
                         console.log('  边界框尺寸:', size);
                         console.log('  边界框范围:', box);
                     } else {
-                        console.error('❌ 沙盘模型未找到');
+                        console.error('沙盘模型未找到');
                     }
                 },
                 analyzeSandboxMeshes: () => {
                     const sandbox = models.get('sandbox');
                     if (!sandbox) {
-                        console.error('❌ 沙盘模型未找到');
+                        console.error('沙盘模型未找到');
                         return;
                     }
                     
@@ -523,7 +525,7 @@ const initSceneCore = async () => {
                 testGroundHeight: () => {
                     const sandbox = models.get('sandbox');
                     if (!sandbox) {
-                        console.error('❌ 沙盘模型未找到');
+                        console.error('沙盘模型未找到');
                         return null;
                     }
                     
@@ -567,7 +569,7 @@ const initSceneCore = async () => {
                     });
                     
                     if (allGroundCandidates.length === 0) {
-                        console.log('❌ 未找到包含 "Standardmaterial206" 的网格');
+                        console.log('未找到包含 "Standardmaterial206" 的网格');
                         console.log('');
                         console.log('🔍 尝试列出所有网格名称:');
                         sandbox.traverse((child) => {
@@ -576,11 +578,11 @@ const initSceneCore = async () => {
                             }
                         });
                     } else {
-                        console.log(`✅ 找到 ${allGroundCandidates.length} 个匹配的地面网格\n`);
+                        console.log(`找到 ${allGroundCandidates.length} 个匹配的地面网格\n`);
                         
                         allGroundCandidates.forEach((info, idx) => {
                             console.log(`[${idx + 1}] ${info.name}`);
-                            console.log(`  📍 局部坐标: X=${info.localPosition.x.toFixed(4)} Y=${info.localPosition.y.toFixed(4)} Z=${info.localPosition.z.toFixed(4)}`);
+                            console.log(`  局部坐标: X=${info.localPosition.x.toFixed(4)} Y=${info.localPosition.y.toFixed(4)} Z=${info.localPosition.z.toFixed(4)}`);
                             console.log(`  🌍 世界坐标: X=${info.worldPosition.x.toFixed(4)} Y=${info.worldPosition.y.toFixed(4)} Z=${info.worldPosition.z.toFixed(4)}`);
                             console.log(`  📐 尺寸: X=${info.size.x.toFixed(3)} Y=${info.size.y.toFixed(3)} Z=${info.size.z.toFixed(3)}`);
                             console.log(`  📦 Y范围: ${info.bounds.min.y.toFixed(4)} ~ ${info.bounds.max.y.toFixed(4)}`);
@@ -602,7 +604,7 @@ const initSceneCore = async () => {
                             console.log(`  名称: ${foundGroundMesh.name}`);
                             console.log(`  🌍 世界坐标 - 地面高度(Y max): ${foundGroundMesh.bounds.max.y.toFixed(4)}`);
                             console.log(`  🌍 世界坐标 - 地面底部(Y min): ${foundGroundMesh.bounds.min.y.toFixed(4)}`);
-                            console.log(`  📍 沙盘局部坐标 - 地面高度(Y): ${localTopPoint.y.toFixed(4)} ⭐`);
+                            console.log(`  沙盘局部坐标 - 地面高度(Y): ${localTopPoint.y.toFixed(4)} ⭐`);
                             console.log('=' .repeat(80));
                             console.log('');
                             console.log('💡 提示: 施工标记、车辆等应使用沙盘局部坐标 (Y ≈ ' + localTopPoint.y.toFixed(2) + ')');
@@ -714,11 +716,11 @@ const loadEnvironment = () => {
                 });
             });
             
-            console.log('✅ 环境球（Skybox）加载成功，材质反射已启用');
+            console.log('环境球（Skybox）加载成功，材质反射已启用');
         },
         undefined,
         (error) => {
-            console.warn('❌ 环境贴图加载失败:', error);
+            console.warn('环境贴图加载失败:', error);
         }
     );
 };
@@ -790,20 +792,20 @@ const loadModelsWithProgress = async () => {
                     // 获取加载的沙盘模型并计算尺寸
                     const sandboxModel = models.get('sandbox');
                     if (sandboxModel) {
-                        // ⚠️ 重要：立即计算沙盘尺寸并更新坐标转换包围盒
+                        // 重要：立即计算沙盘尺寸并更新坐标转换包围盒
                         console.log('🔍 开始计算沙盘尺寸并更新坐标转换...');
                         calculateSandboxDimensions(sandboxModel);
                         
                         // 初始化路径渲染器（现在沙盘模型已加载）
                         initPathRenderer(scene, sandboxModel);
-                        console.log('✅ 路径渲染器已初始化（使用沙盘模型）');
+                        console.log('路径渲染器已初始化（使用沙盘模型）');
                         
                         // 初始化红绿灯管理器
                         const trafficLightInitSuccess = initTrafficLightManager(sandboxModel);
                         if (trafficLightInitSuccess) {
-                            console.log('✅ 红绿灯管理器已初始化');
+                            console.log('红绿灯管理器已初始化');
                         } else {
-                            console.warn('⚠️ 红绿灯管理器初始化失败');
+                            console.warn('红绿灯管理器初始化失败');
                         }
                         
                         // 🔍 添加详细的模型调试信息
@@ -831,11 +833,11 @@ const loadModelsWithProgress = async () => {
                         // 🎯 对齐沙盘模型
                         alignSandbox(sandboxModel, scene, '异步加载');
                         
-                        // 🔄 清除地面高度缓存（强制重新计算新沙盘的地面高度）
+                        // 清除地面高度缓存（强制重新计算新沙盘的地面高度）
                         clearRoadSurfaceCache();
                         clearVehicleManagerSandboxCache();
                     } else {
-                        console.error('❌ 无法从models中获取沙盘模型！');
+                        console.error('无法从models中获取沙盘模型！');
                     }
                     
                     resolve();
@@ -1527,7 +1529,7 @@ const createCoordinateAxes = () => {
  */
 const alignSandbox = (sandboxModel, scene, loadMode = '') => {
     if (!sandboxModel) {
-        console.error('❌ 沙盘模型未找到，无法对齐');
+        console.error('沙盘模型未找到，无法对齐');
         return;
     }
     
@@ -1562,17 +1564,17 @@ const alignSandbox = (sandboxModel, scene, loadMode = '') => {
         scene.add(centerAxes);
     }
     
-    console.log(`✅ 沙盘位置对齐完成${logPrefix} (车辆模型将在连接时动态添加并对齐)`);
+    console.log(`沙盘位置对齐完成${logPrefix} (车辆模型将在连接时动态添加并对齐)`);
 };
 
 // 计算沙盘模型尺寸的工具函数
 const calculateSandboxDimensions = (model) => {
     if (!model) {
-        console.error('❌ 沙盘模型未找到');
+        console.error('沙盘模型未找到');
         return null;
     }
 
-    // ⚠️ 关键：强制更新整个模型树的世界矩阵
+    // 关键：强制更新整个模型树的世界矩阵
     // 必须在使用 worldToLocal() 之前调用，否则车辆和标记位置会错误！
     model.updateMatrixWorld(true);
     
@@ -1644,7 +1646,7 @@ const calculateSandboxDimensions = (model) => {
         groundYPosition = groundBox.max.y;
         
         console.log('🌿 地面基准:', groundName, '✅');
-        console.log('   📍 地面高度(Y):', groundYPosition.toFixed(4), '单位');
+        console.log('   地面高度(Y):', groundYPosition.toFixed(4), '单位');
     }
     
     // 3️⃣ 查找底座网格（Standardmaterial202）- 这才是真正的 6m×5m 底座
@@ -1685,7 +1687,7 @@ const calculateSandboxDimensions = (model) => {
     
     // 如果没找到 Standardmaterial202，使用整体包围盒
     if (!baseBoxLocal) {
-        console.warn('⚠️ 未找到 Standardmaterial202 底座，使用整体包围盒');
+        console.warn('未找到 Standardmaterial202 底座，使用整体包围盒');
         baseBoxWorld = new Box3().setFromObject(model);
         
         // 转换为局部坐标
@@ -1730,7 +1732,7 @@ const calculateSandboxDimensions = (model) => {
     const aspectRatio = modelSize.x / modelSize.z;
     console.log(`📊 底座长宽比: ${aspectRatio.toFixed(3)} (应该接近 1.2，即 6:5)`);
     
-    // ⚠️ 坐标范围（用于坐标转换）- 使用底座的**局部坐标**包围盒
+    // 坐标范围（用于坐标转换）- 使用底座的**局部坐标**包围盒
     const bounds = {
         min: {
             x: baseBoxLocal.min.x,
@@ -1797,15 +1799,15 @@ const calculateSandboxDimensions = (model) => {
     
     console.log('📏 沙盘尺寸 - 逻辑: 6.0m × 5.0m (用于坐标转换) ✅');
     
-    // 🔄 更新坐标转换模块的动态包围盒
-    // ⚠️ 使用底座的**局部坐标**包围盒
+    // 更新坐标转换模块的动态包围盒
+    // 使用底座的**局部坐标**包围盒
     // 因为客户端的 6m×5m 对应底座，车辆是沙盘的子对象（使用局部坐标）
     updateSandboxBounds({
         min: { x: dimensions.bounds.min.x, z: dimensions.bounds.min.z },
         max: { x: dimensions.bounds.max.x, z: dimensions.bounds.max.z },
         scale: 1.0  // 已经是局部坐标，不需要缩放
     });
-    console.log(`✅ 坐标转换包围盒已更新（使用底座局部坐标 ${baseMesh ? baseMesh.name : '整体包围盒'}）`);
+    console.log(`坐标转换包围盒已更新（使用底座局部坐标 ${baseMesh ? baseMesh.name : '整体包围盒'}）`);
     console.log(`   更新后的包围盒: X[${dimensions.bounds.min.x.toFixed(3)} ~ ${dimensions.bounds.max.x.toFixed(3)}], Z[${dimensions.bounds.min.z.toFixed(3)} ~ ${dimensions.bounds.max.z.toFixed(3)}]`);
     
     if (groundMesh && groundBox) {
@@ -1855,7 +1857,7 @@ const calculateSandboxDimensions = (model) => {
     // console.log(`找到 ${meshInfoList.length} 个大型网格:`);
     // meshInfoList.forEach((info, index) => {
     //     console.log(`  ${index + 1}. ${info.name}:`);
-    //     console.log(`     面积: ${info.area.toFixed(2)}, 长宽比: ${info.aspectRatio.toFixed(3)} ${Math.abs(info.aspectRatio - 1.2) < 0.05 ? '✅ (接近6:5)' : ''}`);
+    //     console.log(`     面积: ${info.area.toFixed(2)}, 长宽比: ${info.aspectRatio.toFixed(3)} ${Math.abs(info.aspectRatio - 1.2) < 0.05 ? '(接近6:5)' : ''}`);
     //     console.log(`     尺寸: ${info.size.x.toFixed(2)} × ${info.size.y.toFixed(2)} × ${info.size.z.toFixed(2)}`);
     //     console.log(`     X范围: [${info.bounds.minX.toFixed(2)}, ${info.bounds.maxX.toFixed(2)}]`);
     //     console.log(`     Z范围: [${info.bounds.minZ.toFixed(2)}, ${info.bounds.maxZ.toFixed(2)}]`);
@@ -1934,6 +1936,11 @@ const findGroundMesh = () => {
         return null;
     }
     
+    // 关键修复：强制更新沙盘模型的变换矩阵
+    // 必须在使用 worldToLocal() 之前调用，否则在某些情况下（如工控机）
+    // 沙盘的 matrixWorld 可能未更新，导致坐标转换错误
+    sandboxModel.updateMatrixWorld(true);
+    
     // 支持的地面网格名称列表（按优先级排序）
     const groundMeshNames = [
         'Standardmaterial206',  // 新沙盘模型（带底座）
@@ -1997,12 +2004,18 @@ const findGroundMesh = () => {
  * @returns {number} 道路表面的Y坐标（局部坐标）
  */
 export const getRoadSurfaceY = () => {
+    // 如果有缓存，直接返回
     if (cachedRoadSurfaceY !== null) {
         return cachedRoadSurfaceY;
     }
     
+    // 修复：如果沙盘未加载，尝试等待或返回合理的默认值
     const sandboxModel = models.get('sandbox');
     if (!sandboxModel) {
+        plWarn('[Scene3D] getRoadSurfaceY: 沙盘模型未加载，返回 0（可能导致高度不准确）').catch(() => {});
+        console.warn('沙盘模型未加载，getRoadSurfaceY() 返回 0（可能导致高度不准确）');
+        console.warn('   建议：在沙盘加载完成后再调用此函数，或使用 raycaster 直接检测');
+        // 不缓存这个值，下次调用时会重新尝试获取
         return 0;
     }
     
@@ -2011,12 +2024,16 @@ export const getRoadSurfaceY = () => {
     if (groundMeshInfo) {
         // 使用地面网格在沙盘局部坐标系中的Y坐标
         cachedRoadSurfaceY = groundMeshInfo.localY;
-        console.log(`✅ 地面高度已缓存 (沙盘局部坐标): Y = ${cachedRoadSurfaceY.toFixed(4)} (地面网格: ${groundMeshInfo.mesh.name}, 世界坐标: ${groundMeshInfo.worldBox.max.y.toFixed(4)})`);
+        console.log(`地面高度已缓存 (沙盘局部坐标): Y = ${cachedRoadSurfaceY.toFixed(4)} (地面网格: ${groundMeshInfo.mesh.name}, 世界坐标: ${groundMeshInfo.worldBox.max.y.toFixed(4)})`);
         return cachedRoadSurfaceY;
     }
     
     // 如果找不到地面网格，使用沙盘底部（局部坐标）
-    console.warn('⚠️ 未找到地面网格，使用沙盘底部作为地面高度');
+    console.warn('未找到地面网格，使用沙盘底部作为地面高度');
+    
+    // 关键修复：强制更新沙盘模型的变换矩阵（即使已在 findGroundMesh 中调用，这里再次确保）
+    sandboxModel.updateMatrixWorld(true);
+    
     const worldBox = new Box3().setFromObject(sandboxModel);
     const worldBottomCenter = new Vector3(
         (worldBox.min.x + worldBox.max.x) / 2,
@@ -2025,6 +2042,7 @@ export const getRoadSurfaceY = () => {
     );
     const localPosition = sandboxModel.worldToLocal(worldBottomCenter);
     cachedRoadSurfaceY = localPosition.y;
+    
     return cachedRoadSurfaceY;
 };
 
@@ -2033,7 +2051,7 @@ export const getRoadSurfaceY = () => {
  */
 export const clearRoadSurfaceCache = () => {
     cachedRoadSurfaceY = null;
-    console.log('🔄 地面高度缓存已清除');
+    console.log('地面高度缓存已清除');
 };
 
 // ============ 标记管理（施工标记、起点、终点） ============
@@ -2090,7 +2108,7 @@ const ensureStartTexture = () => {
             try {
                 if (tex?.image?.width && tex?.image?.height) {
                     startTextureAspect = tex.image.width / tex.image.height;
-                    console.log(`🚀 起点标记纹理加载完成 - 尺寸: ${tex.image.width}x${tex.image.height}, 宽高比: ${startTextureAspect.toFixed(3)}`);
+                    console.log(`起点标记纹理加载完成 - 尺寸: ${tex.image.width}x${tex.image.height}, 宽高比: ${startTextureAspect.toFixed(3)}`);
                 }
             } catch (e) {
                 console.warn('读取起点标记纹理尺寸失败:', e);
@@ -2131,6 +2149,10 @@ const ensureEndTexture = () => {
 
 /**
  * 在场景中创建一个施工标记，返回 { id, x, z }
+ * @param {number} x - 沙盘局部坐标X
+ * @param {number} z - 沙盘局部坐标Z
+ * @param {Object} options - 选项对象
+ * @param {number} [options.y] - 可选的沙盘局部坐标Y（如果提供则直接使用，否则自动计算）
  */
 export const createConstructionMarkerAt = (x, z, options = {}) => {
     if (!scene) {
@@ -2168,10 +2190,39 @@ export const createConstructionMarkerAt = (x, z, options = {}) => {
     const height = width / aspectRatio;
     sprite.scale.set(width, height, 1);
     
-    // 使用沙盘模型的局部坐标系（x, z是沙盘的局部坐标）
-    // Y坐标使用道路表面高度，稍微抬高一点避免Z-fighting
-    const roadY = getRoadSurfaceY();
-    const markerY = roadY + 0.01;
+    // Y坐标：如果 options.y 提供了，直接使用（来自raycaster的准确坐标）
+    // 否则自动计算（向后兼容旧的调用方式）
+    let markerY;
+    let calculationMethod;
+    
+    if (typeof options.y === 'number') {
+        // 直接使用提供的Y坐标（来自raycaster与模型表面的交点）
+        markerY = options.y + 0.01; // 稍微抬高避免Z-fighting
+        calculationMethod = 'raycaster';
+        console.log(`使用raycaster检测的高度: Y=${markerY.toFixed(3)}`);
+    } else {
+        // 后备方案：自动计算（向后兼容）
+        const roadY = getRoadSurfaceY();
+        
+        // 计算高架桥高度增量
+        let elevationHeight = 0;
+        let region = 'ground';
+        try {
+            // 将模型坐标转换为车辆坐标系
+            const vehicleCoords = modelToVehicleCoordinates(x, z);
+            // 计算该位置的高度（施工标记不需要倾角，只需要高度）
+            const elevation = calculateVehicleElevation(vehicleCoords.x, vehicleCoords.y, null);
+            elevationHeight = elevation.height;
+            region = elevation.region;
+        } catch (error) {
+            console.warn('计算施工标记高度失败，使用地面高度:', error);
+        }
+        
+        markerY = roadY + elevationHeight + 0.01;  // 基准高度 + 高架增量 + 防Z-fighting
+        calculationMethod = 'calculated';
+        console.log(`计算的高度: 地面=${roadY.toFixed(3)}, 增量=${elevationHeight.toFixed(3)}, 区域=${region}`);
+    }
+    
     sprite.position.set(x, markerY, z);
     sprite.name = 'ConstructionMarker';
 
@@ -2187,8 +2238,7 @@ export const createConstructionMarkerAt = (x, z, options = {}) => {
         position: sprite.position.clone()
     });
     
-    console.log(`🚧 施工标记已创建 - 沙盘局部坐标: X=${x.toFixed(3)}, Y=${markerY.toFixed(3)}, Z=${z.toFixed(3)}`);
-    console.log(`   地面高度(局部): ${roadY.toFixed(3)}, 标记高度: ${markerY.toFixed(3)}`);
+    console.log(`🚧 施工标记已创建 - 沙盘局部坐标: X=${x.toFixed(3)}, Y=${markerY.toFixed(3)}, Z=${z.toFixed(3)} (方法: ${calculationMethod})`);
     
     return { id, x, z };
 };
@@ -2264,12 +2314,12 @@ export const resumeRendering = () => {
     }
 };
 
-// 🚀 标记场景需要重新渲染（用于插值系统）
+// 标记场景需要重新渲染（用于插值系统）
 export const markDirty = () => {
     shouldRender = true;
 };
 
-// 🚀 暴露markDirty到全局，供vehicleManager的插值系统使用
+// 暴露markDirty到全局，供vehicleManager的插值系统使用
 if (typeof window !== 'undefined') {
     window.__scene3d_markDirty = markDirty;
 }
@@ -2347,7 +2397,7 @@ const setupMouseEventListeners = () => {
 const onMouseDown = (event) => {
     if (!isPoseSelectionMode && !isPointSelectionMode && !isParkingSlotSelectionMode) return;
     
-    // ⚠️ 关键修复：只处理 canvas 的点击，忽略 UI 元素
+    // 关键修复：只处理 canvas 的点击，忽略 UI 元素
     // 防止点击按钮时触发 3D 场景交互（开机启动后的事件穿透问题）
     if (!isEventFromCanvas(event)) {
         console.debug('🚫 忽略非 canvas 元素的交互:', event.target?.tagName, event.target?.className);
@@ -2377,13 +2427,25 @@ const onMouseDown = (event) => {
         // 射线检测
         raycaster.setFromCamera({ x: mouseX, y: mouseY }, camera);
         
-        // 检测与地面的交点
-        const intersects = raycaster.intersectObjects([groundPlane]);
+        // 🎯 优先检测与沙盘模型的交点（获取真实表面坐标）
+        const sandboxModel = models.get('sandbox');
+        let intersects = [];
+        
+        if (sandboxModel) {
+            // 递归检测沙盘模型的所有子网格
+            intersects = raycaster.intersectObjects([sandboxModel], true);
+        }
+        
+        // 如果没有与沙盘相交，则使用地面平面作为后备
+        if (intersects.length === 0 && groundPlane) {
+            intersects = raycaster.intersectObjects([groundPlane]);
+        }
         
         if (intersects.length > 0) {
+            // 直接使用射线检测得到的点，这已经是模型表面的真实世界坐标
             startPosition = intersects[0].point.clone();
-            // 🔧 使用射线检测到的实际地面高度，不要硬编码为0
-            // startPosition.y 已经是正确的地面高度（groundPlane.position.y）
+            console.log(`点击位置 - 世界坐标: X=${startPosition.x.toFixed(3)}, Y=${startPosition.y.toFixed(3)}, Z=${startPosition.z.toFixed(3)}`);
+            
             currentPosition = startPosition.clone();
             
             // 只在位姿选择模式下创建位置标记（点选择模式和车位选择模式不需要）
@@ -2403,7 +2465,7 @@ const onMouseMove = (event) => {
     
     if (!isPoseSelectionMode || !isMouseDown || !startPosition) return;
     
-    // ⚠️ 只处理 canvas 的移动事件
+    // 只处理 canvas 的移动事件
     if (!isEventFromCanvas(event)) {
         return;
     }
@@ -2423,12 +2485,23 @@ const onMouseMove = (event) => {
     
     // 射线检测
     raycaster.setFromCamera({ x: mouseX, y: mouseY }, camera);
-    const intersects = raycaster.intersectObjects([groundPlane]);
+    
+    // 🎯 优先检测与沙盘模型的交点
+    const sandboxModel = models.get('sandbox');
+    let intersects = [];
+    
+    if (sandboxModel) {
+        intersects = raycaster.intersectObjects([sandboxModel], true);
+    }
+    
+    // 如果没有与沙盘相交，则使用地面平面作为后备
+    if (intersects.length === 0 && groundPlane) {
+        intersects = raycaster.intersectObjects([groundPlane]);
+    }
     
     if (intersects.length > 0) {
+        // 直接使用射线检测得到的点
         currentPosition = intersects[0].point.clone();
-        // 🔧 使用射线检测到的实际地面高度
-        // currentPosition.y 已经是正确的地面高度
         
         // 更新方向线
         updateDirectionLine(startPosition, currentPosition);
@@ -2461,9 +2534,9 @@ const onMouseUp = (event) => {
                     const localPos = sandboxModel.worldToLocal(startPosition.clone());
                     localX = localPos.x;
                     localZ = localPos.z;
-                    // console.log(`🔄 坐标转换: 世界坐标 (${startPosition.x.toFixed(3)}, ${startPosition.z.toFixed(3)}) → 局部坐标 (${localX.toFixed(3)}, ${localZ.toFixed(3)})`);
+                    // console.log(`坐标转换: 世界坐标 (${startPosition.x.toFixed(3)}, ${startPosition.z.toFixed(3)}) → 局部坐标 (${localX.toFixed(3)}, ${localZ.toFixed(3)})`);
                 } else {
-                    console.warn('⚠️ 沙盘模型未找到，使用世界坐标');
+                    console.warn('沙盘模型未找到，使用世界坐标');
                 }
                 
                 parkingSlotSelectionCallback({
@@ -2477,20 +2550,23 @@ const onMouseUp = (event) => {
                 // 获取沙盘模型，将世界坐标转换为模型局部坐标
                 const sandboxModel = models.get('sandbox');
                 let localX = startPosition.x;
+                let localY = startPosition.y;
                 let localZ = startPosition.z;
                 
                 if (sandboxModel) {
                     // 将世界坐标转换为沙盘模型的局部坐标
                     const localPos = sandboxModel.worldToLocal(startPosition.clone());
                     localX = localPos.x;
+                    localY = localPos.y;
                     localZ = localPos.z;
-                    console.log(`🔄 点选择坐标转换: 世界坐标 (${startPosition.x.toFixed(3)}, ${startPosition.z.toFixed(3)}) → 局部坐标 (${localX.toFixed(3)}, ${localZ.toFixed(3)})`);
+                    console.log(`点选择坐标转换: 世界坐标 (${startPosition.x.toFixed(3)}, ${startPosition.y.toFixed(3)}, ${startPosition.z.toFixed(3)}) → 局部坐标 (${localX.toFixed(3)}, ${localY.toFixed(3)}, ${localZ.toFixed(3)})`);
                 } else {
-                    console.warn('⚠️ 沙盘模型未找到，使用世界坐标');
+                    console.warn('沙盘模型未找到，使用世界坐标');
                 }
                 
                 pointSelectionCallback({
                     x: localX,
+                    y: localY,
                     z: localZ
                 });
             }
@@ -2506,9 +2582,9 @@ const onMouseUp = (event) => {
                 const localPos = sandboxModel.worldToLocal(startPosition.clone());
                 localX = localPos.x;
                 localZ = localPos.z;
-                console.log(`🔄 位姿坐标转换: 世界坐标 (${startPosition.x.toFixed(3)}, ${startPosition.z.toFixed(3)}) → 局部坐标 (${localX.toFixed(3)}, ${localZ.toFixed(3)})`);
+                console.log(`位姿坐标转换: 世界坐标 (${startPosition.x.toFixed(3)}, ${startPosition.z.toFixed(3)}) → 局部坐标 (${localX.toFixed(3)}, ${localZ.toFixed(3)})`);
             } else {
-                console.warn('⚠️ 沙盘模型未找到，使用世界坐标');
+                console.warn('沙盘模型未找到，使用世界坐标');
             }
             
             // 计算朝向角度（弧度）
@@ -2546,23 +2622,28 @@ const createPositionMarker = (position) => {
     
     // 创建圆点标记
     positionMarker = new Mesh(geometry, material);
+    // 直接使用传入的position（已经包含正确的高度）
     positionMarker.position.copy(position);
+    positionMarker.position.y += 0.1; // 抬高半径的高度，避免陷入地面
     
-    // 使用 groundPlane 的高度（世界坐标），如果 groundPlane 存在的话
-    if (groundPlane) {
-        positionMarker.position.y = groundPlane.position.y + 0.1; // 地面高度 + 半径偏移
-    } else {
-        // 后备方案：尝试从沙盘尺寸信息获取地面高度
-        const dimensions = getSandboxDimensionsInfo();
-        if (dimensions && dimensions.ground.found) {
-            positionMarker.position.y = dimensions.ground.yPosition + 0.1;
+    // 后备处理：如果position.y异常小（可能是旧代码路径）
+    if (positionMarker.position.y < 0.05) {
+        // 使用 groundPlane 的高度（世界坐标），如果 groundPlane 存在的话
+        if (groundPlane) {
+            positionMarker.position.y = groundPlane.position.y + 0.1;
         } else {
-            positionMarker.position.y = 0.1; // 默认值
+            // 后备方案：尝试从沙盘尺寸信息获取地面高度
+            const dimensions = getSandboxDimensionsInfo();
+            if (dimensions && dimensions.ground.found) {
+                positionMarker.position.y = dimensions.ground.yPosition + 0.1;
+            } else {
+                positionMarker.position.y = 0.1; // 默认值
+            }
         }
     }
     
     scene.add(positionMarker);
-    console.debug(`📍 位置标记已创建 - 世界坐标: X=${positionMarker.position.x.toFixed(3)}, Y=${positionMarker.position.y.toFixed(3)}, Z=${positionMarker.position.z.toFixed(3)}`);
+    console.debug(`位置标记已创建 - 世界坐标: X=${positionMarker.position.x.toFixed(3)}, Y=${positionMarker.position.y.toFixed(3)}, Z=${positionMarker.position.z.toFixed(3)}`);
 };
 
 // 创建角度标签
@@ -2681,20 +2762,14 @@ const updateDirectionLine = (start, end) => {
         if (angleLabel.material) angleLabel.material.dispose();
     }
     
-    // 获取地面高度（世界坐标）
-    let groundHeight = 0.1; // 默认值
-    if (groundPlane) {
-        groundHeight = groundPlane.position.y + 0.1; // 使用 groundPlane 的高度
-    } else {
-        const dimensions = getSandboxDimensionsInfo();
-        if (dimensions && dimensions.ground.found) {
-            groundHeight = dimensions.ground.yPosition + 0.1;
-        }
-    }
+    // 直接使用传入的start和end位置（已经包含正确的高度）
+    // 稍微抬高一点避免Z-fighting
+    const startPos = start.clone();
+    startPos.y += 0.1;
+    const endPos = end.clone();
+    endPos.y += 0.1;
     
     // 创建粗射线 - 使用圆柱体几何来实现真正的粗线
-    const startPos = new Vector3(start.x, groundHeight, start.z);
-    const endPos = new Vector3(end.x, groundHeight, end.z);
     const direction = new Vector3().subVectors(endPos, startPos);
     const length = direction.length();
     
@@ -2721,12 +2796,12 @@ const updateDirectionLine = (start, end) => {
     const arrowMaterial = new MeshBasicMaterial({ color: 0x65d36c });
     directionArrow = new Mesh(arrowGeometry, arrowMaterial);
     
-    // 设置箭头位置和旋转
-    directionArrow.position.set(end.x, groundHeight, end.z);
+    // 设置箭头位置和旋转（使用传入的end位置，已包含正确高度）
+    directionArrow.position.copy(endPos); // 使用endPos（已抬高0.1）
     directionArrow.lookAt(
-        end.x + arrowDirection.x,
-        groundHeight + arrowDirection.y,
-        end.z + arrowDirection.z
+        endPos.x + arrowDirection.x,
+        endPos.y + arrowDirection.y,
+        endPos.z + arrowDirection.z
     );
     // 将箭头旋转90度，使其指向正确方向
     directionArrow.rotateX(Math.PI / 2);
@@ -2740,10 +2815,10 @@ const updateDirectionLine = (start, end) => {
     // 使用 atan2 计算角度，但 Z 轴取反（因为模型坐标系中 Z 轴向下是正向）
     let angleRad = Math.atan2(-deltaZ, deltaX); // 弧度，范围 -π 到 π
     
-    // 计算射线中点位置用于放置标签
+    // 计算射线中点位置用于放置标签（使用起点和终点的平均高度）
     const midPoint = new Vector3(
         (start.x + end.x) / 2,
-        groundHeight,
+        (start.y + end.y) / 2,
         (start.z + end.z) / 2
     );
     
@@ -2764,7 +2839,7 @@ const createGroundPlane = () => {
     //     groundPlane = null;
     // }
     
-    // ⚠️ 关键修复：bounds 是局部坐标，需要乘以缩放因子得到世界坐标尺寸
+    // 关键修复：bounds 是局部坐标，需要乘以缩放因子得到世界坐标尺寸
     const scale = dimensions.scale || 6;  // 沙盘缩放因子
     const localWidth = dimensions.bounds.max.x - dimensions.bounds.min.x;
     const localDepth = dimensions.bounds.max.z - dimensions.bounds.min.z;
@@ -2867,7 +2942,7 @@ export const startPointSelectionMode = (callback) => {
         container.style.cursor = 'crosshair';
     }
     
-    console.log('📍 点选择模式已启动');
+    console.log('点选择模式已启动');
     return true;
 };
 
@@ -2888,7 +2963,7 @@ export const stopPointSelectionMode = () => {
         container.style.cursor = 'default';
     }
     
-    console.log('📍 点选择模式已停止');
+    console.log('点选择模式已停止');
 };
 
 // 开始车位选择模式
@@ -3022,7 +3097,7 @@ export const destroyScene = () => {
         batchProcessingTimers.forEach(timer => {
             if (timer) clearTimeout(timer);
         });
-        console.log('✅ 批处理定时器已清理');
+        console.log('批处理定时器已清理');
     }
     batchProcessingTimers = [];
     
@@ -3031,7 +3106,7 @@ export const destroyScene = () => {
         sceneInitTimers.forEach(timer => {
             if (timer) clearTimeout(timer);
         });
-        console.log('✅ 场景初始化定时器已清理');
+        console.log('场景初始化定时器已清理');
     }
     sceneInitTimers = [];
     
@@ -3231,8 +3306,11 @@ const animateCameraTo = ({ position, target }, duration = 600) => {
 
 /**
  * 创建临时起点标记（选择中，未打车）
+ * @param {number} x - 沙盘局部坐标X
+ * @param {number} z - 沙盘局部坐标Z
+ * @param {number} [y] - 可选的沙盘局部坐标Y（如果提供则直接使用，否则自动计算）
  */
-export const createStartPointMarker = (x, z) => {
+export const createStartPointMarker = (x, z, y = null) => {
     if (!scene) {
         console.warn('场景未初始化，无法创建起点标记');
         return null;
@@ -3273,17 +3351,41 @@ export const createStartPointMarker = (x, z) => {
     const height = width / aspectRatio;
     sprite.scale.set(width, height, 1);
     
-    // 使用沙盘模型的局部坐标系（x, z是沙盘的局部坐标）
-    // Y坐标使用道路表面高度，稍微抬高一点避免Z-fighting
+    // Y坐标：如果 y 提供了，直接使用（来自raycaster的准确坐标）
+    // 否则自动计算（向后兼容旧的调用方式）
+    let markerY;
+    
+    if (typeof y === 'number') {
+        // 直接使用提供的Y坐标
+        markerY = y + 0.01;
+        console.log(`使用raycaster检测的高度: Y=${markerY.toFixed(3)}`);
+    } else {
+        // 后备方案：自动计算
     const roadY = getRoadSurfaceY();
-    sprite.position.set(x, roadY + 0.01, z);
+        
+        // 计算高架桥高度增量
+        let elevationHeight = 0;
+        try {
+            // 将模型坐标转换为车辆坐标系
+            const vehicleCoords = modelToVehicleCoordinates(x, z);
+            // 计算该位置的高度
+            const elevation = calculateVehicleElevation(vehicleCoords.x, vehicleCoords.y, null);
+            elevationHeight = elevation.height;
+        } catch (error) {
+            console.warn('计算临时起点标记高度失败，使用地面高度:', error);
+        }
+        
+        markerY = roadY + elevationHeight + 0.01;
+    }
+    
+    sprite.position.set(x, markerY, z);
     sprite.name = 'TempStartPointMarker';
 
     // 将标记添加到沙盘模型内部
     sandboxModel.add(sprite);
     tempStartPointMarker = sprite;
     
-    console.debug(`🚀 临时起点标记已创建: (${x.toFixed(3)}, ${roadY.toFixed(3)}, ${z.toFixed(3)})`);
+    console.debug(`临时起点标记已创建: (${x.toFixed(3)}, ${markerY.toFixed(3)}, ${z.toFixed(3)})`);
     
     return { x, z };
 };
@@ -3311,6 +3413,22 @@ export const createTaxiMarkersForVehicle = (vehicleId, startCoords, endCoords) =
 
     const roadY = getRoadSurfaceY();
     
+    // 计算起点和终点的高架桥高度增量
+    let startElevation = 0;
+    let endElevation = 0;
+    try {
+        // 将模型坐标转换为车辆坐标系
+        const startVehicleCoords = modelToVehicleCoordinates(startCoords.x, startCoords.z);
+        const startElev = calculateVehicleElevation(startVehicleCoords.x, startVehicleCoords.y, null);
+        startElevation = startElev.height;
+        
+        const endVehicleCoords = modelToVehicleCoordinates(endCoords.x, endCoords.z);
+        const endElev = calculateVehicleElevation(endVehicleCoords.x, endVehicleCoords.y, null);
+        endElevation = endElev.height;
+    } catch (error) {
+        console.warn('计算打车标记高度失败，使用地面高度:', error);
+    }
+    
     // 创建起点标记
     const startTex = ensureStartTexture();
     if (startTex) {
@@ -3332,7 +3450,7 @@ export const createTaxiMarkersForVehicle = (vehicleId, startCoords, endCoords) =
         const aspectRatio = startTextureAspect > 0 ? startTextureAspect : 1.0;
         const height = width / aspectRatio;
         startSprite.scale.set(width, height, 1);
-        startSprite.position.set(startCoords.x, roadY + 0.01, startCoords.z);
+        startSprite.position.set(startCoords.x, roadY + startElevation + 0.01, startCoords.z);
         startSprite.name = `VehicleTaxiStartMarker_${vehicleId}`;
         sandboxModel.add(startSprite);
         
@@ -3346,7 +3464,7 @@ export const createTaxiMarkersForVehicle = (vehicleId, startCoords, endCoords) =
             const endAspectRatio = endTextureAspect > 0 ? endTextureAspect : 1.0;
             const endHeight = width / endAspectRatio;
             endSprite.scale.set(width, endHeight, 1);
-            endSprite.position.set(endCoords.x, roadY + 0.01, endCoords.z);
+            endSprite.position.set(endCoords.x, roadY + endElevation + 0.01, endCoords.z);
             endSprite.name = `VehicleTaxiEndMarker_${vehicleId}`;
             sandboxModel.add(endSprite);
             
@@ -3366,8 +3484,11 @@ export const createTaxiMarkersForVehicle = (vehicleId, startCoords, endCoords) =
 
 /**
  * 创建临时终点标记（选择中，未打车）
+ * @param {number} x - 沙盘局部坐标X
+ * @param {number} z - 沙盘局部坐标Z
+ * @param {number} [y] - 可选的沙盘局部坐标Y（如果提供则直接使用，否则自动计算）
  */
-export const createEndPointMarker = (x, z) => {
+export const createEndPointMarker = (x, z, y = null) => {
     if (!scene) {
         console.warn('场景未初始化，无法创建终点标记');
         return null;
@@ -3408,17 +3529,41 @@ export const createEndPointMarker = (x, z) => {
     const height = width / aspectRatio;
     sprite.scale.set(width, height, 1);
     
-    // 使用沙盘模型的局部坐标系（x, z是沙盘的局部坐标）
-    // Y坐标使用道路表面高度，稍微抬高一点避免Z-fighting
-    const roadY = getRoadSurfaceY();
-    sprite.position.set(x, roadY + 0.01, z);
+    // Y坐标：如果 y 提供了，直接使用（来自raycaster的准确坐标）
+    // 否则自动计算（向后兼容旧的调用方式）
+    let markerY;
+    
+    if (typeof y === 'number') {
+        // 直接使用提供的Y坐标
+        markerY = y + 0.01;
+        console.log(`使用raycaster检测的高度: Y=${markerY.toFixed(3)}`);
+    } else {
+        // 后备方案：自动计算
+        const roadY = getRoadSurfaceY();
+        
+        // 计算高架桥高度增量
+        let elevationHeight = 0;
+        try {
+            // 将模型坐标转换为车辆坐标系
+            const vehicleCoords = modelToVehicleCoordinates(x, z);
+            // 计算该位置的高度
+            const elevation = calculateVehicleElevation(vehicleCoords.x, vehicleCoords.y, null);
+            elevationHeight = elevation.height;
+        } catch (error) {
+            console.warn('计算临时终点标记高度失败，使用地面高度:', error);
+        }
+        
+        markerY = roadY + elevationHeight + 0.01;
+    }
+    
+    sprite.position.set(x, markerY, z);
     sprite.name = 'TempEndPointMarker';
 
     // 将标记添加到沙盘模型内部
     sandboxModel.add(sprite);
     tempEndPointMarker = sprite;
     
-    console.debug(`🏁 临时终点标记已创建: (${x.toFixed(3)}, ${roadY.toFixed(3)}, ${z.toFixed(3)})`);
+    console.debug(`🏁 临时终点标记已创建: (${x.toFixed(3)}, ${markerY.toFixed(3)}, ${z.toFixed(3)})`);
     
     return { x, z };
 };
@@ -3445,7 +3590,7 @@ export const removeStartPointMarker = () => {
     if (tempStartPointMarker.material) tempStartPointMarker.material.dispose();
     
     tempStartPointMarker = null;
-    console.debug('🚀 临时起点标记已移除');
+    console.debug('临时起点标记已移除');
     return true;
 };
 

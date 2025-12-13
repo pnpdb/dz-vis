@@ -115,10 +115,10 @@ const loadSettings = async () => {
             };
             settings.value = { ...loadedSettings };
             originalSettings.value = { ...loadedSettings };
-            console.log('✅ 菜单可见性设置加载成功:', settings.value);
+            console.log('菜单可见性设置加载成功:', settings.value);
         }
     } catch (error) {
-        console.error('❌ 加载菜单可见性设置失败:', error);
+        console.error('加载菜单可见性设置失败:', error);
         Toast.error(`加载菜单可见性设置失败: ${error}`);
     } finally {
         loading.value = false;
@@ -143,11 +143,11 @@ const saveSettings = async () => {
             originalSettings.value = { ...settings.value };
             // 发送事件通知其他组件更新菜单显示
             eventBus.emit(EVENTS.MENU_VISIBILITY_CHANGED, settings.value);
-            console.log('✅ 菜单可见性设置已保存:', result);
+            console.log('菜单可见性设置已保存:', result);
             return true;
         }
     } catch (error) {
-        console.error('❌ 保存菜单可见性设置失败:', error);
+        console.error('保存菜单可见性设置失败:', error);
         throw error;
     }
 };
@@ -162,7 +162,7 @@ const resetSettings = () => {
         show_parallel_driving: true,
         show_vehicle_camera: true
     };
-    console.log('✅ 菜单可见性设置已重置为默认状态（全部显示）');
+    console.log('菜单可见性设置已重置为默认状态（全部显示）');
 };
 
 // 暴露方法给父组件

@@ -924,7 +924,7 @@ const saveSettings = async () => {
         
         settingsDialogVisible.value = false;
     } catch (e) {
-        console.error('❌ 保存应用设置失败:', e);
+        console.error('保存应用设置失败:', e);
         Toast.error(`保存失败: ${e}`);
     }
 };

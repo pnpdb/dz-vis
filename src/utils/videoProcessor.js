@@ -458,7 +458,7 @@ if (typeof window !== 'undefined') {
         if (statsCleanupTimer) {
             clearInterval(statsCleanupTimer);
             statsCleanupTimer = null;
-            console.log('✅ VideoProcessor 清理定时器已清理');
+            console.log('VideoProcessor 清理定时器已清理');
         }
         
         // 清理实例内部的定时器和资源

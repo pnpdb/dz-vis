@@ -9,6 +9,7 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import eventBus from '@/utils/eventBus.js';
 import { createLogger } from '@/utils/logger.js';
+import { error as plError } from '@tauri-apps/plugin-log';
 
 const logger = createLogger('PathRenderer');
 
@@ -23,7 +24,7 @@ const vehiclePaths = new Map();
 // vehicleId -> { fullPathPoints: [{x, y, z}, ...], startIndex: number }
 const vehiclePathData = new Map();
 
-// 🚀 性能优化：路径数据大小限制，防止内存泄漏
+// 性能优化：路径数据大小限制，防止内存泄漏
 const MAX_PATH_POINTS = 10000; // 每个车辆最多存储10000个路径点
 
 // 路径裁剪的节流Map（vehicleId -> timestamp）
@@ -47,7 +48,7 @@ export function initPathRenderer(sceneInstance, sandboxModelInstance) {
     // 监听窗口大小变化，更新线材质分辨率
     window.addEventListener('resize', updateLineResolution);
     
-    logger.info('✅ 路径渲染器初始化完成');
+    logger.info('路径渲染器初始化完成');
 }
 
 /**
@@ -108,8 +109,9 @@ function handlePathDraw(payload) {
         // 创建新的路径（传递颜色）
         createPath(vehicleId, pathPoints, color);
         
-        logger.info(`✅ 车辆 ${vehicleId} 的路径已绘制`);
+        logger.info(`车辆 ${vehicleId} 的路径已绘制`);
     } catch (error) {
+        plError(`[PathRenderer] 绘制车辆 ${vehicleId} 的路径失败: ${error.message}`).catch(() => {});
         logger.error(`绘制车辆 ${vehicleId} 的路径失败:`, error);
     }
 }
@@ -125,7 +127,7 @@ function handlePathClear(payload) {
     
     try {
         removePath(vehicleId);
-        logger.info(`✅ 车辆 ${vehicleId} 的路径已清除`);
+        logger.info(`车辆 ${vehicleId} 的路径已清除`);
     } catch (error) {
         logger.error(`清除车辆 ${vehicleId} 的路径失败:`, error);
     }
@@ -189,7 +191,7 @@ function createPath(vehicleId, pathPoints, color = null) {
     // 保存引用
     vehiclePaths.set(vehicleId, line);
     
-    // 🚀 性能优化：限制路径点数量，防止内存泄漏
+    // 性能优化：限制路径点数量，防止内存泄漏
     let limitedPathPoints = pathPoints;
     if (pathPoints.length > MAX_PATH_POINTS) {
         // 只保留最后的 MAX_PATH_POINTS 个点（最新的路径）
@@ -205,7 +207,7 @@ function createPath(vehicleId, pathPoints, color = null) {
         closestPointLogged: false // 最近点调试标志
     });
     
-    logger.info(`✅ 车辆 ${vehicleId} 路径已绘制 - ${limitedPathPoints.length} 个点, 颜色: #${colorObj.getHexString()}`);
+    logger.info(`车辆 ${vehicleId} 路径已绘制 - ${limitedPathPoints.length} 个点, 颜色: #${colorObj.getHexString()}`);
 }
 
 /**
@@ -257,7 +259,7 @@ function getVehicleColor(vehicleId) {
         const { useCarStore } = require('@/stores/car.js');
         const carStore = useCarStore();
         
-        // 🐛 修复：从 carList 数组而不是 vehicles Map 获取颜色
+        // 修复：从 carList 数组而不是 vehicles Map 获取颜色
         if (carStore.carList && Array.isArray(carStore.carList)) {
             const vehicle = carStore.carList.find(v => v.id === vehicleId || v.vehicleId === vehicleId);
             if (vehicle && vehicle.color) {
@@ -289,7 +291,7 @@ export function clearAllPaths() {
         removePath(vehicleId);
     });
     
-    logger.info('✅ 所有车辆路径已清除');
+    logger.info('所有车辆路径已清除');
 }
 
 /**
@@ -334,12 +336,12 @@ export function trimVehiclePath(vehicleId, vehiclePosition, vehicleOrientation, 
     
     if (!pathData || !line) {
         if (!pathData) {
-            console.log(`⚠️ 车辆 ${vehicleId} 没有路径数据，跳过裁剪`);
+            console.log(`车辆 ${vehicleId} 没有路径数据，跳过裁剪`);
         }
         return;
     }
     
-    // ✅ 先解构数据，再使用
+    // 先解构数据，再使用
     const { fullPathPoints, startIndex } = pathData;
     
     // 首次调用时输出调试信息
@@ -351,13 +353,13 @@ export function trimVehiclePath(vehicleId, vehiclePosition, vehicleOrientation, 
         console.log(`   导航状态: ${navStatus}`);
         
         // 🔍 输出前10个路径点和后10个路径点，查看分布
-        console.log(`📍 前10个路径点:`);
+        console.log(`前10个路径点:`);
         for (let i = 0; i < Math.min(10, fullPathPoints.length); i++) {
             const p = fullPathPoints[i];
             console.log(`   [${i}]: (${p.x.toFixed(3)}, ${p.z.toFixed(3)})`);
         }
         if (fullPathPoints.length > 20) {
-            console.log(`📍 后10个路径点:`);
+            console.log(`后10个路径点:`);
             for (let i = fullPathPoints.length - 10; i < fullPathPoints.length; i++) {
                 const p = fullPathPoints[i];
                 console.log(`   [${i}]: (${p.x.toFixed(3)}, ${p.z.toFixed(3)})`);
@@ -409,7 +411,7 @@ export function trimVehiclePath(vehicleId, vehiclePosition, vehicleOrientation, 
         }
     }
     
-    // 🚀 性能优化：减少日志输出，只在第一次裁剪或异常情况下输出
+    // 性能优化：减少日志输出，只在第一次裁剪或异常情况下输出
     if (isFirstTrim) {
         const closestPoint = fullPathPoints[closestIndex];
         logger.debug(`车辆 ${vehicleId} 首次路径裁剪: 最近点索引=${closestIndex}/${fullPathPoints.length}, 距离=${minDistance.toFixed(3)}`);
@@ -433,12 +435,12 @@ export function trimVehiclePath(vehicleId, vehiclePosition, vehicleOrientation, 
     // 3. 找到离车辆最近的点，直接删除这个点之前的所有点
     // 4. 只绘制从最近点到末尾的路径（还没走的路）
     
-    // ✅ 如果最近点没有前进，说明车辆还在原来的路径段上，不需要更新
+    // 如果最近点没有前进，说明车辆还在原来的路径段上，不需要更新
     if (closestIndex <= startIndex) {
         return;
     }
     
-    // ✅ 直接使用最近点作为新的起始索引（删除最近点之前的所有点）
+    // 直接使用最近点作为新的起始索引（删除最近点之前的所有点）
     const newStartIndex = closestIndex;
     
     // 更新起始索引
@@ -467,7 +469,7 @@ export function trimVehiclePath(vehicleId, vehiclePosition, vehicleOrientation, 
     line.computeLineDistances(); // 必须重新计算线段距离（用于虚线等效果）
     line.visible = true;
     
-    // 🚀 性能优化：只在首次或每裁剪100个点时输出日志
+    // 性能优化：只在首次或每裁剪100个点时输出日志
     if (isFirstTrim || (newStartIndex - startIndex) > 100) {
         logger.debug(`车辆 ${vehicleId} 路径裁剪: 保留 ${remainingPoints.length}/${fullPathPoints.length} 点`);
     }

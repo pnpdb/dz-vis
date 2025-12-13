@@ -16,11 +16,11 @@ export async function preloadImages(urls) {
         return new Promise((resolve, reject) => {
             const img = new Image();
             img.onload = () => {
-                logger.debug('ResourcePreloader', `✅ 图片预加载成功: ${url}`);
+                logger.debug('ResourcePreloader', `图片预加载成功: ${url}`);
                 resolve();
             };
             img.onerror = () => {
-                logger.warn('ResourcePreloader', `❌ 图片预加载失败: ${url}`);
+                logger.warn('ResourcePreloader', `图片预加载失败: ${url}`);
                 reject(new Error(`图片加载失败: ${url}`));
             };
             img.src = url;
@@ -47,9 +47,9 @@ export async function preload3DModels(urls) {
                 throw new Error(`HTTP ${response.status}`);
             }
             await response.blob(); // 下载但不解析
-            logger.debug('ResourcePreloader', `✅ 3D模型预加载成功: ${url}`);
+            logger.debug('ResourcePreloader', `3D模型预加载成功: ${url}`);
         } catch (error) {
-            logger.warn('ResourcePreloader', `❌ 3D模型预加载失败: ${url}`, error);
+            logger.warn('ResourcePreloader', `3D模型预加载失败: ${url}`, error);
         }
     });
 
@@ -69,11 +69,11 @@ export async function preloadScripts(urls) {
             link.as = 'script';
             link.href = url;
             link.onload = () => {
-                logger.debug('ResourcePreloader', `✅ 脚本预加载成功: ${url}`);
+                logger.debug('ResourcePreloader', `脚本预加载成功: ${url}`);
                 resolve();
             };
             link.onerror = () => {
-                logger.warn('ResourcePreloader', `❌ 脚本预加载失败: ${url}`);
+                logger.warn('ResourcePreloader', `脚本预加载失败: ${url}`);
                 reject(new Error(`脚本加载失败: ${url}`));
             };
             document.head.appendChild(link);
@@ -120,7 +120,7 @@ export function preloadRouteComponents(routes, priority = 2) {
  * 预加载关键资源（应用启动时调用）
  */
 export async function preloadCriticalResources() {
-    logger.info('ResourcePreloader', '🚀 开始预加载关键资源...');
+    logger.info('ResourcePreloader', '开始预加载关键资源...');
 
     const startTime = performance.now();
 
@@ -144,7 +144,7 @@ export async function preloadCriticalResources() {
 
         const endTime = performance.now();
         const duration = (endTime - startTime).toFixed(2);
-        logger.info('ResourcePreloader', `✅ 关键资源预加载完成，耗时: ${duration}ms`);
+        logger.info('ResourcePreloader', `关键资源预加载完成，耗时: ${duration}ms`);
     } catch (error) {
         logger.error('ResourcePreloader', '关键资源预加载失败:', error);
     }
@@ -178,7 +178,7 @@ export async function preloadSecondaryResources() {
             preloadImages(skyboxImages),
         ]);
 
-        logger.info('ResourcePreloader', '✅ 次要资源预加载完成');
+        logger.info('ResourcePreloader', '次要资源预加载完成');
     } catch (error) {
         logger.error('ResourcePreloader', '次要资源预加载失败:', error);
     }
@@ -198,7 +198,7 @@ export async function smartPreload() {
         const effectiveType = connection.effectiveType;
         const saveData = connection.saveData;
 
-        logger.info('ResourcePreloader', `📡 网络类型: ${effectiveType}, 省流量模式: ${saveData}`);
+        logger.info('ResourcePreloader', `网络类型: ${effectiveType}, 省流量模式: ${saveData}`);
 
         if (saveData) {
             // 省流量模式：不预加载

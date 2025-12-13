@@ -256,7 +256,7 @@ const handleVehicleStateUpdate = (vehicleInfo) => {
     const { vehicleId, position, orientation } = vehicleInfo;
     
     // position 已经是模型坐标系了（从 car.js 转换后传递过来的）
-    // 🚀 性能优化：区分添加和更新操作
+    // 性能优化：区分添加和更新操作
     // 如果车辆已存在，只更新位置（使用插值）；否则添加新车辆
     if (hasVehicle(vehicleId)) {
         // 车辆已存在，使用updateVehiclePosition（启用插值平滑移动）
@@ -329,15 +329,15 @@ const constructionSelected = ref({ x: 0, z: 0, id: null });
 
 const startConstructionMark = () => {
     // 启用简单的点选择模式（不需要朝向）
-    startPointSelectionMode(({ x, z }) => {
+    startPointSelectionMode(({ x, y, z }) => {
         // 结束选择模式
         stopPointSelectionMode();
         
         // 将模型局部坐标转换为车辆坐标系用于显示
         const vehicleCoords = modelToVehicleCoordinates(x, z);
         
-        // 先创建临时施工标记（使用模型局部坐标）
-        const res = createConstructionMarkerAt(x, z);
+        // 先创建临时施工标记（使用模型局部坐标，包括Y坐标）
+        const res = createConstructionMarkerAt(x, z, { y });
         if (res) {
             // 显示车辆坐标系的坐标，但保存模型坐标用于后续操作
             constructionSelected.value = { 

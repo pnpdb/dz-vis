@@ -131,12 +131,12 @@ const loadVehicleConnections = async () => {
 
             databaseCarList.value = normalized.sort((a, b) => a.vehicleId - b.vehicleId);
             
-            console.debug('✅ 车辆设置页面加载车辆列表成功:', databaseCarList.value);
+            console.debug('车辆设置页面加载车辆列表成功:', databaseCarList.value);
         } else {
-            console.error('❌ 车辆设置页面加载车辆列表失败:', result.error);
+            console.error('车辆设置页面加载车辆列表失败:', result.error);
         }
     } catch (error) {
-        console.error('❌ 车辆设置页面加载车辆连接异常:', error);
+        console.error('车辆设置页面加载车辆连接异常:', error);
     } finally {
         loading.value = false;
     }

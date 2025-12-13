@@ -30,14 +30,14 @@ pub async fn start_video_stream_server(app: tauri::AppHandle, port: u16) -> Resu
     tokio::spawn(async move {
         match server.start().await {
             Ok(_) => {
-                info!("✅ 视频流服务器启动成功: 0.0.0.0:{}", port_for_log);
+                info!("视频流服务器启动成功: 0.0.0.0:{}", port_for_log);
             }
             Err(e) => {
                 let error_msg = e.to_string();
                 if error_msg.contains("Address already in use") {
                     warn!("ℹ️ 视频流服务器端口{}已被占用，可能已有实例在运行", port_for_log);
                 } else {
-                    error!("❌ 视频流服务器启动失败: {}", e);
+                    error!("视频流服务器启动失败: {}", e);
                 }
             }
         }
@@ -73,7 +73,7 @@ pub async fn start_rtsp_conversion(
     camera_id: i64,
     rtsp_url: String
 ) -> Result<String, String> {
-    info!("🔄 启动RTSP转换: camera_id={}, rtsp_url={}", camera_id, rtsp_url);
+    info!("启动RTSP转换: camera_id={}, rtsp_url={}", camera_id, rtsp_url);
     
     // 检查是否已有转换器实例
     let converter = match app.try_state::<RTSPConverter>() {
@@ -142,10 +142,10 @@ pub async fn start_hls_server(app: tauri::AppHandle, port: Option<u16>) -> Resul
     tokio::spawn(async move {
         match server_clone.start().await {
             Ok(_) => {
-                info!("✅ HLS服务器启动成功: 0.0.0.0:{}", port_for_log);
+                info!("HLS服务器启动成功: 0.0.0.0:{}", port_for_log);
             }
             Err(e) => {
-                error!("❌ HLS服务器启动失败: {}", e);
+                error!("HLS服务器启动失败: {}", e);
             }
         }
     });
@@ -166,7 +166,7 @@ pub async fn start_udp_video_server(app: tauri::AppHandle, port: Option<u16>) ->
     manager.start_server(&bind_addr, Some(app)).await
         .map_err(|e| format!("启动UDP视频服务器失败: {}", e))?;
     
-    info!("✅ UDP视频服务器启动成功: {}", bind_addr);
+    info!("UDP视频服务器启动成功: {}", bind_addr);
     Ok(format!("UDP视频服务器已启动在端口: {}", actual_port))
 }
 

@@ -121,13 +121,13 @@ const loadVehicleConnections = async () => {
                 selectedCar.value = vehicleList.value[0].id;
             }
             
-            console.log('✅ 路径设置页面加载车辆列表成功:', vehicleList.value);
+            console.log('路径设置页面加载车辆列表成功:', vehicleList.value);
         } else {
-            console.error('❌ 加载车辆列表失败:', result.error);
+            console.error('加载车辆列表失败:', result.error);
             vehicleList.value = [];
         }
     } catch (error) {
-        console.error('❌ 加载车辆列表异常:', error);
+        console.error('加载车辆列表异常:', error);
         vehicleList.value = [];
     } finally {
         loading.value = false;

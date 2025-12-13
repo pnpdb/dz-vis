@@ -96,7 +96,7 @@ const handleVehicleInfoUpdate = (vehicleInfo) => {
             lidarState: vehicleInfo.sensors.lidar?.status ? 1 : 0,
             cameraState: vehicleInfo.sensors.camera?.status ? 1 : 0,
         };
-        // console.debug('✅ Sensor状态更新:', sensorData.value);
+        // console.debug('Sensor状态更新:', sensorData.value);
     }
 };
 

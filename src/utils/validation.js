@@ -76,7 +76,7 @@ export function validateOrientation(orientation) {
     
     // 朝向角度应该在 -π 到 π 范围内（可以给出警告但不阻止）
     if (orientation < -Math.PI || orientation > Math.PI) {
-        console.warn(`⚠️ 朝向角度超出推荐范围 [-π, π]: ${orientation.toFixed(3)}`);
+        console.warn(`朝向角度超出推荐范围 [-π, π]: ${orientation.toFixed(3)}`);
     }
     
     return { valid: true };

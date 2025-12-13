@@ -38,15 +38,18 @@ impl PathLoader {
 
     /// 预加载所有路径文件到内存
     pub fn preload_all_paths(&self) -> Result<usize, String> {
-        info!("开始预加载路径文件...");
+        info!("[PathLoader] 开始预加载路径文件，路径目录: {:?}", self.routes_dir);
 
         if !self.routes_dir.exists() {
-            error!("路径目录不存在: {:?}", self.routes_dir);
+            error!("[PathLoader] 路径目录不存在: {:?}", self.routes_dir);
             return Err(format!("路径目录不存在: {:?}", self.routes_dir));
         }
 
         let entries = fs::read_dir(&self.routes_dir)
-            .map_err(|e| format!("读取路径目录失败: {}", e))?;
+            .map_err(|e| {
+                error!("[PathLoader] 读取路径目录失败: {}", e);
+                format!("读取路径目录失败: {}", e)
+            })?;
 
         let mut loaded_count = 0;
         let mut paths_map = HashMap::new();
@@ -87,16 +90,11 @@ impl PathLoader {
             // 读取并解析路径文件
             match self.load_path_file(&path, path_id) {
                 Ok(path_data) => {
-                    info!(
-                        "加载路径文件 {} - {} 个点",
-                        path_id,
-                        path_data.points.len()
-                    );
                     paths_map.insert(path_id, path_data);
                     loaded_count += 1;
                 }
                 Err(e) => {
-                    warn!("加载路径文件 {} 失败: {}", path_id, e);
+                    warn!("[PathLoader] 加载路径文件 {} 失败: {}", path_id, e);
                 }
             }
         }
@@ -107,7 +105,7 @@ impl PathLoader {
             *paths = paths_map;
         }
 
-        info!("路径文件预加载完成: {} 个文件", loaded_count);
+        info!("[PathLoader] 路径文件预加载完成: {} 个文件", loaded_count);
         Ok(loaded_count)
     }
 
@@ -174,6 +172,7 @@ impl PathLoader {
     }
 
     /// 获取指定路径的数据
+    #[allow(dead_code)]
     pub fn get_path(&self, path_id: u8) -> Option<PathData> {
         let paths = self.paths.read().unwrap();
         paths.get(&path_id).cloned()
@@ -190,13 +189,14 @@ impl PathLoader {
                     merged_points.extend_from_slice(&path_data.points);
                 }
                 None => {
-                    warn!("路径文件 {} 不存在", path_id);
+                    warn!("[PathLoader] 路径文件 {} 不存在", path_id);
                     // 继续处理其他路径，不中断
                 }
             }
         }
 
         if merged_points.is_empty() {
+            error!("[PathLoader] 所有请求的路径文件 {:?} 都不存在或为空", path_ids);
             return Err("所有路径文件都不存在或为空".to_string());
         }
 
@@ -222,7 +222,6 @@ impl PathLoader {
 mod tests {
     use super::*;
     use std::fs;
-    use std::path::PathBuf;
     use tempfile::TempDir;
 
     #[test]

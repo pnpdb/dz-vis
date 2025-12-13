@@ -12,7 +12,7 @@ import { removePath } from '@/components/Scene3D/pathRenderer.js';
 const filePath = localStorage.getItem('filePath') || '';
 
 // 性能优化：为高频事件创建节流函数
-// 🚀 优化：50Hz数据(20ms间隔)，节流改为30ms，避免延迟累积
+// 优化：50Hz数据(20ms间隔)，节流改为30ms，避免延迟累积
 const throttledVehicleStateUpdate = throttle((data) => {
     eventBus.emit(EVENTS.VEHICLE_STATE_UPDATED, data);
 }, 30); // 每30ms最多触发一次（约33Hz）
@@ -35,7 +35,7 @@ const startCleanupTask = (store) => {
         }
     }, 2 * 60 * 1000); // 2分钟
     
-    console.log('✅ 车辆状态定期清理任务已启动 (每2分钟)');
+    console.log('车辆状态定期清理任务已启动 (每2分钟)');
 };
 
 // 停止定期清理任务
@@ -242,7 +242,7 @@ export const useCarStore = defineStore('car', {
             // 验证输入数据（使用统一验证工具）
             const validation = validateVehicleInfo(vehicleInfo);
             if (!validation.valid) {
-                console.warn(`⚠️ 车辆 ${vehicleId} 状态数据验证失败:`, validation.errors);
+                console.warn(`车辆 ${vehicleId} 状态数据验证失败:`, validation.errors);
                 // 继续处理，但记录警告
             }
             
@@ -366,7 +366,7 @@ export const useCarStore = defineStore('car', {
             const now = Date.now();
             const vehiclesToRemove = [];
             
-            // 🚀 优化：始终清理超时的离线车辆，不只在超过最大数量时
+            // 优化：始终清理超时的离线车辆，不只在超过最大数量时
             // 找出需要清理的车辆
             for (const [vehicleId, state] of this.vehicles.entries()) {
                 // 只清理离线车辆
@@ -419,7 +419,7 @@ export const useCarStore = defineStore('car', {
             }
             
             if (removed > 0) {
-                console.info(`✅ 内存清理完成，移除 ${removed} 个闲置车辆，当前车辆数: ${this.vehicles.size}`);
+                console.info(`内存清理完成，移除 ${removed} 个闲置车辆，当前车辆数: ${this.vehicles.size}`);
             }
         },
         
@@ -635,12 +635,12 @@ export const useCarStore = defineStore('car', {
                     position: { x: vehicleX, z: vehicleZ }
                 });
                 
-                console.log(`✅ 车辆${vehicleId}符合条件 - 导航状态: ${navCode}(${state.state.navigation.text}), 距离: ${distance.toFixed(3)}m`);
+                console.log(`车辆${vehicleId}符合条件 - 导航状态: ${navCode}(${state.state.navigation.text}), 距离: ${distance.toFixed(3)}m`);
             }
             
             // 如果没有符合条件的车辆
             if (candidates.length === 0) {
-                console.log('❌ 没有找到符合条件的车辆（在线且导航状态为1或2）');
+                console.log('没有找到符合条件的车辆（在线且导航状态为1或2）');
                 return null;
             }
             
@@ -695,12 +695,12 @@ export const useCarStore = defineStore('car', {
                     // 使用统一的车辆数据标准化函数
                     this.applyVehicleConnections(result.data);
                 } else {
-                    console.error('❌ Store加载车辆列表失败:', result.error);
+                    console.error('Store加载车辆列表失败:', result.error);
                     // 失败时使用默认列表
                     this.carList = [];
                 }
             } catch (error) {
-                console.error('❌ Store加载车辆连接异常:', error);
+                console.error('Store加载车辆连接异常:', error);
                 this.carList = [];
             } finally {
                 this.loading = false;

@@ -37,7 +37,7 @@ class ProtocolProcessor {
                     stats: result.stats
                 }
             } else {
-                console.warn(`⚠️ 协议解析失败: ${result.error}`)
+                console.warn(`协议解析失败: ${result.error}`)
                 return {
                     success: false,
                     error: result.error,
@@ -407,7 +407,7 @@ class ProtocolProcessor {
                 clearInterval(timerId);
             });
             this.activeMonitoringTimers.clear();
-            console.log('✅ ProtocolProcessor 监控定时器已清理');
+            console.log('ProtocolProcessor 监控定时器已清理');
         }
         
         // 清理统计数据

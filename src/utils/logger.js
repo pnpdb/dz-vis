@@ -66,7 +66,7 @@ class Logger {
         }
         this.throttleMap.clear();
         
-        console.log('✅ Logger 资源已清理');
+        console.log('Logger 资源已清理');
     }
 
     /**

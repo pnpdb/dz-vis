@@ -375,7 +375,7 @@ const deleteConnection = async (connection) => {
         
     } catch (error) {
         if (error !== 'cancel') {
-            console.error('❌ 删除连接失败:', error);
+            console.error('删除连接失败:', error);
             Toast.error(`删除失败: ${error}`);
         }
     } finally {

@@ -15,7 +15,7 @@ export class VehicleConnectionAPI {
             const result = await invoke('get_vehicle_connections');
             return { success: true, data: result };
         } catch (error) {
-            console.error('❌ 获取车辆连接失败:', error);
+            console.error('获取车辆连接失败:', error);
             return { success: false, error: error.toString() };
         }
     }
@@ -30,7 +30,7 @@ export class VehicleConnectionAPI {
             });
             return { success: true, data: result };
         } catch (error) {
-            console.error('❌ 创建车辆连接失败:', error);
+            console.error('创建车辆连接失败:', error);
             return { success: false, error: error.toString() };
         }
     }
@@ -46,7 +46,7 @@ export class VehicleConnectionAPI {
             });
             return { success: true, data: result };
         } catch (error) {
-            console.error('❌ 更新车辆连接失败:', error);
+            console.error('更新车辆连接失败:', error);
             return { success: false, error: error.toString() };
         }
     }
@@ -59,7 +59,7 @@ export class VehicleConnectionAPI {
             const result = await invoke('delete_vehicle_connection', { id });
             return { success: true, data: result };
         } catch (error) {
-            console.error('❌ 删除车辆连接失败:', error);
+            console.error('删除车辆连接失败:', error);
             return { success: false, error: error.toString() };
         }
     }
@@ -72,7 +72,7 @@ export class VehicleConnectionAPI {
             const result = await invoke('get_active_vehicle_connections');
             return { success: true, data: result };
         } catch (error) {
-            console.error('❌ 获取活跃车辆连接失败:', error);
+            console.error('获取活跃车辆连接失败:', error);
             return { success: false, error: error.toString() };
         }
     }
@@ -133,7 +133,7 @@ export class TrafficLightAPI {
             const result = await invoke('get_traffic_light_settings');
             return { success: true, data: result };
         } catch (error) {
-            console.error('❌ 获取交通灯设置失败:', error);
+            console.error('获取交通灯设置失败:', error);
             return { success: false, error: error.toString() };
         }
     }
@@ -147,7 +147,7 @@ export class TrafficLightAPI {
             const result = await invoke('update_traffic_light_settings', { request: settings });
             return { success: true, data: result };
         } catch (error) {
-            console.error('❌ 更新交通灯设置失败:', error);
+            console.error('更新交通灯设置失败:', error);
             return { success: false, error: error.toString() };
         }
     }
@@ -161,7 +161,7 @@ export class TrafficLightAPI {
             const result = await invoke('get_traffic_light_item', { lightId });
             return { success: true, data: result };
         } catch (error) {
-            console.error('❌ 获取红绿灯时长失败:', error);
+            console.error('获取红绿灯时长失败:', error);
             return { success: false, error: error.toString() };
         }
     }
@@ -174,7 +174,7 @@ export class TrafficLightAPI {
             const result = await invoke('update_traffic_light_item', { lightId, redSeconds, greenSeconds });
             return { success: true, data: result };
         } catch (error) {
-            console.error('❌ 更新红绿灯时长失败:', error);
+            console.error('更新红绿灯时长失败:', error);
             return { success: false, error: error.toString() };
         }
     }
@@ -193,7 +193,7 @@ export class StatisticsAPI {
             const result = await invoke('get_vehicle_online_stats');
             return { success: true, data: result };
         } catch (error) {
-            console.error('❌ 获取车辆在线统计失败:', error);
+            console.error('获取车辆在线统计失败:', error);
             return { success: false, error: error.toString() };
         }
     }
@@ -206,7 +206,7 @@ export class StatisticsAPI {
             const result = await invoke('get_driving_behavior_stats');
             return { success: true, data: result };
         } catch (error) {
-            console.error('❌ 获取自动驾驶行为统计失败:', error);
+            console.error('获取自动驾驶行为统计失败:', error);
             return { success: false, error: error.toString() };
         }
     }
@@ -225,7 +225,7 @@ export class SandboxAPI {
             const result = await invoke('get_sandbox_service_settings');
             return { success: true, data: result };
         } catch (error) {
-            console.error('❌ 获取沙盘服务设置失败:', error);
+            console.error('获取沙盘服务设置失败:', error);
             return { success: false, error: error.toString() };
         }
     }
@@ -240,7 +240,7 @@ export class SandboxAPI {
             });
             return { success: true, data: result };
         } catch (error) {
-            console.error('❌ 保存沙盘服务设置失败:', error);
+            console.error('保存沙盘服务设置失败:', error);
             return { success: false, error: error.toString() };
         }
     }
@@ -253,7 +253,7 @@ export class SandboxAPI {
             const result = await invoke('delete_sandbox_service_settings');
             return { success: true, data: result };
         } catch (error) {
-            console.error('❌ 删除沙盘服务设置失败:', error);
+            console.error('删除沙盘服务设置失败:', error);
             return { success: false, error: error.toString() };
         }
     }
@@ -264,10 +264,10 @@ export class SandboxAPI {
     static async getAllCameras() {
         try {
             const result = await invoke('get_all_sandbox_cameras');
-            console.log('✅ 获取沙盘摄像头列表:', result);
+            console.log('获取沙盘摄像头列表:', result);
             return { success: true, data: result };
         } catch (error) {
-            console.error('❌ 获取沙盘摄像头列表失败:', error);
+            console.error('获取沙盘摄像头列表失败:', error);
             return { success: false, error: error.toString() };
         }
     }
@@ -280,10 +280,10 @@ export class SandboxAPI {
             const result = await invoke('create_sandbox_camera', {
                 request: cameraData
             });
-            console.log('✅ 创建沙盘摄像头成功:', result);
+            console.log('创建沙盘摄像头成功:', result);
             return { success: true, data: result };
         } catch (error) {
-            console.error('❌ 创建沙盘摄像头失败:', error);
+            console.error('创建沙盘摄像头失败:', error);
             return { success: false, error: error.toString() };
         }
     }
@@ -297,10 +297,10 @@ export class SandboxAPI {
                 id: id,
                 request: updateData
             });
-            console.log('✅ 更新沙盘摄像头成功:', result);
+            console.log('更新沙盘摄像头成功:', result);
             return { success: true, data: result };
         } catch (error) {
-            console.error('❌ 更新沙盘摄像头失败:', error);
+            console.error('更新沙盘摄像头失败:', error);
             return { success: false, error: error.toString() };
         }
     }
@@ -311,10 +311,10 @@ export class SandboxAPI {
     static async deleteCamera(id) {
         try {
             const result = await invoke('delete_sandbox_camera', { id });
-            console.log('✅ 删除沙盘摄像头成功:', result);
+            console.log('删除沙盘摄像头成功:', result);
             return { success: true, data: result };
         } catch (error) {
-            console.error('❌ 删除沙盘摄像头失败:', error);
+            console.error('删除沙盘摄像头失败:', error);
             return { success: false, error: error.toString() };
         }
     }

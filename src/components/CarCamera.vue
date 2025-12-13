@@ -18,7 +18,7 @@
                 <div class="camera-desc">{{ cameraEnabled ? '等待视频信号...' : '摄像头已关闭' }}</div>
             </div>
         </div>
-        <!-- 🚀 移除了平行驾驶按钮，已移至Cars.vue中独立显示 -->
+        <!-- 移除了平行驾驶按钮，已移至Cars.vue中独立显示 -->
     </div>
 </template>
 
@@ -133,7 +133,7 @@ const handleTimeout = ({ vehicleId }) => {
   }
 }
 
-// 🚀 已移除 requestParallelDriving 方法，平行驾驶按钮已移至Cars.vue
+// 已移除 requestParallelDriving 方法，平行驾驶按钮已移至Cars.vue
 
 watch(cameraEnabled, (enabled) => {
   if (enabled && isRouteVisible.value) {
@@ -214,7 +214,7 @@ watch(currentVehicleId, async (newVehicleId, oldVehicleId) => {
   }
 })
 
-// 🚀 已移除平行驾驶按钮相关的设置加载代码
+// 已移除平行驾驶按钮相关的设置加载代码
 
 onMounted(() => {
   updateVideoReceiver()

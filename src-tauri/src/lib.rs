@@ -328,7 +328,7 @@ pub fn run() {
             
             // 检查目录是否存在
             if !routes_dir.exists() {
-                error!("❌ 路径文件目录不存在: {:?}", routes_dir);
+                error!("路径文件目录不存在: {:?}", routes_dir);
             } else {
                 info!("路径文件目录存在: {:?}", routes_dir);
             }
@@ -341,7 +341,7 @@ pub fn run() {
                     info!("成功预加载 {} 个路径文件", count);
                 }
                 Err(e) => {
-                    error!("❌ 路径文件预加载失败: {}", e);
+                    error!("路径文件预加载失败: {}", e);
                 }
             }
             
@@ -409,7 +409,7 @@ pub fn run() {
                         info!("数据库初始化成功");
                     }
                     Err(e) => {
-                        error!("❌ 数据库初始化失败: {}", e);
+                        error!("数据库初始化失败: {}", e);
                     }
                 }
             });
@@ -424,7 +424,7 @@ pub fn run() {
             // 初始化全局 GStreamer 流管理器（在异步任务中）
             tauri::async_runtime::spawn(async {
                 if let Err(e) = gstreamer_streamer::init_global_streamer().await {
-                    log::error!("❌ GStreamer 初始化失败: {}", e);
+                    log::error!("GStreamer 初始化失败: {}", e);
                     log::error!("   请确保已安装 GStreamer:");
                     log::error!("   Ubuntu: sudo apt-get install gstreamer1.0-*");
                     log::error!("   macOS: brew install gstreamer gst-plugins-*");
@@ -437,9 +437,9 @@ pub fn run() {
             let mjpeg_ws_port = 9004; // MJPEG WebSocket 端口
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = gstreamer_streamer::websocket::start_websocket_server(mjpeg_ws_port).await {
-                    log::error!("❌ MJPEG WebSocket 服务器启动失败: {}", e);
+                    log::error!("MJPEG WebSocket 服务器启动失败: {}", e);
                 } else {
-                    log::info!("✅ MJPEG WebSocket 服务器已就绪: ws://127.0.0.1:{}", mjpeg_ws_port);
+                    log::info!("MJPEG WebSocket 服务器已就绪: ws://127.0.0.1:{}", mjpeg_ws_port);
                 }
             });
             info!("GStreamer MJPEG 流服务初始化任务已启动");
@@ -453,12 +453,12 @@ pub fn run() {
                     // 从嵌入的资源中加载图标
                     if let Some(icon_rgba) = app.default_window_icon() {
                         if let Err(e) = window.set_icon(icon_rgba.clone()) {
-                            warn!("⚠️ 设置窗口图标失败: {}", e);
+                            warn!("设置窗口图标失败: {}", e);
                         } else {
                             info!("Linux: 窗口图标已设置");
                         }
                     } else {
-                        warn!("⚠️ 未找到默认窗口图标");
+                        warn!("未找到默认窗口图标");
                     }
                 }
             }

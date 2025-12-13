@@ -41,14 +41,14 @@ impl RTSPConverter {
         camera_id: i64,
         rtsp_url: String,
     ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-        log::info!("🔄 开始RTSP到HLS转换: camera_id={}, rtsp_url={}", camera_id, rtsp_url);
+        log::info!("开始RTSP到HLS转换: camera_id={}, rtsp_url={}", camera_id, rtsp_url);
 
         // 检查是否已有该摄像头的转换在运行
         {
             let streams = self.streams.read().await;
             if let Some(existing) = streams.get(&camera_id) {
                 if existing.is_active {
-                    log::info!("⚠️ 摄像头 {} 的转换已在运行，返回现有HLS URL", camera_id);
+                    log::info!("摄像头 {} 的转换已在运行，返回现有HLS URL", camera_id);
                     return Ok(existing.hls_url.clone());
                 }
             }
@@ -223,7 +223,7 @@ impl RTSPConverter {
 
             match cmd.spawn() {
                 Ok(mut child) => {
-                    log::info!("✅ FFmpeg进程已启动: camera_id={}, URL: {}", camera_id, rtsp_url);
+                    log::info!("FFmpeg进程已启动: camera_id={}, URL: {}", camera_id, rtsp_url);
                     let _ = status_sender.send((camera_id, "streaming".to_string()));
 
                     // 捕获 stderr 输出以便调试
@@ -261,12 +261,12 @@ impl RTSPConverter {
                                 if status.success() {
                                     log::info!("🏁 FFmpeg进程正常结束: camera_id={}", camera_id);
                                 } else {
-                                    log::error!("❌ FFmpeg进程异常结束: camera_id={}, URL: {}, 状态码: {:?}", 
+                                    log::error!("FFmpeg进程异常结束: camera_id={}, URL: {}, 状态码: {:?}", 
                                         camera_id, rtsp_url, status.code());
                                 }
                             }
                             Err(e) => {
-                                log::error!("❌ FFmpeg进程等待失败: camera_id={}, 错误: {}", camera_id, e);
+                                log::error!("FFmpeg进程等待失败: camera_id={}, 错误: {}", camera_id, e);
                             }
                         }
                     }
@@ -278,7 +278,7 @@ impl RTSPConverter {
                     }
                 }
                 Err(e) => {
-                    log::error!("❌ 启动FFmpeg进程失败: camera_id={}, 错误: {}", camera_id, e);
+                    log::error!("启动FFmpeg进程失败: camera_id={}, 错误: {}", camera_id, e);
                     let _ = status_sender.send((camera_id, "error".to_string()));
                 }
             }
@@ -309,7 +309,7 @@ impl RTSPConverter {
         match status {
             Ok(s) if s.success() => Ok(()),
             _ => {
-                log::error!("❌ 未检测到 ffmpeg，请先安装。Ubuntu: sudo apt update && sudo apt install -y ffmpeg");
+                log::error!("未检测到 ffmpeg，请先安装。Ubuntu: sudo apt update && sudo apt install -y ffmpeg");
                 Err("ffmpeg 未安装或不可用".into())
             }
         }

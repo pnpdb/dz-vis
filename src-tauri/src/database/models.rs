@@ -338,7 +338,7 @@ pub struct MenuVisibilitySettings {
     pub show_sandbox_control: bool,   // 显示"沙盘控制"菜单
     pub show_settings: bool,          // 显示"功能设置"菜单
     pub show_parallel_driving: bool,  // 显示"平行驾驶"按钮（车辆信息右侧）
-    pub show_vehicle_camera: bool,    // 🚀 显示"车载摄像头"区域（车辆信息右侧）
+    pub show_vehicle_camera: bool,    // 显示"车载摄像头"区域（车辆信息右侧）
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -351,5 +351,5 @@ pub struct UpdateMenuVisibilityRequest {
     pub show_sandbox_control: Option<bool>,
     pub show_settings: Option<bool>,
     pub show_parallel_driving: Option<bool>,
-    pub show_vehicle_camera: Option<bool>,  // 🚀 车载摄像头显示
+    pub show_vehicle_camera: Option<bool>,  // 车载摄像头显示
 }

@@ -1,6 +1,6 @@
 # DZ-VIZ 项目快速参考
 
-**版本**: v1.6 | **更新**: 2025-12-12
+**版本**: v1.7 | **更新**: 2025-12-12
 
 ---
 
@@ -68,6 +68,12 @@ window.__scene3d__.testElevationAt(x, y, orientation)  // 测试指定位置
 window.__scene3d__.updateElevationConfig({BRIDGE_HEIGHT: 0.3})  // 调整参数
 window.__showElevationLines()  // 显示边界线
 ```
+
+**鼠标交互与标记放置**（`index.js`）：
+- Raycaster 优先与沙盘3D模型相交（`intersectObjects([sandboxModel], true)`），获取模型表面真实坐标
+- 地面平面仅作为后备（无模型交点时使用）
+- 初始化位姿、施工标记、打车标记：直接使用 raycaster 交点坐标（包含正确高度）
+- 坐标传递：`{ x, y, z }` 局部坐标 → 标记创建函数接收可选 `y` 参数
 
 ### 3. 红绿灯系统
 
@@ -194,4 +200,4 @@ python test/test_client_high_freq.py --id 1 # 50Hz
 
 ---
 
-**版本**: v1.6 | **更新**: 2025-12-12 | **状态**: ✅ 高架倾角、红绿灯、UI折叠
+**版本**: v1.7 | **更新**: 2025-12-12 | **状态**: ✅ 高架倾角、标记高度修复、UI折叠

@@ -240,8 +240,25 @@ impl SocketServer {
  
         let mut buffer = [0u8; 4096]; // 增加缓冲区大小以处理更大的数据包
  
+        // 🔧 心跳超时检测：车端按 50Hz 发送心跳（0x0001），连续 1 秒没收到则认为断开
+        let mut last_heartbeat = std::time::Instant::now();
+        let heartbeat_timeout = std::time::Duration::from_secs(1); // 1 秒超时（50 次心跳间隔）
+        let mut heartbeat_check_interval = tokio::time::interval(std::time::Duration::from_millis(100)); // 每 100ms 检查一次
+ 
         loop {
             tokio::select! {
+                // 心跳超时检查（仅对车辆连接，沙盘不检查）
+                _ = heartbeat_check_interval.tick(), if !is_sandbox => {
+                    let elapsed = last_heartbeat.elapsed();
+                    if elapsed > heartbeat_timeout {
+                        warn!("车辆 {} (ID: {}) 心跳超时 ({:.1}秒)，主动断开连接", 
+                              vehicle_name, vehicle_id, elapsed.as_secs_f32());
+                        // 发送断开连接事件到前端
+                        Self::send_disconnect_event(vehicle_id, &vehicle_name, &app_handle).await;
+                        break;
+                    }
+                }
+                
                 // 接收数据
                 result = stream.read(&mut buffer) => {
                     match result {
@@ -256,6 +273,11 @@ impl SocketServer {
                             break;
                         }
                         Ok(n) => {
+                            // 🔧 收到数据包，更新心跳时间戳（任何数据包都表示连接活跃）
+                            if !is_sandbox {
+                                last_heartbeat = std::time::Instant::now();
+                            }
+                            
                             if is_sandbox {
                                 if let Some(parser) = sandbox_parser.as_mut() {
                                     parser.feed_data(&buffer[..n]);

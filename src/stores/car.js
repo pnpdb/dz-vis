@@ -221,6 +221,17 @@ export const useCarStore = defineStore('car', {
                         console.warn('清除车辆打车图标失败:', err);
                     }
                 }
+                
+                // 🔧 修复：立即移除 3D 场景中的车辆模型和路径
+                // 基于心跳超时检测（1秒），一旦检测到断开立即清理
+                // 不等待定期清理任务（每2分钟才运行一次，且需要10分钟超时）
+                try {
+                    console.log(`🗑️ 车辆 ${vehicleId} 断开连接，立即移除 3D 模型和路径`);
+                    if (removeVehicle) removeVehicle(vehicleId);
+                    if (removePath) removePath(vehicleId);
+                } catch (e) {
+                    console.warn(`清理车辆 ${vehicleId} 3D资源失败:`, e);
+                }
             }
             
             // 触发车辆连接状态变化事件（用于3D模型管理）

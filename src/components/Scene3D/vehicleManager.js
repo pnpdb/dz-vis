@@ -208,8 +208,8 @@ const loadCarModelTemplate = async () => {
             (gltf) => {
                 carModelTemplate = gltf.scene;
                 
-                // 由于车辆会添加到沙盘内部（沙盘scale=6），
-                // 车辆会继承沙盘的缩放，所以这里设置为1即可
+                // Blender重新导出后沙盘已是米单位，scale=4.5，与旧模型一致
+                // 车辆作为子节点继承沙盘缩放，设置为1即可
                 carModelTemplate.scale.set(1, 1, 1);
                 
                 // 🔧 关键修复：应用旋转后再计算包围盒

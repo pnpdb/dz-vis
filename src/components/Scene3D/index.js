@@ -215,7 +215,7 @@ const initSceneCore = async () => {
         
         // 🎨 色调映射（Tone Mapping）- 模拟烘焙效果
         renderer.toneMapping = ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 0.8; // 曝光度（降低以避免过曝发白）
+        renderer.toneMappingExposure = 0.6; // 曝光度（降低以避免过曝发白）
         
         // 物理光照
         renderer.useLegacyLights = false; // 使用物理光照模式（Three.js r155+）
@@ -627,7 +627,7 @@ const initSceneCore = async () => {
             console.log('  - window.__scene3d__.logAlignmentInfo() // 查看沙盘和小车对齐信息');
             console.log('  - window.__scene3d__.analyzeSandboxMeshes() // 分析沙盘网格尺寸（找出尺寸差异原因）');
             console.log('  - window.__scene3d__.adjustCarPosition(0, Y, 0) // 微调小车Y位置');
-            console.log('  - window.__scene3d__.adjustSandboxScale(6) // 调整沙盘缩放');
+            console.log('  - window.__scene3d__.adjustSandboxScale(4.5) // 调整沙盘缩放');
         }
         
         // 基础场景已完成，可以开始交互（即使模型未加载完）
@@ -646,27 +646,27 @@ const setupLighting = () => {
     const hemisphereLight = new HemisphereLight(
         0xddeeff,  // 天空颜色（淡蓝色）
         0x332222,  // 地面颜色（深灰棕色）
-        0.9        // 强度
+        0.4        // 强度（降低以避免路面发白）
     );
     hemisphereLight.name = 'HemisphereLight';
     hemisphereLight.position.set(0, 50, 0);
     lightsGroup.add(hemisphereLight);
 
     // ☀️ 主平行光 - 模拟太阳光
-    const directionalLight = new DirectionalLight(0xffffff, 5);
+    const directionalLight = new DirectionalLight(0xffffff, 1.5);
     directionalLight.position.set(10, 20, 10);
     directionalLight.name = 'MainDirectionalLight';
     directionalLight.castShadow = false;
     lightsGroup.add(directionalLight);
 
     // 💡 补充平行光 - 提亮阴影区域
-    const fillLight = new DirectionalLight(0x87ceeb, 1.0);
+    const fillLight = new DirectionalLight(0x87ceeb, 0.4);
     fillLight.position.set(-10, 10, -10);
     fillLight.name = 'FillLight';
     lightsGroup.add(fillLight);
 
     // 🔆 背光 - 增加轮廓感
-    const backLight = new DirectionalLight(0xffffff, 0.7);
+    const backLight = new DirectionalLight(0xffffff, 0.3);
     backLight.position.set(0, 5, -15);
     backLight.name = 'BackLight';
     lightsGroup.add(backLight);
@@ -709,7 +709,7 @@ const loadEnvironment = () => {
                         // 为PBR材质设置环境贴图强度
                         if (material.isMeshStandardMaterial || material.isMeshPhysicalMaterial) {
                             material.envMap = texture;
-                            material.envMapIntensity = 0.8; // 环境反射强度（降低以避免过亮）
+                            material.envMapIntensity = 0.3; // 环境反射强度（大幅降低避免路面发白）
                             material.needsUpdate = true;
                         }
                     }
@@ -776,8 +776,8 @@ const loadModelsWithProgress = async () => {
         return new Promise((resolve) => {
             setTimeout(() => {
                 console.info('开始加载沙盘模型');
-                loadModelAsync(loader, '/models/sandbox.glb', 'sandbox', {
-                    scale: 4.5,  // 缩小沙盘显示（原6，调整为5.5更合适）
+                loadModelAsync(loader, '/models/sandbox-dz-mr.glb', 'sandbox', {
+                    scale: 4.5,  // Blender重新导出后模型已是米单位（节点内含scale=0.001），与旧模型一致
                     position: [0, 0, 0],  // 初始位置，稍后会自动调整让底座贴地
                     processMaterial: true,
                     priority: 'low',
@@ -884,8 +884,8 @@ const loadModels = () => {
 
     // 延迟加载大模型，给界面更多响应时间
     setTimeout(() => {
-        loadModel(loader, '/models/sandbox.glb', 'sandbox', {
-            scale: 4.5,  // 与异步加载保持一致（调整为5.5更合适）
+        loadModel(loader, '/models/sandbox-dz-mr.glb', 'sandbox', {
+            scale: 4.5,  // 与异步加载保持一致（Blender导出为米单位）
             position: [0, 0, 0],  // 初始位置，稍后会自动调整让底座贴地
             processMaterial: true,
             priority: 'low',
@@ -1234,7 +1234,7 @@ const optimizeMaterialsAsync = async (model) => {
                 // 🎨 为PBR材质设置物理属性（模拟烘焙效果）
                 if (material.isMeshStandardMaterial || material.isMeshPhysicalMaterial) {
                     // 环境贴图强度（降低以避免过亮）
-                    material.envMapIntensity = 0.8;  // 从1.2降低到0.8
+                    material.envMapIntensity = 0.6;  // 大幅降低避免路面发白
                     
                     // 金属度和粗糙度（根据材质名称调整）
                     if (!material.metalness && !material.roughness) {
@@ -1289,7 +1289,7 @@ const optimizeMaterials = (model) => {
             // 🎨 为PBR材质设置物理属性（模拟烘焙效果）
             if (material.isMeshStandardMaterial || material.isMeshPhysicalMaterial) {
                 // 环境贴图强度（降低以避免过亮）
-                material.envMapIntensity = 0.8;  // 从1.2降低到0.8
+                material.envMapIntensity = 0.3;  // 大幅降低避免路面发白
                 
                 // 金属度和粗糙度（根据材质名称调整）
                 if (!material.metalness && !material.roughness) {
@@ -2840,7 +2840,7 @@ const createGroundPlane = () => {
     // }
     
     // 关键修复：bounds 是局部坐标，需要乘以缩放因子得到世界坐标尺寸
-    const scale = dimensions.scale || 6;  // 沙盘缩放因子
+    const scale = dimensions.scale || 4.5;  // 沙盘缩放因子
     const localWidth = dimensions.bounds.max.x - dimensions.bounds.min.x;
     const localDepth = dimensions.bounds.max.z - dimensions.bounds.min.z;
     

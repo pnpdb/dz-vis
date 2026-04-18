@@ -107,7 +107,16 @@ impl ProtocolParser {
         let speed = self.read_f64_le(data, ProtocolConstants::VEHICLE_INFO_SPEED_OFFSET)?;
         let position_x = self.read_f64_le(data, ProtocolConstants::VEHICLE_INFO_POSITION_X_OFFSET)?;
         let position_y = self.read_f64_le(data, ProtocolConstants::VEHICLE_INFO_POSITION_Y_OFFSET)?;
-        let orientation = self.read_f64_le(data, ProtocolConstants::VEHICLE_INFO_ORIENTATION_OFFSET)?;
+        let position_z = self.read_f64_le(data, ProtocolConstants::VEHICLE_INFO_POSITION_Z_OFFSET)?;
+        let quat_x = self.read_f64_le(data, ProtocolConstants::VEHICLE_INFO_QUAT_X_OFFSET)?;
+        let quat_y = self.read_f64_le(data, ProtocolConstants::VEHICLE_INFO_QUAT_Y_OFFSET)?;
+        let quat_z = self.read_f64_le(data, ProtocolConstants::VEHICLE_INFO_QUAT_Z_OFFSET)?;
+        let quat_w = self.read_f64_le(data, ProtocolConstants::VEHICLE_INFO_QUAT_W_OFFSET)?;
+        let quaternion = crate::protocol_processing::types::Quaternion {
+            x: quat_x, y: quat_y, z: quat_z, w: quat_w,
+        };
+        let orientation = quaternion.yaw();
+        let pitch = quaternion.pitch();
         let battery = self.read_f64_le(data, ProtocolConstants::VEHICLE_INFO_BATTERY_OFFSET)?;
         let gear_raw = data[ProtocolConstants::VEHICLE_INFO_GEAR_OFFSET];
         let gear = GearPosition::from_u8(gear_raw);
@@ -144,7 +153,10 @@ impl ProtocolParser {
             speed,
             position_x,
             position_y,
+            position_z,
+            quaternion,
             orientation,
+            pitch,
             battery,
             gear,
             steering_angle,
@@ -206,15 +218,19 @@ impl ProtocolParser {
         let vehicle_id = data[ProtocolConstants::TAXI_ORDER_VEHICLE_ID_OFFSET];
         let start_x = self.read_f64_le(data, ProtocolConstants::TAXI_ORDER_START_X_OFFSET)?;
         let start_y = self.read_f64_le(data, ProtocolConstants::TAXI_ORDER_START_Y_OFFSET)?;
+        let start_z = self.read_f64_le(data, ProtocolConstants::TAXI_ORDER_START_Z_OFFSET)?;
         let end_x = self.read_f64_le(data, ProtocolConstants::TAXI_ORDER_END_X_OFFSET)?;
         let end_y = self.read_f64_le(data, ProtocolConstants::TAXI_ORDER_END_Y_OFFSET)?;
+        let end_z = self.read_f64_le(data, ProtocolConstants::TAXI_ORDER_END_Z_OFFSET)?;
         
         let taxi_order = TaxiOrderData {
             vehicle_id,
             start_x,
             start_y,
+            start_z,
             end_x,
             end_y,
+            end_z,
         };
         
         Ok(ParsedProtocolData::TaxiOrder(taxi_order))
@@ -289,12 +305,14 @@ impl ProtocolParser {
         let action = data[ProtocolConstants::CONSTRUCTION_MARKER_ACTION_OFFSET];
         let x = self.read_f64_le(data, ProtocolConstants::CONSTRUCTION_MARKER_X_OFFSET)?;
         let y = self.read_f64_le(data, ProtocolConstants::CONSTRUCTION_MARKER_Y_OFFSET)?;
+        let z = self.read_f64_le(data, ProtocolConstants::CONSTRUCTION_MARKER_Z_OFFSET)?;
         
         let construction_marker = ConstructionMarkerData {
             marker_id,
             action,
             x,
             y,
+            z,
         };
         
         Ok(ParsedProtocolData::ConstructionMarker(construction_marker))

@@ -2,6 +2,40 @@
 
 use serde::{Deserialize, Serialize};
 
+/// 姿态四元数
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
+pub struct Quaternion {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub w: f64,
+}
+
+impl Quaternion {
+    /// 从四元数计算 yaw（绕 Z 轴旋转，ROS 约定）
+    pub fn yaw(&self) -> f64 {
+        let (x, y, z, w) = (self.x, self.y, self.z, self.w);
+        (2.0 * (w * z + x * y)).atan2(1.0 - 2.0 * (y * y + z * z))
+    }
+
+    /// 从四元数计算 pitch（绕 Y 轴旋转，ROS 约定）
+    pub fn pitch(&self) -> f64 {
+        let (x, y, z, w) = (self.x, self.y, self.z, self.w);
+        let sinp = 2.0 * (w * y - z * x);
+        if sinp.abs() >= 1.0 {
+            std::f64::consts::FRAC_PI_2.copysign(sinp)
+        } else {
+            sinp.asin()
+        }
+    }
+
+    /// 从四元数计算 roll（绕 X 轴旋转，ROS 约定）
+    pub fn roll(&self) -> f64 {
+        let (x, y, z, w) = (self.x, self.y, self.z, self.w);
+        (2.0 * (w * x + y * z)).atan2(1.0 - 2.0 * (x * x + y * y))
+    }
+}
+
 /// 车辆信息数据结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VehicleInfo {
@@ -13,8 +47,14 @@ pub struct VehicleInfo {
     pub position_x: f64,
     /// Y坐标位置
     pub position_y: f64,
-    /// 朝向角度
+    /// Z坐标（高程，单位米；0 表示地面行驶）
+    pub position_z: f64,
+    /// 姿态四元数
+    pub quaternion: Quaternion,
+    /// 朝向角度（从四元数计算的 yaw，弧度）
     pub orientation: f64,
+    /// 仰角（从四元数计算的 pitch，弧度，用于坡道显示）
+    pub pitch: f64,
     /// 电池电量 (0.0-100.0)
     pub battery: f64,
     /// 档位
@@ -208,8 +248,10 @@ pub struct TaxiOrderData {
     pub vehicle_id: u8,
     pub start_x: f64,
     pub start_y: f64,
+    pub start_z: f64,
     pub end_x: f64,
     pub end_y: f64,
+    pub end_z: f64,
 }
 
 /// AVP泊车数据
@@ -261,6 +303,7 @@ pub struct ConstructionMarkerData {
     pub action: u8,
     pub x: f64,
     pub y: f64,
+    pub z: f64,
 }
 
 /// 沙盘灯光控制数据
@@ -340,21 +383,25 @@ pub fn nav_status_text(status: u8) -> &'static str {
 pub struct ProtocolConstants;
 
 impl ProtocolConstants {
-    /// 车辆信息协议偏移量
+    /// 车辆信息协议偏移量（新协议 87 字节：XY 后增加 Z，朝向从 DOUBLE 改为四元数）
     pub const VEHICLE_INFO_VEHICLE_ID_OFFSET: usize = 0;
     pub const VEHICLE_INFO_SPEED_OFFSET: usize = 1;
     pub const VEHICLE_INFO_POSITION_X_OFFSET: usize = 9;
     pub const VEHICLE_INFO_POSITION_Y_OFFSET: usize = 17;
-    pub const VEHICLE_INFO_ORIENTATION_OFFSET: usize = 25;
-    pub const VEHICLE_INFO_BATTERY_OFFSET: usize = 33;
-    pub const VEHICLE_INFO_GEAR_OFFSET: usize = 41;
-    pub const VEHICLE_INFO_STEERING_ANGLE_OFFSET: usize = 42;
-    pub const VEHICLE_INFO_NAV_STATUS_OFFSET: usize = 50;
-    pub const VEHICLE_INFO_CAMERA_STATUS_OFFSET: usize = 51;
-    pub const VEHICLE_INFO_LIDAR_STATUS_OFFSET: usize = 52;
-    pub const VEHICLE_INFO_GYRO_STATUS_OFFSET: usize = 53;
-    pub const VEHICLE_INFO_PARKING_SLOT_OFFSET: usize = 54;
-    pub const VEHICLE_INFO_TOTAL_SIZE: usize = 55;
+    pub const VEHICLE_INFO_POSITION_Z_OFFSET: usize = 25;
+    pub const VEHICLE_INFO_QUAT_X_OFFSET: usize = 33;
+    pub const VEHICLE_INFO_QUAT_Y_OFFSET: usize = 41;
+    pub const VEHICLE_INFO_QUAT_Z_OFFSET: usize = 49;
+    pub const VEHICLE_INFO_QUAT_W_OFFSET: usize = 57;
+    pub const VEHICLE_INFO_BATTERY_OFFSET: usize = 65;
+    pub const VEHICLE_INFO_GEAR_OFFSET: usize = 73;
+    pub const VEHICLE_INFO_STEERING_ANGLE_OFFSET: usize = 74;
+    pub const VEHICLE_INFO_NAV_STATUS_OFFSET: usize = 82;
+    pub const VEHICLE_INFO_CAMERA_STATUS_OFFSET: usize = 83;
+    pub const VEHICLE_INFO_LIDAR_STATUS_OFFSET: usize = 84;
+    pub const VEHICLE_INFO_GYRO_STATUS_OFFSET: usize = 85;
+    pub const VEHICLE_INFO_PARKING_SLOT_OFFSET: usize = 86;
+    pub const VEHICLE_INFO_TOTAL_SIZE: usize = 87;
     
     /// 车辆控制协议偏移量
     pub const VEHICLE_CONTROL_VEHICLE_ID_OFFSET: usize = 0;
@@ -370,9 +417,11 @@ impl ProtocolConstants {
     pub const TAXI_ORDER_VEHICLE_ID_OFFSET: usize = 0;
     pub const TAXI_ORDER_START_X_OFFSET: usize = 1;
     pub const TAXI_ORDER_START_Y_OFFSET: usize = 9;
-    pub const TAXI_ORDER_END_X_OFFSET: usize = 17;
-    pub const TAXI_ORDER_END_Y_OFFSET: usize = 25;
-    pub const TAXI_ORDER_TOTAL_SIZE: usize = 33;
+    pub const TAXI_ORDER_START_Z_OFFSET: usize = 17;
+    pub const TAXI_ORDER_END_X_OFFSET: usize = 25;
+    pub const TAXI_ORDER_END_Y_OFFSET: usize = 33;
+    pub const TAXI_ORDER_END_Z_OFFSET: usize = 41;
+    pub const TAXI_ORDER_TOTAL_SIZE: usize = 49;
     
     /// AVP泊车协议偏移量
     pub const AVP_PARKING_VEHICLE_ID_OFFSET: usize = 0;
@@ -393,7 +442,8 @@ impl ProtocolConstants {
     pub const CONSTRUCTION_MARKER_ACTION_OFFSET: usize = 1;
     pub const CONSTRUCTION_MARKER_X_OFFSET: usize = 2;
     pub const CONSTRUCTION_MARKER_Y_OFFSET: usize = 10;
-    pub const CONSTRUCTION_MARKER_TOTAL_SIZE: usize = 18;
+    pub const CONSTRUCTION_MARKER_Z_OFFSET: usize = 18;
+    pub const CONSTRUCTION_MARKER_TOTAL_SIZE: usize = 26;
     
     /// 数据验证范围
     pub const MIN_SPEED: f64 = 0.0;

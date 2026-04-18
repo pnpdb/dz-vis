@@ -103,11 +103,11 @@ import { useRoute } from 'vue-router';
 import TitleBar from '@/components/TitleBar.vue';
 import Header from '@/components/Header.vue';
 import Map from '@/views/Map.vue';
-import { getConstructionMarkersDetails, removeConstructionMarker } from '@/components/Scene3D/index.js';
+import { getConstructionMarkersDetails, removeConstructionMarker, getRoadSurfaceY } from '@/components/Scene3D/index.js';
 import Toast from '@/utils/toast.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
 import vehicleBridge from '@/utils/vehicleBridge.js';
-import { modelToVehicleCoordinates } from '@/utils/coordinateTransform.js';
+import { modelToVehicleCoordinates, applyOffsetToSend } from '@/utils/coordinateTransform.js';
 
 // 使用组合式函数（代码复用优化）
 import { useSystemTime } from '@/composables/useSystemTime.js';
@@ -197,13 +197,17 @@ const deleteConstructionMarker = async (markerId) => {
             // 获取删除后剩余的所有施工标记（模型坐标）
             const remainingMarkers = getConstructionMarkersDetails();
             
-            // 转换为车辆坐标系用于广播
+            // 转换为车辆坐标系用于广播（包含高程Z）
+            const roadY = getRoadSurfaceY();
             const markersInVehicleCoords = remainingMarkers.map(marker => {
                 const vehicleCoords = modelToVehicleCoordinates(marker.modelX, marker.modelZ);
+                const finalCoords = applyOffsetToSend(vehicleCoords.x, vehicleCoords.y);
+                const elevationZ = Math.max(0, (marker.modelY ?? 0) - roadY);
                 return {
                     id: marker.id,
-                    x: vehicleCoords.x,  // 车辆坐标系
-                    z: vehicleCoords.y   // 车辆坐标系的Y
+                    x: finalCoords.x,  // 应用偏移后的车辆坐标系
+                    z: finalCoords.y,  // 车辆坐标系的Y
+                    elevationZ: elevationZ  // 高程Z
                 };
             });
             

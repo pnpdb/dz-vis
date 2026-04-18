@@ -309,13 +309,14 @@ class SocketManager {
         const speed = Math.max(0, Number(parsed.speed ?? 0));
         const battery = Math.max(0, Math.min(100, Number(parsed.battery ?? 0)));
         const orientation = Number(parsed.orientation ?? 0);
+        const pitch = Number(parsed.pitch ?? 0);
         const steeringAngle = Number(parsed.steeringAngle ?? 0);
         const parkingSlot = Math.max(0, Number(parsed.parkingSlot ?? 0));
         
         // 安全地提取对象，确保有默认值
         const position = (parsed.position && typeof parsed.position === 'object') 
-            ? { x: Number(parsed.position.x ?? 0), y: Number(parsed.position.y ?? 0) }
-            : { x: 0, y: 0 };
+            ? { x: Number(parsed.position.x ?? 0), y: Number(parsed.position.y ?? 0), z: Number(parsed.position.z ?? 0) }
+            : { x: 0, y: 0, z: 0 };
         
         const navigation = (parsed.navigation && typeof parsed.navigation === 'object')
             ? { 
@@ -336,6 +337,7 @@ class SocketManager {
             speed,
             position,
             orientation,
+            pitch,
             battery,
             gear,
             steeringAngle,
@@ -357,7 +359,8 @@ class SocketManager {
                 // 前端快速比对（只比对关键字段，避免IPC开销）
                 const positionChanged = 
                     Math.abs((prevState.position?.x ?? 0) - position.x) > 0.001 ||
-                    Math.abs((prevState.position?.y ?? 0) - position.y) > 0.001;
+                    Math.abs((prevState.position?.y ?? 0) - position.y) > 0.001 ||
+                    Math.abs((prevState.position?.z ?? 0) - position.z) > 0.001;
                 
                 const orientationChanged = 
                     Math.abs((prevState.orientation ?? 0) - orientation) > 0.01;
@@ -729,22 +732,26 @@ class SocketManager {
      * @param {string} orderId 订单ID (16字节UUID)
      * @param {number} startX 起点X坐标
      * @param {number} startY 起点Y坐标
+     * @param {number} startZ 起点Z坐标（高程）
      * @param {number} endX 终点X坐标
      * @param {number} endY 终点Y坐标
+     * @param {number} endZ 终点Z坐标（高程）
      * @returns {Promise<string>} 发送结果
      */
-    async sendTaxiOrder(orderId, startX = null, startY = null, endX = null, endY = null) {
+    async sendTaxiOrder(orderId, startX = null, startY = null, startZ = null, endX = null, endY = null, endZ = null) {
         try {
             // 使用默认坐标（如果没有提供）
             const actualStartX = startX ?? TAXI_ORDER_PROTOCOL.DEFAULT_START_X;
             const actualStartY = startY ?? TAXI_ORDER_PROTOCOL.DEFAULT_START_Y;
+            const actualStartZ = startZ ?? TAXI_ORDER_PROTOCOL.DEFAULT_START_Z;
             const actualEndX = endX ?? TAXI_ORDER_PROTOCOL.DEFAULT_END_X;
             const actualEndY = endY ?? TAXI_ORDER_PROTOCOL.DEFAULT_END_Y;
+            const actualEndZ = endZ ?? TAXI_ORDER_PROTOCOL.DEFAULT_END_Z;
 
-            socketLogger.info(`发送出租车订单 - 订单: ${orderId}, 起点: (${actualStartX}, ${actualStartY}), 终点: (${actualEndX}, ${actualEndY})`);
+            socketLogger.info(`发送出租车订单 - 订单: ${orderId}, 起点: (${actualStartX}, ${actualStartY}, ${actualStartZ}), 终点: (${actualEndX}, ${actualEndY}, ${actualEndZ})`);
 
             // 调用Rust后端进行广播和数据库保存
-            const result = await vehicleBridge.broadcastTaxiOrder(orderId, actualStartX, actualStartY, actualEndX, actualEndY);
+            const result = await vehicleBridge.broadcastTaxiOrder(orderId, actualStartX, actualStartY, actualStartZ, actualEndX, actualEndY, actualEndZ);
 
             socketLogger.info(`出租车订单发送成功 - 订单: ${orderId}`);
             return result;
@@ -760,16 +767,18 @@ class SocketManager {
      * @param {number} vehicleId 目标车辆ID
      * @param {number} startX 起点X坐标
      * @param {number} startY 起点Y坐标
+     * @param {number} startZ 起点Z坐标（高程）
      * @param {number} endX 终点X坐标
      * @param {number} endY 终点Y坐标
+     * @param {number} endZ 终点Z坐标（高程）
      * @returns {Promise<string>} 发送结果
      */
-    async sendTaxiOrderToVehicle(orderId, vehicleId, startX, startY, endX, endY) {
+    async sendTaxiOrderToVehicle(orderId, vehicleId, startX, startY, startZ, endX, endY, endZ) {
         try {
-            socketLogger.info(`发送出租车订单给指定车辆 - 订单: ${orderId}, 车辆: ${vehicleId}, 起点: (${startX}, ${startY}), 终点: (${endX}, ${endY})`);
+            socketLogger.info(`发送出租车订单给指定车辆 - 订单: ${orderId}, 车辆: ${vehicleId}, 起点: (${startX}, ${startY}, ${startZ}), 终点: (${endX}, ${endY}, ${endZ})`);
 
             // 调用Rust后端发送给指定车辆并保存到数据库
-            const result = await vehicleBridge.sendTaxiOrderToVehicle(orderId, vehicleId, startX, startY, endX, endY);
+            const result = await vehicleBridge.sendTaxiOrderToVehicle(orderId, vehicleId, startX, startY, startZ, endX, endY, endZ);
 
             socketLogger.info(`出租车订单发送成功 - 订单: ${orderId}, 车辆: ${vehicleId}`);
             return result;
@@ -947,8 +956,8 @@ class SocketManager {
 
             socketLogger.info(
                 `收到红绿灯状态 - ` +
-                `1组(6个): ${SANDBOX_TRAFFIC_LIGHT_PROTOCOL.COLOR_NAMES[lights[1].color] || '未知'} ${lights[1].remaining}秒, ` +
-                `2组(2个): ${SANDBOX_TRAFFIC_LIGHT_PROTOCOL.COLOR_NAMES[lights[0].color] || '未知'} ${lights[0].remaining}秒`
+                `1组(8个): ${SANDBOX_TRAFFIC_LIGHT_PROTOCOL.COLOR_NAMES[lights[1].color] || '未知'} ${lights[1].remaining}秒, ` +
+                `2组(7个): ${SANDBOX_TRAFFIC_LIGHT_PROTOCOL.COLOR_NAMES[lights[0].color] || '未知'} ${lights[0].remaining}秒`
             );
 
             // 检查红绿灯管理器是否已初始化
@@ -958,8 +967,8 @@ class SocketManager {
             }
 
             // 🔧 修复：交换1组和2组的数据对应关系
-            // lights[0] -> 2组（2个红绿灯）-> groupIndex = 0
-            // lights[1] -> 1组（6个红绿灯）-> groupIndex = 1
+            // lights[0] -> 2组（7个红绿灯）-> groupIndex = 0
+            // lights[1] -> 1组（8个红绿灯）-> groupIndex = 1
             updateTrafficLightGroup(1, lights[1].color, lights[1].remaining);
             updateTrafficLightGroup(0, lights[0].color, lights[0].remaining);
 

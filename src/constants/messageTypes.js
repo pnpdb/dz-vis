@@ -31,22 +31,26 @@ export const SEND_MESSAGE_TYPES = {
     SANDBOX_LIGHTING_CONTROL: 0x2003, // 沙盘灯光控制
 };
 
-// 车辆信息协议数据域定义 (55字节)
+// 车辆信息协议数据域定义 (87字节，XY后增加Z，朝向从DOUBLE改为四元数)
 export const VEHICLE_INFO_PROTOCOL = {
     VEHICLE_ID_OFFSET: 0,            // 车辆编号偏移 (1字节)
     SPEED_OFFSET: 1,                 // 车速偏移 (8字节, DOUBLE)
     POSITION_X_OFFSET: 9,            // 位置X偏移 (8字节, DOUBLE)
     POSITION_Y_OFFSET: 17,           // 位置Y偏移 (8字节, DOUBLE)
-    ORIENTATION_OFFSET: 25,          // 朝向偏移 (8字节, DOUBLE)
-    BATTERY_OFFSET: 33,              // 电池电量偏移 (8字节, DOUBLE)
-    GEAR_OFFSET: 41,                 // 档位偏移 (1字节, UINT8)
-    STEERING_ANGLE_OFFSET: 42,       // 方向盘转角偏移 (8字节, DOUBLE)
-    NAV_STATUS_OFFSET: 50,           // 导航状态偏移 (1字节)
-    CAMERA_STATUS_OFFSET: 51,        // 相机状态偏移 (1字节)
-    LIDAR_STATUS_OFFSET: 52,         // 激光雷达状态偏移 (1字节)
-    GYRO_STATUS_OFFSET: 53,          // 陀螺仪状态偏移 (1字节)
-    PARKING_SLOT_OFFSET: 54,         // 停车位偏移 (1字节)
-    TOTAL_SIZE: 55,                  // 总大小 55字节
+    POSITION_Z_OFFSET: 25,           // 位置Z偏移 (8字节, DOUBLE)
+    QUAT_X_OFFSET: 33,              // 四元数X偏移 (8字节, DOUBLE)
+    QUAT_Y_OFFSET: 41,              // 四元数Y偏移 (8字节, DOUBLE)
+    QUAT_Z_OFFSET: 49,              // 四元数Z偏移 (8字节, DOUBLE)
+    QUAT_W_OFFSET: 57,              // 四元数W偏移 (8字节, DOUBLE)
+    BATTERY_OFFSET: 65,              // 电池电量偏移 (8字节, DOUBLE)
+    GEAR_OFFSET: 73,                 // 档位偏移 (1字节, UINT8)
+    STEERING_ANGLE_OFFSET: 74,       // 方向盘转角偏移 (8字节, DOUBLE)
+    NAV_STATUS_OFFSET: 82,           // 导航状态偏移 (1字节)
+    CAMERA_STATUS_OFFSET: 83,        // 相机状态偏移 (1字节)
+    LIDAR_STATUS_OFFSET: 84,         // 激光雷达状态偏移 (1字节)
+    GYRO_STATUS_OFFSET: 85,          // 陀螺仪状态偏移 (1字节)
+    PARKING_SLOT_OFFSET: 86,         // 停车位偏移 (1字节)
+    TOTAL_SIZE: 87,                  // 总大小 87字节
     
     // 车速范围 (0-1 m/s)
     MIN_SPEED: 0.0,
@@ -117,20 +121,28 @@ export const DATA_RECORDING_PROTOCOL = {
     }
 };
 
-// 出租车订单协议数据域定义 (48字节)
+// 出租车订单协议数据域定义（单车49字节 / 广播64字节）
 export const TAXI_ORDER_PROTOCOL = {
+    // 广播格式含订单号头 (16字节)
     ORDER_ID_OFFSET: 0,              // 订单号偏移 (16字节, CHAR16)
-    START_X_OFFSET: 16,              // 起点X偏移 (8字节, DOUBLE)
-    START_Y_OFFSET: 24,              // 起点Y偏移 (8字节, DOUBLE)
-    END_X_OFFSET: 32,                // 终点X偏移 (8字节, DOUBLE)
-    END_Y_OFFSET: 40,                // 终点Y偏移 (8字节, DOUBLE)
-    TOTAL_SIZE: 48,                  // 总大小 48字节
+    // 单车格式偏移 (vehicle_id在offset 0, 共49字节)
+    VEHICLE_ID_OFFSET: 0,            // 车辆编号偏移 (1字节, UINT8)
+    START_X_OFFSET: 1,               // 起点X偏移 (8字节, DOUBLE)
+    START_Y_OFFSET: 9,               // 起点Y偏移 (8字节, DOUBLE)
+    START_Z_OFFSET: 17,              // 起点Z偏移 (8字节, DOUBLE) - 高程
+    END_X_OFFSET: 25,                // 终点X偏移 (8字节, DOUBLE)
+    END_Y_OFFSET: 33,                // 终点Y偏移 (8字节, DOUBLE)
+    END_Z_OFFSET: 41,                // 终点Z偏移 (8字节, DOUBLE) - 高程
+    TOTAL_SIZE: 49,                  // 单车数据域大小 49字节
+    BROADCAST_TOTAL_SIZE: 64,        // 广播数据域大小 64字节 (16 + 48)
     
     // 默认坐标常量（暂时写死）
     DEFAULT_START_X: 116.4,          // 默认起点X坐标
     DEFAULT_START_Y: 39.9,           // 默认起点Y坐标
+    DEFAULT_START_Z: 0.0,            // 默认起点Z坐标
     DEFAULT_END_X: 118.5,            // 默认终点X坐标
     DEFAULT_END_Y: 41.2,             // 默认终点Y坐标
+    DEFAULT_END_Z: 0.0,              // 默认终点Z坐标
 };
 
 // AVP自主代客泊车协议数据域定义 (2字节)
@@ -192,13 +204,15 @@ export const VEHICLE_CAMERA_PROTOCOL = {
     STATUS_ON: 1,                    // 开始发送
 };
 
-// 施工标记协议数据域定义 (18字节)
+// 施工标记协议数据域定义 (26字节)
 export const CONSTRUCTION_MARKER_PROTOCOL = {
     ID_OFFSET: 0,                    // 施工点ID偏移 (1字节, UINT8)
     POSITION_X_OFFSET: 1,            // 位置X偏移 (8字节, DOUBLE)
     POSITION_Y_OFFSET: 9,            // 位置Y偏移 (8字节, DOUBLE)
-    ACTION_OFFSET: 17,               // 动作偏移 (1字节, UINT8)
-    TOTAL_SIZE: 18,                  // 总大小 18字节
+    POSITION_Z_OFFSET: 17,           // 位置Z偏移 (8字节, DOUBLE)
+    ACTION_OFFSET: 25,               // 动作偏移 (1字节, UINT8)
+    TOTAL_SIZE: 26,                  // 总大小 26字节
+    MULTI_POINT_SIZE: 24,            // 多点广播每个点的大小 (x+y+z = 24字节)
     
     // 动作类型定义
     ACTION_CANCEL: 0,                // 取消施工标记
@@ -225,11 +239,11 @@ export const SANDBOX_LIGHTING_PROTOCOL = {
 // 沙盘红绿灯状态协议数据域定义 (4字节)
 // 协议包含2个红绿灯组的状态（每组2字节）
 export const SANDBOX_TRAFFIC_LIGHT_PROTOCOL = {
-    // 红绿灯组1（索引为1组，包含6个红绿灯）
+    // 红绿灯组1（第一组，包含8个红绿灯）
     GROUP1_COLOR_OFFSET: 0,      // 组1灯光颜色偏移 (1字节, UINT8): 1=红 2=绿 3=黄
     GROUP1_COUNTDOWN_OFFSET: 1,  // 组1倒计时偏移 (1字节, UINT8): 剩余秒数 (0-255)
     
-    // 红绿灯组2（索引为2组，包含2个红绿灯）
+    // 红绿灯组2（第二组，包含7个红绿灯）
     GROUP2_COLOR_OFFSET: 2,      // 组2灯光颜色偏移 (1字节, UINT8): 1=红 2=绿 3=黄
     GROUP2_COUNTDOWN_OFFSET: 3,  // 组2倒计时偏移 (1字节, UINT8): 剩余秒数 (0-255)
     

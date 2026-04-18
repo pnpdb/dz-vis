@@ -126,14 +126,22 @@ impl VehicleDatabase {
                 order_id TEXT NOT NULL UNIQUE,
                 start_x REAL NOT NULL,
                 start_y REAL NOT NULL,
+                start_z REAL NOT NULL DEFAULT 0.0,
                 end_x REAL NOT NULL,
                 end_y REAL NOT NULL,
+                end_z REAL NOT NULL DEFAULT 0.0,
                 assigned_vehicle_id INTEGER,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
             "#
         ).execute(&self.pool).await?;
+
+        // 迁移：为现有 taxi_orders 表添加 start_z/end_z 列（如果不存在）
+        let _ = sqlx::query("ALTER TABLE taxi_orders ADD COLUMN start_z REAL NOT NULL DEFAULT 0.0")
+            .execute(&self.pool).await;
+        let _ = sqlx::query("ALTER TABLE taxi_orders ADD COLUMN end_z REAL NOT NULL DEFAULT 0.0")
+            .execute(&self.pool).await;
 
         // 创建索引（如果不存在）
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_order_id ON taxi_orders(order_id)")
@@ -668,16 +676,18 @@ impl VehicleDatabase {
         
         let row = sqlx::query(
             r#"
-            INSERT INTO taxi_orders (order_id, start_x, start_y, end_x, end_y, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            RETURNING id, order_id, start_x, start_y, end_x, end_y, assigned_vehicle_id, created_at, updated_at
+            INSERT INTO taxi_orders (order_id, start_x, start_y, start_z, end_x, end_y, end_z, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id, order_id, start_x, start_y, start_z, end_x, end_y, end_z, assigned_vehicle_id, created_at, updated_at
             "#
         )
         .bind(&request.order_id)
         .bind(request.start_x)
         .bind(request.start_y)
+        .bind(request.start_z)
         .bind(request.end_x)
         .bind(request.end_y)
+        .bind(request.end_z)
         .bind(&now)
         .bind(&now)
         .fetch_one(&self.pool)
@@ -688,8 +698,10 @@ impl VehicleDatabase {
             order_id: row.get("order_id"),
             start_x: row.get("start_x"),
             start_y: row.get("start_y"),
+            start_z: row.get("start_z"),
             end_x: row.get("end_x"),
             end_y: row.get("end_y"),
+            end_z: row.get("end_z"),
             assigned_vehicle_id: row.get("assigned_vehicle_id"),
             created_at: row.get("created_at"),
             updated_at: row.get("updated_at"),
@@ -697,21 +709,23 @@ impl VehicleDatabase {
     }
 
     /// 保存出租车订单（包含分配的车辆ID）
-    pub async fn save_taxi_order(&self, order_id: &str, assigned_vehicle_id: i32, start_x: f64, start_y: f64, end_x: f64, end_y: f64) -> Result<TaxiOrder, sqlx::Error> {
+    pub async fn save_taxi_order(&self, order_id: &str, assigned_vehicle_id: i32, start_x: f64, start_y: f64, start_z: f64, end_x: f64, end_y: f64, end_z: f64) -> Result<TaxiOrder, sqlx::Error> {
         let now = Utc::now().to_rfc3339();
         
         let row = sqlx::query(
             r#"
-            INSERT INTO taxi_orders (order_id, start_x, start_y, end_x, end_y, assigned_vehicle_id, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            RETURNING id, order_id, start_x, start_y, end_x, end_y, assigned_vehicle_id, created_at, updated_at
+            INSERT INTO taxi_orders (order_id, start_x, start_y, start_z, end_x, end_y, end_z, assigned_vehicle_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            RETURNING id, order_id, start_x, start_y, start_z, end_x, end_y, end_z, assigned_vehicle_id, created_at, updated_at
             "#
         )
         .bind(order_id)
         .bind(start_x)
         .bind(start_y)
+        .bind(start_z)
         .bind(end_x)
         .bind(end_y)
+        .bind(end_z)
         .bind(assigned_vehicle_id)
         .bind(&now)
         .bind(&now)
@@ -723,8 +737,10 @@ impl VehicleDatabase {
             order_id: row.get("order_id"),
             start_x: row.get("start_x"),
             start_y: row.get("start_y"),
+            start_z: row.get("start_z"),
             end_x: row.get("end_x"),
             end_y: row.get("end_y"),
+            end_z: row.get("end_z"),
             assigned_vehicle_id: row.get("assigned_vehicle_id"),
             created_at: row.get("created_at"),
             updated_at: row.get("updated_at"),
@@ -734,7 +750,7 @@ impl VehicleDatabase {
     /// 获取所有出租车订单
     pub async fn get_all_taxi_orders(&self) -> Result<Vec<TaxiOrder>, sqlx::Error> {
         let rows = sqlx::query(
-            "SELECT id, order_id, start_x, start_y, end_x, end_y, assigned_vehicle_id, created_at, updated_at FROM taxi_orders ORDER BY created_at DESC"
+            "SELECT id, order_id, start_x, start_y, start_z, end_x, end_y, end_z, assigned_vehicle_id, created_at, updated_at FROM taxi_orders ORDER BY created_at DESC"
         )
         .fetch_all(&self.pool)
         .await?;
@@ -746,8 +762,10 @@ impl VehicleDatabase {
                 order_id: row.get("order_id"),
                 start_x: row.get("start_x"),
                 start_y: row.get("start_y"),
+                start_z: row.get("start_z"),
                 end_x: row.get("end_x"),
                 end_y: row.get("end_y"),
+                end_z: row.get("end_z"),
                 assigned_vehicle_id: row.get("assigned_vehicle_id"),
                 created_at: row.get("created_at"),
                 updated_at: row.get("updated_at"),

@@ -136,12 +136,21 @@ impl DataConverter {
     
     /// 转换原始数据到高级结构
     pub fn convert_raw_to_vehicle_info(&self, raw: &VehicleInfoRaw) -> VehicleInfo {
+        let quaternion = crate::protocol_processing::types::Quaternion {
+            x: f64::from_le_bytes(raw.quat_x),
+            y: f64::from_le_bytes(raw.quat_y),
+            z: f64::from_le_bytes(raw.quat_z),
+            w: f64::from_le_bytes(raw.quat_w),
+        };
         VehicleInfo {
             vehicle_id: raw.vehicle_id,
             speed: f64::from_le_bytes(raw.speed),
             position_x: f64::from_le_bytes(raw.position_x),
             position_y: f64::from_le_bytes(raw.position_y),
-            orientation: f64::from_le_bytes(raw.orientation),
+            position_z: f64::from_le_bytes(raw.position_z),
+            orientation: quaternion.yaw(),
+            pitch: quaternion.pitch(),
+            quaternion,
             battery: f64::from_le_bytes(raw.battery),
             gear: GearPosition::from_u8(raw.gear),
             steering_angle: f64::from_le_bytes(raw.steering_angle),
@@ -271,7 +280,7 @@ impl Default for DataConverter {
     }
 }
 
-/// 原始车辆信息数据结构（用于零拷贝转换）
+/// 原始车辆信息数据结构（用于零拷贝转换，87 字节）
 #[repr(C, packed)]
 #[derive(Debug, Clone, Copy)]
 pub struct VehicleInfoRaw {
@@ -279,7 +288,11 @@ pub struct VehicleInfoRaw {
     pub speed: [u8; 8],        // f64 as bytes
     pub position_x: [u8; 8],   // f64 as bytes
     pub position_y: [u8; 8],   // f64 as bytes
-    pub orientation: [u8; 8],  // f64 as bytes
+    pub position_z: [u8; 8],   // f64 as bytes
+    pub quat_x: [u8; 8],       // f64 as bytes
+    pub quat_y: [u8; 8],       // f64 as bytes
+    pub quat_z: [u8; 8],       // f64 as bytes
+    pub quat_w: [u8; 8],       // f64 as bytes
     pub battery: [u8; 8],      // f64 as bytes
     pub gear: u8,
     pub steering_angle: [u8; 8], // f64 as bytes

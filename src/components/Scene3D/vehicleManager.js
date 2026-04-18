@@ -8,7 +8,7 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { Box3, Group, Sprite, SpriteMaterial, CanvasTexture, Color, MeshStandardMaterial, Vector3 } from 'three';
 import { validateVehicleId, validatePosition, validateOrientation } from '@/utils/validation.js';
 import { disposeObject3D } from '@/utils/resourceCleanup.js';
-import { modelToVehicleCoordinates, vehicleToModelCoordinates } from '@/utils/coordinateTransform.js';
+
 
 // 车辆模型存储
 const vehicleModels = new Map();  // key: vehicleId, value: model
@@ -55,94 +55,13 @@ const INTERPOLATION_CONFIG = {
     maxUpdatesPerFrame: 10   // 🔧 增加每帧更新数量 - 支持多车场景（之前是1，导致3辆车需要3帧才更新完）
 };
 
-// 高架桥高度配置
-const ELEVATION_CONFIG = {
-    enabled: true,           // 是否启用高架桥高度控制
-    X1: 0.790,              // 左侧上坡区域边界 (车辆坐标系，米)
-    X2: 5.205,              // 右侧下坡区域边界 (车辆坐标系，米)
-    Y1: 2.958,              // 坡道开始高度 (车辆坐标系，米)
-    Y2: 3.913,              // 高架桥开始高度 (车辆坐标系，米)
-    BRIDGE_HEIGHT: 0.22,    // 高架桥高度 (沙盘局部坐标，米) - 需要根据实际测量调整
-    
-    // 计算坡度（自动计算，不需要手动设置）
-    get SLOPE_LENGTH() {
-        return this.Y2 - this.Y1;  // 坡道长度
-    },
-    get SLOPE_ANGLE() {
-        // 坡度角（弧度）= arctan(高度差 / 水平距离)
-        return Math.atan(this.BRIDGE_HEIGHT / this.SLOPE_LENGTH);
-    },
-    get SLOPE_ANGLE_DEGREES() {
-        // 坡度角（度数）- 用于调试
-        return this.SLOPE_ANGLE * 180 / Math.PI;
-    }
-};
-
 /**
- * 根据车辆位置和朝向计算高度和倾角（高架桥系统）
- * @param {number} vehicleX - 车辆X坐标 (车辆坐标系，0-6m)
- * @param {number} vehicleY - 车辆Y坐标 (车辆坐标系，0-5m)
- * @param {number} orientation - 车辆朝向角度 (弧度)，用于判断移动方向
- * @returns {Object} { height, pitchAngle, region } - 高度增量(沙盘局部坐标)、倾角(弧度)、区域名称
+ * 高度计算桩函数（旧高架桥区域逻辑已移除，Z 和 pitch 现在直接来自车辆协议）
+ * 保留导出签名以兼容施工标记、路径等模块的调用
+ * @deprecated 使用协议中的 position.z 和 pitch 代替
  */
-export const calculateVehicleElevation = (vehicleX, vehicleY, orientation = null) => {
-    if (!ELEVATION_CONFIG.enabled) {
-        return { height: 0, pitchAngle: 0, region: 'ground' };
-    }
-    
-    const { X1, X2, Y1, Y2, BRIDGE_HEIGHT, SLOPE_LENGTH, SLOPE_ANGLE } = ELEVATION_CONFIG;
-    
-    // 区域判断优先级（从上到下）：
-    
-    // 1️⃣ 高架桥区域（固定高度，Y > Y2）
-    if (vehicleY > Y2) {
-        return {
-            height: BRIDGE_HEIGHT,
-            pitchAngle: 0,
-            region: 'bridge'
-        };
-    }
-    
-    // 2️⃣ 坡道区域（左侧或右侧，Y1 < Y <= Y2）
-    const isInSlopeZone = vehicleY > Y1 && vehicleY <= Y2;
-    const isLeftZone = vehicleX <= X1;
-    const isRightZone = vehicleX >= X2;
-    
-    if (isInSlopeZone && (isLeftZone || isRightZone)) {
-        const progress = (vehicleY - Y1) / SLOPE_LENGTH;  // 0-1，表示从Y1到Y2的进度
-        
-        // 🔑 关键：根据车辆朝向判断是上坡还是下坡
-        let pitchAngle = 0;
-        if (typeof orientation === 'number') {
-            // 计算朝向在Y轴方向的分量（sin值）
-            const dy = Math.sin(orientation);
-            
-            // dy > 0: Y在增大（朝+Y方向移动）→ 上坡（车头朝上，正倾角）
-            // dy < 0: Y在减小（朝-Y方向移动）→ 下坡（车头朝下，负倾角）
-            // 阈值0.05：只在接近垂直方向时判断，转弯时保持水平
-            if (Math.abs(dy) > 0.05) {
-                pitchAngle = dy > 0 ? SLOPE_ANGLE : -SLOPE_ANGLE;
-            }
-        } else {
-            // 如果没有朝向信息，使用区域默认值（向后兼容）
-            pitchAngle = isLeftZone ? SLOPE_ANGLE : -SLOPE_ANGLE;
-        }
-        
-        const region = isLeftZone ? 'left_slope' : 'right_slope';
-        
-        return {
-            height: progress * BRIDGE_HEIGHT,
-            pitchAngle: pitchAngle,
-            region: region
-        };
-    }
-    
-    // 3️⃣ 地面区域（默认）
-    return {
-        height: 0,
-        pitchAngle: 0,
-        region: 'ground'
-    };
+export const calculateVehicleElevation = () => {
+    return { height: 0, pitchAngle: 0, region: 'ground' };
 };
 
 /**
@@ -430,11 +349,12 @@ const applyVehicleColors = (clonedModel, bodyColor) => {
 /**
  * 添加车辆到场景
  * @param {number} vehicleId - 车辆ID
- * @param {object} position - 位置 {x, z} (模型坐标系)
- * @param {number} orientation - 朝向角度（弧度）
+ * @param {object} position - 位置 {x, z, elevationZ} (模型坐标系，elevationZ 为协议 Z 高程)
+ * @param {number} orientation - 朝向角度（yaw，弧度）
  * @param {string} color - 车辆颜色
+ * @param {number} pitch - 仰角（弧度，从四元数计算）
  */
-export const addVehicle = async (vehicleId, position, orientation = 0, color = '#409EFF') => {
+export const addVehicle = async (vehicleId, position, orientation = 0, color = '#409EFF', pitch = 0) => {
     // 🔒 防止重复添加：如果正在添加同一个车辆，等待之前的操作完成
     if (vehicleAddingLocks.has(vehicleId)) {
         console.warn(`车辆 ${vehicleId} 正在添加中，跳过重复调用`);
@@ -513,7 +433,7 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
         let roadSurfaceY = 0;
         if (!cachedSandboxBox) {
             // 查找地面网格（支持多种命名）
-            const groundMeshNames = ['Standardmaterial206', 'MD_CaoPing', 'Ground', 'Plane', 'Floor'];
+            const groundMeshNames = ['Standardmaterial206', 'MD_CaoPing', 'Ground', 'Plane', 'Floor', '地面'];
             let foundGroundMesh = null;
             let maxArea = 0;
             
@@ -576,46 +496,35 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
         // 计算车辆模型的底部偏移（使用缓存的模板包围盒）
         const carBottomOffset = cachedCarTemplateBox ? cachedCarTemplateBox.min.y : new Box3().setFromObject(vehicleModel).min.y;
         
-        // 计算高架桥高度和倾角
-        let elevationHeight = 0;
-        let pitchAngle = 0;
-        let regionName = 'ground';
-        
-        if (ELEVATION_CONFIG.enabled) {
-            // 将沙盘局部坐标转换为车辆坐标系（用于判断区域）
-            const vehicleCoords = modelToVehicleCoordinates(position.x ?? 0, position.z ?? 0);
-            // 添加车辆时传入朝向，用于判断上下坡方向
-            const elevation = calculateVehicleElevation(vehicleCoords.x, vehicleCoords.y, orientation);
-            elevationHeight = elevation.height;
-            pitchAngle = elevation.pitchAngle;
-            regionName = elevation.region;
-        }
+        // 使用协议中的 Z 坐标作为高程增量
+        const elevationZ = position.elevationZ ?? 0;
         
         // 计算车辆最终的Y坐标（局部坐标系）
-        const vehicleY = roadSurfaceY - carBottomOffset + elevationHeight;  // 基准高度 + 高架桥增量
+        const vehicleY = roadSurfaceY - carBottomOffset + elevationZ;
         
         // 设置车辆位置（使用沙盘局部坐标系）
-        // position 已经是模型局部坐标 (x, z)，直接使用
         vehicleModel.position.set(
             position.x ?? 0,
             vehicleY,
             position.z ?? 0
         );
         
-        // 设置车辆倾角（高架桥坡度）
-        vehicleModel.rotation.x = pitchAngle;
+        // 设置车辆仰角（来自四元数 pitch）
+        const safePitch = typeof pitch === 'number' ? pitch : 0;
+        vehicleModel.rotation.x = safePitch;
         
         console.log(`🚗 车辆 ${vehicleId} 位置设置:`);
         console.log(`  - 输入位置: (${position.x?.toFixed(3)}, ${position.z?.toFixed(3)})`);
         console.log(`  - 地面高度 (局部Y): ${roadSurfaceY.toFixed(4)}`);
         console.log(`  - 车底偏移: ${carBottomOffset.toFixed(4)}`);
-        console.log(`  - 高架增量: ${elevationHeight.toFixed(4)} (区域: ${regionName})`);
-        console.log(`  - 倾角: ${(pitchAngle * 180 / Math.PI).toFixed(2)}°`);
+        console.log(`  - 协议 Z 高程: ${elevationZ.toFixed(4)}`);
+        console.log(`  - pitch: ${(safePitch * 180 / Math.PI).toFixed(2)}°`);
         console.log(`  - 最终位置 (局部): (${vehicleModel.position.x.toFixed(3)}, ${vehicleModel.position.y.toFixed(3)}, ${vehicleModel.position.z.toFixed(3)})`);
         
         // 转换为世界坐标并输出（调试用）
         const worldPos = sandboxModel.localToWorld(vehicleModel.position.clone());
         console.log(`  - 世界坐标: (${worldPos.x.toFixed(3)}, ${worldPos.y.toFixed(3)}, ${worldPos.z.toFixed(3)})`);
+        console.log(`  - 车辆旋转: yaw=${((orientation) * 180 / Math.PI).toFixed(2)}°, pitch=${(safePitch * 180 / Math.PI).toFixed(2)}°`);
 
         // 设置车辆朝向（从车辆坐标系角度转换为Three.js rotation.y）
         const safeOrientation = typeof orientation === 'number' ? orientation : 0;
@@ -859,7 +768,7 @@ const processBatchUpdates = () => {
             continue;
         }
 
-        const { position, orientation } = updateData;
+        const { position, orientation, pitch } = updateData;
 
         // 如果启用插值，更新目标位置
         if (INTERPOLATION_CONFIG.enabled) {
@@ -898,25 +807,16 @@ const processBatchUpdates = () => {
                 vehicleModel.position.x = position.x;
                 vehicleModel.position.z = position.z;
                 
-                // 应用高架桥高度和倾角
-                if (ELEVATION_CONFIG.enabled) {
-                    // 只转换一次坐标（性能优化）
-                    const vehicleCoords = modelToVehicleCoordinates(position.x, position.z);
-                    // 计算该位置的高度和倾角（传入朝向用于判断上下坡方向）
-                    const elevation = calculateVehicleElevation(vehicleCoords.x, vehicleCoords.y, orientation);
-                    
-                    // 应用倾角（绕X轴旋转，pitch角度）
-                    vehicleModel.rotation.x = elevation.pitchAngle;
-                    
-                    // 只在缓存已初始化时更新Y坐标
-                    if (cachedSandboxBox && cachedCarTemplateBox) {
-                        // 获取地面基准高度（缓存已验证存在）
-                        const roadSurfaceY = cachedSandboxBox.localY;
-                        const carBottomOffset = cachedCarTemplateBox.min.y;
-                        
-                        // 应用高度：基准高度 + 高架桥增量
-                        vehicleModel.position.y = (roadSurfaceY - carBottomOffset) + elevation.height;
-                    }
+                // 使用协议 Z 坐标作为高程增量，pitch 作为仰角
+                const elevationZ = position.elevationZ ?? 0;
+                if (typeof pitch === 'number') {
+                    vehicleModel.rotation.x = pitch;
+                }
+                
+                if (cachedSandboxBox && cachedCarTemplateBox) {
+                    const roadSurfaceY = cachedSandboxBox.localY;
+                    const carBottomOffset = cachedCarTemplateBox.min.y;
+                    vehicleModel.position.y = (roadSurfaceY - carBottomOffset) + elevationZ;
                 }
             }
 
@@ -959,10 +859,11 @@ const scheduleMarkDirty = () => {
 /**
  * 更新车辆位置和朝向（批量更新优化）
  * @param {number} vehicleId - 车辆ID
- * @param {object} position - 位置 {x, z} (模型局部坐标系)
- * @param {number} orientation - 朝向角度（弧度）
+ * @param {object} position - 位置 {x, z, elevationZ} (模型局部坐标系)
+ * @param {number} orientation - 朝向角度（yaw，弧度）
+ * @param {number} pitch - 仰角（弧度，来自四元数）
  */
-export const updateVehiclePosition = (vehicleId, position, orientation) => {
+export const updateVehiclePosition = (vehicleId, position, orientation, pitch = 0) => {
     // 参数验证（使用统一验证工具）
     const idValidation = validateVehicleId(vehicleId);
     if (!idValidation.valid) {
@@ -976,7 +877,7 @@ export const updateVehiclePosition = (vehicleId, position, orientation) => {
     }
 
     // 将更新添加到待处理队列
-    pendingUpdates.set(vehicleId, { position, orientation });
+    pendingUpdates.set(vehicleId, { position, orientation, pitch });
 
     // 🎯 多车优化：使用 requestAnimationFrame 同步到下一帧渲染
     // 这样所有在同一帧内到达的更新会被一起处理，避免卡顿
@@ -1097,76 +998,22 @@ export const debugListAllVehicles = () => {
 };
 
 /**
- * 🔍 调试工具：查看高架桥配置
+ * @deprecated 高架桥区域逻辑已移除，Z 和 pitch 现在直接来自车辆协议
  */
 export const debugElevationConfig = () => {
-    console.log('高架桥配置:');
-    console.log('═'.repeat(80));
-    console.log(`启用状态: ${ELEVATION_CONFIG.enabled ? '已启用' : '已禁用'}`);
-    console.log(`\n📏 边界坐标 (车辆坐标系):`);
-    console.log(`  X1 (左侧边界): ${ELEVATION_CONFIG.X1}m`);
-    console.log(`  X2 (右侧边界): ${ELEVATION_CONFIG.X2}m`);
-    console.log(`  Y1 (坡道起点): ${ELEVATION_CONFIG.Y1}m`);
-    console.log(`  Y2 (高架起点): ${ELEVATION_CONFIG.Y2}m`);
-    console.log(`\n📐 高度和坡度:`);
-    console.log(`  高架桥高度: ${ELEVATION_CONFIG.BRIDGE_HEIGHT}m (沙盘局部坐标)`);
-    console.log(`  坡道长度: ${ELEVATION_CONFIG.SLOPE_LENGTH.toFixed(3)}m`);
-    console.log(`  坡度角: ${ELEVATION_CONFIG.SLOPE_ANGLE_DEGREES.toFixed(2)}°`);
-    console.log(`  坡度角 (弧度): ${ELEVATION_CONFIG.SLOPE_ANGLE.toFixed(4)}`);
-    console.log('═'.repeat(80));
-    
-    return { ...ELEVATION_CONFIG };
+    console.log('高架桥配置已移除，Z 和 pitch 现在直接来自车辆协议');
+    return {};
 };
 
-/**
- * 🔧 调试工具：更新高架桥配置
- */
-export const updateElevationConfig = (config) => {
-    if (typeof config.enabled === 'boolean') {
-        ELEVATION_CONFIG.enabled = config.enabled;
-    }
-    if (typeof config.X1 === 'number') {
-        ELEVATION_CONFIG.X1 = config.X1;
-    }
-    if (typeof config.X2 === 'number') {
-        ELEVATION_CONFIG.X2 = config.X2;
-    }
-    if (typeof config.Y1 === 'number') {
-        ELEVATION_CONFIG.Y1 = config.Y1;
-    }
-    if (typeof config.Y2 === 'number') {
-        ELEVATION_CONFIG.Y2 = config.Y2;
-    }
-    if (typeof config.BRIDGE_HEIGHT === 'number') {
-        ELEVATION_CONFIG.BRIDGE_HEIGHT = config.BRIDGE_HEIGHT;
-    }
-    
-    console.log('高架桥配置已更新');
-    debugElevationConfig();
-    
-    return ELEVATION_CONFIG;
+/** @deprecated */
+export const updateElevationConfig = () => {
+    console.log('高架桥配置已移除，Z 和 pitch 现在直接来自车辆协议');
+    return {};
 };
 
-/**
- * 🧪 调试工具：测试指定坐标的高度和倾角
- * @param {number} vehicleX - 车辆X坐标
- * @param {number} vehicleY - 车辆Y坐标
- * @param {number} orientation - 车辆朝向（弧度，可选）
- */
-export const testElevationAt = (vehicleX, vehicleY, orientation = null) => {
-    const elevation = calculateVehicleElevation(vehicleX, vehicleY, orientation);
-    
-    console.log(`🧪 坐标 (${vehicleX.toFixed(3)}, ${vehicleY.toFixed(3)}) 的高度测试:`);
-    if (orientation !== null) {
-        console.log(`  朝向: ${(orientation * 180 / Math.PI).toFixed(1)}° (${orientation.toFixed(3)} rad)`);
-        console.log(`  Y方向分量: ${Math.sin(orientation).toFixed(3)} (${Math.sin(orientation) > 0 ? '朝+Y(上坡)' : '朝-Y(下坡)'})`);
-    }
-    console.log(`  区域: ${elevation.region}`);
-    console.log(`  高度增量: ${elevation.height.toFixed(4)}m`);
-    console.log(`  倾角: ${(elevation.pitchAngle * 180 / Math.PI).toFixed(2)}° (${elevation.pitchAngle.toFixed(4)} rad)`);
-    console.log(`  ${elevation.pitchAngle > 0 ? '↗️ 上坡(车头朝上)' : elevation.pitchAngle < 0 ? '↘️ 下坡(车头朝下)' : '→ 平地'}`);
-    
-    return elevation;
+/** @deprecated */
+export const testElevationAt = () => {
+    return { height: 0, pitchAngle: 0, region: 'ground' };
 };
 
 // 全局暴露调试函数和数据（用于分析模型结构）

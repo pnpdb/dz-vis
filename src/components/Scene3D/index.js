@@ -1803,8 +1803,8 @@ const calculateSandboxDimensions = (model) => {
     // 使用底座的**局部坐标**包围盒
     // 因为客户端的 6m×5m 对应底座，车辆是沙盘的子对象（使用局部坐标）
     updateSandboxBounds({
-        min: { x: dimensions.bounds.min.x, z: dimensions.bounds.min.z },
-        max: { x: dimensions.bounds.max.x, z: dimensions.bounds.max.z },
+        min: { x: dimensions.bounds.min.x, y: dimensions.bounds.min.y, z: dimensions.bounds.min.z },
+        max: { x: dimensions.bounds.max.x, y: dimensions.bounds.max.y, z: dimensions.bounds.max.z },
         scale: 1.0  // 已经是局部坐标，不需要缩放
     });
     console.log(`坐标转换包围盒已更新（使用底座局部坐标 ${baseMesh ? baseMesh.name : '整体包围盒'}）`);
@@ -1824,16 +1824,43 @@ const calculateSandboxDimensions = (model) => {
     // console.log(`   客户端(0, 5) 应该 → 局部(-3.000, -2.500) [左上角]`);
     // console.log(`   客户端(6, 5) 应该 → 局部(3.000, -2.500) [右上角]`);
     
-    // // 🔍 分析所有大型网格，找出真正的底座
-    // console.log('🔍 分析沙盘中的所有大型网格（按面积排序）:');
+    // // 🔍 打印整个沙盘模型的可视边界（世界坐标 + 局部坐标）
+    // const overallBoxWorld = new Box3().setFromObject(model);
+    // const overallSizeWorld = overallBoxWorld.getSize(new Vector3());
+    // const overallWorldCorners = [
+    //     new Vector3(overallBoxWorld.min.x, overallBoxWorld.min.y, overallBoxWorld.min.z),
+    //     new Vector3(overallBoxWorld.max.x, overallBoxWorld.min.y, overallBoxWorld.min.z),
+    //     new Vector3(overallBoxWorld.min.x, overallBoxWorld.max.y, overallBoxWorld.min.z),
+    //     new Vector3(overallBoxWorld.max.x, overallBoxWorld.max.y, overallBoxWorld.min.z),
+    //     new Vector3(overallBoxWorld.min.x, overallBoxWorld.min.y, overallBoxWorld.max.z),
+    //     new Vector3(overallBoxWorld.max.x, overallBoxWorld.min.y, overallBoxWorld.max.z),
+    //     new Vector3(overallBoxWorld.min.x, overallBoxWorld.max.y, overallBoxWorld.max.z),
+    //     new Vector3(overallBoxWorld.max.x, overallBoxWorld.max.y, overallBoxWorld.max.z),
+    // ];
+    // const overallBoxLocal = new Box3();
+    // overallWorldCorners.forEach(c => overallBoxLocal.expandByPoint(model.worldToLocal(c.clone())));
+    // const overallSizeLocal = overallBoxLocal.getSize(new Vector3());
+    // console.log('==========================================');
+    // console.log('📐 沙盘模型实际可视边界（整体包围盒）:');
+    // console.log(`  🌍 世界坐标:`);
+    // console.log(`    X: ${overallBoxWorld.min.x.toFixed(4)} ~ ${overallBoxWorld.max.x.toFixed(4)} (尺寸: ${overallSizeWorld.x.toFixed(4)})`);
+    // console.log(`    Y: ${overallBoxWorld.min.y.toFixed(4)} ~ ${overallBoxWorld.max.y.toFixed(4)} (尺寸: ${overallSizeWorld.y.toFixed(4)})`);
+    // console.log(`    Z: ${overallBoxWorld.min.z.toFixed(4)} ~ ${overallBoxWorld.max.z.toFixed(4)} (尺寸: ${overallSizeWorld.z.toFixed(4)})`);
+    // console.log(`  📦 局部坐标（沙盘自身坐标系）:`);
+    // console.log(`    X: ${overallBoxLocal.min.x.toFixed(4)} ~ ${overallBoxLocal.max.x.toFixed(4)} (尺寸: ${overallSizeLocal.x.toFixed(4)})`);
+    // console.log(`    Y: ${overallBoxLocal.min.y.toFixed(4)} ~ ${overallBoxLocal.max.y.toFixed(4)} (尺寸: ${overallSizeLocal.y.toFixed(4)})`);
+    // console.log(`    Z: ${overallBoxLocal.min.z.toFixed(4)} ~ ${overallBoxLocal.max.z.toFixed(4)} (尺寸: ${overallSizeLocal.z.toFixed(4)})`);
+    // console.log(`  🔧 模型缩放: ${scale}`);
+    // console.log('==========================================');
+    
+    // // 🔍 分析所有大型网格，找出各个部件的实际尺寸
+    // console.log('🔍 沙盘中所有大型网格（按面积排序，面积>1）:');
     // const meshInfoList = [];
     // model.traverse((child) => {
     //     if (child.isMesh && child.geometry) {
     //         const box = new Box3().setFromObject(child);
     //         const size = box.getSize(new Vector3());
     //         const area = size.x * size.z;
-            
-    //         // 只记录较大的网格（面积 > 1）
     //         if (area > 1) {
     //             meshInfoList.push({
     //                 name: child.name || '(unnamed)',
@@ -1850,19 +1877,15 @@ const calculateSandboxDimensions = (model) => {
     //         }
     //     }
     // });
-    
-    // // 按面积排序（从大到小）
     // meshInfoList.sort((a, b) => b.area - a.area);
-    
     // console.log(`找到 ${meshInfoList.length} 个大型网格:`);
     // meshInfoList.forEach((info, index) => {
     //     console.log(`  ${index + 1}. ${info.name}:`);
     //     console.log(`     面积: ${info.area.toFixed(2)}, 长宽比: ${info.aspectRatio.toFixed(3)} ${Math.abs(info.aspectRatio - 1.2) < 0.05 ? '(接近6:5)' : ''}`);
-    //     console.log(`     尺寸: ${info.size.x.toFixed(2)} × ${info.size.y.toFixed(2)} × ${info.size.z.toFixed(2)}`);
-    //     console.log(`     X范围: [${info.bounds.minX.toFixed(2)}, ${info.bounds.maxX.toFixed(2)}]`);
-    //     console.log(`     Z范围: [${info.bounds.minZ.toFixed(2)}, ${info.bounds.maxZ.toFixed(2)}]`);
-    //     console.log(`     Y范围: [${info.bounds.minY.toFixed(2)}, ${info.bounds.maxY.toFixed(2)}]`);
-    //     console.log(`     可见: ${info.visible ? '是' : '否'}`);
+    //     console.log(`     尺寸: ${info.size.x.toFixed(4)} × ${info.size.y.toFixed(4)} × ${info.size.z.toFixed(4)}`);
+    //     console.log(`     X: [${info.bounds.minX.toFixed(4)}, ${info.bounds.maxX.toFixed(4)}]`);
+    //     console.log(`     Y: [${info.bounds.minY.toFixed(4)}, ${info.bounds.maxY.toFixed(4)}]`);
+    //     console.log(`     Z: [${info.bounds.minZ.toFixed(4)}, ${info.bounds.maxZ.toFixed(4)}]`);
     // });
     
     
@@ -1947,7 +1970,8 @@ const findGroundMesh = () => {
         'MD_CaoPing',          // 旧沙盘模型（草坪）
         'Ground',              // 通用命名
         'Plane',               // 平面命名
-        'Floor'                // 地板命名
+        'Floor',                // 地板命名
+        '地面'
     ];
     
     let foundMesh = null;
@@ -2276,7 +2300,7 @@ export const listConstructionMarkers = () => {
 /**
  * 获取所有施工标记的详细信息
  * 返回模型局部坐标，调用者负责根据需要转换为其他坐标系
- * @returns {Array<{id: number, modelX: number, modelZ: number}>}
+ * @returns {Array<{id: number, modelX: number, modelY: number, modelZ: number}>}
  */
 export const getConstructionMarkersDetails = () => {
     const markers = [];
@@ -2284,8 +2308,9 @@ export const getConstructionMarkersDetails = () => {
         if (sprite && sprite.position) {
             markers.push({
                 id: id,
-                modelX: sprite.position.x,  // 模型局部坐标
-                modelZ: sprite.position.z   // 模型局部坐标
+                modelX: sprite.position.x,  // 模型局部坐标 X
+                modelY: sprite.position.y,  // 模型局部坐标 Y（高度）
+                modelZ: sprite.position.z   // 模型局部坐标 Z
             });
         }
     });

@@ -39,10 +39,12 @@ impl VehicleService {
         order_id: &str,
         start_x: f64,
         start_y: f64,
+        start_z: f64,
         end_x: f64,
         end_y: f64,
+        end_z: f64,
     ) -> Vec<u8> {
-        let mut data = Vec::with_capacity(48);
+        let mut data = Vec::with_capacity(64);
 
         let mut order_bytes = order_id.as_bytes().to_vec();
         order_bytes.resize(16, 0);
@@ -50,8 +52,10 @@ impl VehicleService {
 
         data.extend_from_slice(&start_x.to_le_bytes());
         data.extend_from_slice(&start_y.to_le_bytes());
+        data.extend_from_slice(&start_z.to_le_bytes());
         data.extend_from_slice(&end_x.to_le_bytes());
         data.extend_from_slice(&end_y.to_le_bytes());
+        data.extend_from_slice(&end_z.to_le_bytes());
 
         data
     }
@@ -77,22 +81,25 @@ impl VehicleService {
         marker_id: u8,
         position_x: f64,
         position_y: f64,
+        position_z: f64,
         action: u8,
     ) -> Vec<u8> {
-        let mut data = Vec::with_capacity(18);
+        let mut data = Vec::with_capacity(26);
         data.push(marker_id);
         data.extend_from_slice(&position_x.to_le_bytes());
         data.extend_from_slice(&position_y.to_le_bytes());
+        data.extend_from_slice(&position_z.to_le_bytes());
         data.push(action);
         data
     }
 
-    /// 构建所有施工标记广播数据域（仅坐标列表）
-    pub fn build_all_construction_markers_payload(&self, markers: &[(f64, f64)]) -> Vec<u8> {
-        let mut data = Vec::with_capacity(markers.len() * 16);
-        for (x, y) in markers {
+    /// 构建所有施工标记广播数据域（坐标列表，每个点 x+y+z = 24字节）
+    pub fn build_all_construction_markers_payload(&self, markers: &[(f64, f64, f64)]) -> Vec<u8> {
+        let mut data = Vec::with_capacity(markers.len() * 24);
+        for (x, y, z) in markers {
             data.extend_from_slice(&x.to_le_bytes());
             data.extend_from_slice(&y.to_le_bytes());
+            data.extend_from_slice(&z.to_le_bytes());
         }
         data
     }

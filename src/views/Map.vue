@@ -115,6 +115,10 @@
                             <span class="detail-label">Y 坐标</span>
                             <span class="detail-value">{{ constructionSelected.z?.toFixed(3) ?? '-' }}</span>
                         </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Z 坐标（高程）</span>
+                            <span class="detail-value">{{ constructionSelected.elevationZ?.toFixed(3) ?? '0.000' }}</span>
+                        </div>
                     </div>
 
                     <div class="construction-info">
@@ -165,7 +169,7 @@ import Scene3D from '@/components/Scene3D/index.vue';
 import VehicleTimeChart from '@/components/VehicleTimeChart.vue';
 import DrivingBehaviorChart from '@/components/DrivingBehaviorChart.vue';
 import { socketManager } from '@/utils/socketManager.js';
-import { startPoseSelectionMode, stopPoseSelectionMode, startPointSelectionMode, stopPointSelectionMode, createConstructionMarkerAt, removeConstructionMarker, getConstructionMarkersDetails, addVehicle, removeVehicle, updateVehiclePosition, hasVehicle } from '@/components/Scene3D/index.js';
+import { startPoseSelectionMode, stopPoseSelectionMode, startPointSelectionMode, stopPointSelectionMode, createConstructionMarkerAt, removeConstructionMarker, getConstructionMarkersDetails, addVehicle, removeVehicle, updateVehiclePosition, hasVehicle, getRoadSurfaceY } from '@/components/Scene3D/index.js';
 import { SEND_MESSAGE_TYPES, CONSTRUCTION_MARKER_PROTOCOL } from '@/constants/messageTypes.js';
 import vehicleBridge from '@/utils/vehicleBridge.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
@@ -253,21 +257,21 @@ const handleOnlineVehiclesCountChanged = ({ count, vehicleIds }) => {
 // ============ 车辆模型动态管理 ============
 // 监听车辆状态更新
 const handleVehicleStateUpdate = (vehicleInfo) => {
-    const { vehicleId, position, orientation } = vehicleInfo;
+    const { vehicleId, position, orientation, pitch } = vehicleInfo;
     
     // position 已经是模型坐标系了（从 car.js 转换后传递过来的）
     // 性能优化：区分添加和更新操作
     // 如果车辆已存在，只更新位置（使用插值）；否则添加新车辆
     if (hasVehicle(vehicleId)) {
         // 车辆已存在，使用updateVehiclePosition（启用插值平滑移动）
-        updateVehiclePosition(vehicleId, position, orientation);
+        updateVehiclePosition(vehicleId, position, orientation, pitch);
     } else {
         // 车辆不存在，添加新车辆到场景
         // 🎨 从 carStore 获取车辆的自定义颜色
         const vehicleData = carStore.carList.find(car => car.id === vehicleId);
         const vehicleColor = vehicleData?.color || '#409EFF'; // 默认蓝色
         
-        addVehicle(vehicleId, position, orientation, vehicleColor).catch(error => {
+        addVehicle(vehicleId, position, orientation, vehicleColor, pitch).catch(error => {
             console.error(`添加车辆 ${vehicleId} 失败:`, error);
         });
     }
@@ -338,13 +342,19 @@ const startConstructionMark = () => {
         
         // 先创建临时施工标记（使用模型局部坐标，包括Y坐标）
         const res = createConstructionMarkerAt(x, z, { y });
+        // 计算高程Z：模型Y - 路面基准高度
+        const roadY = getRoadSurfaceY();
+        const elevationZ = Math.max(0, (y ?? 0) - roadY);
+        
         if (res) {
             // 显示车辆坐标系的坐标，但保存模型坐标用于后续操作
             constructionSelected.value = { 
                 id: res.id, 
                 x: vehicleCoords.x,  // 车辆坐标系（用于显示）
                 z: vehicleCoords.y,  // 车辆坐标系的Y对应显示的Z
+                elevationZ: elevationZ,  // 高程Z
                 modelX: x,           // 模型局部坐标（用于内部计算）
+                modelY: y,           // 模型局部Y（高度）
                 modelZ: z            // 模型局部坐标（用于内部计算）
             };
         } else {
@@ -352,12 +362,14 @@ const startConstructionMark = () => {
                 id: null, 
                 x: vehicleCoords.x, 
                 z: vehicleCoords.y,
+                elevationZ: elevationZ,
                 modelX: x,
+                modelY: y,
                 modelZ: z
             };
         }
         
-        console.log(`🚧 施工标记 - 车辆坐标: (${vehicleCoords.x.toFixed(3)}, ${vehicleCoords.y.toFixed(3)}), 模型坐标: (${x.toFixed(3)}, ${z.toFixed(3)})`);
+        console.log(`🚧 施工标记 - 车辆坐标: (${vehicleCoords.x.toFixed(3)}, ${vehicleCoords.y.toFixed(3)}), 高程Z: ${elevationZ.toFixed(3)}, 模型坐标: (${x.toFixed(3)}, ${y.toFixed(3)}, ${z.toFixed(3)})`);
         
         constructionDialogVisible.value = true;
     });
@@ -369,21 +381,26 @@ const confirmConstructionPoint = async () => {
             // 获取所有施工标记信息（模型局部坐标）
             const allMarkers = getConstructionMarkersDetails();
             
-            // 转换为车辆坐标系用于广播
+            // 转换为车辆坐标系用于广播（包含高程Z）
+            const roadY = getRoadSurfaceY();
             const markersInVehicleCoords = allMarkers.map(marker => {
                 const vehicleCoords = modelToVehicleCoordinates(marker.modelX, marker.modelZ);
                 // 应用偏移量（发送坐标减偏移量）
                 const finalCoords = applyOffsetToSend(vehicleCoords.x, vehicleCoords.y);
+                // 计算高程Z：模型Y坐标 - 路面基准高度
+                const elevationZ = Math.max(0, (marker.modelY ?? 0) - roadY);
                 return {
                     id: marker.id,
                     x: finalCoords.x,  // 应用偏移后的车辆坐标系
-                    z: finalCoords.y   // 车辆坐标系的Y映射到协议的Z
+                    z: finalCoords.y,  // 车辆坐标系的Y映射到协议的Z
+                    elevationZ: elevationZ  // 高程Z（米）
                 };
             });
             
             console.log('🚧 广播施工标记（应用偏移后）:', markersInVehicleCoords);
             
             const result = await vehicleBridge.broadcastAllConstructionMarkers(markersInVehicleCoords);
+            console.log('🚧 施工标记广播结果:', result);
             
             // 显示成功消息
             Toast.success(result);

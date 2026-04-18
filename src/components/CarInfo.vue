@@ -13,6 +13,7 @@
                     </div>
                     <div class="info-value">X: {{ displayPositionX }}</div>
                     <div class="info-value">Y: {{ displayPositionY }}</div>
+                    <div class="info-value">Z: {{ displayPositionZ }}</div>
                 </div>
                 <div class="info-card info-card-h">
                     <div class="info-title">
@@ -81,6 +82,7 @@ const speedValue = ref(0);
 const hasSpeed = ref(false);
 const positionX = ref(116.4);
 const positionY = ref(39.9);
+const positionZ = ref(0);
 const navStatus = ref({
     code: 0,
     text: '未导航',
@@ -94,6 +96,7 @@ const displaySpeed = computed(() => (props.online ? speedValue.value : 0));
 const displayHasSpeed = computed(() => props.online && hasSpeed.value);
 const displayPositionX = computed(() => (props.online ? positionX.value.toFixed(2) : offlinePlaceholder));
 const displayPositionY = computed(() => (props.online ? positionY.value.toFixed(2) : offlinePlaceholder));
+const displayPositionZ = computed(() => (props.online ? positionZ.value.toFixed(2) : offlinePlaceholder));
 const displayBattery = computed(() => (props.online ? `${batteryValue.value}%` : offlinePlaceholder));
 const isBatteryLow = computed(() => props.online && batteryValue.value < 20);
 const batteryLevelStyle = computed(() => ({
@@ -115,6 +118,7 @@ const resetToDefaultState = () => {
     batteryValue.value = 0;
     positionX.value = 0;
     positionY.value = 0;
+    positionZ.value = 0;
     navStatus.value = {
         code: 0,
         text: offlinePlaceholder,
@@ -144,6 +148,7 @@ const handleVehicleInfoUpdate = (data) => {
     speedValue.value = hasSpeed.value ? data.speed : 0;
     positionX.value = data.position?.x ?? 0;
     positionY.value = data.position?.y ?? 0;
+    positionZ.value = data.position?.z ?? 0;
     batteryValue.value = typeof data.battery === 'number' ? Math.round(data.battery) : 0;
     navStatus.value = data.navigation ?? { code: 0, text: '未导航' };
     parkingSlot.value = Number.isFinite(data.parkingSlot) ? Number(data.parkingSlot) : 0;
@@ -219,7 +224,8 @@ onBeforeUnmount(() => {
 
 .info-card-h {
     width: 100%;
-    height: 70px;
+    height: auto;
+    min-height: 70px;
 }
 
 .battery-container {

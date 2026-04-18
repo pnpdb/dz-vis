@@ -29,20 +29,20 @@ const sendVehiclePathDisplay = async (vehicleId, displayPath) => {
     return invoke('send_vehicle_path_display_command', { vehicleId, displayPath });
 };
 
-const broadcastTaxiOrder = (orderId, startX, startY, endX, endY) => {
-    return invoke('broadcast_taxi_order', { orderId, startX, startY, endX, endY });
+const broadcastTaxiOrder = (orderId, startX, startY, startZ, endX, endY, endZ) => {
+    return invoke('broadcast_taxi_order', { orderId, startX, startY, startZ, endX, endY, endZ });
 };
 
-const sendTaxiOrderToVehicle = (orderId, vehicleId, startX, startY, endX, endY) => {
-    return invoke('send_taxi_order_to_vehicle', { orderId, vehicleId, startX, startY, endX, endY });
+const sendTaxiOrderToVehicle = (orderId, vehicleId, startX, startY, startZ, endX, endY, endZ) => {
+    return invoke('send_taxi_order_to_vehicle', { orderId, vehicleId, startX, startY, startZ, endX, endY, endZ });
 };
 
 const sendAvpParking = (vehicleId, parkingSpot = 1) => invoke('send_avp_parking', { vehicleId, parkingSpot });
 
 const sendAvpPickup = (vehicleId) => invoke('send_avp_pickup', { vehicleId });
 
-const broadcastConstructionMarker = (markerId, positionX, positionY, action) => {
-    return invoke('broadcast_construction_marker', { markerId, positionX, positionY, action });
+const broadcastConstructionMarker = (markerId, positionX, positionY, positionZ, action) => {
+    return invoke('broadcast_construction_marker', { markerId, positionX, positionY, positionZ, action });
 };
 
 const broadcastAllConstructionMarkers = (markers) => {

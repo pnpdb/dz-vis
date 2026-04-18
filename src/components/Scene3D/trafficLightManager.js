@@ -1,6 +1,6 @@
 /**
  * 红绿灯管理器
- * 负责控制沙盘中的16个红绿灯，包括灯光切换（无倒计时）
+ * 负责控制沙盘中的15个红绿灯，包括灯光切换和倒计时秒数渲染
  * 
  * 颜色控制策略（平衡亮度和颜色）：
  * - 保存每个灯的原始底色（暗红/暗黄/暗绿）用于熄灭时显示
@@ -19,6 +19,9 @@
  * 
  * 可调参数（在本文件顶部配置）：
  * - LIGHT_ON_INTENSITY: 亮灯时的发光强度（默认3，建议范围2-5）
+ * - COUNTDOWN_ON_INTENSITY: 倒计时数字的发光强度（默认5）
+ * - COUNTDOWN_CANVAS_SIZE: Canvas 尺寸（默认512）
+ * - COUNTDOWN_FONT_SIZE: 字体大小（默认320）
  */
 
 import * as THREE from 'three';
@@ -35,34 +38,43 @@ export const TRAFFIC_LIGHT_COLORS = {
 const LIGHT_ON_INTENSITY = 3;      // 亮灯时的发光强度（适中强度，避免过曝）
 const LIGHT_OFF_INTENSITY = 0;     // 熄灯时的发光强度
 
-// 红绿灯配置数组（16个红绿灯的完整配置）
-// 每个配置包含：红绿灯组名称、绿灯名称、黄灯名称、红灯名称、所属分组
+// 倒计时 Canvas 配置
+const COUNTDOWN_CANVAS_SIZE = 512;  // Canvas 尺寸（正方形）
+const COUNTDOWN_FONT_SIZE = 320;    // 字体大小
+const COUNTDOWN_FONT = `bold ${COUNTDOWN_FONT_SIZE}px Arial, sans-serif`;  // 字体样式
+const COUNTDOWN_ON_INTENSITY = 5;  // 倒计时数字亮起时的发光强度
+
+// 红绿灯配置数组（15个红绿灯的完整配置）
+// 每个配置包含：红绿灯组名称、红灯名称、黄灯名称、绿灯名称、倒计时秒数区域名称、所属分组
 const TRAFFIC_LIGHT_CONFIG = [
     // 第一组（8个红绿灯）
-    { group: 'MD_HongLvDeng004', green: 'MD_HongLvDeng_Lv006', yellow: 'MD_HongLvDeng_Huang006', red: 'MD_HongLvDeng_Hong006', groupIndex: 0 },
-    { group: 'MD_HongLvDeng002', green: 'MD_HongLvDeng_Lv004', yellow: 'MD_HongLvDeng_Huang004', red: 'MD_HongLvDeng_Hong004', groupIndex: 0 },
-    { group: 'MD_HongLvDeng005', green: 'MD_HongLvDeng_Lv007', yellow: 'MD_HongLvDeng_Huang007', red: 'MD_HongLvDeng_Hong007', groupIndex: 0 },
-    { group: 'MD_HongLvDeng008', green: 'MD_HongLvDeng_Lv010', yellow: 'MD_HongLvDeng_Huang010', red: 'MD_HongLvDeng_Hong010', groupIndex: 0 },
-    { group: 'MD_HongLvDeng017', green: 'MD_HongLvDeng_Lv019', yellow: 'MD_HongLvDeng_Huang019', red: 'MD_HongLvDeng_Hong019', groupIndex: 0 },
-    { group: 'MD_HongLvDeng010', green: 'MD_HongLvDeng_Lv012', yellow: 'MD_HongLvDeng_Huang011', red: 'MD_HongLvDeng_Hong012', groupIndex: 0 },
-    { group: 'MD_HongLvDeng014', green: 'MD_HongLvDeng_Lv016', yellow: 'MD_HongLvDeng_Huang016', red: 'MD_HongLvDeng_Hong016', groupIndex: 0 },
-    { group: 'MD_HongLvDeng015', green: 'MD_HongLvDeng_Lv017', yellow: 'MD_HongLvDeng_Huang017', red: 'MD_HongLvDeng_Hong017', groupIndex: 0 },
-    
-    // 第二组（8个红绿灯）
-    { group: 'MD_HongLvDeng003', green: 'MD_HongLvDeng_Lv005', yellow: 'MD_HongLvDeng_Huang005', red: 'MD_HongLvDeng_Hong005', groupIndex: 1 },
-    { group: 'MD_HongLvDeng006', green: 'MD_HongLvDeng_Lv008', yellow: 'MD_HongLvDeng_Huang008', red: 'MD_HongLvDeng_Hong008', groupIndex: 1 },
-    { group: 'MD_HongLvDeng007', green: 'MD_HongLvDeng_Lv009', yellow: 'MD_HongLvDeng_Huang009', red: 'MD_HongLvDeng_Hong009', groupIndex: 1 },
-    { group: 'MD_HongLvDeng009', green: 'MD_HongLvDeng_Lv011', yellow: 'MD_HongLvDeng_Huang011', red: 'MD_HongLvDeng_Hong011', groupIndex: 1 },
-    { group: 'MD_HongLvDeng013', green: 'MD_HongLvDeng_Lv015', yellow: 'MD_HongLvDeng_Huang015', red: 'MD_HongLvDeng_Hong015', groupIndex: 1 },
-    { group: 'MD_HongLvDeng012', green: 'MD_HongLvDeng_Lv014', yellow: 'MD_HongLvDeng_Huang014', red: 'MD_HongLvDeng_Hong014', groupIndex: 1 },
-    { group: 'MD_HongLvDeng011', green: 'MD_HongLvDeng_Lv013', yellow: 'MD_HongLvDeng_Huang013', red: 'MD_HongLvDeng_Hong013', groupIndex: 1 },
-    { group: 'MD_HongLvDeng016', green: 'MD_HongLvDeng_Lv018', yellow: 'MD_HongLvDeng_Huang018', red: 'MD_HongLvDeng_Hong018', groupIndex: 1 }
+    { group: 'MD_HongLvDeng_007', red: 'MD_HongLvDeng_Hong007', yellow: 'MD_HongLvDeng_Huang007', green: 'MD_HongLvDeng_Lv007', countdown: 'MiaoShu007', groupIndex: 0 },
+    { group: 'MD_HongLvDeng_011', red: 'MD_HongLvDeng_Hong011', yellow: 'MD_HongLvDeng_Huang011', green: 'MD_HongLvDeng_Lv011', countdown: 'MiaoShu011', groupIndex: 0 },
+    { group: 'MD_HongLvDeng_004', red: 'MD_HongLvDeng_Hong004', yellow: 'MD_HongLvDeng_Huang004', green: 'MD_HongLvDeng_Lv004', countdown: 'MiaoShu004', groupIndex: 0 },
+    { group: 'MD_HongLvDeng_008', red: 'MD_HongLvDeng_Hong008', yellow: 'MD_HongLvDeng_Huang008', green: 'MD_HongLvDeng_Lv008', countdown: 'MiaoShu008', groupIndex: 0 },
+    { group: 'MD_HongLvDeng_006', red: 'MD_HongLvDeng_Hong006', yellow: 'MD_HongLvDeng_Huang006', green: 'MD_HongLvDeng_Lv006', countdown: 'MiaoShu006', groupIndex: 0 },
+    { group: 'MD_HongLvDeng_010', red: 'MD_HongLvDeng_Hong010', yellow: 'MD_HongLvDeng_Huang010', green: 'MD_HongLvDeng_Lv010', countdown: 'MiaoShu010', groupIndex: 0 },
+    { group: 'MD_HongLvDeng_013', red: 'MD_HongLvDeng_Hong013', yellow: 'MD_HongLvDeng_Huang013', green: 'MD_HongLvDeng_Lv013', countdown: 'MiaoShu013', groupIndex: 0 },
+    { group: 'MD_HongLvDeng_015', red: 'MD_HongLvDeng_Hong015', yellow: 'MD_HongLvDeng_Huang015', green: 'MD_HongLvDeng_Lv015', countdown: 'MiaoShu015', groupIndex: 0 },
+
+    // 第二组（7个红绿灯）
+    { group: 'MD_HongLvDeng_001', red: 'MD_HongLvDeng_Hong001', yellow: 'MD_HongLvDeng_Huang001', green: 'MD_HongLvDeng_Lv001', countdown: 'MiaoShu001', groupIndex: 1 },
+    { group: 'MD_HongLvDeng_002', red: 'MD_HongLvDeng_Hong002', yellow: 'MD_HongLvDeng_Huang002', green: 'MD_HongLvDeng_Lv002', countdown: 'MiaoShu002', groupIndex: 1 },
+    { group: 'MD_HongLvDeng_003', red: 'MD_HongLvDeng_Hong003', yellow: 'MD_HongLvDeng_Huang003', green: 'MD_HongLvDeng_Lv003', countdown: 'MiaoShu003', groupIndex: 1 },
+    { group: 'MD_HongLvDeng_005', red: 'MD_HongLvDeng_Hong005', yellow: 'MD_HongLvDeng_Huang005', green: 'MD_HongLvDeng_Lv005', countdown: 'MiaoShu005', groupIndex: 1 },
+    { group: 'MD_HongLvDeng_012', red: 'MD_HongLvDeng_Hong012', yellow: 'MD_HongLvDeng_Huang012', green: 'MD_HongLvDeng_Lv012', countdown: 'MiaoShu012', groupIndex: 1 },
+    { group: 'MD_HongLvDeng_009', red: 'MD_HongLvDeng_Hong009', yellow: 'MD_HongLvDeng_Huang009', green: 'MD_HongLvDeng_Lv009', countdown: 'MiaoShu009', groupIndex: 1 },
+    { group: 'MD_HongLvDeng_014', red: 'MD_HongLvDeng_Hong014', yellow: 'MD_HongLvDeng_Huang014', green: 'MD_HongLvDeng_Lv014', countdown: 'MiaoShu014', groupIndex: 1 },
 ];
 
 // 红绿灯对象存储
 let trafficLights = [];
 let sandboxModel = null;
 let initialized = false;
+
+// 倒计时 Canvas 和纹理缓存
+const countdownCanvases = new Map();  // 存储每个红绿灯的 Canvas
+const countdownTextures = new Map();  // 存储每个红绿灯的 CanvasTexture
 
 /**
  * 初始化红绿灯管理器
@@ -78,16 +90,30 @@ export function initTrafficLightManager(sandbox) {
     trafficLights = [];
 
     try {
-        logger.info('开始初始化红绿灯管理器（新模型，16个红绿灯，无倒计时）');
+        logger.info('开始初始化红绿灯管理器（15个红绿灯，第一组8个，第二组7个）');
         
         // 遍历配置，查找所有红绿灯
         TRAFFIC_LIGHT_CONFIG.forEach((config, index) => {
             const trafficLight = extractTrafficLightComponents(config, index);
             if (trafficLight) {
                 trafficLights.push(trafficLight);
-                    } else {
+                
+                // 为倒计时对象创建 Canvas 纹理
+                if (trafficLight.countdown && trafficLight.countdown.material) {
+                    const { texture } = createCountdownCanvas(index);
+                    // 使用 emissiveMap 让数字发光
+                    trafficLight.countdown.material.emissiveMap = texture;
+                    trafficLight.countdown.material.color.setHex(0x464646);
+                    trafficLight.countdown.material.emissive.setHex(0xffffff);
+                    trafficLight.countdown.material.emissiveIntensity = 1;
+                    trafficLight.countdown.material.needsUpdate = true;
+                    logger.debug(`红绿灯 ${index} (${config.group}) 倒计时纹理已应用`);
+                } else {
+                    logger.warn(`红绿灯 ${index} (${config.group}) 没有倒计时对象`);
+                }
+            } else {
                 logger.warn(`红绿灯 ${index} (${config.group}) 提取失败`);
-                    }
+            }
         });
 
         if (trafficLights.length === 0) {
@@ -97,7 +123,7 @@ export function initTrafficLightManager(sandbox) {
 
         logger.info(`成功初始化 ${trafficLights.length} 个红绿灯`);
         logger.info(`   第一组: 8个红绿灯 (索引0-7)`);
-        logger.info(`   第二组: 8个红绿灯 (索引8-15)`);
+        logger.info(`   第二组: 7个红绿灯 (索引8-14)`);
 
         // 初始化所有红绿灯为熄灭状态
         trafficLights.forEach((light, index) => {
@@ -126,7 +152,8 @@ function extractTrafficLightComponents(config, index) {
         groupIndex: config.groupIndex,
         redLight: null,
         yellowLight: null,
-        greenLight: null
+        greenLight: null,
+        countdown: null
     };
 
     // 在整个沙盘模型中查找红绿灯的各个灯光组件
@@ -144,6 +171,9 @@ function extractTrafficLightComponents(config, index) {
         } else if (name === config.green) {
             components.greenLight = child;
             logger.debug(`  找到绿灯: ${name}`);
+        } else if (name === config.countdown) {
+            components.countdown = child;
+            logger.debug(`  找到倒计时: ${name}`);
         }
     });
 
@@ -187,6 +217,11 @@ function cloneMaterialsForTrafficLight(components) {
         components.greenLight.originalColor = components.greenLight.material.color.clone();
         components.greenLight.material = components.greenLight.material.clone();
     }
+    
+    // 倒计时材质克隆（避免多个红绿灯共享同一材质导致颜色/纹理冲突）
+    if (components.countdown && components.countdown.material) {
+        components.countdown.material = components.countdown.material.clone();
+    }
 }
 
 /**
@@ -221,14 +256,20 @@ function turnOffAllLights(index) {
         light.greenLight.material.emissiveIntensity = LIGHT_OFF_INTENSITY;
         light.greenLight.material.needsUpdate = true;
     }
+
+    // 熄灭倒计时（降低发光强度）
+    if (light.countdown && light.countdown.material) {
+        light.countdown.material.emissiveIntensity = LIGHT_OFF_INTENSITY;
+    }
 }
 
 /**
  * 设置单个红绿灯的状态
- * @param {number} index - 红绿灯索引 (0-15)
+ * @param {number} index - 红绿灯索引 (0-14)
  * @param {number} color - 灯光颜色 (1=红, 2=绿, 3=黄)
+ * @param {number} countdown - 倒计时秒数
  */
-export function setTrafficLightState(index, color) {
+export function setTrafficLightState(index, color, countdown) {
     if (!initialized) {
         logger.warn('红绿灯管理器未初始化');
         return;
@@ -244,7 +285,9 @@ export function setTrafficLightState(index, color) {
     // 先熄灭所有灯
     turnOffAllLights(index);
 
-    // 根据颜色点亮对应的灯
+    // 根据颜色点亮对应的灯，并更新倒计时数字
+    let countdownColor = '#ffffff';  // 默认白色
+    
     switch (color) {
         case TRAFFIC_LIGHT_COLORS.RED:
             if (light.redLight && light.redLight.material) {
@@ -254,6 +297,12 @@ export function setTrafficLightState(index, color) {
                 light.redLight.material.emissiveIntensity = LIGHT_ON_INTENSITY;
                 light.redLight.material.needsUpdate = true;
             }
+            // 倒计时显示红色数字
+            if (light.countdown && light.countdown.material) {
+                light.countdown.material.emissiveIntensity = COUNTDOWN_ON_INTENSITY;
+                light.countdown.material.needsUpdate = true;
+            }
+            countdownColor = '#ff0000';
             break;
 
         case TRAFFIC_LIGHT_COLORS.GREEN:
@@ -264,6 +313,12 @@ export function setTrafficLightState(index, color) {
                 light.greenLight.material.emissiveIntensity = LIGHT_ON_INTENSITY;
                 light.greenLight.material.needsUpdate = true;
             }
+            // 倒计时显示绿色数字
+            if (light.countdown && light.countdown.material) {
+                light.countdown.material.emissiveIntensity = COUNTDOWN_ON_INTENSITY;
+                light.countdown.material.needsUpdate = true;
+            }
+            countdownColor = '#00ff00';
             break;
 
         case TRAFFIC_LIGHT_COLORS.YELLOW:
@@ -274,6 +329,12 @@ export function setTrafficLightState(index, color) {
                 light.yellowLight.material.emissiveIntensity = LIGHT_ON_INTENSITY;
                 light.yellowLight.material.needsUpdate = true;
             }
+            // 倒计时显示黄色数字
+            if (light.countdown && light.countdown.material) {
+                light.countdown.material.emissiveIntensity = COUNTDOWN_ON_INTENSITY;
+                light.countdown.material.needsUpdate = true;
+            }
+            countdownColor = '#ffff00';
             break;
 
         default:
@@ -281,14 +342,17 @@ export function setTrafficLightState(index, color) {
             break;
     }
     
-    logger.debug(`红绿灯 ${index} (${light.config.group}) 设置为: ${getColorName(color)}`);
+    // 更新倒计时数字
+    updateCountdownCanvas(index, countdown, countdownColor);
+
+    logger.debug(`红绿灯 ${index} (${light.config.group}) 设置为: ${getColorName(color)}, 倒计时: ${countdown}秒`);
 }
 
 /**
  * 更新红绿灯组状态（协议接口）
  * @param {number} groupIndex - 组索引 (0=协议第一组, 1=协议第二组)
  * @param {number} color - 灯光颜色 (1=红, 2=绿, 3=黄)
- * @param {number} countdown - 倒计时秒数（保留参数兼容性，但不使用）
+ * @param {number} countdown - 倒计时秒数
  */
 export function updateTrafficLightGroup(groupIndex, color, countdown) {
     if (!initialized) {
@@ -316,10 +380,10 @@ export function updateTrafficLightGroup(groupIndex, color, countdown) {
 
     // 更新该组的所有红绿灯
     targetLights.forEach(light => {
-        setTrafficLightState(light.index, color);
+        setTrafficLightState(light.index, color, countdown);
     });
 
-    logger.info(`协议第${groupIndex + 1}组 (实际第${actualGroupIndex + 1}组) 的 ${targetLights.length} 个红绿灯已更新为: ${getColorName(color)}`);
+    logger.info(`协议第${groupIndex + 1}组 (实际第${actualGroupIndex + 1}组) 的 ${targetLights.length} 个红绿灯已更新为: ${getColorName(color)}, 倒计时: ${countdown}秒`);
 }
 
 /**
@@ -353,9 +417,127 @@ export function isInitialized() {
 }
 
 /**
+ * 创建倒计时 Canvas 和纹理
+ * @param {number} index - 红绿灯索引
+ * @returns {Object} { canvas, texture }
+ */
+function createCountdownCanvas(index) {
+    const canvas = document.createElement('canvas');
+    canvas.width = COUNTDOWN_CANVAS_SIZE;
+    canvas.height = COUNTDOWN_CANVAS_SIZE;
+    
+    // 初始化 Canvas 内容（绘制初始数字 "0"）
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    
+    ctx.save();
+    // 应用变换：水平+垂直翻转
+    ctx.translate(centerX, centerY);
+    ctx.scale(-1, -1);
+    
+    ctx.font = COUNTDOWN_FONT;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // 绘制高对比度数字 "0"
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 20;
+    ctx.strokeText('0', 0, 0);
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('0', 0, 0);
+    
+    // 再次绘制增加亮度
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('0', 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    
+    ctx.restore();
+    
+    // 创建纹理
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    
+    // 缓存
+    countdownCanvases.set(index, canvas);
+    countdownTextures.set(index, texture);
+    
+    logger.debug(`为红绿灯 ${index} 创建倒计时 Canvas`);
+    
+    return { canvas, texture };
+}
+
+/**
+ * 更新倒计时 Canvas 内容
+ * @param {number} index - 红绿灯索引
+ * @param {number} countdown - 倒计时秒数
+ * @param {string} color - 文字颜色（十六进制字符串，如 '#ff0000'）
+ */
+function updateCountdownCanvas(index, countdown, color) {
+    const canvas = countdownCanvases.get(index);
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    
+    // 清空画布（黑色背景）
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    const text = countdown.toString();
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    
+    ctx.save();
+    // 应用变换：水平+垂直翻转
+    ctx.translate(centerX, centerY);
+    ctx.scale(-1, -1);
+    
+    ctx.font = COUNTDOWN_FONT;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // 1. 绘制黑色描边（增加对比度）
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 20;
+    ctx.strokeText(text, 0, 0);
+    
+    // 2. 绘制主体文字
+    ctx.fillStyle = color;
+    ctx.fillText(text, 0, 0);
+    
+    // 3. 再次绘制一层更亮的文字（增加发光效果）
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = color;
+    ctx.fillText(text, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    
+    ctx.restore();
+    
+    // 通知纹理更新
+    const texture = countdownTextures.get(index);
+    if (texture) {
+        texture.needsUpdate = true;
+    }
+}
+
+/**
  * 销毁红绿灯管理器
  */
 export function destroyTrafficLightManager() {
+    // 清理纹理和 Canvas
+    countdownTextures.forEach((texture) => {
+        if (texture) {
+            texture.dispose();
+        }
+    });
+    countdownTextures.clear();
+    countdownCanvases.clear();
+    
     trafficLights = [];
     sandboxModel = null;
     initialized = false;

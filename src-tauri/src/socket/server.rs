@@ -669,7 +669,9 @@ fn vehicle_info_equal(a: &VehicleInfo, b: &VehicleInfo) -> bool {
         && floats_close(a.speed, b.speed, 1e-6)
         && floats_close(a.position_x, b.position_x, 1e-6)
         && floats_close(a.position_y, b.position_y, 1e-6)
+        && floats_close(a.position_z, b.position_z, 1e-6)
         && floats_close(a.orientation, b.orientation, 1e-6)
+        && floats_close(a.pitch, b.pitch, 1e-6)
         && floats_close(a.battery, b.battery, 1e-6)
         && a.gear == b.gear
         && floats_close(a.steering_angle, b.steering_angle, 1e-6)
@@ -700,7 +702,15 @@ fn parse_vehicle_info_payload(
     let speed = read_f64(ProtocolConstants::VEHICLE_INFO_SPEED_OFFSET);
     let position_x = read_f64(ProtocolConstants::VEHICLE_INFO_POSITION_X_OFFSET);
     let position_y = read_f64(ProtocolConstants::VEHICLE_INFO_POSITION_Y_OFFSET);
-    let orientation = read_f64(ProtocolConstants::VEHICLE_INFO_ORIENTATION_OFFSET);
+    let position_z = read_f64(ProtocolConstants::VEHICLE_INFO_POSITION_Z_OFFSET);
+    let quaternion = crate::protocol_processing::types::Quaternion {
+        x: read_f64(ProtocolConstants::VEHICLE_INFO_QUAT_X_OFFSET),
+        y: read_f64(ProtocolConstants::VEHICLE_INFO_QUAT_Y_OFFSET),
+        z: read_f64(ProtocolConstants::VEHICLE_INFO_QUAT_Z_OFFSET),
+        w: read_f64(ProtocolConstants::VEHICLE_INFO_QUAT_W_OFFSET),
+    };
+    let orientation = quaternion.yaw();
+    let pitch = quaternion.pitch();
     let battery = read_f64(ProtocolConstants::VEHICLE_INFO_BATTERY_OFFSET);
     let gear_raw = view[ProtocolConstants::VEHICLE_INFO_GEAR_OFFSET];
     let gear = GearPosition::from_u8(gear_raw);
@@ -716,7 +726,10 @@ fn parse_vehicle_info_payload(
         speed,
         position_x,
         position_y,
+        position_z,
+        quaternion,
         orientation,
+        pitch,
         battery,
         gear,
         steering_angle,
@@ -745,8 +758,15 @@ fn parse_vehicle_info_payload(
     Some(serde_json::json!({
         "vehicle_id": info.vehicle_id,
         "speed": info.speed,
-        "position": {"x": info.position_x, "y": info.position_y},
+        "position": {"x": info.position_x, "y": info.position_y, "z": info.position_z},
         "orientation": info.orientation,
+        "pitch": info.pitch,
+        "quaternion": {
+            "x": info.quaternion.x,
+            "y": info.quaternion.y,
+            "z": info.quaternion.z,
+            "w": info.quaternion.w,
+        },
         "battery": info.battery,
         "gear": {
             "value": gear.to_u8(),

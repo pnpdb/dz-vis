@@ -31,11 +31,14 @@ export const LOGICAL_DIMENSIONS = {
 let dynamicSandboxBounds = {
     minX: -3.0,   // 初始值（会被更新）
     maxX: 3.0,
+    minY: 0,      // Y轴（高度）
+    maxY: 0,
     minZ: -2.5,
     maxZ: 2.5,
     centerX: 0,
     centerZ: 0,
     width: 6.0,
+    height: 0,
     depth: 5.0,
     scale: 1.0    // 沙盘模型的缩放比例
 };
@@ -57,18 +60,22 @@ export function updateSandboxBounds(bounds) {
     dynamicSandboxBounds = {
         minX: bounds.min.x,
         maxX: bounds.max.x,
+        minY: bounds.min?.y ?? 0,
+        maxY: bounds.max?.y ?? 0,
         minZ: bounds.min.z,
         maxZ: bounds.max.z,
         centerX: (bounds.min.x + bounds.max.x) / 2,
         centerZ: (bounds.min.z + bounds.max.z) / 2,
         width: bounds.max.x - bounds.min.x,
+        height: (bounds.max?.y ?? 0) - (bounds.min?.y ?? 0),
         depth: bounds.max.z - bounds.min.z,
         scale: scale
     };
     
     console.log('📐 坐标转换包围盒已更新:');
-    console.log(`  世界坐标范围 (缩放后):`);
+    console.log(`  局部坐标范围:`);
     console.log(`    X: ${dynamicSandboxBounds.minX.toFixed(3)} ~ ${dynamicSandboxBounds.maxX.toFixed(3)} (宽度: ${dynamicSandboxBounds.width.toFixed(3)})`);
+    console.log(`    Y: ${dynamicSandboxBounds.minY.toFixed(3)} ~ ${dynamicSandboxBounds.maxY.toFixed(3)} (高度: ${dynamicSandboxBounds.height.toFixed(3)})`);
     console.log(`    Z: ${dynamicSandboxBounds.minZ.toFixed(3)} ~ ${dynamicSandboxBounds.maxZ.toFixed(3)} (深度: ${dynamicSandboxBounds.depth.toFixed(3)})`);
     console.log(`  沙盘缩放比例: ${dynamicSandboxBounds.scale}x`);
     console.log(`  沙盘局部坐标范围 (原始尺寸):`);

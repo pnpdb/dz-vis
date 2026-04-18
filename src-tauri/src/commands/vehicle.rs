@@ -75,18 +75,19 @@ pub async fn broadcast_construction_marker(
     marker_id: u8,
     position_x: f64,
     position_y: f64,
+    position_z: f64,
     action: u8, // 0: 取消, 1: 设置
 ) -> Result<String, String> {
     let payload = VehicleService::new()
-        .build_construction_marker_payload(marker_id, position_x, position_y, action);
+        .build_construction_marker_payload(marker_id, position_x, position_y, position_z, action);
 
     let connections = app.state::<ConnectionManager>();
     let sent_count = socket::SocketServer::broadcast_message(&connections, 0x1008, &payload);
 
     let action_name = if action == 1 { "设置" } else { "取消" };
     info!(
-        "广播施工标记 - ID: {}, 位置: ({:.3}, {:.3}), 动作: {} ({})",
-        marker_id, position_x, position_y, action, action_name
+        "广播施工标记 - ID: {}, 位置: ({:.3}, {:.3}, {:.3}), 动作: {} ({})",
+        marker_id, position_x, position_y, position_z, action, action_name
     );
 
     Ok(format!("已广播给{}辆车", sent_count))
@@ -98,30 +99,32 @@ pub async fn broadcast_all_construction_markers(
     app: tauri::AppHandle,
     markers: Vec<serde_json::Value>,
 ) -> Result<String, String> {
-    let coordinate_pairs: Vec<(f64, f64)> = markers
+    let coordinate_triples: Vec<(f64, f64, f64)> = markers
         .iter()
         .filter_map(|marker| {
             let x = marker.get("x").and_then(|v| v.as_f64());
             let z = marker.get("z").and_then(|v| v.as_f64());
+            let elev_z = marker.get("elevationZ").and_then(|v| v.as_f64()).unwrap_or(0.0);
             match (x, z) {
-                (Some(px), Some(pz)) => Some((px, pz)),
+                (Some(px), Some(pz)) => Some((px, pz, elev_z)),
                 _ => None,
             }
         })
         .collect();
 
-    let payload = VehicleService::new().build_all_construction_markers_payload(&coordinate_pairs);
+    let payload = VehicleService::new().build_all_construction_markers_payload(&coordinate_triples);
 
     let connections = app.state::<ConnectionManager>();
     let sent_count = socket::SocketServer::broadcast_message(&connections, 0x1008, &payload);
 
     info!(
-        "广播所有施工标记 - 共{}个施工点，数据长度: {}字节",
-        coordinate_pairs.len(),
-        payload.len()
+        "广播所有施工标记 - 共{}个施工点，数据长度: {}字节，发送给{}辆车，消息ID: 0x1008",
+        coordinate_triples.len(),
+        payload.len(),
+        sent_count
     );
-    for (index, (x, z)) in coordinate_pairs.iter().enumerate() {
-        info!("  施工点{}: ({:.3}, {:.3})", index + 1, x, z);
+    for (index, (x, z, elev_z)) in coordinate_triples.iter().enumerate() {
+        info!("  施工点{}: X={:.4}, Y={:.4}, Z={:.4}", index + 1, x, z, elev_z);
     }
 
     Ok(format!(
@@ -250,8 +253,10 @@ pub async fn send_taxi_order_to_vehicle(
     vehicle_id: u8,
     start_x: f64,
     start_y: f64,
+    start_z: f64,
     end_x: f64,
     end_y: f64,
+    end_z: f64,
 ) -> Result<String, String> {
     let connections = app.state::<ConnectionManager>();
     let db = app.state::<VehicleDatabase>();
@@ -274,8 +279,10 @@ pub async fn send_taxi_order_to_vehicle(
         vehicle_id,
         start_x,
         start_y,
+        start_z,
         end_x,
         end_y,
+        end_z,
     });
 
     // 3. 发送消息给指定车辆
@@ -286,7 +293,7 @@ pub async fn send_taxi_order_to_vehicle(
     if success {
         // 4. 发送成功后保存到数据库
         match db
-            .save_taxi_order(&order_id, vehicle_id_i32, start_x, start_y, end_x, end_y)
+            .save_taxi_order(&order_id, vehicle_id_i32, start_x, start_y, start_z, end_x, end_y, end_z)
             .await
         {
             Ok(_) => {
@@ -323,8 +330,10 @@ pub async fn broadcast_taxi_order(
     order_id: String,
     start_x: f64,
     start_y: f64,
+    start_z: f64,
     end_x: f64,
     end_y: f64,
+    end_z: f64,
 ) -> Result<String, String> {
     // 1. 检查是否有在线车辆
     let connections = app.state::<ConnectionManager>();
@@ -335,7 +344,7 @@ pub async fn broadcast_taxi_order(
     }
 
     let broadcast_payload = VehicleService::new()
-        .build_taxi_order_broadcast_payload(&order_id, start_x, start_y, end_x, end_y);
+        .build_taxi_order_broadcast_payload(&order_id, start_x, start_y, start_z, end_x, end_y, end_z);
 
     // 3. 广播消息给所有在线车辆
     let sent_count =
@@ -348,8 +357,10 @@ pub async fn broadcast_taxi_order(
                 order_id: order_id.clone(),
                 start_x,
                 start_y,
+                start_z,
                 end_x,
                 end_y,
+                end_z,
             };
 
             match db.create_taxi_order(taxi_order_request).await {

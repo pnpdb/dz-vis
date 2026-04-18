@@ -96,7 +96,7 @@ loader.parse(arrayBuffer, '', (gltf) => {
     
     model.traverse((child) => {
         if (child.isMesh && child.name) {
-            if (child.name.includes('CaoPing') || 
+            if (child.name.includes('CaoPing') || child.name.includes('地面')||
                 child.name.toLowerCase().includes('ground') ||
                 child.name.toLowerCase().includes('floor')) {
                 const meshBox = new Box3().setFromObject(child);

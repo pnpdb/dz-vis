@@ -66,8 +66,10 @@ impl ProtocolBuilder {
         self.buffer.push(order.vehicle_id);
         self.write_f64_le(order.start_x);
         self.write_f64_le(order.start_y);
+        self.write_f64_le(order.start_z);
         self.write_f64_le(order.end_x);
         self.write_f64_le(order.end_y);
+        self.write_f64_le(order.end_z);
         
         self.update_stats(start_time);
         self.buffer.clone()
@@ -117,6 +119,7 @@ impl ProtocolBuilder {
         self.buffer.push(marker.action);
         self.write_f64_le(marker.x);
         self.write_f64_le(marker.y);
+        self.write_f64_le(marker.z);
         
         self.update_stats(start_time);
         self.buffer.clone()

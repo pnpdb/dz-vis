@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { VehicleConnectionAPI } from '@/utils/vehicleAPI.js';
 import { normalizeVehicleList, parseVehicleId, compareVehicleId } from '@/utils/vehicleTypes.js';
-import { vehicleToModelCoordinates, applyOffsetToReceived } from '@/utils/coordinateTransform.js';
+import { vehicleToModelCoordinates, applyOffsetToReceived, getSandboxBounds, getCoordinateOffset } from '@/utils/coordinateTransform.js';
 import eventBus, { EVENTS } from '@/utils/eventBus.js';
 import { throttle } from '@/utils/throttle.js';
 import { deepClone } from '@/utils/stateManager.js';
@@ -76,8 +76,8 @@ export const useCarStore = defineStore('car', {
         taxi: {
             startPoint: '',
             endPoint: '',
-            startCoords: null, // { x, z }
-            endCoords: null,   // { x, z }
+            startCoords: null, // { x, z, elevationZ }
+            endCoords: null,   // { x, z, elevationZ }
         },
         
         // 打车状态管理：存储正在打车的车辆信息
@@ -152,11 +152,12 @@ export const useCarStore = defineStore('car', {
                     },
                     // 运行状态
                     state: {
-                        position: { x: 0, y: 0 },
+                        position: { x: 0, y: 0, z: 0 },
                         speed: 0,
                         battery: 0,
                         gear: 'P',
                         orientation: 0,
+                        pitch: 0,
                         steeringAngle: 0,
                         navigation: { code: 0, text: '未知状态' },
                         sensors: {
@@ -265,6 +266,8 @@ export const useCarStore = defineStore('car', {
             
             // 2️⃣ 应用坐标偏移量（接收坐标加偏移量）
             const offsetPosition = applyOffsetToReceived(rawPosition.x, rawPosition.y);
+            // 保留协议中的 Z 坐标（高程）
+            offsetPosition.z = rawPosition.z ?? 0;
             
             // 不可变更新运行状态（架构优化：避免直接修改，使用不可变更新）
             state.state = {
@@ -274,6 +277,7 @@ export const useCarStore = defineStore('car', {
                 battery: vehicleInfo.battery ?? state.state.battery,
                 gear: vehicleInfo.gear || state.state.gear,
                 orientation: vehicleInfo.orientation ?? state.state.orientation,
+                pitch: vehicleInfo.pitch ?? state.state.pitch,
                 steeringAngle: vehicleInfo.steeringAngle ?? state.state.steeringAngle,
                 navigation: vehicleInfo.navigation || state.state.navigation,
                 sensors: vehicleInfo.sensors || state.state.sensors,
@@ -303,15 +307,32 @@ export const useCarStore = defineStore('car', {
             );
             const modelPosition = {
                 x: modelCoords.x,
-                z: modelCoords.z  // 车辆的Y对应模型的Z
+                z: modelCoords.z,  // 车辆的Y对应模型的Z
+                elevationZ: offsetPosition.z ?? 0,  // 协议 Z 坐标（高程，用于模型 Y 偏移）
             };
+            
+            // // 🔍 调试：打印坐标转换全链路（每辆车每2秒最多打印一次）
+            // const now = Date.now();
+            // if (!this._debugLogTimers) this._debugLogTimers = {};
+            // if (!this._debugLogTimers[vehicleId] || now - this._debugLogTimers[vehicleId] > 2000) {
+            //     this._debugLogTimers[vehicleId] = now;
+            //     const bounds = getSandboxBounds();
+            //     const offset = getCoordinateOffset();
+            //     console.log(`🔍 [车辆${vehicleId}] 坐标调试:`);
+            //     console.log(`   📦 沙盘包围盒: X[${bounds.minX.toFixed(3)} ~ ${bounds.maxX.toFixed(3)}] (${bounds.width.toFixed(3)}), Y[${(bounds.minY ?? 0).toFixed(3)} ~ ${(bounds.maxY ?? 0).toFixed(3)}] (${(bounds.height ?? 0).toFixed(3)}), Z[${bounds.minZ.toFixed(3)} ~ ${bounds.maxZ.toFixed(3)}] (${bounds.depth.toFixed(3)}), scale=${bounds.scale}`);
+            //     console.log(`   📍 偏移量: X=${offset.x}, Y=${offset.y}`);
+            //     console.log(`   1️⃣ 协议原始坐标: X=${rawPosition.x.toFixed(4)}, Y=${rawPosition.y.toFixed(4)}, Z=${(rawPosition.z ?? 0).toFixed(4)}`);
+            //     console.log(`   2️⃣ 偏移后坐标:   X=${offsetPosition.x.toFixed(4)}, Y=${offsetPosition.y.toFixed(4)}, Z=${offsetPosition.z.toFixed(4)}`);
+            //     console.log(`   3️⃣ 模型坐标:     x=${modelPosition.x.toFixed(4)}, z=${modelPosition.z.toFixed(4)}, elevZ=${modelPosition.elevationZ.toFixed(4)}`);
+            // }
             
             // 触发车辆状态更新事件（用于3D模型位置更新，传递模型坐标系）
             // 使用节流避免高频更新影响性能（每秒2次变为每秒最多20次）
             throttledVehicleStateUpdate({
                 vehicleId,
                 position: modelPosition,  // 模型坐标系
-                orientation: vehicleInfo.orientation ?? state.state.orientation
+                orientation: vehicleInfo.orientation ?? state.state.orientation,
+                pitch: vehicleInfo.pitch ?? state.state.pitch,
             });
         },
         

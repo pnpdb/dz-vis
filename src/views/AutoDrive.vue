@@ -133,7 +133,8 @@ import {
     createEndPointMarker,
     removeStartPointMarker,
     removeEndPointMarker,
-    createTaxiMarkersForVehicle
+    createTaxiMarkersForVehicle,
+    getRoadSurfaceY
 } from '@/components/Scene3D/index.js';
 import { findNearestFreeSlot, modelToVehicleCoordinates, applyOffsetToSend } from '@/utils/coordinateTransform.js';
 
@@ -272,14 +273,18 @@ const callTaxi = async () => {
         // 6. 生成订单ID
         const orderId = socketManager.generateOrderId();
         
-        // 7. 发送出租车订单给指定车辆（使用应用偏移后的车辆坐标系）
+        // 7. 发送出租车订单给指定车辆（使用应用偏移后的车辆坐标系 + 高程Z）
+        const startElevZ = startCoords.elevationZ ?? 0;
+        const endElevZ = endCoords.elevationZ ?? 0;
         const result = await socketManager.sendTaxiOrderToVehicle(
             orderId,
             assignedVehicleId,
             finalStartCoords.x,
             finalStartCoords.y,
+            startElevZ,
             finalEndCoords.x,
-            finalEndCoords.y
+            finalEndCoords.y,
+            endElevZ
         );
         
         // 8. 打车成功后：清除UI文本 + 清除临时图标 + 创建车辆专属图标
@@ -399,14 +404,18 @@ const selectStartPoint = () => {
             // 将模型坐标转换为车辆坐标系用于显示
             const vehicleCoords = modelToVehicleCoordinates(x, z);
             
+            // 计算高程 Z（点击位置的模型 Y 减去路面基准高度，地面=0，高架桥=实际高度）
+            const roadY = getRoadSurfaceY();
+            const elevationZ = Math.max(0, y - roadY);
+            
             // 保存模型坐标到store（用于后续计算距离）
             carStore.setTaxiStartPoint(
-                `X: ${vehicleCoords.x.toFixed(3)}m, Y: ${vehicleCoords.y.toFixed(3)}m`, 
-                { x, z }
+                `X: ${vehicleCoords.x.toFixed(3)}m, Y: ${vehicleCoords.y.toFixed(3)}m, Z: ${elevationZ.toFixed(3)}m`, 
+                { x, z, elevationZ }
             );
             
             Toast.success('起点已选择');
-            console.log(`起点 - 车辆坐标: (${vehicleCoords.x.toFixed(3)}, ${vehicleCoords.y.toFixed(3)}), 模型坐标: (${x.toFixed(3)}, ${z.toFixed(3)})`);
+            console.log(`起点 - 车辆坐标: (${vehicleCoords.x.toFixed(3)}, ${vehicleCoords.y.toFixed(3)}), 模型坐标: (${x.toFixed(3)}, ${z.toFixed(3)}), 高程Z: ${elevationZ.toFixed(3)}m`);
         } else {
             Toast.error('起点标记创建失败');
         }
@@ -428,14 +437,18 @@ const selectEndPoint = () => {
             // 将模型坐标转换为车辆坐标系用于显示
             const vehicleCoords = modelToVehicleCoordinates(x, z);
             
+            // 计算高程 Z
+            const roadY = getRoadSurfaceY();
+            const elevationZ = Math.max(0, y - roadY);
+            
             // 保存模型坐标到store（用于后续计算距离）
             carStore.setTaxiEndPoint(
-                `X: ${vehicleCoords.x.toFixed(3)}m, Y: ${vehicleCoords.y.toFixed(3)}m`, 
-                { x, z }
+                `X: ${vehicleCoords.x.toFixed(3)}m, Y: ${vehicleCoords.y.toFixed(3)}m, Z: ${elevationZ.toFixed(3)}m`, 
+                { x, z, elevationZ }
             );
             
             Toast.success('终点已选择');
-            console.log(`🏁 终点 - 车辆坐标: (${vehicleCoords.x.toFixed(3)}, ${vehicleCoords.y.toFixed(3)}), 模型坐标: (${x.toFixed(3)}, ${z.toFixed(3)})`);
+            console.log(`🏁 终点 - 车辆坐标: (${vehicleCoords.x.toFixed(3)}, ${vehicleCoords.y.toFixed(3)}), 模型坐标: (${x.toFixed(3)}, ${z.toFixed(3)}), 高程Z: ${elevationZ.toFixed(3)}m`);
         } else {
             Toast.error('终点标记创建失败');
         }

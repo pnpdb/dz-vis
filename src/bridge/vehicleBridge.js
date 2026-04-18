@@ -61,12 +61,12 @@ const vehicleBridge = {
         })
     },
 
-    async broadcastTaxiOrder(orderId, startX, startY, endX, endY) {
-        return invoke('broadcast_taxi_order', { orderId, startX, startY, endX, endY })
+    async broadcastTaxiOrder(orderId, startX, startY, startZ, endX, endY, endZ) {
+        return invoke('broadcast_taxi_order', { orderId, startX, startY, startZ, endX, endY, endZ })
     },
 
-    async sendTaxiOrderToVehicle(orderId, vehicleId, startX, startY, endX, endY) {
-        return invoke('send_taxi_order_to_vehicle', { orderId, vehicleId, startX, startY, endX, endY })
+    async sendTaxiOrderToVehicle(orderId, vehicleId, startX, startY, startZ, endX, endY, endZ) {
+        return invoke('send_taxi_order_to_vehicle', { orderId, vehicleId, startX, startY, startZ, endX, endY, endZ })
     },
 
     async sendAvpParking(vehicleId) {
@@ -77,11 +77,12 @@ const vehicleBridge = {
         return invoke('send_avp_pickup', { vehicleId })
     },
 
-    async broadcastConstructionMarker(markerId, positionX, positionY, action) {
+    async broadcastConstructionMarker(markerId, positionX, positionY, positionZ, action) {
         return invoke('broadcast_construction_marker', {
             markerId,
             positionX,
             positionY,
+            positionZ,
             action
         })
     },

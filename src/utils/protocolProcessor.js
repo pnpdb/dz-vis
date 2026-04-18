@@ -316,14 +316,16 @@ class ProtocolProcessor {
      * @param {number} action - 动作类型 (0: 移除标记, 1: 添加标记)
      * @param {number} x - X坐标
      * @param {number} y - Y坐标
+     * @param {number} z - Z坐标（高程）
      * @returns {Promise<string>} Base64编码的协议数据
      */
-    async buildConstructionMarker(markerId, action, x, y) {
+    async buildConstructionMarker(markerId, action, x, y, z = 0) {
         const markerData = {
             marker_id: markerId,
             action: action,
             x: x,
-            y: y
+            y: y,
+            z: z
         }
 
         return await this.buildProtocol('construction_marker', markerData)

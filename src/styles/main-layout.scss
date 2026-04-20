@@ -564,6 +564,14 @@
     border-radius: 4px !important;
 }
 
+:deep(.floating-panels .btn.btn-inline) {
+    width: auto !important;
+    min-width: auto !important;
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+    padding: 8px 10px !important;
+}
+
 :deep(.floating-panels .el-button) {
     width: 100% !important;
     min-height: 36px !important;

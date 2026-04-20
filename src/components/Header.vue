@@ -243,6 +243,21 @@
                                 接收坐标加此值，发送坐标减此值（可正可负）
                             </div>
                         </el-form-item>
+                        <el-form-item label="Z轴高度阈值">
+                            <el-input-number
+                                v-model="settings.elevationZThreshold"
+                                :precision="3"
+                                :step="0.1"
+                                :min="0"
+                                :max="50"
+                                :controls="false"
+                                style="width: 200px"
+                            />
+                            <span style="margin-left: 8px; color: var(--text-secondary);">m</span>
+                            <div class="setting-description">
+                                车辆Z轴高度超过此阈值时进行特殊处理
+                            </div>
+                        </el-form-item>
                         <el-form-item label="显示坐标轴">
                             <el-switch 
                                 v-model="modelSettings.showAxes" 
@@ -626,7 +641,8 @@ const settings = ref({
     cacheSize: 1000,
     appTitle: '渡众智能沙盘云控平台',
     coordinateOffsetX: 0,
-    coordinateOffsetY: 0
+    coordinateOffsetY: 0,
+    elevationZThreshold: 0
 });
 
 // 动态标题
@@ -898,7 +914,8 @@ const saveSettings = async () => {
             cache_size: settings.value.cacheSize,
             app_title: settings.value.appTitle,
             coordinate_offset_x: settings.value.coordinateOffsetX || 0,
-            coordinate_offset_y: settings.value.coordinateOffsetY || 0
+            coordinate_offset_y: settings.value.coordinateOffsetY || 0,
+            elevation_z_threshold: settings.value.elevationZThreshold || 0
         };
         const res = await invoke('update_app_settings', { request: payload });
         
@@ -941,7 +958,8 @@ const resetSettings = () => {
         cacheSize: 1000,
         appTitle: '渡众智能沙盘云控平台',
         coordinateOffsetX: 0,
-        coordinateOffsetY: 0
+        coordinateOffsetY: 0,
+        elevationZThreshold: 0
     };
     
     // 重置模型设置
@@ -1103,6 +1121,7 @@ onMounted(() => {
             settings.value.appTitle = res.app_title || '渡众智能沙盘云控平台';
             settings.value.coordinateOffsetX = Number(res.coordinate_offset_x ?? 0);
             settings.value.coordinateOffsetY = Number(res.coordinate_offset_y ?? 0);
+            settings.value.elevationZThreshold = Number(res.elevation_z_threshold ?? 0);
             
             // 同步动态标题
             appTitle.value = settings.value.appTitle;

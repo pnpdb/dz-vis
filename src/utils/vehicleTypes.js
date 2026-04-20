@@ -94,6 +94,7 @@ export const normalizeVehicleData = (vehicleData) => {
     angle: Number(vehicleData.angle || vehicleData.steeringAngle) || 0,
     gear: vehicleData.gear || 1,
     navigation: vehicleData.navigation || vehicleData.isNav || false,
+    lidarType: vehicleData.lidarType || vehicleData.lidar_type || 'single',
     description: vehicleData.description || '',
     createdAt: vehicleData.createdAt || vehicleData.created_at,
     updatedAt: vehicleData.updatedAt || vehicleData.updated_at

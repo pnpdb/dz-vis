@@ -228,9 +228,9 @@ def parse_data_recording_message(data):
 
 
 def parse_taxi_order_message(data):
-    """解析出租车订单协议（新格式：去掉订单号）"""
-    if len(data) < 33:  # 1 + 8 + 8 + 8 + 8 = 33字节
-        print(" 出租车订单数据长度不足")
+    """解析出租车订单协议（含Z坐标）"""
+    if len(data) < 49:  # 1 + 8*6 = 49字节
+        print(f" 出租车订单数据长度不足: {len(data)} < 49")
         return None
     
     try:
@@ -243,18 +243,26 @@ def parse_taxi_order_message(data):
         # 解析起点Y (8字节, DOUBLE, 小端序)
         start_y = struct.unpack('<d', data[9:17])[0]
         
+        # 解析起点Z (8字节, DOUBLE, 小端序)
+        start_z = struct.unpack('<d', data[17:25])[0]
+        
         # 解析终点X (8字节, DOUBLE, 小端序)
-        end_x = struct.unpack('<d', data[17:25])[0]
+        end_x = struct.unpack('<d', data[25:33])[0]
         
         # 解析终点Y (8字节, DOUBLE, 小端序)
-        end_y = struct.unpack('<d', data[25:33])[0]
+        end_y = struct.unpack('<d', data[33:41])[0]
+        
+        # 解析终点Z (8字节, DOUBLE, 小端序)
+        end_z = struct.unpack('<d', data[41:49])[0]
         
         return {
             'vehicle_id': vehicle_id,
             'start_x': start_x,
             'start_y': start_y,
+            'start_z': start_z,
             'end_x': end_x,
-            'end_y': end_y
+            'end_y': end_y,
+            'end_z': end_z
         }
         
     except Exception as e:
@@ -571,8 +579,8 @@ print_interval = 1.0  # 每秒最多打印1次
 
 def create_vehicle_info_data(vehicle_id=1):
     """
-    创建车辆信息协议数据域 (54字节)
-    格式：车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 朝向(8) + 电量(8) + 档位(1) + 方向盘转角(8) + 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1)
+    创建车辆信息协议数据域 (87字节)
+    格式：车辆编号(1) + 车速(8) + 位置X(8) + 位置Y(8) + 位置Z(8) + 四元数X(8) + 四元数Y(8) + 四元数Z(8) + 四元数W(8) + 电量(8) + 档位(1) + 方向盘转角(8) + 导航状态(1) + 相机状态(1) + 雷达状态(1) + 陀螺仪状态(1) + 车位占用(1)
     """
     import random
     
@@ -600,9 +608,21 @@ def create_vehicle_info_data(vehicle_id=1):
     position_y = state['position_y']
     data.extend(struct.pack('<d', position_y))
     
-    # 朝向 (8字节, DOUBLE) - 从路径管理器获取（自动根据移动方向计算）
+    # 位置Z (8字节, DOUBLE) - 固定为0
+    position_z = 0.0
+    data.extend(struct.pack('<d', position_z))
+    
+    # 朝向 - 使用四元数 (4 * 8 = 32字节, 4个DOUBLE: qx, qy, qz, qw)
+    # 从路径管理器获取yaw角（弧度），转换为绕Z轴旋转的四元数
     orientation = state['orientation']
-    data.extend(struct.pack('<d', orientation))
+    quat_x = 0.0
+    quat_y = 0.0
+    quat_z = math.sin(orientation / 2.0)
+    quat_w = math.cos(orientation / 2.0)
+    data.extend(struct.pack('<d', quat_x))
+    data.extend(struct.pack('<d', quat_y))
+    data.extend(struct.pack('<d', quat_z))
+    data.extend(struct.pack('<d', quat_w))
     
     # 电池电量 (8字节, DOUBLE) - 从路径管理器获取（缓慢下降）
     battery = state['battery']
@@ -663,8 +683,8 @@ def create_vehicle_info_data(vehicle_id=1):
         
         print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         print(f"🚗 车辆编号: {vehicle_id} (50Hz高频模式)")
-        print(f"   📍 位置: X={position_x:.3f}m, Y={position_y:.3f}m")
-        print(f"   🧭 朝向: {orientation:.3f}rad ({math.degrees(orientation):.1f}°)")
+        print(f"   📍 位置: X={position_x:.3f}m, Y={position_y:.3f}m, Z={position_z:.3f}m")
+        print(f"   🧭 朝向: {orientation:.3f}rad ({math.degrees(orientation):.1f}°) | 四元数: ({quat_x:.3f}, {quat_y:.3f}, {quat_z:.3f}, {quat_w:.3f})")
         print(f"   🚀 车速: {speed:.3f}m/s | 🔋 电量: {battery:.1f}%")
         print(f"   ⚙️  档位: {gear_names.get(gear, '未知')} | 🎯 方向盘: {steering_angle:.1f}°")
         print(f"   🗺️  导航: {nav_status_names.get(nav_status, '未知状态')}")
@@ -890,8 +910,8 @@ class TestClient:
             if taxi_info:
                 print(f"🚕 出租车订单:")
                 print(f"   目标车辆: {taxi_info['vehicle_id']}")
-                print(f"   起点: ({taxi_info['start_x']:.3f}, {taxi_info['start_y']:.3f})")
-                print(f"   终点: ({taxi_info['end_x']:.3f}, {taxi_info['end_y']:.3f})")
+                print(f"   起点: ({taxi_info['start_x']:.3f}, {taxi_info['start_y']:.3f}, {taxi_info['start_z']:.3f})")
+                print(f"   终点: ({taxi_info['end_x']:.3f}, {taxi_info['end_y']:.3f}, {taxi_info['end_z']:.3f})")
                 
                 # 检查是否是当前车辆的订单
                 if taxi_info['vehicle_id'] == self.vehicle_id:

@@ -88,6 +88,11 @@ impl VehicleDatabase {
             .await;
         // 忽略错误，因为如果列已存在会报错，但这是正常的
 
+        // 迁移：添加 lidar_type 列（如果不存在）
+        let _ = sqlx::query("ALTER TABLE vehicle_connections ADD COLUMN lidar_type TEXT")
+            .execute(&self.pool)
+            .await;
+
         // 创建交通灯设置表
         sqlx::query(
             r#"
@@ -317,12 +322,16 @@ impl VehicleDatabase {
         let _ = sqlx::query("ALTER TABLE app_settings ADD COLUMN app_title TEXT NOT NULL DEFAULT '渡众智能沙盘云控平台'")
             .execute(&self.pool).await; // 忽略错误，字段可能已存在
         
+        // 为现有表添加elevation_z_threshold字段（如果不存在）
+        let _ = sqlx::query("ALTER TABLE app_settings ADD COLUMN elevation_z_threshold REAL NOT NULL DEFAULT 0.0")
+            .execute(&self.pool).await;
+        
         // 初始化默认应用设置
         let cnt: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM app_settings").fetch_one(&self.pool).await?;
         if cnt == 0 {
             let now = Utc::now().to_rfc3339();
             sqlx::query(
-                r#"INSERT INTO app_settings (log_level, cache_size, auto_start, app_title, coordinate_offset_x, coordinate_offset_y, created_at, updated_at) VALUES ('INFO', 512, 0, '渡众智能沙盘云控平台', 0.0, 0.0, ?, ?)"#
+                r#"INSERT INTO app_settings (log_level, cache_size, auto_start, app_title, coordinate_offset_x, coordinate_offset_y, elevation_z_threshold, created_at, updated_at) VALUES ('INFO', 512, 0, '渡众智能沙盘云控平台', 0.0, 0.0, 0.0, ?, ?)"#
             ).bind(&now).bind(&now).execute(&self.pool).await?;
         }
 
@@ -370,8 +379,8 @@ impl VehicleDatabase {
         sqlx::query(
             r#"
             INSERT INTO vehicle_connections 
-            (vehicle_id, ip_address, name, description, color, is_active, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, true, ?, ?)
+            (vehicle_id, ip_address, name, description, color, lidar_type, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, true, ?, ?)
             "#
         )
         .bind(request.vehicle_id)
@@ -379,6 +388,7 @@ impl VehicleDatabase {
         .bind(&request.name)
         .bind(&request.description)
         .bind(&request.color)
+        .bind(&request.lidar_type)
         .bind(now.to_rfc3339())
         .bind(now.to_rfc3339())
         .execute(&self.pool)
@@ -397,6 +407,7 @@ impl VehicleDatabase {
             name: row.get("name"),
             description: row.get("description"),
             color: row.get("color"),
+            lidar_type: row.get("lidar_type"),
             is_active: row.get("is_active"),
             created_at: row.get::<String, _>("created_at").parse().unwrap(),
             updated_at: row.get::<String, _>("updated_at").parse().unwrap(),
@@ -416,6 +427,7 @@ impl VehicleDatabase {
             app_title: row.get::<Option<String>, _>("app_title").unwrap_or("渡众智能沙盘云控平台".to_string()),
             coordinate_offset_x: row.get::<Option<f64>, _>("coordinate_offset_x").unwrap_or(0.0),
             coordinate_offset_y: row.get::<Option<f64>, _>("coordinate_offset_y").unwrap_or(0.0),
+            elevation_z_threshold: row.get::<Option<f64>, _>("elevation_z_threshold").unwrap_or(0.0),
             created_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("created_at")).unwrap_or_default().with_timezone(&chrono::Utc),
             updated_at: chrono::DateTime::parse_from_rfc3339(&row.get::<String, _>("updated_at")).unwrap_or_default().with_timezone(&chrono::Utc),
         })
@@ -433,12 +445,13 @@ impl VehicleDatabase {
         let app_title = req.app_title.unwrap_or(current.app_title);
         let coordinate_offset_x = req.coordinate_offset_x.unwrap_or(current.coordinate_offset_x);
         let coordinate_offset_y = req.coordinate_offset_y.unwrap_or(current.coordinate_offset_y);
+        let elevation_z_threshold = req.elevation_z_threshold.unwrap_or(current.elevation_z_threshold);
         let now = Utc::now().to_rfc3339();
 
         sqlx::query(
             r#"
             UPDATE app_settings 
-            SET log_level = ?, cache_size = ?, auto_start = ?, app_title = ?, coordinate_offset_x = ?, coordinate_offset_y = ?, updated_at = ?
+            SET log_level = ?, cache_size = ?, auto_start = ?, app_title = ?, coordinate_offset_x = ?, coordinate_offset_y = ?, elevation_z_threshold = ?, updated_at = ?
             WHERE id = (SELECT id FROM app_settings ORDER BY id DESC LIMIT 1)
             "#
         )
@@ -448,6 +461,7 @@ impl VehicleDatabase {
         .bind(&app_title)
         .bind(coordinate_offset_x)
         .bind(coordinate_offset_y)
+        .bind(elevation_z_threshold)
         .bind(&now)
         .execute(&self.pool)
         .await?;
@@ -458,7 +472,7 @@ impl VehicleDatabase {
     /// 获取所有车辆连接
     pub async fn get_all_vehicle_connections(&self) -> Result<Vec<VehicleConnection>, sqlx::Error> {
         let rows = sqlx::query(
-            "SELECT id, vehicle_id, ip_address, name, description, color, is_active, created_at, updated_at 
+            "SELECT id, vehicle_id, ip_address, name, description, color, lidar_type, is_active, created_at, updated_at 
              FROM vehicle_connections ORDER BY created_at DESC"
         )
             .fetch_all(&self.pool)
@@ -473,6 +487,7 @@ impl VehicleDatabase {
                 name: row.get("name"),
                 description: row.get("description"),
                 color: row.get("color"),
+                lidar_type: row.get("lidar_type"),
                 is_active: row.get("is_active"),
                 created_at: row.get::<String, _>("created_at").parse().unwrap(),
                 updated_at: row.get::<String, _>("updated_at").parse().unwrap(),
@@ -497,6 +512,7 @@ impl VehicleDatabase {
                 name: row.get("name"),
                 description: row.get("description"),
                 color: row.get("color"),
+                lidar_type: row.get("lidar_type"),
                 is_active: row.get("is_active"),
                 created_at: row.get::<String, _>("created_at").parse().unwrap(),
                 updated_at: row.get::<String, _>("updated_at").parse().unwrap(),
@@ -526,13 +542,14 @@ impl VehicleDatabase {
         let name = request.name.unwrap_or(existing.name);
         let description = request.description.or(existing.description);
         let color = request.color.or(existing.color);
+        let lidar_type = request.lidar_type.or(existing.lidar_type);
         let is_active = request.is_active.unwrap_or(existing.is_active);
         
         // 执行更新
         sqlx::query(
             r#"
             UPDATE vehicle_connections 
-            SET vehicle_id = ?, ip_address = ?, name = ?, description = ?, color = ?, is_active = ?, updated_at = ?
+            SET vehicle_id = ?, ip_address = ?, name = ?, description = ?, color = ?, lidar_type = ?, is_active = ?, updated_at = ?
             WHERE id = ?
             "#
         )
@@ -541,6 +558,7 @@ impl VehicleDatabase {
         .bind(&name)
         .bind(&description)
         .bind(&color)
+        .bind(&lidar_type)
         .bind(is_active)
         .bind(now.to_rfc3339())
         .bind(id)
@@ -576,6 +594,7 @@ impl VehicleDatabase {
                 name: row.get("name"),
                 description: row.get("description"),
                 color: row.get("color"),
+                lidar_type: row.get("lidar_type"),
                 is_active: row.get("is_active"),
                 created_at: row.get::<String, _>("created_at").parse().unwrap(),
                 updated_at: row.get::<String, _>("updated_at").parse().unwrap(),

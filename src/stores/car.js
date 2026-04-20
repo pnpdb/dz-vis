@@ -624,10 +624,17 @@ export const useCarStore = defineStore('car', {
          * 查找离指定位置最近且导航状态为待命的车辆
          * @param {number} targetX - 目标位置X坐标（模型坐标系）
          * @param {number} targetZ - 目标位置Z坐标（模型坐标系）
+         * @param {Object} [options] - 可选参数
+         * @param {boolean} [options.requireMultiLidar=false] - 是否要求多线激光雷达
          * @returns {number|null} 最近的符合条件的车辆ID，或null
          */
-        findNearestIdleVehicle(targetX, targetZ) {
+        findNearestIdleVehicle(targetX, targetZ, options = {}) {
+            const { requireMultiLidar = false } = options;
             const candidates = [];
+            
+            if (requireMultiLidar) {
+                console.log('🔍 需要多线激光雷达车辆（起点或终点Z轴高度超过阈值）');
+            }
             
             // 遍历所有车辆
             for (const [vehicleId, state] of this.vehicles.entries()) {
@@ -651,6 +658,16 @@ export const useCarStore = defineStore('car', {
                     continue;
                 }
                 
+                // 如果需要多线激光雷达，检查车辆的雷达类型
+                if (requireMultiLidar) {
+                    const vehicleConfig = this.carList.find(v => v.vehicleId === vehicleId);
+                    const lidarType = vehicleConfig?.lidarType || 'single';
+                    if (lidarType !== 'multi') {
+                        console.log(`🚫 车辆${vehicleId}为单线激光雷达，需要多线，跳过`);
+                        continue;
+                    }
+                }
+                
                 // 计算距离
                 const vehicleX = state.state.position.x;
                 const vehicleZ = state.state.position.y; // 注意：内部存储时y对应模型的z
@@ -672,7 +689,9 @@ export const useCarStore = defineStore('car', {
             
             // 如果没有符合条件的车辆
             if (candidates.length === 0) {
-                console.log('没有找到符合条件的车辆（在线且导航状态为1或2）');
+                console.log(requireMultiLidar 
+                    ? '没有找到符合条件的多线激光雷达车辆（在线且导航状态为1或2）' 
+                    : '没有找到符合条件的车辆（在线且导航状态为1或2）');
                 return null;
             }
             

@@ -66,6 +66,10 @@
                         <span class="detail-label">IP地址:</span>
                         <span class="detail-value">{{ connection.ip_address }}</span>
                     </div>
+                    <div class="detail-item">
+                        <span class="detail-label">雷达类型:</span>
+                        <span class="detail-value">{{ connection.lidar_type === 'multi' ? '多线' : '单线' }}</span>
+                    </div>
                     <div class="detail-item" v-if="connection.description">
                         <span class="detail-label">描述:</span>
                         <span class="detail-value">{{ connection.description }}</span>
@@ -139,6 +143,16 @@
                 <el-form-item label="IP地址" prop="ip_address">
                     <el-input v-model="formData.ip_address" placeholder="如: 192.168.1.100" />
                 </el-form-item>
+                <el-form-item label="雷达类型" prop="lidar_type">
+                    <el-select 
+                        v-model="formData.lidar_type" 
+                        placeholder="请选择激光雷达类型"
+                        style="width: 100%"
+                    >
+                        <el-option label="单线激光雷达" value="single" />
+                        <el-option label="多线激光雷达" value="multi" />
+                    </el-select>
+                </el-form-item>
                 <el-form-item label="描述" prop="description">
                     <el-input 
                         v-model="formData.description" 
@@ -200,6 +214,7 @@ const formData = ref({
     vehicle_id: 1,
     name: '',
     ip_address: '',
+    lidar_type: 'single',
     description: '',
     color: '#409EFF'
 });
@@ -267,6 +282,7 @@ const showAddDialog = () => {
         vehicle_id: 1,
         name: '',
         ip_address: '',
+        lidar_type: 'single',
         description: '',
         color: '#409EFF'
     };
@@ -280,6 +296,7 @@ const editConnection = (connection) => {
         vehicle_id: connection.vehicle_id,
         name: connection.name,
         ip_address: connection.ip_address,
+        lidar_type: connection.lidar_type || 'single',
         description: connection.description || '',
         color: connection.color || '#409EFF'
     };
@@ -302,6 +319,7 @@ const submitForm = async () => {
             vehicle_id: formData.value.vehicle_id !== editingConnection.value.vehicle_id ? formData.value.vehicle_id : null,
             name: formData.value.name !== editingConnection.value.name ? formData.value.name : null,
             ip_address: formData.value.ip_address !== editingConnection.value.ip_address ? formData.value.ip_address : null,
+            lidar_type: formData.value.lidar_type !== (editingConnection.value.lidar_type || 'single') ? formData.value.lidar_type : null,
             description: formData.value.description !== editingConnection.value.description ? formData.value.description : null,
             color: formData.value.color !== editingConnection.value.color ? formData.value.color : null
         };
@@ -312,6 +330,7 @@ const submitForm = async () => {
             vehicle_id: formData.value.vehicle_id,
             name: formData.value.name,
             ip_address: formData.value.ip_address,
+            lidar_type: formData.value.lidar_type || 'single',
             description: formData.value.description || null,
             color: formData.value.color || null
         };

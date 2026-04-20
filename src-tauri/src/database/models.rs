@@ -10,6 +10,7 @@ pub struct VehicleConnection {
     pub name: String,       // 车辆显示名称
     pub description: Option<String>, // 描述信息
     pub color: Option<String>,       // 车辆颜色（十六进制格式，如 #409EFF）
+    pub lidar_type: Option<String>,  // 激光雷达类型: "single"=单线, "multi"=多线
     pub is_active: bool,    // 是否启用
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -23,6 +24,7 @@ pub struct CreateVehicleConnectionRequest {
     pub name: String,
     pub description: Option<String>,
     pub color: Option<String>,
+    pub lidar_type: Option<String>,
 }
 
 /// 更新车辆连接的请求参数
@@ -33,6 +35,7 @@ pub struct UpdateVehicleConnectionRequest {
     pub name: Option<String>,
     pub description: Option<String>,
     pub color: Option<String>,
+    pub lidar_type: Option<String>,
     pub is_active: Option<bool>,
 }
 
@@ -250,6 +253,7 @@ pub struct AppSettings {
     pub app_title: String,       // 应用标题
     pub coordinate_offset_x: f64, // 坐标X轴偏移量
     pub coordinate_offset_y: f64, // 坐标Y轴偏移量
+    pub elevation_z_threshold: f64, // Z轴高度阈值
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -263,6 +267,7 @@ pub struct UpdateAppSettingsRequest {
     pub app_title: Option<String>,
     pub coordinate_offset_x: Option<f64>,
     pub coordinate_offset_y: Option<f64>,
+    pub elevation_z_threshold: Option<f64>,
 }
 
 impl UpdateAppSettingsRequest {

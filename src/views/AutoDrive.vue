@@ -26,27 +26,29 @@
                 <fa icon="taxi" /> 自动驾驶出租车</label
             >
             <div class="input-label">起点位置:</div>
-            <div class="flex">
+            <div class="flex" style="gap: 8px; justify-content: flex-start;">
                 <input
                     class="map-point-value"
                     placeholder="请在地图上选择起点"
                     readonly
                     v-model="carStore.taxi.startPoint"
+                    style="flex: 3 1 0; min-width: 0; width: 0;"
                 />
 
-                <button class="btn btn-secondary btn-small" @click="selectStartPoint">
+                <button class="btn btn-secondary btn-small btn-inline" @click="selectStartPoint">
                     <fa icon="map-marked-alt"></fa> 选择起点
                 </button>
             </div>
             <div class="input-label">终点位置:</div>
-            <div class="flex">
+            <div class="flex" style="gap: 8px; justify-content: flex-start;">
                 <input
                     class="map-point-value"
                     placeholder="请在地图上选择终点"
                     readonly
                     v-model="carStore.taxi.endPoint"
+                    style="flex: 3 1 0; min-width: 0; width: 0;"
                 />
-                <button class="btn btn-danger btn-small" @click="selectEndPoint">
+                <button class="btn btn-danger btn-small btn-inline" @click="selectEndPoint">
                     <fa icon="flag-checkered"></fa> 选择终点
                 </button>
             </div>
@@ -122,6 +124,7 @@
 import { ref, watch, onMounted } from 'vue';
 import { ElMessageBox } from 'element-plus';
 import Toast from '@/utils/toast.js';
+import { invoke } from '@tauri-apps/api/core';
 import { useCarStore } from '@/stores/car.js';
 import { socketManager } from '@/utils/socketManager.js';
 import { 
@@ -243,10 +246,26 @@ const callTaxi = async () => {
             return;
         }
 
-        // 3. 查找离起点最近且导航状态为1或2的车辆
+        // 3. 根据起点终点Z轴高度判断是否需要多线激光雷达车辆
+        let requireMultiLidar = false;
+        try {
+            const appSettings = await invoke('get_app_settings');
+            const threshold = Number(appSettings.elevation_z_threshold ?? 0);
+            const startElevZ = startCoords.elevationZ ?? 0;
+            const endElevZ = endCoords.elevationZ ?? 0;
+            if (threshold > 0 && (startElevZ >= threshold || endElevZ >= threshold)) {
+                requireMultiLidar = true;
+                console.log(`🔍 起点高程=${startElevZ.toFixed(3)}m, 终点高程=${endElevZ.toFixed(3)}m, 阈值=${threshold.toFixed(3)}m → 需要多线激光雷达`);
+            }
+        } catch (e) {
+            console.warn('加载Z轴高度阈值失败，使用默认逻辑:', e);
+        }
+        
+        // 4. 查找离起点最近且导航状态为1或2的车辆
         const assignedVehicleId = carStore.findNearestIdleVehicle(
             startCoords.x,
-            startCoords.z
+            startCoords.z,
+            { requireMultiLidar }
         );
         
         if (!assignedVehicleId) {
@@ -256,7 +275,7 @@ const callTaxi = async () => {
             return;
         }
         
-        // 4. 将模型坐标转换为车辆坐标系
+        // 5. 将模型坐标转换为车辆坐标系
         const startVehicleCoords = modelToVehicleCoordinates(
             startCoords.x,
             startCoords.z
@@ -266,14 +285,14 @@ const callTaxi = async () => {
             endCoords.z
         );
         
-        // 5. 应用偏移量（发送坐标减偏移量）
+        // 6. 应用偏移量（发送坐标减偏移量）
         const finalStartCoords = applyOffsetToSend(startVehicleCoords.x, startVehicleCoords.y);
         const finalEndCoords = applyOffsetToSend(endVehicleCoords.x, endVehicleCoords.y);
         
-        // 6. 生成订单ID
+        // 7. 生成订单ID
         const orderId = socketManager.generateOrderId();
         
-        // 7. 发送出租车订单给指定车辆（使用应用偏移后的车辆坐标系 + 高程Z）
+        // 8. 发送出租车订单给指定车辆（使用应用偏移后的车辆坐标系 + 高程Z）
         const startElevZ = startCoords.elevationZ ?? 0;
         const endElevZ = endCoords.elevationZ ?? 0;
         const result = await socketManager.sendTaxiOrderToVehicle(
@@ -287,7 +306,7 @@ const callTaxi = async () => {
             endElevZ
         );
         
-        // 8. 打车成功后：清除UI文本 + 清除临时图标 + 创建车辆专属图标
+        // 9. 打车成功后：清除UI文本 + 清除临时图标 + 创建车辆专属图标
         carStore.clearTaxiPoints(); // 清除UI文本
         
         // 清除临时图标
@@ -297,10 +316,10 @@ const callTaxi = async () => {
         // 为车辆创建专属的起点终点图标
         createTaxiMarkersForVehicle(assignedVehicleId, startCoords, endCoords);
         
-        // 9. 将车辆添加到打车状态列表（用于后续监听导航状态10）
+        // 10. 将车辆添加到打车状态列表（用于后续监听导航状态10）
         carStore.addActiveTaxiRide(assignedVehicleId, startCoords, endCoords, orderId);
         
-        // 10. 显示成功Toast
+        // 11. 显示成功Toast
         Toast.success(`出租车订单已发送给${assignedVehicleId}号车，请等待车辆响应`);
         
         console.debug(`🚕 出租车订单发送成功 - 订单: ${orderId}, 车辆: ${assignedVehicleId}`);
@@ -309,10 +328,10 @@ const callTaxi = async () => {
         console.debug(`   ℹ️ 已为车辆 ${assignedVehicleId} 创建专属打车图标`);
         
     } catch (error) {
-        // 11. 发送失败：清除UI文本 + 清除沙盘图标
+        // 12. 发送失败：清除UI文本 + 清除沙盘图标
         clearTaxiSelection();
         
-        // 12. 显示失败Toast
+        // 13. 显示失败Toast
         Toast.error(`呼叫出租车失败: ${error.message || error}`);
         
         console.error('呼叫出租车失败:', error);
@@ -586,15 +605,20 @@ const clearTaxiSelection = () => {
     font-size: 12px;
 }
 .map-point-value {
-    flex-grow: 1;
-    height: 32px;
-    padding: 6px 12px;
+    flex: 1 1 0;
+    min-width: 0;
+    width: 0;
+    min-height: 36px;
+    padding: 8px 10px;
+    box-sizing: border-box;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(0, 240, 255, 0.3);
     border-radius: 6px;
     color: var(--text-primary);
     font-size: 12px;
-    margin-right: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* 滚动条样式 */

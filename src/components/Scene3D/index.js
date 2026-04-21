@@ -1728,9 +1728,15 @@ const calculateSandboxDimensions = (model) => {
         z: modelSize.z
     };
     
-    // 验证长宽比（应该接近 6:5 = 1.2）
+    // ⭐ 逻辑尺寸：与实物沙盘物理尺寸一致（用于坐标转换）
+    const LOGICAL_DIMENSIONS = {
+        width: 5.496,   // X轴（米）- 实物沙盘物理尺寸
+        depth: 4.0      // Z轴（米）- 实物沙盘物理尺寸
+    };
+    
+    // 验证长宽比（应该接近 5.496:4.0 = 1.374）
     const aspectRatio = modelSize.x / modelSize.z;
-    console.log(`📊 底座长宽比: ${aspectRatio.toFixed(3)} (应该接近 1.2，即 6:5)`);
+    console.log(`📊 底座长宽比: ${aspectRatio.toFixed(3)} (应该接近 ${(LOGICAL_DIMENSIONS.width / LOGICAL_DIMENSIONS.depth).toFixed(3)})`);
     
     // 坐标范围（用于坐标转换）- 使用底座的**局部坐标**包围盒
     const bounds = {
@@ -1744,12 +1750,6 @@ const calculateSandboxDimensions = (model) => {
             y: baseBoxLocal.max.y,
             z: baseBoxLocal.max.z
         }
-    };
-    
-    // ⭐ 逻辑尺寸：客户端定义的固定尺寸（用于坐标转换）
-    const LOGICAL_DIMENSIONS = {
-        width: 6.0,   // X轴（米）
-        depth: 5.0    // Z轴（米）
     };
     
     const dimensions = {
@@ -1797,7 +1797,7 @@ const calculateSandboxDimensions = (model) => {
         scale: scale
     };
     
-    console.log('📏 沙盘尺寸 - 逻辑: 6.0m × 5.0m (用于坐标转换) ✅');
+    console.log(`📏 沙盘尺寸 - 逻辑: ${LOGICAL_DIMENSIONS.width}m × ${LOGICAL_DIMENSIONS.depth}m (用于坐标转换) ✅`);
     
     // 更新坐标转换模块的动态包围盒
     // 使用底座的**局部坐标**包围盒
@@ -1809,6 +1809,18 @@ const calculateSandboxDimensions = (model) => {
     });
     console.log(`坐标转换包围盒已更新（使用底座局部坐标 ${baseMesh ? baseMesh.name : '整体包围盒'}）`);
     console.log(`   更新后的包围盒: X[${dimensions.bounds.min.x.toFixed(3)} ~ ${dimensions.bounds.max.x.toFixed(3)}], Z[${dimensions.bounds.min.z.toFixed(3)} ~ ${dimensions.bounds.max.z.toFixed(3)}]`);
+    
+    // ★ 模型实际尺寸汇总（方便对比实物）
+    const actualW = dimensions.bounds.max.x - dimensions.bounds.min.x;
+    const actualD = dimensions.bounds.max.z - dimensions.bounds.min.z;
+    console.log(`\n========== 📏 模型地面尺寸汇总 ==========`);
+    console.log(`  模型实际尺寸: X=${actualW.toFixed(4)}m × Z=${actualD.toFixed(4)}m`);
+    console.log(`  逻辑映射尺寸: X=${LOGICAL_DIMENSIONS.width.toFixed(4)}m × Z=${LOGICAL_DIMENSIONS.depth.toFixed(4)}m`);
+    console.log(`  X缩放比: ${(LOGICAL_DIMENSIONS.width / actualW).toFixed(4)} (逻辑/实际)`);
+    console.log(`  Z缩放比: ${(LOGICAL_DIMENSIONS.depth / actualD).toFixed(4)} (逻辑/实际)`);
+    console.log(`  包围盒X: ${dimensions.bounds.min.x.toFixed(4)} ~ ${dimensions.bounds.max.x.toFixed(4)}`);
+    console.log(`  包围盒Z: ${dimensions.bounds.min.z.toFixed(4)} ~ ${dimensions.bounds.max.z.toFixed(4)}`);
+    console.log(`==========================================\n`);
     
     if (groundMesh && groundBox) {
         console.log(`💡 Standardmaterial206 范围（仅用于车辆Y高度计算）:`);

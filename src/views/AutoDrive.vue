@@ -81,14 +81,15 @@
             </div>
             <div class="input-label">选择车位:</div>
 
-            <div class="flex">
+            <div class="flex" style="gap: 8px; justify-content: flex-start;">
                 <input
                     class="map-point-value"
                     placeholder="请在地图上选择停车位"
                     readonly
                     v-model="parking.point"
+                    style="flex: 3 1 0; min-width: 0; width: 0;"
                 />
-                <button class="btn btn-secondary btn-small" @click="selectParkingSpot">
+                <button class="btn btn-secondary btn-small btn-inline" @click="selectParkingSpot">
                     <fa icon="map-marked-alt"></fa>
                     选择车位
                 </button>
@@ -605,9 +606,7 @@ const clearTaxiSelection = () => {
     font-size: 12px;
 }
 .map-point-value {
-    flex: 1 1 0;
-    min-width: 0;
-    width: 0;
+    flex: 1;
     min-height: 36px;
     padding: 8px 10px;
     box-sizing: border-box;

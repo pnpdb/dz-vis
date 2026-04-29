@@ -53,7 +53,7 @@ def build_traffic_light_packet(light1_color, light1_remaining, light2_color, lig
     return bytes(packet)
 
 def main():
-    host = '192.168.1.12'
+    host = '172.16.21.139'
     port = 8888
     
     print(f"🚦 连接到 {host}:{port}")

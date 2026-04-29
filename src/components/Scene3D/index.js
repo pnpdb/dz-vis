@@ -1976,7 +1976,9 @@ const findGroundMesh = () => {
     // 沙盘的 matrixWorld 可能未更新，导致坐标转换错误
     sandboxModel.updateMatrixWorld(true);
     
-    // 支持的地面网格名称列表（按优先级排序）
+    // 优先使用停车位平面（P1/P2）作为路面参考（它们精确地位于道路表面）
+    const roadSurfaceRefNames = ['P1', 'P2'];
+    // 后备：使用地面网格名称列表
     const groundMeshNames = [
         'Standardmaterial206',  // 新沙盘模型（带底座）
         'MD_CaoPing',          // 旧沙盘模型（草坪）
@@ -1988,11 +1990,17 @@ const findGroundMesh = () => {
     
     let foundMesh = null;
     let maxArea = 0;
+    let refMesh = null;  // 路面参考mesh（P1/P2）
     
-    // 遍历沙盘模型，查找地面网格
+    // 遍历沙盘模型，查找路面参考和地面网格
     sandboxModel.traverse((child) => {
+        // P1/P2 可能是任意类型（Mesh、Group、Object3D 等），不限制 isMesh
+        if (!refMesh && roadSurfaceRefNames.some(name => child.name === name)) {
+            refMesh = child;
+        }
+        
         if (child.isMesh && child.geometry) {
-            // 检查名称是否匹配
+            // 同时查找后备地面网格
             const matchesName = groundMeshNames.some(name => 
                 child.name.includes(name)
             );
@@ -2010,6 +2018,11 @@ const findGroundMesh = () => {
             }
         }
     });
+    
+    // 优先使用路面参考mesh
+    if (refMesh) {
+        foundMesh = refMesh;
+    }
     
     if (foundMesh) {
         // 计算世界坐标包围盒
@@ -3450,21 +3463,9 @@ export const createTaxiMarkersForVehicle = (vehicleId, startCoords, endCoords) =
 
     const roadY = getRoadSurfaceY();
     
-    // 计算起点和终点的高架桥高度增量
-    let startElevation = 0;
-    let endElevation = 0;
-    try {
-        // 将模型坐标转换为车辆坐标系
-        const startVehicleCoords = modelToVehicleCoordinates(startCoords.x, startCoords.z);
-        const startElev = calculateVehicleElevation(startVehicleCoords.x, startVehicleCoords.y, null);
-        startElevation = startElev.height;
-        
-        const endVehicleCoords = modelToVehicleCoordinates(endCoords.x, endCoords.z);
-        const endElev = calculateVehicleElevation(endVehicleCoords.x, endVehicleCoords.y, null);
-        endElevation = endElev.height;
-    } catch (error) {
-        console.warn('计算打车标记高度失败，使用地面高度:', error);
-    }
+    // 使用存储的实际模型Y坐标（来自raycaster精确检测），如果没有则回退到roadY
+    const startMarkerY = (typeof startCoords.modelY === 'number') ? startCoords.modelY : roadY;
+    const endMarkerY = (typeof endCoords.modelY === 'number') ? endCoords.modelY : roadY;
     
     // 创建起点标记
     const startTex = ensureStartTexture();
@@ -3487,7 +3488,7 @@ export const createTaxiMarkersForVehicle = (vehicleId, startCoords, endCoords) =
         const aspectRatio = startTextureAspect > 0 ? startTextureAspect : 1.0;
         const height = width / aspectRatio;
         startSprite.scale.set(width, height, 1);
-        startSprite.position.set(startCoords.x, roadY + startElevation + 0.01, startCoords.z);
+        startSprite.position.set(startCoords.x, startMarkerY + 0.01, startCoords.z);
         startSprite.name = `VehicleTaxiStartMarker_${vehicleId}`;
         sandboxModel.add(startSprite);
         
@@ -3501,7 +3502,7 @@ export const createTaxiMarkersForVehicle = (vehicleId, startCoords, endCoords) =
             const endAspectRatio = endTextureAspect > 0 ? endTextureAspect : 1.0;
             const endHeight = width / endAspectRatio;
             endSprite.scale.set(width, endHeight, 1);
-            endSprite.position.set(endCoords.x, roadY + endElevation + 0.01, endCoords.z);
+            endSprite.position.set(endCoords.x, endMarkerY + 0.01, endCoords.z);
             endSprite.name = `VehicleTaxiEndMarker_${vehicleId}`;
             sandboxModel.add(endSprite);
             

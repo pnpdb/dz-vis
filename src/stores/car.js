@@ -261,11 +261,20 @@ export const useCarStore = defineStore('car', {
             const state = this.getOrCreateVehicleState(vehicleId);
             if (!state) return;
             
-            // 1️⃣ 获取原始坐标
+            // 1️⃣ 获取原始坐标（后轮轴中心）
             const rawPosition = vehicleInfo.position || state.state.position;
             
+            // 1.5️⃣ 后轮轴中心 → 车辆模型中心补偿（沿车头方向前移 6.5cm）
+            const REAR_AXLE_TO_CENTER = 0.065; // 米
+            const yaw = vehicleInfo.orientation ?? state.state.orientation ?? 0;
+            const correctedPosition = {
+                x: rawPosition.x + REAR_AXLE_TO_CENTER * Math.cos(yaw),
+                y: rawPosition.y + REAR_AXLE_TO_CENTER * Math.sin(yaw),
+                z: rawPosition.z
+            };
+            
             // 2️⃣ 应用坐标偏移量（接收坐标加偏移量）
-            const offsetPosition = applyOffsetToReceived(rawPosition.x, rawPosition.y);
+            const offsetPosition = applyOffsetToReceived(correctedPosition.x, correctedPosition.y);
             // 保留协议中的 Z 坐标（高程）
             offsetPosition.z = rawPosition.z ?? 0;
             

@@ -494,12 +494,12 @@ class VehiclePath:
         self.vehicle_id = vehicle_id
         
         # 沙盘尺寸（米）
-        self.SANDBOX_WIDTH = 6.0
-        self.SANDBOX_DEPTH = 5.0
+        self.SANDBOX_WIDTH = 5.496
+        self.SANDBOX_DEPTH = 4.0
         
         # 道路边距（沿着内圈走，距离边界0.43m）
-        self.MARGIN_X = 0.43  # X轴边距（内圈）
-        self.MARGIN_Y = 0.43  # Y轴边距（内圈）
+        self.MARGIN_X = 3  # X轴边距（内圈）
+        self.MARGIN_Y = 3  # Y轴边距（内圈）
         
         # 定义矩形路径的四个角点（顺时针绕行）
         # 左下 -> 左上 -> 右上 -> 右下 -> 左下

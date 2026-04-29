@@ -432,12 +432,20 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
         // 查找地面网格并计算道路表面高度（沙盘局部坐标）
         let roadSurfaceY = 0;
         if (!cachedSandboxBox) {
-            // 查找地面网格（支持多种命名）
+            // 优先使用停车位平面（P1/P2）作为路面参考（精确位于道路表面）
+            const roadSurfaceRefNames = ['P1', 'P2'];
             const groundMeshNames = ['Standardmaterial206', 'MD_CaoPing', 'Ground', 'Plane', 'Floor', '地面'];
             let foundGroundMesh = null;
             let maxArea = 0;
+            let refMesh = null;
             
             sandboxModel.traverse((child) => {
+                // P1/P2 可能是任意类型（Mesh、Group、Object3D 等），不限制 isMesh
+                if (!refMesh && roadSurfaceRefNames.some(name => child.name === name)) {
+                    refMesh = child;
+                    console.log(`车辆管理器：找到路面参考对象 "${child.name}" (类型: ${child.type})`);
+                }
+                
                 if (child.isMesh && child.geometry) {
                     const matchesName = groundMeshNames.some(name => child.name.includes(name));
                     if (matchesName) {
@@ -452,6 +460,13 @@ export const addVehicle = async (vehicleId, position, orientation = 0, color = '
                     }
                 }
             });
+            
+            // 优先使用路面参考对象
+            if (refMesh) {
+                const box = new Box3().setFromObject(refMesh);
+                foundGroundMesh = { mesh: refMesh, box };
+                console.log(`车辆管理器：使用 "${refMesh.name}" 作为路面参考, worldBox.max.y=${box.max.y.toFixed(4)}`);
+            }
             
             if (foundGroundMesh) {
                 // 将地面顶部的世界坐标转换为沙盘局部坐标

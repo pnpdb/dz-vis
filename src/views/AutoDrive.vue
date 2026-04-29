@@ -154,14 +154,14 @@ onMounted(() => {
     // 恢复出租车起点和终点标记（如果有的话）
     setTimeout(() => {
         if (carStore.taxi.startCoords) {
-            const { x, z } = carStore.taxi.startCoords;
-            createStartPointMarker(x, z);
+            const { x, z, modelY } = carStore.taxi.startCoords;
+            createStartPointMarker(x, z, modelY ?? null);
             console.log(`恢复起点标记: (${x.toFixed(3)}, ${z.toFixed(3)})`);
         }
         
         if (carStore.taxi.endCoords) {
-            const { x, z } = carStore.taxi.endCoords;
-            createEndPointMarker(x, z);
+            const { x, z, modelY } = carStore.taxi.endCoords;
+            createEndPointMarker(x, z, modelY ?? null);
             console.log(`🏁 恢复终点标记: (${x.toFixed(3)}, ${z.toFixed(3)})`);
         }
     }, 500); // 延迟确保3D场景已初始化
@@ -426,12 +426,14 @@ const selectStartPoint = () => {
             
             // 计算高程 Z（点击位置的模型 Y 减去路面基准高度，地面=0，高架桥=实际高度）
             const roadY = getRoadSurfaceY();
-            const elevationZ = Math.max(0, y - roadY);
+            const rawElevation = Math.max(0, y - roadY);
+            // 地面阈值：路面mesh厚度导致的微小偏差（<0.15m）视为地面
+            const elevationZ = rawElevation < 0.15 ? 0 : rawElevation;
             
-            // 保存模型坐标到store（用于后续计算距离）
+            // 保存模型坐标到store（用于后续计算距离），同时保存实际模型Y用于精确放置图标
             carStore.setTaxiStartPoint(
                 `X: ${vehicleCoords.x.toFixed(3)}m, Y: ${vehicleCoords.y.toFixed(3)}m, Z: ${elevationZ.toFixed(3)}m`, 
-                { x, z, elevationZ }
+                { x, z, elevationZ, modelY: y }
             );
             
             Toast.success('起点已选择');
@@ -459,12 +461,13 @@ const selectEndPoint = () => {
             
             // 计算高程 Z
             const roadY = getRoadSurfaceY();
-            const elevationZ = Math.max(0, y - roadY);
+            const rawElevation = Math.max(0, y - roadY);
+            const elevationZ = rawElevation < 0.15 ? 0 : rawElevation;
             
-            // 保存模型坐标到store（用于后续计算距离）
+            // 保存模型坐标到store（用于后续计算距离），同时保存实际模型Y用于精确放置图标
             carStore.setTaxiEndPoint(
                 `X: ${vehicleCoords.x.toFixed(3)}m, Y: ${vehicleCoords.y.toFixed(3)}m, Z: ${elevationZ.toFixed(3)}m`, 
-                { x, z, elevationZ }
+                { x, z, elevationZ, modelY: y }
             );
             
             Toast.success('终点已选择');

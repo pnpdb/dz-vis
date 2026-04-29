@@ -96,6 +96,12 @@ fn is_private_ip(ip: &str) -> bool {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Linux: 禁用 WebKitGTK 合成模式，修复虚拟机等环境下 WebView 加载失败的问题
+    #[cfg(target_os = "linux")]
+    {
+        std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+    }
+
     // 预读取数据库中的应用设置，用于在日志插件初始化之前配置日志级别、最大文件大小和开机启动
     // 注意：此处需要阻塞式获取，因为插件在 Builder 构建时即完成初始化
     let (initial_log_level, initial_max_file_size_bytes, initial_auto_start) = {

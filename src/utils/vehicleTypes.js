@@ -75,8 +75,8 @@ export const normalizeVehicleData = (vehicleData) => {
     return null;
   }
   
-  // 提取车辆ID（支持多种字段名）
-  const rawId = vehicleData.vehicleId || vehicleData.carId || vehicleData.id || vehicleData.vehicle_id;
+  // 提取车辆ID（支持多种字段名，优先使用vehicle_id而非数据库自增id）
+  const rawId = vehicleData.vehicleId || vehicleData.vehicle_id || vehicleData.carId || vehicleData.id;
   const vehicleId = parseVehicleId(rawId);
   
   // 返回标准化的车辆数据对象

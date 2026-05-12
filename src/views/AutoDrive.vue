@@ -354,14 +354,21 @@ const startParking = async () => {
             return;
         }
 
-        // 3. 检查该车辆是否在线
+        // 3. 检查车辆是否为多线履带式（不支持AVP）
+        const vehicleConfig = carStore.carList.find(v => v.vehicleId === parking.value.car);
+        if (vehicleConfig?.lidarType === 'multi_tracked') {
+            Toast.warning('该车暂不支持自主代客泊车');
+            return;
+        }
+
+        // 4. 检查该车辆是否在线
         const isOnline = socketManager.isVehicleConnected(parking.value.car);
         if (!isOnline) {
             Toast.warning('选中的车辆当前离线，无法执行泊车操作');
             return;
         }
 
-        // 4. 车辆在线，发送AVP泊车指令（带实际车位编号）
+        // 5. 车辆在线，发送AVP泊车指令（带实际车位编号）
         const result = await socketManager.sendAvpParking(parking.value.car, parking.value.slotId);
         
         // 5. 发送成功，显示成功Toast

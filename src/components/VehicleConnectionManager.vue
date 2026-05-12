@@ -68,7 +68,7 @@
                     </div>
                     <div class="detail-item">
                         <span class="detail-label">雷达类型:</span>
-                        <span class="detail-value">{{ connection.lidar_type === 'multi' ? '多线' : '单线' }}</span>
+                        <span class="detail-value">{{ { single: '单线激光雷达', multi_ackermann: '多线激光雷达-阿克曼', multi_tracked: '多线激光雷达-履带式', multi: '多线(旧)' }[connection.lidar_type] || '单线' }}</span>
                     </div>
                     <div class="detail-item" v-if="connection.description">
                         <span class="detail-label">描述:</span>
@@ -150,7 +150,8 @@
                         style="width: 100%"
                     >
                         <el-option label="单线激光雷达" value="single" />
-                        <el-option label="多线激光雷达" value="multi" />
+                        <el-option label="多线激光雷达-阿克曼" value="multi_ackermann" />
+                        <el-option label="多线激光雷达的-履带式" value="multi_tracked" />
                     </el-select>
                 </el-form-item>
                 <el-form-item label="描述" prop="description">

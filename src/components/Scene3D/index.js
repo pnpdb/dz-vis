@@ -800,6 +800,13 @@ const loadModelsWithProgress = async () => {
                         initPathRenderer(scene, sandboxModel);
                         console.log('路径渲染器已初始化（使用沙盘模型）');
                         
+                        // 🧪 测试：绘制路径50-52验证Z轴补全效果（延迟确保地面高度已缓存）
+                        // setTimeout(() => {
+                        //     import('@/utils/routeTestDraw.js').then(({ drawTestRoutes }) => {
+                        //         drawTestRoutes();
+                        //     }).catch(err => console.warn('测试路径绘制跳过:', err));
+                        // }, 1000);
+                        
                         // 初始化红绿灯管理器
                         const trafficLightInitSuccess = initTrafficLightManager(sandboxModel);
                         if (trafficLightInitSuccess) {

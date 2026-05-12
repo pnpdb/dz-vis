@@ -10,7 +10,7 @@ pub struct VehicleConnection {
     pub name: String,       // 车辆显示名称
     pub description: Option<String>, // 描述信息
     pub color: Option<String>,       // 车辆颜色（十六进制格式，如 #409EFF）
-    pub lidar_type: Option<String>,  // 激光雷达类型: "single"=单线, "multi"=多线
+    pub lidar_type: Option<String>,  // 激光雷达类型: "single"=单线, "multi_ackermann"=多线阿克曼, "multi_tracked"=多线履带
     pub is_active: bool,    // 是否启用
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

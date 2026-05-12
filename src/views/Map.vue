@@ -345,8 +345,8 @@ const startConstructionMark = () => {
         // 计算高程Z：模型Y - 路面基准高度
         const roadY = getRoadSurfaceY();
         const rawElevation = Math.max(0, (y ?? 0) - roadY);
-        // 地面阈值：路面mesh厚度导致的微小偏差（<0.15m）视为地面
-        const elevationZ = rawElevation < 0.15 ? 0 : rawElevation;
+        // 地面阈值：路面mesh厚度导致的微小偏差（<0.01m）视为地面
+        const elevationZ = rawElevation < 0.01 ? 0 : rawElevation;
         
         if (res) {
             // 显示车辆坐标系的坐标，但保存模型坐标用于后续操作

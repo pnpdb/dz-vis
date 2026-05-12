@@ -667,12 +667,20 @@ export const useCarStore = defineStore('car', {
                     continue;
                 }
                 
-                // 如果需要多线激光雷达，检查车辆的雷达类型
+                // 检查车辆的雷达类型
+                const vehicleConfig = this.carList.find(v => v.vehicleId === vehicleId);
+                const lidarType = vehicleConfig?.lidarType || 'single';
+                
+                // 多线履带式车辆不参与出租车分配
+                if (lidarType === 'multi_tracked') {
+                    console.log(`🚫 车辆${vehicleId}为多线履带式，不参与出租车分配，跳过`);
+                    continue;
+                }
+                
+                // 如果需要多线激光雷达，排除单线车辆
                 if (requireMultiLidar) {
-                    const vehicleConfig = this.carList.find(v => v.vehicleId === vehicleId);
-                    const lidarType = vehicleConfig?.lidarType || 'single';
-                    if (lidarType !== 'multi') {
-                        console.log(`🚫 车辆${vehicleId}为单线激光雷达，需要多线，跳过`);
+                    if (!lidarType.startsWith('multi')) {
+                        console.log(`🚫 车辆${vehicleId}为单线激光雷达(${lidarType})，需要多线，跳过`);
                         continue;
                     }
                 }
